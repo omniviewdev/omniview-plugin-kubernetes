@@ -10,6 +10,7 @@ import { LuFileCode, LuSave, LuX } from "react-icons/lu";
 
 interface Props {
   kind?: string;
+  resourceKey?: string;
   data?: KubernetesResourceObject;
   children?: React.ReactNode;
   onSubmit?: (value: Record<string, any>) => void;
@@ -18,12 +19,15 @@ interface Props {
 /**
  * Displays the baseline editor for the monaco editor
  */
-export const BaseEditorPage: React.FC<Props> = ({ data, kind, onSubmit }) => {
+export const BaseEditorPage: React.FC<Props> = ({ data, kind, resourceKey, onSubmit }) => {
   const [value, setValue] = React.useState<string>(stringify(data))
   const [usingDiff, setUsingDiff] = React.useState<boolean>(false)
   const [changed, setChanged] = React.useState<boolean>(false)
 
   const filename = kind ? `${kind}/${data?.metadata?.uid}/spec.yaml` : `${data?.metadata?.uid}/spec.yaml`
+  // Use the resource key to construct a path that matches the schema fileMatch pattern
+  // e.g. "file:///core::v1::Pod/spec.yaml" matches fileMatch "**/core::v1::Pod/*.yaml"
+  const editorPath = resourceKey ? `file:///${resourceKey}/spec.yaml` : undefined
 
   const onChange = (value: string) => {
     if (!changed) {
@@ -68,6 +72,7 @@ export const BaseEditorPage: React.FC<Props> = ({ data, kind, onSubmit }) => {
         onChange={onChange}
         language="yaml"
         filename={filename}
+        path={editorPath}
       />
       <Stack direction='row' justifyContent='space-between'>
         <Button

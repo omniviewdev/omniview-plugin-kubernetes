@@ -84,6 +84,7 @@ const ResourceLinkChip: React.FC<Props> = ({
       connectionID,
       resourceKey,
       resourceID,
+      resourceName: resourceID,
       namespace,
     });
   };

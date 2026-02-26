@@ -7,6 +7,7 @@ import BrillianceBlack from "./themes/BrillianceBlack";
 
 type Props = {
   filename: string;
+  path?: string;
   height?: string | number;
   language?: string;
   value: string;
@@ -20,6 +21,7 @@ const CodeEditor: FC<Props> = ({
   height,
   language,
   filename,
+  path,
   value,
   onChange,
   readOnly,
@@ -99,6 +101,7 @@ const CodeEditor: FC<Props> = ({
           handleChange(value || "");
         }}
         height={height ?? "100%"}
+        path={path}
         options={{ readOnly, fontSize: 11 }}
       />
     );

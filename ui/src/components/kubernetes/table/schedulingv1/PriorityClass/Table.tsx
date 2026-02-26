@@ -55,7 +55,7 @@ const PriorityClassTable: React.FC = () => {
       {
         title: 'Editor',
         icon: <LuCode />,
-        component: (ctx) => <BaseEditorPage data={ctx.data || {}} />
+        component: (ctx) => <BaseEditorPage data={ctx.data || {}} resourceKey={ctx.resource?.key} />
       }
     ],
     actions: []

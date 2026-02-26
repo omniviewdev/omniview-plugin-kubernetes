@@ -34,6 +34,7 @@ const ResourceTableBody: React.FC<Props> = ({ table, tableContainerRef, drawer, 
       data,
       resource: {
         id,
+        name: data?.metadata?.name ?? id,
         key: resourceKey,
         connectionID,
         pluginID: 'kubernetes',

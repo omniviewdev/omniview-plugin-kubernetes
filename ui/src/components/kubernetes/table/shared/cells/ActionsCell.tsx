@@ -38,6 +38,7 @@ function buildDrawerContext(props: Props): DrawerContext {
     data: props.data,
     resource: {
       id: meta?.name ?? props.resourceID,
+      name: meta?.name ?? props.resourceID,
       key: props.resourceKey,
       connectionID: props.connectionID,
       pluginID: 'kubernetes',

@@ -36,8 +36,8 @@ export function createStandardViews<T = any>(opts: {
       title: 'Editor',
       icon: <LuCode />,
       component: onEditorSubmit
-        ? (ctx) => <BaseEditorPage data={ctx.data as any} onSubmit={(val) => onEditorSubmit(ctx, val)} />
-        : (ctx) => <BaseEditorPage data={ctx.data as any} />,
+        ? (ctx) => <BaseEditorPage data={ctx.data as any} resourceKey={ctx.resource?.key} onSubmit={(val) => onEditorSubmit(ctx, val)} />
+        : (ctx) => <BaseEditorPage data={ctx.data as any} resourceKey={ctx.resource?.key} />,
     },
   ];
 }

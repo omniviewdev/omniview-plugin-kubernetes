@@ -17,6 +17,7 @@ import {
   useResourceGroups,
   useSnackbar,
   usePluginRouter,
+  useEditorSchemas,
 } from '@omniviewdev/runtime';
 
 // Layout
@@ -51,6 +52,19 @@ export default function ClusterResourcesPage(): React.ReactElement {
     setSavedExpandedState(state);
   }, [setSavedExpandedState]);
   const { isFullySynced, summary } = useInformerState({ pluginID: 'kubernetes', connectionID: id });
+
+  // Fetch and register OpenAPI schemas with the host's Monaco schema registry
+  const { schemas: editorSchemas } = useEditorSchemas({ pluginID: 'kubernetes', connectionID: id });
+  React.useEffect(() => {
+    const registry = (window as any).__monacoSchemaRegistry;
+    if (!registry || !editorSchemas?.length || !id) return;
+
+    registry.register('kubernetes', id, editorSchemas);
+
+    return () => {
+      registry.unregister('kubernetes', id);
+    };
+  }, [editorSchemas, id]);
 
   const { showSnackbar } = useSnackbar();
 
