@@ -10,12 +10,15 @@ import { Text } from "@omniviewdev/ui/typography";
 
 // project imports
 import KVCard from "../../../shared/KVCard";
+import ResourceLinkChip from "../../../shared/ResourceLinkChip";
 
 // types
 import type { Pod, Toleration } from "kubernetes-types/core/v1";
 
 interface Props {
   pod: Pod;
+  /** When provided, the Service Account chip becomes clickable */
+  connectionID?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -130,7 +133,7 @@ const TolerationRow: React.FC<{ toleration: Toleration; isLast: boolean }> = ({ 
 // PodConfigSection
 // ---------------------------------------------------------------------------
 
-const PodConfigSection: React.FC<Props> = ({ pod }) => {
+const PodConfigSection: React.FC<Props> = ({ pod, connectionID }) => {
   const spec = pod.spec;
   if (!spec) return null;
 
@@ -156,7 +159,22 @@ const PodConfigSection: React.FC<Props> = ({ pod }) => {
         </Box>
         <Divider />
         <Box sx={{ py: 0.5, px: 1, bgcolor: "background.level1" }}>
-          <ConfigEntry label="Service Account" value={spec.serviceAccountName || "default"} />
+          <ConfigEntry
+            label="Service Account"
+            value={
+              connectionID ? (
+                <ResourceLinkChip
+                  connectionID={connectionID}
+                  resourceKey="core::v1::ServiceAccount"
+                  resourceID={spec.serviceAccountName || "default"}
+                  resourceName={spec.serviceAccountName || "default"}
+                  namespace={pod.metadata?.namespace}
+                />
+              ) : (
+                spec.serviceAccountName || "default"
+              )
+            }
+          />
           <ConfigEntry label="Restart Policy" value={spec.restartPolicy || "Always"} />
           <ConfigEntry label="DNS Policy" value={spec.dnsPolicy || "ClusterFirst"} />
           <ConfigEntry label="Scheduler" value={spec.schedulerName || "default-scheduler"} />

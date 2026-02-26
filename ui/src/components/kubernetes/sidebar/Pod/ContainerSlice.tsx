@@ -16,6 +16,7 @@ import {
 import { ContainerStatusDecorator } from "./ContainerStatuses";
 import { getStatus } from "./utils";
 import Icon from "../../../shared/Icon";
+import ResourceLinkChip from "../../../shared/ResourceLinkChip";
 import DetailsCard, { DetailsCardEntry } from "../../../shared/DetailsCard";
 import PortDetailsCard from "./PortDetailsCard";
 import { formatRelative } from "date-fns";
@@ -140,6 +141,19 @@ function getVolumeType(
   if (vol.csi) return "CSI";
   if (vol.nfs) return "NFS";
   return "Unknown";
+}
+
+/** Get the resource reference for a volume (name + resourceKey), if it references a linkable resource. */
+function getVolumeResourceRef(
+  volumes: Volume[] | undefined,
+  name: string,
+): { resourceName: string; resourceKey: string } | undefined {
+  const vol = volumes?.find((v) => v.name === name);
+  if (!vol) return undefined;
+  if (vol.configMap?.name) return { resourceName: vol.configMap.name, resourceKey: "core::v1::ConfigMap" };
+  if (vol.secret?.secretName) return { resourceName: vol.secret.secretName, resourceKey: "core::v1::Secret" };
+  if (vol.persistentVolumeClaim?.claimName) return { resourceName: vol.persistentVolumeClaim.claimName, resourceKey: "core::v1::PersistentVolumeClaim" };
+  return undefined;
 }
 
 function volumeTypeColor(
@@ -528,17 +542,29 @@ function formatEnvEntry(
   env: NonNullable<Container["env"]>[number],
   pod?: Pod,
   container?: Container,
+  connectionID?: string,
 ): DetailsCardEntry {
+  const ns = pod?.metadata?.namespace;
+
   if (env.valueFrom) {
     const vf = env.valueFrom;
 
     if (vf.configMapKeyRef) {
+      const cmName = vf.configMapKeyRef.name || "?";
       return {
         key: env.name,
-        value: `${vf.configMapKeyRef.name || "?"} \u2192 ${vf.configMapKeyRef.key}`,
+        value: `${cmName} \u2192 ${vf.configMapKeyRef.key}`,
         icon: "LuFileText",
         ratio: [5, 7],
-        endAdornment: (
+        endAdornment: connectionID && cmName !== "?" ? (
+          <ResourceLinkChip
+            connectionID={connectionID}
+            resourceKey="core::v1::ConfigMap"
+            resourceID={cmName}
+            resourceName="ConfigMap"
+            namespace={ns}
+          />
+        ) : (
           <Chip
             size="xs"
             emphasis="soft"
@@ -551,12 +577,21 @@ function formatEnvEntry(
     }
 
     if (vf.secretKeyRef) {
+      const secretName = vf.secretKeyRef.name || "?";
       return {
         key: env.name,
-        value: `${vf.secretKeyRef.name || "?"} \u2192 ${vf.secretKeyRef.key}`,
+        value: `${secretName} \u2192 ${vf.secretKeyRef.key}`,
         icon: "LuKeyRound",
         ratio: [5, 7],
-        endAdornment: (
+        endAdornment: connectionID && secretName !== "?" ? (
+          <ResourceLinkChip
+            connectionID={connectionID}
+            resourceKey="core::v1::Secret"
+            resourceID={secretName}
+            resourceName="Secret"
+            namespace={ns}
+          />
+        ) : (
           <Chip
             size="xs"
             emphasis="soft"
@@ -675,13 +710,15 @@ const ContainerSlice: React.FC<ContainerSliceProps> = ({
 
   // ── Environment variables (resolved refs where possible) ──
   const envData: DetailsCardEntry[] | undefined = container.env?.map((env) =>
-    formatEnvEntry(env, pod, container),
+    formatEnvEntry(env, pod, container, connectionID),
   );
 
   // ── Volume mounts (enriched with volume type from pod spec) ──
+  const namespace = pod?.metadata?.namespace;
   const mountsData: DetailsCardEntry[] | undefined =
     container.volumeMounts?.map((vm) => {
       const volType = getVolumeType(volumes, vm.name);
+      const volRef = getVolumeResourceRef(volumes, vm.name);
       return {
         key: vm.name,
         icon: vm.readOnly ? "LuLock" : "LuPencil",
@@ -689,7 +726,15 @@ const ContainerSlice: React.FC<ContainerSliceProps> = ({
           vm.mountPath +
           (vm.subPath ? `/${vm.subPath}` : "") +
           (vm.subPathExpr ? ` (${vm.subPathExpr})` : ""),
-        endAdornment: volType ? (
+        endAdornment: volRef && connectionID ? (
+          <ResourceLinkChip
+            connectionID={connectionID}
+            resourceKey={volRef.resourceKey}
+            resourceID={volRef.resourceName}
+            resourceName={volType || volRef.resourceName}
+            namespace={namespace}
+          />
+        ) : volType ? (
           <Chip
             size="xs"
             emphasis="soft"

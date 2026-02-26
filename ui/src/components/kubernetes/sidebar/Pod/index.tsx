@@ -73,9 +73,9 @@ export const PodSidebar: React.FC<Props> = ({ ctx }) => {
     <Stack direction="column" width="100%" spacing={2}>
       {/* Pod details — tightly grouped */}
       <Stack direction="column" spacing={0.5}>
-        <MetadataSection data={pod.metadata} />
-        <PodStatusSection pod={pod} />
-        <PodConfigSection pod={pod} />
+        <MetadataSection data={pod.metadata} connectionID={connectionID} />
+        <PodStatusSection pod={pod} connectionID={connectionID} />
+        <PodConfigSection pod={pod} connectionID={connectionID} />
       </Stack>
 
       {/* Containers — separated by section heading */}
@@ -88,7 +88,7 @@ export const PodSidebar: React.FC<Props> = ({ ctx }) => {
       />
 
       {/* Volumes — separated by section heading */}
-      <PodVolumesSection pod={pod} />
+      <PodVolumesSection pod={pod} connectionID={connectionID} namespace={pod.metadata?.namespace} />
     </Stack>
   );
 };

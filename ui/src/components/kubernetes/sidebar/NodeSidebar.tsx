@@ -74,7 +74,7 @@ export const NodeSidebar: React.FC<Props> = ({ ctx }) => {
     <Stack direction="column" width="100%" spacing={2}>
       {/* Core details — tightly grouped */}
       <Stack direction="column" spacing={0.5}>
-        <MetadataSection data={node.metadata} />
+        <MetadataSection data={node.metadata} connectionID={connectionID} />
         <NodeStatusSection node={node} />
         <NodeSystemSection node={node} />
       </Stack>

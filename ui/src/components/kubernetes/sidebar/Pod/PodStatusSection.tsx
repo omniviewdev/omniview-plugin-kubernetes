@@ -10,6 +10,7 @@ import { Text } from "@omniviewdev/ui/typography";
 
 // project imports
 import ConditionChip from "../../../shared/ConditionChip";
+import ResourceLinkChip from "../../../shared/ResourceLinkChip";
 
 // types
 import type { Pod } from "kubernetes-types/core/v1";
@@ -20,6 +21,8 @@ import { formatRelative } from "date-fns";
 
 interface Props {
   pod: Pod;
+  /** When provided, the Node chip becomes clickable and opens the Node sidebar */
+  connectionID?: string;
 }
 
 const phaseColor = (phase?: string): "success" | "warning" | "primary" | "danger" | "neutral" => {
@@ -60,7 +63,7 @@ const StatusEntry: React.FC<{
   );
 };
 
-const PodStatusSection: React.FC<Props> = ({ pod }) => {
+const PodStatusSection: React.FC<Props> = ({ pod, connectionID }) => {
   const phase = pod.status?.phase;
   const qosClass = pod.status?.qosClass;
   const podIP = pod.status?.podIP;
@@ -131,13 +134,22 @@ const PodStatusSection: React.FC<Props> = ({ pod }) => {
           label="Node"
           value={
             nodeName ? (
-              <Chip
-                size="xs"
-                color="primary"
-                emphasis="soft"
-                sx={{ borderRadius: 1 }}
-                label={nodeName}
-              />
+              connectionID ? (
+                <ResourceLinkChip
+                  connectionID={connectionID}
+                  resourceKey="core::v1::Node"
+                  resourceID={nodeName}
+                  resourceName={nodeName}
+                />
+              ) : (
+                <Chip
+                  size="xs"
+                  color="primary"
+                  emphasis="soft"
+                  sx={{ borderRadius: 1 }}
+                  label={nodeName}
+                />
+              )
             ) : undefined
           }
         />

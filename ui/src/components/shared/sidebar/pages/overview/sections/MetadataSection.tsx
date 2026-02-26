@@ -16,9 +16,12 @@ import { formatRelative } from "date-fns";
 
 // custom components
 import KVCard from "../../../../KVCard";
+import ResourceLinkChip, { ownerRefToResourceKey } from "../../../../ResourceLinkChip";
 
 interface Props {
   data?: ObjectMeta;
+  /** When provided, owner reference chips become clickable and open the referenced resource's sidebar */
+  connectionID?: string;
 }
 
 const ObjectMetaEntry: React.FC<{
@@ -40,7 +43,7 @@ const ObjectMetaEntry: React.FC<{
   </Grid>
 );
 
-const MetadataSection: React.FC<Props> = ({ data }) => {
+const MetadataSection: React.FC<Props> = ({ data, connectionID }) => {
   if (!data) {
     return null;
   }
@@ -81,22 +84,30 @@ const MetadataSection: React.FC<Props> = ({ data }) => {
             value={formatRelative(new Date(), new Date(data.deletionTimestamp))}
           />}
           {data.resourceVersion && <ObjectMetaEntry title="Version" value={data.resourceVersion} />}
-          {/** TODO: change this to be a linkable chip instead of normal chip */}
           {!!data.ownerReferences?.length && <ObjectMetaEntry
             title={data.ownerReferences?.length > 1 ? "Owners" : "Owner"}
             value={
               <Stack direction='row'>
                 {data.ownerReferences.map((ref) => (
-                  <Chip
-                    key={ref.uid}
-                    size='sm'
-                    emphasis='soft'
-                    color='primary'
-                    sx={{
-                      borderRadius: 2,
-                    }}
-                    label={ref.kind}
-                  />
+                  connectionID ? (
+                    <ResourceLinkChip
+                      key={ref.uid}
+                      connectionID={connectionID}
+                      resourceKey={ownerRefToResourceKey(ref)}
+                      resourceID={ref.name}
+                      resourceName={ref.kind}
+                      namespace={data.namespace}
+                    />
+                  ) : (
+                    <Chip
+                      key={ref.uid}
+                      size='sm'
+                      emphasis='soft'
+                      color='primary'
+                      sx={{ borderRadius: 2 }}
+                      label={ref.kind}
+                    />
+                  )
                 ))}
               </Stack>
             }

@@ -9,22 +9,41 @@ import { Text } from "@omniviewdev/ui/typography";
 // project imports
 import DetailsCard, { DetailsCardEntry } from "../../../shared/DetailsCard";
 import ExpandableSections from "../../../shared/ExpandableSections";
+import ResourceLinkChip from "../../../shared/ResourceLinkChip";
 
 // types
 import type { Pod, Volume } from "kubernetes-types/core/v1";
 
 interface Props {
   pod: Pod;
+  /** When provided, resource references (ConfigMap, Secret, PVC) become clickable */
+  connectionID?: string;
+  namespace?: string;
 }
 
 function getVolumeInfo(
   volume: Volume,
+  connectionID?: string,
+  namespace?: string,
 ): { type: string; details: DetailsCardEntry[] } {
   if (volume.configMap) {
+    const name = volume.configMap.name || "";
     return {
       type: "ConfigMap",
       details: [
-        { key: "ConfigMap Name", value: volume.configMap.name || "" },
+        {
+          key: "ConfigMap Name",
+          value: name,
+          endAdornment: connectionID && name ? (
+            <ResourceLinkChip
+              connectionID={connectionID}
+              resourceKey="core::v1::ConfigMap"
+              resourceID={name}
+              resourceName="ConfigMap"
+              namespace={namespace}
+            />
+          ) : undefined,
+        },
         ...(volume.configMap.optional != null
           ? [{ key: "Optional", value: String(volume.configMap.optional) }]
           : []),
@@ -41,10 +60,23 @@ function getVolumeInfo(
   }
 
   if (volume.secret) {
+    const name = volume.secret.secretName || "";
     return {
       type: "Secret",
       details: [
-        { key: "Secret Name", value: volume.secret.secretName || "" },
+        {
+          key: "Secret Name",
+          value: name,
+          endAdornment: connectionID && name ? (
+            <ResourceLinkChip
+              connectionID={connectionID}
+              resourceKey="core::v1::Secret"
+              resourceID={name}
+              resourceName="Secret"
+              namespace={namespace}
+            />
+          ) : undefined,
+        },
         ...(volume.secret.optional != null
           ? [{ key: "Optional", value: String(volume.secret.optional) }]
           : []),
@@ -61,10 +93,23 @@ function getVolumeInfo(
   }
 
   if (volume.persistentVolumeClaim) {
+    const claimName = volume.persistentVolumeClaim.claimName;
     return {
       type: "PVC",
       details: [
-        { key: "Claim Name", value: volume.persistentVolumeClaim.claimName },
+        {
+          key: "Claim Name",
+          value: claimName,
+          endAdornment: connectionID && claimName ? (
+            <ResourceLinkChip
+              connectionID={connectionID}
+              resourceKey="core::v1::PersistentVolumeClaim"
+              resourceID={claimName}
+              resourceName="PVC"
+              namespace={namespace}
+            />
+          ) : undefined,
+        },
         {
           key: "Read Only",
           value: String(volume.persistentVolumeClaim.readOnly ?? false),
@@ -197,12 +242,12 @@ const SectionHeading: React.FC<{ label: string; count: number }> = ({
   </Stack>
 );
 
-const PodVolumesSection: React.FC<Props> = ({ pod }) => {
+const PodVolumesSection: React.FC<Props> = ({ pod, connectionID, namespace }) => {
   const volumes = pod.spec?.volumes;
   if (!volumes || volumes.length === 0) return null;
 
   const sections = volumes.map((volume) => {
-    const { type, details } = getVolumeInfo(volume);
+    const { type, details } = getVolumeInfo(volume, connectionID, namespace);
     return {
       icon: "LuHardDrive",
       title: volume.name,
