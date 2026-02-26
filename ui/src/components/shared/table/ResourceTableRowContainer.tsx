@@ -64,10 +64,18 @@ export const RowContainer: React.FC<Props> = ({
         backgroundColor: isSelected ? 'var(--ov-accent-subtle)' : 'var(--ov-bg-base)',
       }}
       onMouseEnter={(e) => {
-        if (!isSelected) e.currentTarget.style.backgroundColor = 'var(--ov-state-hover)';
+        if (!isSelected) {
+          e.currentTarget.style.backgroundColor = 'var(--ov-state-hover)';
+          for (const td of e.currentTarget.querySelectorAll<HTMLElement>('[data-pinned]')) {
+            td.style.backgroundColor = 'var(--ov-bg-base)';
+          }
+        }
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.backgroundColor = isSelected ? 'var(--ov-accent-subtle)' : 'var(--ov-bg-base)';
+        for (const td of e.currentTarget.querySelectorAll<HTMLElement>('[data-pinned]')) {
+          td.style.backgroundColor = 'inherit';
+        }
       }}
     >
       {row.getVisibleCells().map(cell => {
@@ -77,6 +85,7 @@ export const RowContainer: React.FC<Props> = ({
         return (
           <td
             key={cell.id}
+            data-pinned={cell.column.getIsPinned() || undefined}
             onClick={() => {
               handleRowClick(cell.column.id);
             }}
