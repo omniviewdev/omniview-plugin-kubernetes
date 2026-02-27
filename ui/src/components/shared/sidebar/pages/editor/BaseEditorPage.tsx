@@ -7,6 +7,8 @@ import { stringify, parse } from 'yaml';
 import { KubernetesResourceObject } from '../../../../../types/resource';
 import CodeEditor from '../../../CodeEditor';
 
+const outerStackSx = { flex: 1 } as const;
+
 interface Props {
   kind?: string;
   resourceKey?: string;
@@ -65,7 +67,7 @@ export const BaseEditorPage: React.FC<Props> = ({ data, kind, resourceKey, onSub
 
   // compose your component here
   return (
-    <Stack sx={{ flex: 1 }} gap={1} direction="column">
+    <Stack sx={outerStackSx} gap={1} direction="column">
       <CodeEditor
         diff={usingDiff}
         original={stringify(data)}

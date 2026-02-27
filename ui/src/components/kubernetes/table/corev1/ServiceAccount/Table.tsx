@@ -18,6 +18,13 @@ import ResourceLinkCell from '../Pod/cells/ResourceLinkCell';
 
 import ServiceAccountSidebar from './Sidebar';
 
+const hideScrollbarSx = {
+  scrollbarWidth: 'none',
+  '&::-webkit-scrollbar': {
+    display: 'none',
+  },
+} as const;
+
 const resourceKey = 'core::v1::ServiceAccount';
 
 const ServiceAccountTable: React.FC = () => {
@@ -47,13 +54,7 @@ const ServiceAccountTable: React.FC = () => {
                   direction={'row'}
                   overflow={'scroll'}
                   gap={0.25}
-                  sx={{
-                    scrollbarWidth: 'none',
-                    // hide scrollbar
-                    '&::-webkit-scrollbar': {
-                      display: 'none',
-                    },
-                  }}
+                  sx={hideScrollbarSx}
                 >
                   {refs.map((v) => (
                     <ResourceLinkCell
@@ -92,13 +93,7 @@ const ServiceAccountTable: React.FC = () => {
                   direction={'row'}
                   overflow={'scroll'}
                   gap={0.25}
-                  sx={{
-                    scrollbarWidth: 'none',
-                    // hide scrollbar
-                    '&::-webkit-scrollbar': {
-                      display: 'none',
-                    },
-                  }}
+                  sx={hideScrollbarSx}
                 >
                   {refs.map((v) => (
                     <ResourceLinkCell

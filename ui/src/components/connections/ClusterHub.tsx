@@ -35,6 +35,16 @@ import HubSection from './HubSection';
 import QuickConnectGrid from './QuickConnectGrid';
 import RowHandler from './RowHandler';
 
+const hubStackSx = { p: 0.5, pb: 2 } as const;
+
+const dragOverlayCardSx = {
+  p: 1,
+  opacity: 0.8,
+  boxShadow: 'md',
+  width: 200,
+  pointerEvents: 'none',
+} as const;
+
 /** Shape of the drag data attached to connection items in dnd-kit */
 interface ConnectionDragData {
   type: 'connection';
@@ -204,7 +214,7 @@ const ClusterHub: React.FC<Props> = ({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <Stack gap={1} sx={{ p: 0.5, pb: 2 }}>
+      <Stack gap={1} sx={hubStackSx}>
         {/* Zone 1: Quick-connect grid -- always visible, cards are draggable */}
         <QuickConnectGrid
           connections={enrichedConnections}
@@ -243,13 +253,7 @@ const ClusterHub: React.FC<Props> = ({
         {draggedConnection && (
           <Card
             variant="outlined"
-            sx={{
-              p: 1,
-              opacity: 0.8,
-              boxShadow: 'md',
-              width: 200,
-              pointerEvents: 'none',
-            }}
+            sx={dragOverlayCardSx}
           >
             <Text size="sm" weight="semibold" noWrap>
               {draggedConnection.displayName}
@@ -326,7 +330,7 @@ const SectionRenderer: React.FC<{
   onToggleFavorite,
   onEditFolder,
 }) => {
-  const { config, title, data, groupId, groupColor, groupIcon, emptyHint } = section;
+  const { config, title, data, groupId, groupColor, groupIcon, groupCustomImage, emptyHint } = section;
   const isRecent = config.type === 'recent';
   const isBrowse = config.type === 'browse';
   const isGroup = config.type.startsWith('group:');
@@ -341,6 +345,7 @@ const SectionRenderer: React.FC<{
       variant={isBrowse ? 'passthrough' : 'grid'}
       folderColor={groupColor}
       folderIcon={groupIcon}
+      folderCustomImage={groupCustomImage}
       onEdit={isGroup && groupId && onEditFolder ? () => onEditFolder(groupId) : undefined}
       showEmpty={isGroup}
       emptyHint={emptyHint}

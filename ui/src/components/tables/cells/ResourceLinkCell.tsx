@@ -22,6 +22,12 @@ import {
 
 import { type ResourceMetadata } from '../../../hooks/useResourceDefinition';
 
+// ---------------------------------------------------------------------------
+// Static styles
+// ---------------------------------------------------------------------------
+
+const linkChipSx = { borderRadius: 1, maxWidth: '100%' } as const;
+
 type KindConfig = { color: SemanticColor; icon: React.ReactElement };
 
 const kindConfigMap: Record<string, KindConfig> = {
@@ -116,7 +122,7 @@ const ResourceLinkCell: React.FC<Props> = ({
               {label}
             </Text>
           }
-          sx={{ borderRadius: 1, maxWidth: '100%' }}
+          sx={linkChipSx}
         />
       </Tooltip>
     );
@@ -134,7 +140,7 @@ const ResourceLinkCell: React.FC<Props> = ({
           {label}
         </Text>
       }
-      sx={{ borderRadius: 1, maxWidth: '100%' }}
+      sx={linkChipSx}
     />
   );
 };

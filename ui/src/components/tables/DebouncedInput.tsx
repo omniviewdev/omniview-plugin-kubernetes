@@ -3,6 +3,37 @@ import Box from '@mui/material/Box';
 import InputBase from '@mui/material/InputBase';
 import { useState, useEffect } from 'react';
 
+const containerSx = {
+  display: 'flex',
+  alignItems: 'center',
+  flex: 1,
+  maxWidth: 360,
+  height: 28,
+  border: '1px solid var(--ov-border-default)',
+  borderRadius: '4px',
+  bgcolor: 'var(--ov-bg-base)',
+  px: 0.75,
+  '&:focus-within': { borderColor: 'var(--ov-accent)' },
+} as const;
+
+const searchIconSx = { fontSize: 14, color: 'var(--ov-fg-faint)', mr: 0.5 } as const;
+
+const inputSx = {
+  flex: 1,
+  fontSize: '0.75rem',
+  color: 'var(--ov-fg-default)',
+  '& input': { py: 0, px: 0 },
+  '& input::placeholder': { color: 'var(--ov-fg-faint)', opacity: 1 },
+} as const;
+
+const clearIconSx = {
+  fontSize: 14,
+  color: 'var(--ov-fg-faint)',
+  cursor: 'pointer',
+  ml: 0.5,
+  '&:hover': { color: 'var(--ov-fg-default)' },
+} as const;
+
 export type DebounceProps = {
   value: string;
   onChange: (value: string) => void;
@@ -44,20 +75,9 @@ export function DebouncedInput({
 
   return (
     <Box
-      sx={{
-        display: 'flex',
-        alignItems: 'center',
-        flex: 1,
-        maxWidth: 360,
-        height: 28,
-        border: '1px solid var(--ov-border-default)',
-        borderRadius: '4px',
-        bgcolor: 'var(--ov-bg-base)',
-        px: 0.75,
-        '&:focus-within': { borderColor: 'var(--ov-accent)' },
-      }}
+      sx={containerSx}
     >
-      <Search sx={{ fontSize: 14, color: 'var(--ov-fg-faint)', mr: 0.5 }} />
+      <Search sx={searchIconSx} />
       <InputBase
         value={value}
         onChange={(e) => setValue(e.target.value)}
@@ -65,23 +85,11 @@ export function DebouncedInput({
         // eslint-disable-next-line jsx-a11y/no-autofocus
         autoFocus={autoFocus}
         autoComplete="off"
-        sx={{
-          flex: 1,
-          fontSize: '0.75rem',
-          color: 'var(--ov-fg-default)',
-          '& input': { py: 0, px: 0 },
-          '& input::placeholder': { color: 'var(--ov-fg-faint)', opacity: 1 },
-        }}
+        sx={inputSx}
       />
       {value && (
         <Close
-          sx={{
-            fontSize: 14,
-            color: 'var(--ov-fg-faint)',
-            cursor: 'pointer',
-            ml: 0.5,
-            '&:hover': { color: 'var(--ov-fg-default)' },
-          }}
+          sx={clearIconSx}
           onClick={handleClear}
         />
       )}

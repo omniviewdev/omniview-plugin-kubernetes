@@ -19,6 +19,13 @@ import { ChipListCell } from '../../shared/cells/ChipList';
 import { CopyableCell } from '../../shared/cells/CopyableCell';
 import { withNamespacedResourceColumns } from '../../shared/columns';
 
+const hideScrollbarSx = {
+  scrollbarWidth: 'none',
+  '&::-webkit-scrollbar': {
+    display: 'none',
+  },
+} as const;
+
 const resourceKey = 'networking::v1::Ingress';
 
 const IngressTable: React.FC = () => {
@@ -96,13 +103,7 @@ const IngressTable: React.FC = () => {
                   direction={'row'}
                   overflow={'scroll'}
                   gap={0.25}
-                  sx={{
-                    scrollbarWidth: 'none',
-                    // hide scrollbar
-                    '&::-webkit-scrollbar': {
-                      display: 'none',
-                    },
-                  }}
+                  sx={hideScrollbarSx}
                 >
                   {val.map((v) => (
                     <ResourceLinkCell

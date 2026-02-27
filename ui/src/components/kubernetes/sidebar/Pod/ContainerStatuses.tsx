@@ -15,6 +15,8 @@ import Icon from '../../../shared/Icon';
 import ContainerStatusCard from './ContainerStatusCard';
 import { getStatus } from './utils';
 
+const decoratorChipSx = { borderRadius: 'sm', px: 1 } as const;
+
 /**
  * Details on a why a container was terminated
  */
@@ -106,10 +108,7 @@ export const ContainerStatusDecorator: React.FC<{
     >
       <Chip
         size="sm"
-        sx={{
-          borderRadius: 'sm',
-          px: 1,
-        }}
+        sx={decoratorChipSx}
         color={statusInfo.color}
         emphasis={getVariant()}
         startAdornment={statusInfo.icon && <Icon name={statusInfo.icon} size={16} />}

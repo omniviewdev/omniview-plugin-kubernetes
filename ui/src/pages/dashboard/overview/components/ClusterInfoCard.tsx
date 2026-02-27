@@ -5,6 +5,21 @@ import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
 import type { NodeCondition, Node as K8sNode, Event as K8sEvent, Pod  } from 'kubernetes-types/core/v1';
 import React from 'react';
+
+const statIconSx = { display: 'flex', color: 'text.tertiary' } as const;
+
+const statLabelSx = { fontWeight: 600 } as const;
+
+const cardRowSx = {
+  py: 0.75,
+  borderBottom: '1px solid',
+  borderColor: 'divider',
+} as const;
+
+const statListSx = { minWidth: 0 } as const;
+
+const healthChipSx = { flexShrink: 0, ml: 1.5 } as const;
+
 import {
   LuCircleCheck,
   LuCircleX,
@@ -52,8 +67,8 @@ function StatItem({ icon, label, value }: { icon: React.ReactNode; label: string
   const empty = value === '-';
   return (
     <Stack direction="row" alignItems="center" gap={0.5}>
-      <Box sx={{ display: 'flex', color: 'text.tertiary' }}>{icon}</Box>
-      <Text size="xs" sx={{ fontWeight: 600 }} noWrap>
+      <Box sx={statIconSx}>{icon}</Box>
+      <Text size="xs" sx={statLabelSx} noWrap>
         {label}
       </Text>
       <Text
@@ -105,7 +120,7 @@ const ClusterInfoCard: React.FC<Props> = ({ data, loading, nodes, pods, events }
         direction="row"
         alignItems="center"
         gap={1}
-        sx={{ py: 0.75, borderBottom: '1px solid', borderColor: 'divider' }}
+        sx={cardRowSx}
       >
         <CircularProgress size="sm" />
       </Stack>
@@ -122,11 +137,7 @@ const ClusterInfoCard: React.FC<Props> = ({ data, loading, nodes, pods, events }
       direction="row"
       alignItems="center"
       justifyContent="space-between"
-      sx={{
-        py: 0.75,
-        borderBottom: '1px solid',
-        borderColor: 'divider',
-      }}
+      sx={cardRowSx}
     >
       {/* Left: cluster info + stats with dividers */}
       <Stack
@@ -134,7 +145,7 @@ const ClusterInfoCard: React.FC<Props> = ({ data, loading, nodes, pods, events }
         alignItems="center"
         divider={<Divider orientation="vertical" flexItem />}
         gap={1.5}
-        sx={{ minWidth: 0 }}
+        sx={statListSx}
       >
         <StatItem icon={<LuGlobe size={12} />} label="Cluster" value={data?.server_url ?? '-'} />
         <StatItem
@@ -170,7 +181,7 @@ const ClusterInfoCard: React.FC<Props> = ({ data, loading, nodes, pods, events }
         emphasis="soft"
         color={healthColor}
         startAdornment={<HealthIcon size={12} />}
-        sx={{ flexShrink: 0, ml: 1.5 }}
+        sx={healthChipSx}
         label={health.issues.length === 0 ? 'Healthy' : health.issues.join(' \u00b7 ')}
       />
     </Stack>

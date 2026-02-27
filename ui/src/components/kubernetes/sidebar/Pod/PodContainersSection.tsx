@@ -8,6 +8,31 @@ import React from 'react';
 
 import ContainerSlice from './ContainerSlice';
 
+const sectionHeadingSx = { mb: 0.75 } as const;
+const sectionHeadingTextSx = {
+  color: 'text.secondary',
+  textTransform: 'uppercase',
+  letterSpacing: '0.08em',
+  fontSize: 11,
+  flexShrink: 0,
+} as const;
+const sectionCountChipSx = { borderRadius: 1, flexShrink: 0 } as const;
+const sectionDividerSx = { flex: 1, height: '1px', bgcolor: 'divider' } as const;
+const groupHeaderSx = { px: 1.25, pt: 0.75, pb: 0.25 } as const;
+const groupHeaderTextSx = {
+  color: 'neutral.400',
+  fontSize: 10,
+  textTransform: 'uppercase',
+  letterSpacing: 0.5,
+} as const;
+const containerBoxSx = {
+  borderRadius: 1,
+  border: '1px solid',
+  borderColor: 'divider',
+  bgcolor: 'background.level1',
+  overflow: 'hidden',
+} as const;
+
 type ContainerType = 'container' | 'init' | 'ephemeral';
 
 interface ParsedContainer {
@@ -71,17 +96,11 @@ function parseContainers(pod: Pod, resourceID: string, connectionID: string): Pa
 
 // ── IDE-style section heading ──
 const SectionHeading: React.FC<{ label: string; count: number }> = ({ label, count }) => (
-  <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 0.75 }}>
+  <Stack direction="row" alignItems="center" gap={1} sx={sectionHeadingSx}>
     <Text
       size="xs"
       weight="semibold"
-      sx={{
-        color: 'text.secondary',
-        textTransform: 'uppercase',
-        letterSpacing: '0.08em',
-        fontSize: 11,
-        flexShrink: 0,
-      }}
+      sx={sectionHeadingTextSx}
     >
       {label}
     </Text>
@@ -89,25 +108,20 @@ const SectionHeading: React.FC<{ label: string; count: number }> = ({ label, cou
       size="xs"
       emphasis="outline"
       color="primary"
-      sx={{ borderRadius: 1, flexShrink: 0 }}
+      sx={sectionCountChipSx}
       label={String(count)}
     />
-    <Box sx={{ flex: 1, height: '1px', bgcolor: 'divider' }} />
+    <Box sx={sectionDividerSx} />
   </Stack>
 );
 
 // ── Sub-group header for init/ephemeral containers ──
 const GroupHeader: React.FC<{ label: string }> = ({ label }) => (
-  <Box sx={{ px: 1.25, pt: 0.75, pb: 0.25 }}>
+  <Box sx={groupHeaderSx}>
     <Text
       size="xs"
       weight="semibold"
-      sx={{
-        color: 'neutral.400',
-        fontSize: 10,
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-      }}
+      sx={groupHeaderTextSx}
     >
       {label}
     </Text>
@@ -141,15 +155,7 @@ const PodContainersSection: React.FC<ContainersSectionProps> = ({
   return (
     <Box>
       <SectionHeading label="Containers" count={parsed.length} />
-      <Box
-        sx={{
-          borderRadius: 1,
-          border: '1px solid',
-          borderColor: 'divider',
-          bgcolor: 'background.level1',
-          overflow: 'hidden',
-        }}
-      >
+      <Box sx={containerBoxSx}>
         {initContainers.length > 0 && (
           <>
             <GroupHeader label="Init Containers" />
@@ -231,15 +237,7 @@ export const PodContainersSectionFromPodSpec: React.FC<{
   return (
     <Box>
       <SectionHeading label="Containers" count={containers.length} />
-      <Box
-        sx={{
-          borderRadius: 1,
-          border: '1px solid',
-          borderColor: 'divider',
-          bgcolor: 'background.level1',
-          overflow: 'hidden',
-        }}
-      >
+      <Box sx={containerBoxSx}>
         {initContainers.length > 0 && (
           <>
             <GroupHeader label="Init Containers" />

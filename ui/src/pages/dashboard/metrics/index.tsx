@@ -24,6 +24,16 @@ import { useParams } from 'react-router-dom';
 
 import { useClusterPreferences } from '../../../hooks/useClusterPreferences';
 
+const emptyStateSx = { p: 3, textAlign: 'center' } as const;
+
+const pageSx = { p: 1.5, overflow: 'auto', height: '100%', width: '100%', flex: 1 } as const;
+
+const chartGridSx = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+  gap: 1.5,
+} as const;
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -239,10 +249,10 @@ const METRICS_CHARTS: ChartDef[] = [
 
 const ClusterDashboardMetricsPage: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
-  const [timeRange, setTimeRange] = React.useState<ChartTimeRange>({
+  const [timeRange, setTimeRange] = React.useState<ChartTimeRange>(() => ({
     from: new Date(Date.now() - 3600000),
     to: new Date(),
-  });
+  }));
 
   const { connectionOverrides } = useClusterPreferences('kubernetes');
   const metricConfig = connectionOverrides[id]?.metricConfig;
@@ -323,7 +333,7 @@ const ClusterDashboardMetricsPage: React.FC = () => {
 
   if (providers.length === 0 && !isLoading) {
     return (
-      <Box sx={{ p: 3, textAlign: 'center' }}>
+      <Box sx={emptyStateSx}>
         <Typography variant="body2" color="text.secondary">
           No metric providers available. Ensure Prometheus is running in your cluster.
         </Typography>
@@ -336,14 +346,10 @@ const ClusterDashboardMetricsPage: React.FC = () => {
   );
 
   return (
-    <Box sx={{ p: 1.5, overflow: 'auto', height: '100%', width: '100%', flex: 1 }}>
+    <Box sx={pageSx}>
       <Stack gap={1.5}>
         <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
-            gap: 1.5,
-          }}
+          sx={chartGridSx}
         >
           {(isLoading && activeCharts.length === 0 ? METRICS_CHARTS : activeCharts).map((def) => {
             const series: TimeSeriesDef[] = [];

@@ -76,13 +76,121 @@ interface Props {
   ctx: DrawerContext<HelmChart>;
 }
 
+const metaLabelSx = { color: 'neutral.400', flexShrink: 0 } as const;
+
+const metaValueSx = { fontWeight: 400, color: 'neutral.100', textAlign: 'right' } as const;
+
+const outerStackSx = { height: '100%', minHeight: 0 } as const;
+
+const headerSectionSx = { flexShrink: 0 } as const;
+
+const headerCardSx = { p: 1.5, borderRadius: 'sm' } as const;
+
+const iconWrapperSx = {
+  width: 40,
+  height: 40,
+  borderRadius: 'sm',
+  bgcolor: 'rgba(255,255,255,0.08)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flexShrink: 0,
+} as const;
+
+const iconImgSx = { width: 36, height: 36, objectFit: 'contain', borderRadius: 'xs' } as const;
+
+const titleStackSx = { flex: 1 } as const;
+
+const repoNameSx = { color: 'neutral.400' } as const;
+
+const descriptionSx = { color: 'neutral.300' } as const;
+
+const versionLabelSx = { color: 'neutral.400', flexShrink: 0 } as const;
+
+const homeLinkSx = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 0.5,
+  textDecoration: 'none',
+  color: 'primary.300',
+} as const;
+
+const homeLinkTextSx = { color: 'primary.300' } as const;
+
+const tabsSx = { borderRadius: 'sm', bgcolor: 'transparent' } as const;
+
+const scrollableContentSx = { flex: 1, minHeight: 0, overflow: 'auto', pt: 1 } as const;
+
+const sectionCardSx = { p: 1.25, borderRadius: 'sm' } as const;
+
+const sectionHeadingSx = { mb: 0.5 } as const;
+
+const maintainerTextSx = { color: 'neutral.300' } as const;
+
+const maintainerLinkSx = { ml: 0.5, color: 'primary.300', textDecoration: 'none' } as const;
+
+const depRepoSx = { color: 'neutral.500' } as const;
+
+const readmeWrapperSx = {
+  '& img': { maxWidth: '100%' },
+  '& .wmde-markdown': { fontSize: '0.8125rem', lineHeight: 1.5 },
+  '& .wmde-markdown h1': { fontSize: '1.25rem', mt: 1, mb: 0.5 },
+  '& .wmde-markdown h2': { fontSize: '1.1rem', mt: 1, mb: 0.5 },
+  '& .wmde-markdown h3': { fontSize: '0.95rem', mt: 0.75, mb: 0.25 },
+  '& .wmde-markdown h4, & .wmde-markdown h5, & .wmde-markdown h6': {
+    fontSize: '0.875rem',
+    mt: 0.5,
+    mb: 0.25,
+  },
+  '& .wmde-markdown p': { fontSize: '0.8125rem', mb: 0.75 },
+  '& .wmde-markdown li': { fontSize: '0.8125rem' },
+  '& .wmde-markdown code': { fontSize: '0.75rem' },
+  '& .wmde-markdown pre': { fontSize: '0.75rem' },
+  '& .wmde-markdown table': { fontSize: '0.8125rem' },
+  '& .wmde-markdown blockquote': { fontSize: '0.8125rem' },
+} as const;
+
+const emptyTextSx = { color: 'neutral.400' } as const;
+
+const valuesContainerSx = {
+  position: 'relative',
+  height: 500,
+  border: '1px solid',
+  borderColor: 'neutral.700',
+  borderRadius: 'sm',
+  overflow: 'hidden',
+} as const;
+
+const copyButtonSx = {
+  position: 'absolute',
+  top: 6,
+  right: 6,
+  zIndex: 10,
+  bgcolor: 'rgba(0,0,0,0.5)',
+  backdropFilter: 'blur(4px)',
+  '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' },
+} as const;
+
+const versionsListSx = {
+  border: '1px solid',
+  borderColor: 'neutral.800',
+  borderRadius: 'sm',
+  overflow: 'hidden',
+} as const;
+
+const appVersionSx = { color: 'neutral.500', minWidth: 80, flexShrink: 0 } as const;
+
+const badgesStackSx = { flex: 1, minWidth: 0 } as const;
+
+const dateTextSx = { color: 'neutral.600', flexShrink: 0 } as const;
+
 const MetaEntry: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
   <Stack direction="row" justifyContent="space-between" alignItems="center">
-    <Text sx={{ color: 'neutral.400', flexShrink: 0 }} size="sm">
+    <Text sx={metaLabelSx} size="sm">
       {label}
     </Text>
     <Text
-      sx={{ fontWeight: 400, color: 'neutral.100', textAlign: 'right' }}
+      sx={metaValueSx}
       weight="semibold"
       size="sm"
     >
@@ -245,42 +353,33 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
   const valuesContent = valuesEntry?.values;
 
   return (
-    <Stack direction="column" width="100%" sx={{ height: '100%', minHeight: 0 }}>
+    <Stack direction="column" width="100%" sx={outerStackSx}>
       {/* ── Fixed header section ── */}
-      <Stack direction="column" spacing={1.5} sx={{ flexShrink: 0 }}>
+      <Stack direction="column" spacing={1.5} sx={headerSectionSx}>
         {/* Header card */}
-        <Card sx={{ p: 1.5, borderRadius: 'sm' }} emphasis="outline">
+        <Card sx={headerCardSx} emphasis="outline">
           <Stack direction="column" spacing={1}>
             <Stack direction="row" spacing={1.5} alignItems="center">
               {icon && !iconFailed ? (
                 <Box
-                  sx={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 'sm',
-                    bgcolor: 'rgba(255,255,255,0.08)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                  }}
+                  sx={iconWrapperSx}
                 >
                   <Box
                     component="img"
                     src={icon}
                     alt={chartName}
                     onError={() => setIconFailed(true)}
-                    sx={{ width: 36, height: 36, objectFit: 'contain', borderRadius: 'xs' }}
+                    sx={iconImgSx}
                   />
                 </Box>
               ) : (
                 <NamedAvatar value={chartName} />
               )}
-              <Stack direction="column" spacing={0} sx={{ flex: 1 }}>
+              <Stack direction="column" spacing={0} sx={titleStackSx}>
                 <Text weight="semibold" size="lg">
                   {chartName}
                 </Text>
-                <Text size="xs" sx={{ color: 'neutral.400' }}>
+                <Text size="xs" sx={repoNameSx}>
                   {repoName}
                 </Text>
               </Stack>
@@ -296,7 +395,7 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
             </Stack>
 
             {description && (
-              <Text size="sm" sx={{ color: 'neutral.300' }}>
+              <Text size="sm" sx={descriptionSx}>
                 {description}
               </Text>
             )}
@@ -306,7 +405,7 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
             {/* Version dropdown + meta */}
             {versionOptions.length > 0 && (
               <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Text size="sm" sx={{ color: 'neutral.400', flexShrink: 0 }}>
+                <Text size="sm" sx={versionLabelSx}>
                   Version
                 </Text>
                 <Select
@@ -331,15 +430,9 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
                     href={displayHome}
                     target="_blank"
                     rel="noopener noreferrer"
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 0.5,
-                      textDecoration: 'none',
-                      color: 'primary.300',
-                    }}
+                    sx={homeLinkSx}
                   >
-                    <Text size="sm" sx={{ color: 'primary.300' }}>
+                    <Text size="sm" sx={homeLinkTextSx}>
                       {displayHome}
                     </Text>
                     <LuExternalLink size={12} />
@@ -374,24 +467,24 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
           value={activeTab}
           onChange={(v) => setActiveTab(v)}
           size="sm"
-          sx={{ borderRadius: 'sm', bgcolor: 'transparent' }}
+          sx={tabsSx}
         />
       </Stack>
 
       {/* ── Scrollable tab content ── */}
-      <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', pt: 1 }}>
+      <Box sx={scrollableContentSx}>
         {/* Overview tab */}
         <TabPanel value="overview" activeValue={activeTab}>
           <Stack direction="column" spacing={1.5}>
             {/* Maintainers */}
             {maintainers.length > 0 && (
-              <Card sx={{ p: 1.25, borderRadius: 'sm' }} emphasis="outline">
-                <Text weight="semibold" size="sm" sx={{ mb: 0.5 }}>
+              <Card sx={sectionCardSx} emphasis="outline">
+                <Text weight="semibold" size="sm" sx={sectionHeadingSx}>
                   Maintainers
                 </Text>
                 <Stack direction="column" spacing={0.5}>
                   {maintainers.map((m) => (
-                    <Text key={m.name} size="xs" sx={{ color: 'neutral.300' }}>
+                    <Text key={m.name} size="xs" sx={maintainerTextSx}>
                       {m.name}
                       {m.email ? ` <${m.email}>` : ''}
                       {m.url && (
@@ -400,7 +493,7 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
                           href={m.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          sx={{ ml: 0.5, color: 'primary.300', textDecoration: 'none' }}
+                          sx={maintainerLinkSx}
                         >
                           <LuExternalLink size={10} />
                         </Box>
@@ -413,8 +506,8 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
 
             {/* Keywords */}
             {keywords.length > 0 && (
-              <Card sx={{ p: 1.25, borderRadius: 'sm' }} emphasis="outline">
-                <Text weight="semibold" size="sm" sx={{ mb: 0.5 }}>
+              <Card sx={sectionCardSx} emphasis="outline">
+                <Text weight="semibold" size="sm" sx={sectionHeadingSx}>
                   Keywords
                 </Text>
                 <Stack direction="row" spacing={0.5} flexWrap="wrap">
@@ -427,8 +520,8 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
 
             {/* Dependencies from chart data */}
             {data.dependencies && data.dependencies.length > 0 && (
-              <Card sx={{ p: 1.25, borderRadius: 'sm' }} emphasis="outline">
-                <Text weight="semibold" size="sm" sx={{ mb: 0.5 }}>
+              <Card sx={sectionCardSx} emphasis="outline">
+                <Text weight="semibold" size="sm" sx={sectionHeadingSx}>
                   Dependencies
                 </Text>
                 <Stack direction="column" spacing={0.5}>
@@ -441,7 +534,7 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
                         <Chip size="sm" emphasis="soft" color="neutral" label={dep.version} />
                       )}
                       {dep.repository && (
-                        <Text size="xs" sx={{ color: 'neutral.500' }}>
+                        <Text size="xs" sx={depRepoSx}>
                           {dep.repository}
                         </Text>
                       )}
@@ -457,34 +550,16 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
         <TabPanel value="readme" activeValue={activeTab}>
           {readmeContent ? (
             <Box
-              sx={{
-                '& img': { maxWidth: '100%' },
-                // Scale down all markdown content
-                '& .wmde-markdown': { fontSize: '0.8125rem', lineHeight: 1.5 },
-                '& .wmde-markdown h1': { fontSize: '1.25rem', mt: 1, mb: 0.5 },
-                '& .wmde-markdown h2': { fontSize: '1.1rem', mt: 1, mb: 0.5 },
-                '& .wmde-markdown h3': { fontSize: '0.95rem', mt: 0.75, mb: 0.25 },
-                '& .wmde-markdown h4, & .wmde-markdown h5, & .wmde-markdown h6': {
-                  fontSize: '0.875rem',
-                  mt: 0.5,
-                  mb: 0.25,
-                },
-                '& .wmde-markdown p': { fontSize: '0.8125rem', mb: 0.75 },
-                '& .wmde-markdown li': { fontSize: '0.8125rem' },
-                '& .wmde-markdown code': { fontSize: '0.75rem' },
-                '& .wmde-markdown pre': { fontSize: '0.75rem' },
-                '& .wmde-markdown table': { fontSize: '0.8125rem' },
-                '& .wmde-markdown blockquote': { fontSize: '0.8125rem' },
-              }}
+              sx={readmeWrapperSx}
             >
               <MarkdownPreview source={readmeContent} />
             </Box>
           ) : readmeContent === '' ? (
-            <Text size="sm" sx={{ color: 'neutral.400' }}>
+            <Text size="sm" sx={emptyTextSx}>
               No README available for this chart.
             </Text>
           ) : (
-            <Text size="sm" sx={{ color: 'neutral.400' }}>
+            <Text size="sm" sx={emptyTextSx}>
               Loading README...
             </Text>
           )}
@@ -493,14 +568,7 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
         {/* Values tab */}
         <TabPanel value="values" activeValue={activeTab}>
           <Box
-            sx={{
-              position: 'relative',
-              height: 500,
-              border: '1px solid',
-              borderColor: 'neutral.700',
-              borderRadius: 'sm',
-              overflow: 'hidden',
-            }}
+            sx={valuesContainerSx}
           >
             <CodeEditor
               filename="values.yaml"
@@ -517,15 +585,7 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
               onClick={handleCopyValues}
               title={copied ? 'Copied!' : 'Copy values'}
               disabled={!valuesContent}
-              sx={{
-                position: 'absolute',
-                top: 6,
-                right: 6,
-                zIndex: 10,
-                bgcolor: 'rgba(0,0,0,0.5)',
-                backdropFilter: 'blur(4px)',
-                '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' },
-              }}
+              sx={copyButtonSx}
             >
               {copied ? <LuCheck size={12} /> : <LuClipboardCopy size={12} />}
             </IconButton>
@@ -538,12 +598,7 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
             <Stack
               direction="column"
               spacing={0}
-              sx={{
-                border: '1px solid',
-                borderColor: 'neutral.800',
-                borderRadius: 'sm',
-                overflow: 'hidden',
-              }}
+              sx={versionsListSx}
             >
               {versions.map((v, i) => {
                 const isSelected = v.version === selectedVersion;
@@ -582,12 +637,12 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
                     </Text>
 
                     {/* App version */}
-                    <Text size="xs" sx={{ color: 'neutral.500', minWidth: 80, flexShrink: 0 }}>
+                    <Text size="xs" sx={appVersionSx}>
                       {v.appVersion || '—'}
                     </Text>
 
                     {/* Badges */}
-                    <Stack direction="row" spacing={0.5} sx={{ flex: 1, minWidth: 0 }}>
+                    <Stack direction="row" spacing={0.5} sx={badgesStackSx}>
                       {isSelected && (
                         <Chip size="sm" emphasis="soft" color="primary" label="Selected" />
                       )}
@@ -599,7 +654,7 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
                     {/* Date */}
                     {v.created && (
                       <Box component="span" title={formatDate(v.created)}>
-                        <Text size="xs" sx={{ color: 'neutral.600', flexShrink: 0 }}>
+                        <Text size="xs" sx={dateTextSx}>
                           {relativeTime(v.created)}
                         </Text>
                       </Box>
@@ -609,7 +664,7 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
               })}
             </Stack>
           ) : (
-            <Text size="sm" sx={{ color: 'neutral.400' }}>
+            <Text size="sm" sx={emptyTextSx}>
               Loading versions...
             </Text>
           )}

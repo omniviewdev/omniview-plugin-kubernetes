@@ -13,6 +13,9 @@ import ResourceTable from '../../shared/table/ResourceTable';
 import ChartSidebar from './ChartSidebar';
 
 const resourceKey = 'helm::v1::Chart';
+
+const nameCellSx = { display: 'flex', alignItems: 'center', gap: 1, overflow: 'hidden' } as const;
+const truncateTextSx = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } as const;
 const ICON_SIZE = 20;
 
 /** Shape of a Helm chart row as rendered in the table. */
@@ -108,11 +111,11 @@ const HelmChartTable: React.FC = () => {
         accessorKey: 'name',
         size: 220,
         cell: ({ row, getValue }) => (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, overflow: 'hidden' }}>
+          <Box sx={nameCellSx}>
             <ChartIcon icon={row.original.icon} name={getValue() as string} />
             <Text
               size="sm"
-              sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+              sx={truncateTextSx}
             >
               {getValue() as string}
             </Text>
@@ -128,7 +131,7 @@ const HelmChartTable: React.FC = () => {
         cell: ({ getValue }) => (
           <Text
             size="sm"
-            sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+            sx={truncateTextSx}
           >
             {getValue() as string}
           </Text>

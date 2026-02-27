@@ -4,6 +4,20 @@ import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
 import React from 'react';
 
+// ---------------------------------------------------------------------------
+// Static styles
+// ---------------------------------------------------------------------------
+
+const wrapperSx = { position: 'relative' } as const;
+const rowStackSx = { flex: 1, px: 1, alignItems: 'center', justifyContent: 'flex-start' } as const;
+const labelSx = { pl: 0.5 } as const;
+const submenuSx = {
+  position: 'absolute',
+  right: '100%',
+  top: 0,
+  zIndex: 10,
+} as const;
+
 type ActionMenuListItemProps = {
   icon: React.ReactElement;
   menu: React.ReactElement;
@@ -35,7 +49,7 @@ function ActionMenuListItem({
   };
 
   return (
-    <Box sx={{ position: 'relative' }}>
+    <Box sx={wrapperSx}>
       <Box
         component="button"
         onMouseDown={() => {
@@ -72,10 +86,10 @@ function ActionMenuListItem({
         <Stack
           direction="row"
           gap={1}
-          sx={{ flex: 1, px: 1, alignItems: 'center', justifyContent: 'flex-start' }}
+          sx={rowStackSx}
         >
           {icon}
-          <Text sx={{ pl: 0.5 }} size="sm">
+          <Text sx={labelSx} size="sm">
             {children}
           </Text>
         </Stack>
@@ -85,12 +99,7 @@ function ActionMenuListItem({
           onMouseLeave={() => {
             onLeaveMenu(() => isOnButton.current);
           }}
-          sx={{
-            position: 'absolute',
-            right: '100%',
-            top: 0,
-            zIndex: 10,
-          }}
+          sx={submenuSx}
         >
           {menu}
         </Box>

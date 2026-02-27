@@ -11,6 +11,47 @@ type Props = {
   onToggleColumn: (column: string) => void;
 };
 
+const backdropStyle = { position: 'fixed', inset: 0, zIndex: 999 } as const;
+
+const dropdownSx = {
+  position: 'absolute',
+  right: 0,
+  top: '100%',
+  mt: 0.5,
+  zIndex: 1000,
+  borderRadius: 'var(--ov-radius-md, 6px)',
+  boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+  minWidth: 160,
+  maxHeight: 280,
+  overflow: 'auto',
+  py: 0.5,
+  px: 0.5,
+  border: '1px solid var(--ov-border-default, rgba(255,255,255,0.08))',
+  bgcolor: 'var(--ov-bg-surface, #1e1e1e)',
+} as const;
+
+const headingSx = {
+  px: 0.5,
+  pb: 0.25,
+  color: 'var(--ov-fg-muted)',
+  textTransform: 'uppercase',
+  letterSpacing: '0.04em',
+  fontSize: '0.625rem',
+} as const;
+
+const columnRowSx = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 0.75,
+  py: 0.25,
+  px: 0.5,
+  cursor: 'pointer',
+  borderRadius: 'var(--ov-radius-sm, 4px)',
+  '&:hover': { bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))' },
+} as const;
+
+const columnLabelSx = { userSelect: 'none' } as const;
+
 function formatColumnName(key: string): string {
   return key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
@@ -42,38 +83,16 @@ const ColumnPicker: React.FC<Props> = ({ allColumns, visibleColumns, onToggleCol
           {/* Backdrop */}
           {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
           <div
-            style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+            style={backdropStyle}
             onClick={() => setOpen(false)}
           />
           <Box
-            sx={{
-              position: 'absolute',
-              right: 0,
-              top: '100%',
-              mt: 0.5,
-              zIndex: 1000,
-              borderRadius: 'var(--ov-radius-md, 6px)',
-              boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
-              minWidth: 160,
-              maxHeight: 280,
-              overflow: 'auto',
-              py: 0.5,
-              px: 0.5,
-              border: '1px solid var(--ov-border-default, rgba(255,255,255,0.08))',
-              bgcolor: 'var(--ov-bg-surface, #1e1e1e)',
-            }}
+            sx={dropdownSx}
           >
             <Text
               size="xs"
               weight="semibold"
-              sx={{
-                px: 0.5,
-                pb: 0.25,
-                color: 'var(--ov-fg-muted)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.04em',
-                fontSize: '0.625rem',
-              }}
+              sx={headingSx}
             >
               Visible Columns
             </Text>
@@ -81,23 +100,14 @@ const ColumnPicker: React.FC<Props> = ({ allColumns, visibleColumns, onToggleCol
               <Box
                 key={col}
                 onClick={() => onToggleColumn(col)}
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 0.75,
-                  py: 0.25,
-                  px: 0.5,
-                  cursor: 'pointer',
-                  borderRadius: 'var(--ov-radius-sm, 4px)',
-                  '&:hover': { bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))' },
-                }}
+                sx={columnRowSx}
               >
                 <Checkbox
                   size="sm"
                   checked={visibleColumns.includes(col)}
                   onChange={() => onToggleColumn(col)}
                 />
-                <Text size="xs" sx={{ userSelect: 'none' }}>
+                <Text size="xs" sx={columnLabelSx}>
                   {formatColumnName(col)}
                 </Text>
               </Box>

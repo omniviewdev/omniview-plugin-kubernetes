@@ -7,6 +7,12 @@ import React from 'react';
 // project imports
 import Icon from '../../shared/Icon';
 
+// ---------------------------------------------------------------------------
+// Static styles
+// ---------------------------------------------------------------------------
+
+const chipSx = { borderRadius: 'sm' } as const;
+
 type Props = {
   value: string;
   color?: 'success' | 'warning' | 'danger' | 'primary' | 'neutral';
@@ -60,9 +66,7 @@ export const ChipCell: React.FC<Props> = ({
         size="sm"
         color={getColor()}
         emphasis={getEmphasis()}
-        sx={{
-          borderRadius: 'sm',
-        }}
+        sx={chipSx}
         startAdornment={
           typeof startDecorator === 'string' ? (
             <Icon name={startDecorator} size={16} />

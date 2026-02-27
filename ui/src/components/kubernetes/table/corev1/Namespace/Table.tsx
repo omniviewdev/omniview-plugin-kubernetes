@@ -20,6 +20,8 @@ import ContainerPhaseCell from '../Pod/cells/ContainerPhaseCell';
 
 import NamespaceSidebar from './Sidebar';
 
+const chipBorderRadiusSx = { borderRadius: '2px' } as const;
+
 const resourceKey = 'core::v1::Namespace';
 
 const NamespaceTable: React.FC = () => {
@@ -39,7 +41,7 @@ const NamespaceTable: React.FC = () => {
             accessorKey: 'spec.finalizers',
             cell: ({ getValue }) =>
               (getValue() as string[] | undefined)?.map((f) => (
-                <Chip key={f} size="sm" sx={{ borderRadius: '2px' }} color={'primary'} label={f} />
+                <Chip key={f} size="sm" sx={chipBorderRadiusSx} color={'primary'} label={f} />
               )) ?? '',
             size: 250,
             meta: {

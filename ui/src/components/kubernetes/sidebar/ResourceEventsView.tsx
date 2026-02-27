@@ -10,6 +10,12 @@ import { LuList, LuGitCommitHorizontal } from 'react-icons/lu';
 
 import { useResourceEvents } from '../../../hooks/useResourceEvents';
 
+const outerStackSx = { width: '100%', flex: 1 } as const;
+
+const headerBarSx = { px: 1.5, py: 1, borderBottom: '1px solid var(--ov-border-muted)' } as const;
+
+const filterChipsSx = { px: 1.5, py: 0.75 } as const;
+
 type EventFilter = 'all' | 'Normal' | 'Warning';
 
 type ResourceEventsViewProps = {
@@ -54,13 +60,13 @@ const ResourceEventsView: React.FC<ResourceEventsViewProps> = ({ ctx }) => {
   }
 
   return (
-    <Stack direction="column" gap={0} sx={{ width: '100%', flex: 1 }}>
+    <Stack direction="column" gap={0} sx={outerStackSx}>
       {/* Header bar */}
       <Stack
         direction="row"
         align="center"
         justify="between"
-        sx={{ px: 1.5, py: 1, borderBottom: '1px solid var(--ov-border-muted)' }}
+        sx={headerBarSx}
       >
         <Stack direction="row" align="center" gap={1}>
           <Text weight="semibold" size="sm">
@@ -95,7 +101,7 @@ const ResourceEventsView: React.FC<ResourceEventsViewProps> = ({ ctx }) => {
       </Stack>
 
       {/* Filter chips */}
-      <Stack direction="row" gap={0.5} sx={{ px: 1.5, py: 0.75 }}>
+      <Stack direction="row" gap={0.5} sx={filterChipsSx}>
         {(['all', 'Normal', 'Warning'] as EventFilter[]).map((f) => (
           <Chip
             key={f}

@@ -9,6 +9,8 @@ import CodeEditor from '../../../../../shared/CodeEditor';
 import ExpandableSections from '../../../../../shared/ExpandableSections';
 import ObjectMetaSection from '../../../../../shared/ObjectMetaSection';
 
+const configChipSx = { borderRadius: 'sm', mb: 1 } as const;
+
 interface Props {
   ctx: DrawerContext<ConfigMap>;
 }
@@ -30,7 +32,7 @@ export const ConfigMapSidebar: React.FC<Props> = ({ ctx }) => {
 
       <div>
         <Chip
-          sx={{ borderRadius: 'sm', mb: 1 }}
+          sx={configChipSx}
           size="md"
           emphasis="soft"
           startAdornment={<LuCode />}

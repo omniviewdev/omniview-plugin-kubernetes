@@ -20,6 +20,13 @@ import RoleBindingSidebar from './Sidebar';
 
 const resourceKey = 'rbac::v1::RoleBinding';
 
+const subjectsStackSx = {
+  scrollbarWidth: 'none',
+  '&::-webkit-scrollbar': {
+    display: 'none',
+  },
+} as const;
+
 const ownerRefKeyMap: Record<string, string> = {
   ServiceAccount: 'core::v1::ServiceAccount',
   ClusterRole: 'rbac::v1::ClusterRole',
@@ -75,13 +82,7 @@ const RoleBindingTable: React.FC = () => {
                   direction={'row'}
                   overflow={'scroll'}
                   gap={0.25}
-                  sx={{
-                    scrollbarWidth: 'none',
-                    // hide scrollbar
-                    '&::-webkit-scrollbar': {
-                      display: 'none',
-                    },
-                  }}
+                  sx={subjectsStackSx}
                 >
                   {refs.map((v) => (
                     <ResourceLinkCell

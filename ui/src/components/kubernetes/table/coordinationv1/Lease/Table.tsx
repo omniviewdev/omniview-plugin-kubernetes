@@ -12,6 +12,8 @@ import ResourceTable from '../../../../shared/table/ResourceTable';
 import AgeCell from '../../shared/cells/AgeCell';
 import { withClusterResourceColumns } from '../../shared/columns';
 
+const chipBorderRadiusSx = { borderRadius: '2px' } as const;
+
 const resourceKey = 'coordination::v1::Lease';
 
 const LeaseOverview: React.FC<{ ctx: DrawerContext<Lease> }> = ({ ctx }) => (
@@ -34,7 +36,7 @@ const LeaseTable: React.FC = () => {
               <Chip
                 size={'sm'}
                 color={'primary'}
-                sx={{ borderRadius: '2px' }}
+                sx={chipBorderRadiusSx}
                 label={getValue() as string}
               />
             ),

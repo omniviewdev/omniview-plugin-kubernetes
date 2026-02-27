@@ -9,6 +9,75 @@ import { type Column } from '@tanstack/react-table';
 import React, { useState } from 'react';
 import { LuColumns2, LuSettings2, LuTag, LuStickyNote, LuSearch } from 'react-icons/lu';
 
+// ---------------------------------------------------------------------------
+// Static styles
+// ---------------------------------------------------------------------------
+
+const sectionHeaderSx = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 0.75,
+  px: 1.5,
+  py: 0.75,
+  bgcolor: 'var(--ov-bg-surface)',
+  borderBottom: '1px solid var(--ov-border-muted)',
+} as const;
+const sectionIconSx = { display: 'flex', color: 'var(--ov-fg-faint)', fontSize: 12 } as const;
+const sectionTitleSx = { color: 'var(--ov-fg-muted)', flex: 1 } as const;
+const sectionCountSx = { color: 'var(--ov-fg-faint)' } as const;
+
+const checkRowSx = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 0.5,
+  px: 1,
+  py: 0,
+  height: 26,
+  cursor: 'pointer',
+  '&:hover': { bgcolor: 'var(--ov-state-hover)' },
+} as const;
+const checkboxSx = {
+  p: 0,
+  color: 'var(--ov-fg-faint)',
+  '&.Mui-checked': { color: 'var(--ov-accent-fg)' },
+  '& .MuiSvgIcon-root': { fontSize: 16 },
+} as const;
+
+const listSearchSx = {
+  display: 'flex',
+  alignItems: 'center',
+  mx: 1,
+  my: 0.5,
+  height: 24,
+  border: '1px solid var(--ov-border-default)',
+  borderRadius: '3px',
+  bgcolor: 'var(--ov-bg-base)',
+  px: 0.5,
+  '&:focus-within': { borderColor: 'var(--ov-accent)' },
+} as const;
+const listSearchInputSx = {
+  flex: 1,
+  fontSize: '0.6875rem',
+  color: 'var(--ov-fg-default)',
+  '& input': { py: 0, px: 0 },
+  '& input::placeholder': { color: 'var(--ov-fg-faint)', opacity: 1 },
+} as const;
+
+const filterButtonSx = { width: 28, height: 28 } as const;
+const popperPanelSx = {
+  width: 300,
+  maxHeight: '60vh',
+  overflow: 'auto',
+  border: '1px solid var(--ov-border-default)',
+  borderRadius: '6px',
+  bgcolor: 'var(--ov-bg-base)',
+  boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+  mt: 0.5,
+} as const;
+const sectionListSx = { py: 0.5 } as const;
+const scrollableListSx = { py: 0.5, maxHeight: 200, overflow: 'auto' } as const;
+const emptyTextSx = { px: 1.5, py: 1, color: 'var(--ov-fg-faint)' } as const;
+
 type Props = {
   labels: Record<string, boolean>;
   setLabels: (vals: Record<string, boolean>) => void;
@@ -26,23 +95,13 @@ const SectionHeader: React.FC<{ icon: React.ReactNode; title: string; count?: nu
   title,
   count,
 }) => (
-  <Box
-    sx={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: 0.75,
-      px: 1.5,
-      py: 0.75,
-      bgcolor: 'var(--ov-bg-surface)',
-      borderBottom: '1px solid var(--ov-border-muted)',
-    }}
-  >
-    <Box sx={{ display: 'flex', color: 'var(--ov-fg-faint)', fontSize: 12 }}>{icon}</Box>
-    <Text weight="semibold" size="xs" sx={{ color: 'var(--ov-fg-muted)', flex: 1 }}>
+  <Box sx={sectionHeaderSx}>
+    <Box sx={sectionIconSx}>{icon}</Box>
+    <Text weight="semibold" size="xs" sx={sectionTitleSx}>
       {title}
     </Text>
     {count !== undefined && count > 0 && (
-      <Text size="xs" sx={{ color: 'var(--ov-fg-faint)' }}>
+      <Text size="xs" sx={sectionCountSx}>
         {count}
       </Text>
     )}
@@ -58,27 +117,13 @@ const CheckRow: React.FC<{ label: string; checked: boolean; onChange: () => void
   <Box
     component="label"
     onClick={onChange}
-    sx={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: 0.5,
-      px: 1,
-      py: 0,
-      height: 26,
-      cursor: 'pointer',
-      '&:hover': { bgcolor: 'var(--ov-state-hover)' },
-    }}
+    sx={checkRowSx}
   >
     <MuiCheckbox
       size="small"
       checked={checked}
       tabIndex={-1}
-      sx={{
-        p: 0,
-        color: 'var(--ov-fg-faint)',
-        '&.Mui-checked': { color: 'var(--ov-accent-fg)' },
-        '& .MuiSvgIcon-root': { fontSize: 16 },
-      }}
+      sx={checkboxSx}
     />
     <Text
       size="xs"
@@ -100,32 +145,13 @@ const ListSearch: React.FC<{
   onChange: (v: string) => void;
   placeholder?: string;
 }> = ({ value, onChange, placeholder }) => (
-  <Box
-    sx={{
-      display: 'flex',
-      alignItems: 'center',
-      mx: 1,
-      my: 0.5,
-      height: 24,
-      border: '1px solid var(--ov-border-default)',
-      borderRadius: '3px',
-      bgcolor: 'var(--ov-bg-base)',
-      px: 0.5,
-      '&:focus-within': { borderColor: 'var(--ov-accent)' },
-    }}
-  >
+  <Box sx={listSearchSx}>
     <LuSearch size={11} style={{ color: 'var(--ov-fg-faint)', marginRight: 4, flexShrink: 0 }} />
     <InputBase
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      sx={{
-        flex: 1,
-        fontSize: '0.6875rem',
-        color: 'var(--ov-fg-default)',
-        '& input': { py: 0, px: 0 },
-        '& input::placeholder': { color: 'var(--ov-fg-faint)', opacity: 1 },
-      }}
+      sx={listSearchInputSx}
     />
   </Box>
 );
@@ -164,7 +190,7 @@ const ColumnFilter: React.FC<Props> = ({
         emphasis="outline"
         color="neutral"
         onClick={onClick}
-        sx={{ width: 28, height: 28 }}
+        sx={filterButtonSx}
       >
         <LuSettings2 size={14} />
       </IconButton>
@@ -176,21 +202,10 @@ const ColumnFilter: React.FC<Props> = ({
         placement="bottom-end"
       >
         <ClickAwayListener onClickAway={onClose}>
-          <Box
-            sx={{
-              width: 300,
-              maxHeight: '60vh',
-              overflow: 'auto',
-              border: '1px solid var(--ov-border-default)',
-              borderRadius: '6px',
-              bgcolor: 'var(--ov-bg-base)',
-              boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
-              mt: 0.5,
-            }}
-          >
+          <Box sx={popperPanelSx}>
             {/* Columns section */}
             <SectionHeader icon={<LuColumns2 size={12} />} title="Columns" />
-            <Box sx={{ py: 0.5 }}>
+            <Box sx={sectionListSx}>
               {hideable.map((column) => (
                 <CheckRow
                   key={column.id}
@@ -216,7 +231,7 @@ const ColumnFilter: React.FC<Props> = ({
                     placeholder="Filter labels..."
                   />
                 )}
-                <Box sx={{ py: 0.5, maxHeight: 200, overflow: 'auto' }}>
+                <Box sx={scrollableListSx}>
                   {filteredLabels.map(([label, selected]) => (
                     <CheckRow
                       key={label}
@@ -226,7 +241,7 @@ const ColumnFilter: React.FC<Props> = ({
                     />
                   ))}
                   {filteredLabels.length === 0 && (
-                    <Text size="xs" sx={{ px: 1.5, py: 1, color: 'var(--ov-fg-faint)' }}>
+                    <Text size="xs" sx={emptyTextSx}>
                       No matching labels
                     </Text>
                   )}
@@ -249,7 +264,7 @@ const ColumnFilter: React.FC<Props> = ({
                     placeholder="Filter annotations..."
                   />
                 )}
-                <Box sx={{ py: 0.5, maxHeight: 200, overflow: 'auto' }}>
+                <Box sx={scrollableListSx}>
                   {filteredAnnotations.map(([annotation, selected]) => (
                     <CheckRow
                       key={annotation}
@@ -259,7 +274,7 @@ const ColumnFilter: React.FC<Props> = ({
                     />
                   ))}
                   {filteredAnnotations.length === 0 && (
-                    <Text size="xs" sx={{ px: 1.5, py: 1, color: 'var(--ov-fg-faint)' }}>
+                    <Text size="xs" sx={emptyTextSx}>
                       No matching annotations
                     </Text>
                   )}

@@ -16,6 +16,24 @@ import { Text } from '@omniviewdev/ui/typography';
 import * as React from 'react';
 import { LuCircleAlert, LuTrash } from 'react-icons/lu';
 
+const deleteTextSx = { pl: 0.5 } as const;
+
+const modalBoxSx = {
+  position: 'absolute',
+  top: '50%',
+  left: '50%',
+  transform: 'translate(-50%, -50%)',
+  bgcolor: 'background.paper',
+  borderRadius: 2,
+  p: 3,
+} as const;
+
+const dialogContentSx = { gap: 2 } as const;
+
+const alertContainerSx = { display: 'flex', gap: 2, width: '100%', flexDirection: 'column' } as const;
+
+const alertSx = { alignItems: 'flex-start' } as const;
+
 type Props = {
   connectionID: string;
   resourceKey: string;
@@ -76,7 +94,7 @@ export const DeleteAction: React.FC<Props> = ({
             justifyContent="flex-start"
           >
             <LuTrash />
-            <Text sx={{ pl: 0.5 }} size="sm">
+            <Text sx={deleteTextSx} size="sm">
               Delete
             </Text>
           </Stack>
@@ -89,26 +107,18 @@ export const DeleteAction: React.FC<Props> = ({
         }}
       >
         <Box
-          sx={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            bgcolor: 'background.paper',
-            borderRadius: 2,
-            p: 3,
-          }}
+          sx={modalBoxSx}
         >
           <DialogTitle>
             <WarningRounded />
             Confirmation
           </DialogTitle>
           <Divider />
-          <DialogContent sx={{ gap: 2 }}>
+          <DialogContent sx={dialogContentSx}>
             <Text size="sm">Are you sure you want to delete &apos;{resourceID}&apos;?</Text>
             {alert && (
-              <Box sx={{ display: 'flex', gap: 2, width: '100%', flexDirection: 'column' }}>
-                <Alert sx={{ alignItems: 'flex-start' }} icon={<LuCircleAlert />} severity="error">
+              <Box sx={alertContainerSx}>
+                <Alert sx={alertSx} icon={<LuCircleAlert />} severity="error">
                   <div>
                     <div>Error</div>
                     <Text size="sm" color={'danger'}>

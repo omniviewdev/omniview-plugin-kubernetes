@@ -7,6 +7,11 @@ import React from 'react';
 
 import { BrowserOpenURL } from '../../../../utils/ide';
 
+const tableSx = { '--TableCell-paddingY': '0rem' } as const;
+const backendEndAdornmentSx = { borderRadius: 'sm', px: 1 } as const;
+const backendChipSx = { borderRadius: 'sm', p: 0.25 } as const;
+const portLabelSx = { px: 1 } as const;
+
 interface Props {
   rule: IngressRule;
 }
@@ -23,9 +28,7 @@ export const RuleTable: React.FC<Props> = ({ rule }) => {
   return (
     <Table
       aria-label="rules table"
-      sx={{
-        '--TableCell-paddingY': '0rem',
-      }}
+      sx={tableSx}
     >
       <thead>
         <tr>
@@ -71,15 +74,15 @@ const IngressBackendChip: React.FC<{ backend: IngressBackend }> = ({ backend }) 
       backend.service.port && (
         <Chip
           endAdornment={
-            <Box sx={{ borderRadius: 'sm', px: 1 }}>
+            <Box sx={backendEndAdornmentSx}>
               <Text size="xs">{backend.service.name}</Text>
             </Box>
           }
-          sx={{ borderRadius: 'sm', p: 0.25 }}
+          sx={backendChipSx}
           size="sm"
           emphasis="outline"
           label={
-            <Text size="xs" sx={{ px: 1 }}>
+            <Text size="xs" sx={portLabelSx}>
               {backend.service.port.number ?? backend.service.port.name}
             </Text>
           }

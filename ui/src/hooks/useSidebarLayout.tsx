@@ -80,11 +80,15 @@ const ICON_BLOCKS = <LuBlocks />;
 
 // --- Module-level badge JSX constants ---
 
+const syncingBadgeSx = { color: 'var(--ov-accent-fg, #58a6ff)' } as const;
+
+const errorBadgeSx = { width: 8, height: 8, borderRadius: '50%', bgcolor: 'error.main', flexShrink: 0 } as const;
+
 const SYNCING_BADGE = (
-  <CircularProgress size={10} thickness={5} sx={{ color: 'var(--ov-accent-fg, #58a6ff)' }} />
+  <CircularProgress size={10} thickness={5} sx={syncingBadgeSx} />
 );
 const ERROR_BADGE = (
-  <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'error.main', flexShrink: 0 }} />
+  <Box sx={errorBadgeSx} />
 );
 
 /** Get a badge for a nav item based on its informer state */

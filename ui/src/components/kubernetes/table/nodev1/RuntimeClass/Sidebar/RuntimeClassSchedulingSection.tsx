@@ -10,6 +10,20 @@ import React from 'react';
 
 import KVCard from '../../../../../shared/KVCard';
 
+const tolerationGridSx = { minHeight: 24, alignItems: 'center' } as const;
+
+const tolerationKeySx = { fontWeight: 600, fontSize: 12 } as const;
+
+const tolerationSecondsSx = { color: 'neutral.300' } as const;
+
+const sectionBorderSx = {
+  borderRadius: 1,
+  border: '1px solid',
+  borderColor: 'divider',
+} as const;
+
+const sectionHeaderSx = { py: 0.5, px: 1 } as const;
+
 interface Props {
   scheduling: Scheduling;
 }
@@ -28,9 +42,9 @@ const TolerationRow: React.FC<{ t: Toleration; index: number }> = ({ t, index })
       bgcolor: index % 2 === 0 ? 'background.level1' : 'transparent',
     }}
   >
-    <Grid container spacing={0} sx={{ minHeight: 24, alignItems: 'center' }}>
+    <Grid container spacing={0} sx={tolerationGridSx}>
       <Grid size={4}>
-        <Text size="xs" sx={{ fontWeight: 600, fontSize: 12 }} noWrap>
+        <Text size="xs" sx={tolerationKeySx} noWrap>
           {t.key || '*'}
         </Text>
       </Grid>
@@ -49,7 +63,7 @@ const TolerationRow: React.FC<{ t: Toleration; index: number }> = ({ t, index })
             </Chip>
           )}
           {t.tolerationSeconds != null && (
-            <Text size="xs" sx={{ color: 'neutral.300' }}>
+            <Text size="xs" sx={tolerationSecondsSx}>
               {t.tolerationSeconds}s
             </Text>
           )}
@@ -75,14 +89,8 @@ const RuntimeClassSchedulingSection: React.FC<Props> = ({ scheduling }) => {
       )}
 
       {hasTolerations && (
-        <Box
-          sx={{
-            borderRadius: 1,
-            border: '1px solid',
-            borderColor: 'divider',
-          }}
-        >
-          <Box sx={{ py: 0.5, px: 1 }}>
+        <Box sx={sectionBorderSx}>
+          <Box sx={sectionHeaderSx}>
             <Stack direction="row" gap={0.75} alignItems="center">
               <Text weight="semibold" size="sm">
                 Tolerations

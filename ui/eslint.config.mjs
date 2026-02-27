@@ -54,16 +54,19 @@ export default tseslint.config(
       "@typescript-eslint/no-misused-promises": "error",
       "@typescript-eslint/await-thenable": "error",
 
-      // --- React Performance (all warn — fixable incrementally) ---
+      // --- React Performance ---
+      // Compiler handles function/array/jsx memoization automatically.
+      // Keep object rule to flag sx resolver overhead in hot paths.
       "react-perf/jsx-no-new-object-as-prop": "warn",
-      "react-perf/jsx-no-new-array-as-prop": "warn",
-      "react-perf/jsx-no-new-function-as-prop": "warn",
-      "react-perf/jsx-no-jsx-as-prop": "warn",
+      "react-perf/jsx-no-new-array-as-prop": "off",
+      "react-perf/jsx-no-new-function-as-prop": "off",
+      "react-perf/jsx-no-jsx-as-prop": "off",
 
       // --- React ---
       "react/prop-types": "off", // TypeScript handles this
       "react/display-name": "off",
-      "react/no-unstable-nested-components": "warn",
+      // Table cell renderers in ColumnDef are passed as config props, not defined during render
+      "react/no-unstable-nested-components": ["warn", { allowAsProps: true }],
       "react/jsx-no-constructed-context-values": "warn",
       "react/jsx-no-useless-fragment": ["warn", { allowExpressions: true }],
       "react/no-array-index-key": "warn",

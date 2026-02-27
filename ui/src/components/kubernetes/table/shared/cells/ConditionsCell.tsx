@@ -3,6 +3,13 @@ import { Condition } from 'kubernetes-types/meta/v1';
 
 import ConditionChip from '../../../../shared/ConditionChip';
 
+const conditionsStackSx = {
+  scrollbarWidth: 'none',
+  '&::-webkit-scrollbar': {
+    display: 'none',
+  },
+} as const;
+
 type Props = {
   conditions: Array<Condition> | undefined;
 
@@ -39,13 +46,7 @@ const ConditionsCell: React.FC<Props> = ({
       justifyContent={'flex-start'}
       gap={0.5}
       overflow={'scroll'}
-      sx={{
-        scrollbarWidth: 'none',
-        // hide scrollbar
-        '&::-webkit-scrollbar': {
-          display: 'none',
-        },
-      }}
+      sx={conditionsStackSx}
     >
       {conditions
         .filter((condition) => condition.status === 'True')

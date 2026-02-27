@@ -20,6 +20,32 @@ import CodeEditor from '../../shared/CodeEditor';
 
 import UpgradeDialog from './UpgradeDialog';
 
+const metaLabelSx = { color: 'neutral.400' } as const;
+const metaValueSx = { fontWeight: 400, color: 'neutral.100' } as const;
+const editorBoxSx = {
+  height: 400,
+  border: '1px solid',
+  borderColor: 'neutral.700',
+  borderRadius: 'sm',
+  overflow: 'hidden',
+} as const;
+const notesSx = {
+  fontSize: 12,
+  fontFamily: 'monospace',
+  bgcolor: 'background.level1',
+  p: 1.5,
+  borderRadius: 'sm',
+  overflow: 'auto',
+  maxHeight: 400,
+  whiteSpace: 'pre-wrap',
+  wordBreak: 'break-word',
+} as const;
+const hookDetailSx = { color: 'neutral.400' } as const;
+const noDataSx = { color: 'neutral.400' } as const;
+const revisionDetailSx = { color: 'neutral.400' } as const;
+const resourceNsSx = { color: 'neutral.500' } as const;
+const diffButtonSx = { mb: 1 } as const;
+
 // ── types ──
 
 /** Shape of a Helm release as returned by the backend list/get APIs. */
@@ -110,12 +136,12 @@ const statusColorMap: Record<string, 'success' | 'danger' | 'warning' | 'neutral
 const MetaEntry: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
   <Grid container spacing={0}>
     <Grid size={4}>
-      <Text sx={{ color: 'neutral.400' }} size="sm">
+      <Text sx={metaLabelSx} size="sm">
         {label}
       </Text>
     </Grid>
     <Grid size={8}>
-      <Text sx={{ fontWeight: 400, color: 'neutral.100' }} weight="semibold" size="sm">
+      <Text sx={metaValueSx} weight="semibold" size="sm">
         {value}
       </Text>
     </Grid>
@@ -335,15 +361,7 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
 
       {/* Values - Monaco editor */}
       <TabPanel value="0" activeValue={activeTab}>
-        <Box
-          sx={{
-            height: 400,
-            border: '1px solid',
-            borderColor: 'neutral.700',
-            borderRadius: 'sm',
-            overflow: 'hidden',
-          }}
-        >
+        <Box sx={editorBoxSx}>
           <CodeEditor
             filename="values.yaml"
             language="yaml"
@@ -357,7 +375,7 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
       {/* Manifest - Monaco with diff toggle */}
       <TabPanel value="1" activeValue={activeTab}>
         {revision > 1 && (
-          <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
+          <Stack direction="row" spacing={1} sx={diffButtonSx}>
             <Button
               size="sm"
               emphasis={showManifestDiff ? 'solid' : 'outline'}
@@ -370,15 +388,7 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
             </Button>
           </Stack>
         )}
-        <Box
-          sx={{
-            height: 400,
-            border: '1px solid',
-            borderColor: 'neutral.700',
-            borderRadius: 'sm',
-            overflow: 'hidden',
-          }}
-        >
+        <Box sx={editorBoxSx}>
           <CodeEditor
             filename="manifest.yaml"
             language="yaml"
@@ -393,20 +403,7 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
 
       {/* Notes */}
       <TabPanel value="2" activeValue={activeTab}>
-        <Box
-          component="pre"
-          sx={{
-            fontSize: 12,
-            fontFamily: 'monospace',
-            bgcolor: 'background.level1',
-            p: 1.5,
-            borderRadius: 'sm',
-            overflow: 'auto',
-            maxHeight: 400,
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-          }}
-        >
+        <Box component="pre" sx={notesSx}>
           {notesEntry?.notes ?? 'No release notes'}
         </Box>
       </TabPanel>
@@ -420,7 +417,7 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
                 <Text weight="semibold" size="sm">
                   {hook.name}
                 </Text>
-                <Text size="xs" sx={{ color: 'neutral.400' }}>
+                <Text size="xs" sx={hookDetailSx}>
                   Kind: {hook.kind} | Weight: {String(hook.weight)}
                 </Text>
                 {hook.events && (
@@ -434,7 +431,7 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
             ))}
           </Stack>
         ) : (
-          <Text size="sm" sx={{ color: 'neutral.400' }}>
+          <Text size="sm" sx={noDataSx}>
             No hooks
           </Text>
         )}
@@ -457,7 +454,7 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
                     label={rev.info?.status ?? ''}
                   />
                 </Stack>
-                <Text size="xs" sx={{ color: 'neutral.400' }}>
+                <Text size="xs" sx={revisionDetailSx}>
                   {rev.info?.description ?? ''}
                 </Text>
                 {rev.version !== revision && (
@@ -484,7 +481,7 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
             ))}
           </Stack>
         ) : (
-          <Text size="sm" sx={{ color: 'neutral.400' }}>
+          <Text size="sm" sx={noDataSx}>
             No history
           </Text>
         )}
@@ -546,7 +543,7 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
                     {res.name}
                   </Text>
                   {res.namespace && (
-                    <Text size="xs" sx={{ color: 'neutral.500' }}>
+                    <Text size="xs" sx={resourceNsSx}>
                       {res.namespace}
                     </Text>
                   )}
@@ -555,7 +552,7 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
             ))}
           </Stack>
         ) : (
-          <Text size="sm" sx={{ color: 'neutral.400' }}>
+          <Text size="sm" sx={noDataSx}>
             {manifestEntry ? 'No resources found in manifest' : 'Loading manifest...'}
           </Text>
         )}

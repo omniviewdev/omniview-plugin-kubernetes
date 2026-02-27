@@ -11,6 +11,24 @@ import React from 'react';
 import KVCard from '../../../../KVCard';
 import ResourceLinkChip, { ownerRefToResourceKey } from '../../../../ResourceLinkChip';
 
+// ---------------------------------------------------------------------------
+// Static styles
+// ---------------------------------------------------------------------------
+
+const gridAlignSx = { alignItems: 'center' } as const;
+const entryTitleSx = { color: 'neutral.300' } as const;
+const clipboardTextSx = { fontSize: 12, fontWeight: 600 } as const;
+const cardSx = { p: 0, gap: 0, borderRadius: 1 } as const;
+const cardHeaderSx = { py: 0.5, px: 1 } as const;
+const cardBodySx = {
+  py: 0.5,
+  px: 1,
+  backgroundColor: 'background.level1',
+  borderBottomRightRadius: 6,
+  borderBottomLeftRadius: 6,
+} as const;
+const chipSx = { borderRadius: 2 } as const;
+
 interface Props {
   data?: ObjectMeta;
   /** When provided, owner reference chips become clickable and open the referenced resource's sidebar */
@@ -22,14 +40,14 @@ const ObjectMetaEntry: React.FC<{
   value: string | React.ReactNode | undefined;
 }> = ({ title, value }) => (
   <Grid container spacing={0}>
-    <Grid size={3} sx={{ alignItems: 'center' }}>
-      <Text sx={{ color: 'neutral.300' }} size="xs">
+    <Grid size={3} sx={gridAlignSx}>
+      <Text sx={entryTitleSx} size="xs">
         {title}
       </Text>
     </Grid>
-    <Grid size={9} sx={{ alignItems: 'center' }}>
+    <Grid size={9} sx={gridAlignSx}>
       {typeof value === 'string' ? (
-        <ClipboardText value={value} variant="inherit" sx={{ fontSize: 12, fontWeight: 600 }} />
+        <ClipboardText value={value} variant="inherit" sx={clipboardTextSx} />
       ) : (
         value
       )}
@@ -45,28 +63,16 @@ const MetadataSection: React.FC<Props> = ({ data, connectionID }) => {
   return (
     <Stack direction="column" gap={0.5}>
       <Card
-        sx={{
-          p: 0,
-          gap: 0,
-          borderRadius: 1,
-        }}
+        sx={cardSx}
         variant="outlined"
       >
-        <Box sx={{ py: 0.5, px: 1 }}>
+        <Box sx={cardHeaderSx}>
           <Text weight="semibold" size="sm">
             Metadata
           </Text>
         </Box>
         <Divider />
-        <Box
-          sx={{
-            py: 0.5,
-            px: 1,
-            backgroundColor: 'background.level1',
-            borderBottomRightRadius: 6,
-            borderBottomLeftRadius: 6,
-          }}
-        >
+        <Box sx={cardBodySx}>
           <ObjectMetaEntry title="Name" value={data.name} />
           {data.namespace && <ObjectMetaEntry title="Namespace" value={data.namespace} />}
           {data.creationTimestamp && (
@@ -103,7 +109,7 @@ const MetadataSection: React.FC<Props> = ({ data, connectionID }) => {
                         size="sm"
                         emphasis="soft"
                         color="primary"
-                        sx={{ borderRadius: 2 }}
+                        sx={chipSx}
                         label={ref.kind}
                       />
                     ),
@@ -123,9 +129,7 @@ const MetadataSection: React.FC<Props> = ({ data, connectionID }) => {
                       size="sm"
                       emphasis="soft"
                       color="primary"
-                      sx={{
-                        borderRadius: 2,
-                      }}
+                      sx={chipSx}
                       label={finalizer}
                     />
                   ))}

@@ -17,6 +17,20 @@ interface Props {
 const DEFAULT_IMAGE = 'busybox:latest';
 const DEFAULT_COMMAND = 'nsenter -t 1 -m -u -i -n -p -- /bin/bash';
 
+const cardBorderSx = { borderColor: 'divider' } as const;
+
+const cardBodySx = { p: 1.5, display: 'flex', flexDirection: 'column' } as const;
+
+const titleSx = { mb: 0.5 } as const;
+
+const subtitleSx = { mb: 1.5, opacity: 0.6 } as const;
+
+const infoRowSx = { mt: 1.25 } as const;
+
+const infoIconSx = { color: 'text.tertiary', mt: 0.25, flexShrink: 0 } as const;
+
+const infoTextSx = { color: 'text.tertiary', lineHeight: 1.4 } as const;
+
 const NodeShellTabContent: React.FC<Props> = ({ pluginID, connectionID }) => {
   const { connectionOverrides, updateOverride } = useClusterPreferences(pluginID);
   const existing = React.useMemo(
@@ -53,12 +67,12 @@ const NodeShellTabContent: React.FC<Props> = ({ pluginID, connectionID }) => {
 
   return (
     <Stack direction="column" gap={1.5}>
-      <Card variant="outlined" sx={{ borderColor: 'divider' }}>
-        <Box sx={{ p: 1.5, display: 'flex', flexDirection: 'column' }}>
-          <Text size="sm" weight="semibold" sx={{ mb: 0.5 }}>
+      <Card variant="outlined" sx={cardBorderSx}>
+        <Box sx={cardBodySx}>
+          <Text size="sm" weight="semibold" sx={titleSx}>
             Node Shell Configuration
           </Text>
-          <Text size="xs" sx={{ mb: 1.5, opacity: 0.6 }}>
+          <Text size="xs" sx={subtitleSx}>
             Customize the debug pod image and shell command used when opening a node shell. Leave
             fields empty to use defaults.
           </Text>
@@ -84,11 +98,11 @@ const NodeShellTabContent: React.FC<Props> = ({ pluginID, connectionID }) => {
             </FormField>
           </Stack>
 
-          <Stack direction="row" gap={0.75} alignItems="flex-start" sx={{ mt: 1.25 }}>
-            <Box sx={{ color: 'text.tertiary', mt: 0.25, flexShrink: 0 }}>
+          <Stack direction="row" gap={0.75} alignItems="flex-start" sx={infoRowSx}>
+            <Box sx={infoIconSx}>
               <LuInfo size={12} />
             </Box>
-            <Text size="xs" sx={{ color: 'text.tertiary', lineHeight: 1.4 }}>
+            <Text size="xs" sx={infoTextSx}>
               The debug pod image is used to create a privileged pod on the node. The shell command
               is the full nsenter command that runs inside the pod. When empty, defaults are used:{' '}
               <code>{DEFAULT_IMAGE}</code> with <code>{DEFAULT_COMMAND}</code>.

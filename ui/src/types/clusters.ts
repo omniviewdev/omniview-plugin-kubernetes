@@ -42,6 +42,7 @@ export interface ConnectionGroup {
   name: string;
   color?: string;
   icon?: string;
+  customImage?: string; // data URI (data:image/png;base64,... or data:image/svg+xml;base64,...)
   connectionIds: string[];
 }
 

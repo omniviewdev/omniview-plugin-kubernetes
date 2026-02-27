@@ -11,6 +11,11 @@ import Icon from '../../../shared/Icon';
 import { ContainerTerminatedStatusInfo, ContainerWaitingStatusInfo } from './ContainerStatuses';
 import { getStatus } from './utils';
 
+const cardSx = { p: 0.5, minWidth: 300 } as const;
+const statusChipSx = { borderRadius: 'sm' } as const;
+const lastStateCardSx = { px: 1, gap: 0.5, pb: 1, pt: 0.5 } as const;
+const lastStateLabelSx = { fontSize: 12, color: 'neutral.50' } as const;
+
 interface Props {
   status: ContainerStatus;
   showContainerName?: boolean;
@@ -47,10 +52,7 @@ const ContainerStatusCard: React.FC<Props> = ({
   return (
     <Card
       emphasis="soft"
-      sx={{
-        p: 0.5,
-        minWidth: 300,
-      }}
+      sx={cardSx}
     >
       <Stack direction="row" alignItems="center" justifyContent={'space-between'} spacing={2}>
         {showContainerName && <Text size="sm">{status.name}</Text>}
@@ -59,7 +61,7 @@ const ContainerStatusCard: React.FC<Props> = ({
             size="sm"
             color={statusInfo.color}
             emphasis={getVariant()}
-            sx={{ borderRadius: 'sm' }}
+            sx={statusChipSx}
             startAdornment={statusInfo.icon && <Icon name={statusInfo.icon} size={16} />}
             label={statusInfo.text}
           />
@@ -67,7 +69,7 @@ const ContainerStatusCard: React.FC<Props> = ({
             size="sm"
             color={status.ready ? 'primary' : 'warning'}
             emphasis={'outline'}
-            sx={{ borderRadius: 'sm' }}
+            sx={statusChipSx}
             label={getStatusText()}
           />
         </Stack>
@@ -89,19 +91,19 @@ const ContainerStatusCard: React.FC<Props> = ({
             </Text>
           )}
           {status.lastState?.terminated && (
-            <Card emphasis="outline" sx={{ px: 1, gap: 0.5, pb: 1, pt: 0.5 }}>
+            <Card emphasis="outline" sx={lastStateCardSx}>
               <Stack
                 direction="row"
                 spacing={1}
                 alignItems={'center'}
                 justifyContent={'space-between'}
               >
-                <Text sx={{ fontSize: 12, color: 'neutral.50' }}>Last State</Text>
+                <Text sx={lastStateLabelSx}>Last State</Text>
                 <Chip
                   size="sm"
                   color="danger"
                   emphasis="outline"
-                  sx={{ borderRadius: 'sm' }}
+                  sx={statusChipSx}
                   label="Terminated"
                 />
               </Stack>

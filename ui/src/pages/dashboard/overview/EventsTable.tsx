@@ -11,6 +11,63 @@ import { LuSearch } from 'react-icons/lu';
 
 import { formatTimeDifference } from '../../../utils/time';
 
+const eventRowSx = {
+  display: 'flex',
+  alignItems: 'flex-start',
+  gap: 1.5,
+  py: 1,
+  px: 1.5,
+  borderBottom: '1px solid var(--ov-border-muted)',
+  '&:last-child': { borderBottom: 'none' },
+} as const;
+
+const typeBadgeSx = { flexShrink: 0, mt: 0.25, minWidth: 56, justifyContent: 'center' } as const;
+
+const contentSx = { flex: 1, minWidth: 0 } as const;
+
+const reasonLineSx = { display: 'flex', alignItems: 'baseline', gap: 0.75 } as const;
+
+const dividerDotSx = {
+  width: '1px',
+  height: 10,
+  bgcolor: 'divider',
+  flexShrink: 0,
+  alignSelf: 'center',
+} as const;
+
+const countAgeSx = { display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 } as const;
+
+const loadingSx = { display: 'flex', alignItems: 'center', justifyContent: 'center', py: 4 } as const;
+
+const toolbarSx = { px: 1.5, py: 0.75, borderBottom: '1px solid', borderColor: 'divider' } as const;
+
+const eventListSx = { flex: 1, overflow: 'auto' } as const;
+
+const emptyStateSx = { display: 'flex', alignItems: 'center', justifyContent: 'center', py: 4 } as const;
+
+const reasonTextSx = { color: 'var(--ov-fg-base)', flexShrink: 0 } as const;
+
+const messageTextSx = { color: 'var(--ov-fg-default)' } as const;
+
+const ageTextSx = { color: 'var(--ov-fg-faint)', whiteSpace: 'nowrap' } as const;
+
+const rootSx = { height: '100%' } as const;
+
+const emptyTextSx = { color: 'text.tertiary' } as const;
+
+const searchFieldSx = {
+  width: 180,
+  '--ov-input-height': '24px',
+  '& .MuiInputBase-root': {
+    fontSize: '0.6875rem',
+    px: 0.75,
+  },
+  '& .MuiInputBase-input': {
+    py: 0,
+    px: 0.5,
+  },
+} as const;
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -163,15 +220,7 @@ const EventRow: React.FC<{
 
   return (
     <Box
-      sx={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: 1.5,
-        py: 1,
-        px: 1.5,
-        borderBottom: '1px solid var(--ov-border-muted)',
-        '&:last-child': { borderBottom: 'none' },
-      }}
+      sx={eventRowSx}
     >
       {/* Type badge */}
       <Chip
@@ -179,25 +228,19 @@ const EventRow: React.FC<{
         emphasis="soft"
         color={event.type === 'Warning' ? 'warning' : 'info'}
         label={event.type}
-        sx={{ flexShrink: 0, mt: 0.25, minWidth: 56, justifyContent: 'center' }}
+        sx={typeBadgeSx}
       />
 
       {/* Content */}
-      <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75 }}>
-          <Text weight="semibold" size="xs" sx={{ color: 'var(--ov-fg-base)', flexShrink: 0 }}>
+      <Box sx={contentSx}>
+        <Box sx={reasonLineSx}>
+          <Text weight="semibold" size="xs" sx={reasonTextSx}>
             {event.reason}
           </Text>
           <Box
-            sx={{
-              width: '1px',
-              height: 10,
-              bgcolor: 'divider',
-              flexShrink: 0,
-              alignSelf: 'center',
-            }}
+            sx={dividerDotSx}
           />
-          <Text size="xs" sx={{ color: 'var(--ov-fg-default)' }} noWrap>
+          <Text size="xs" sx={messageTextSx} noWrap>
             {event.message}
           </Text>
         </Box>
@@ -220,11 +263,11 @@ const EventRow: React.FC<{
       </Box>
 
       {/* Count + Age */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+      <Box sx={countAgeSx}>
         {event.count > 1 && (
           <Chip size="xs" emphasis="outline" color="neutral" label={`\u00d7${event.count}`} />
         )}
-        <Text size="xs" sx={{ color: 'var(--ov-fg-faint)', whiteSpace: 'nowrap' }}>
+        <Text size="xs" sx={ageTextSx}>
           {event.lastSeen.getTime() > 0 ? formatTimeDifference(event.lastSeen) : '-'}
         </Text>
       </Box>
@@ -288,20 +331,20 @@ const EventsTable: React.FC<Props> = ({ events, loading, connectionID }) => {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 4 }}>
+      <Box sx={loadingSx}>
         <CircularProgress size="sm" />
       </Box>
     );
   }
 
   return (
-    <Stack gap={0} sx={{ height: '100%' }}>
+    <Stack gap={0} sx={rootSx}>
       {/* Toolbar: filter chips + search */}
       <Stack
         direction="row"
         align="center"
         justify="between"
-        sx={{ px: 1.5, py: 0.75, borderBottom: '1px solid', borderColor: 'divider' }}
+        sx={toolbarSx}
       >
         <Stack direction="row" align="center" gap={0.5}>
           {(['all', 'Normal', 'Warning'] as EventFilter[]).map((f) => (
@@ -340,30 +383,15 @@ const EventsTable: React.FC<Props> = ({ events, loading, connectionID }) => {
               ),
             },
           }}
-          sx={
-            // Custom CSS variable --ov-input-height requires SxProps cast since
-            // TypeScript CSSProperties doesn't include custom properties
-            {
-              width: 180,
-              '--ov-input-height': '24px',
-              '& .MuiInputBase-root': {
-                fontSize: '0.6875rem',
-                px: 0.75,
-              },
-              '& .MuiInputBase-input': {
-                py: 0,
-                px: 0.5,
-              },
-            } as SxProps<Theme>
-          }
+          sx={searchFieldSx as SxProps<Theme>}
         />
       </Stack>
 
       {/* Event list */}
-      <Box sx={{ flex: 1, overflow: 'auto' }}>
+      <Box sx={eventListSx}>
         {filtered.length === 0 ? (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 4 }}>
-            <Text size="sm" sx={{ color: 'text.tertiary' }}>
+          <Box sx={emptyStateSx}>
+            <Text size="sm" sx={emptyTextSx}>
               {events.length === 0 ? 'No recent events' : 'No matching events'}
             </Text>
           </Box>

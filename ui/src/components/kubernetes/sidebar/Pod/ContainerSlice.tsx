@@ -23,6 +23,79 @@ import { ContainerStatusDecorator } from './ContainerStatuses';
 import PortDetailsCard from './PortDetailsCard';
 import { getStatus } from './utils';
 
+const containerSx = { py: 1, px: 1.25 } as const;
+const headerSx = { mb: 1 } as const;
+const chipSx = { borderRadius: 1 } as const;
+const infoRowSx = { minHeight: 28, alignItems: 'flex-start' } as const;
+const infoRowLabelCellSx = { display: 'flex', alignItems: 'center', minHeight: 28 } as const;
+const infoRowValueCellSx = { display: 'flex', alignItems: 'center', minHeight: 28 } as const;
+const fontSize13Sx = { fontSize: 13 } as const;
+const resourceBarRowSx = { minHeight: 32 } as const;
+const resourceBarLabelSx = { minWidth: 85, flexShrink: 0 } as const;
+const resourceBarContainerSx = { flex: 1, display: 'flex', alignItems: 'center' } as const;
+const resourceBarBgSx = {
+  width: '100%',
+  height: 10,
+  borderRadius: 5,
+  bgcolor: 'action.hover',
+  overflow: 'hidden',
+} as const;
+const resourceBarTextSx = {
+  fontSize: 12,
+  color: 'neutral.300',
+  minWidth: 100,
+  textAlign: 'right',
+  flexShrink: 0,
+} as const;
+const infoCardSx = {
+  borderRadius: 1,
+  border: '1px solid',
+  borderColor: 'divider',
+  bgcolor: 'background.level1',
+  overflow: 'hidden',
+  p: 1,
+} as const;
+const resourceCardSx = {
+  borderRadius: 1,
+  border: '1px solid',
+  borderColor: 'divider',
+  bgcolor: 'background.level1',
+  overflow: 'hidden',
+} as const;
+const resourceCardHeaderSx = {
+  py: 0.5,
+  px: 1,
+  bgcolor: 'background.surface',
+  borderBottom: '1px solid',
+  borderColor: 'divider',
+  display: 'flex',
+  alignItems: 'center',
+} as const;
+const resourceCardBodySx = { py: 0.75, px: 1 } as const;
+const restartHeaderSx = {
+  py: 0.5,
+  px: 1,
+  bgcolor: 'background.surface',
+  borderBottom: '1px solid',
+  borderColor: 'divider',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+} as const;
+const restartBodySx = { py: 0.75, px: 1 } as const;
+const lastTermLabelSx = {
+  color: 'text.secondary',
+  textTransform: 'uppercase',
+  letterSpacing: '0.08em',
+  fontSize: 10,
+  mb: 0.25,
+} as const;
+const termEntryRowSx = { minHeight: 22 } as const;
+const termLabelCellSx = { display: 'flex', alignItems: 'center' } as const;
+const termValueCellSx = { display: 'flex', alignItems: 'center' } as const;
+const termLabelTextSx = { fontSize: 12, color: 'text.secondary' } as const;
+const waitingDividerSx = { my: 0.75 } as const;
+
 type ContainerType = 'container' | 'init' | 'ephemeral';
 
 export interface ContainerSliceProps {
@@ -285,14 +358,14 @@ const InfoRow: React.FC<{ icon: string; label: string; value: string }> = ({
   label,
   value,
 }) => (
-  <Grid container spacing={0.5} sx={{ minHeight: 28, alignItems: 'flex-start' }}>
-    <Grid size={3} sx={{ display: 'flex', alignItems: 'center', minHeight: 28 }}>
+  <Grid container spacing={0.5} sx={infoRowSx}>
+    <Grid size={3} sx={infoRowLabelCellSx}>
       <Stack direction="row" gap={0.75} alignItems="center">
         <Icon name={icon} size={14} />
-        <Text sx={{ fontSize: 13 }}>{label}</Text>
+        <Text sx={fontSize13Sx}>{label}</Text>
       </Stack>
     </Grid>
-    <Grid size={9} sx={{ display: 'flex', alignItems: 'center', minHeight: 28 }}>
+    <Grid size={9} sx={infoRowValueCellSx}>
       <ClipboardText
         value={value}
         truncate={false}
@@ -326,21 +399,13 @@ const ResourceBar: React.FC<{
       : 'primary.main';
 
   return (
-    <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minHeight: 32 }}>
-      <Stack direction="row" gap={0.75} alignItems="center" sx={{ minWidth: 85, flexShrink: 0 }}>
+    <Stack direction="row" spacing={1.5} alignItems="center" sx={resourceBarRowSx}>
+      <Stack direction="row" gap={0.75} alignItems="center" sx={resourceBarLabelSx}>
         <Icon name={icon} size={14} />
-        <Text sx={{ fontSize: 13 }}>{label}</Text>
+        <Text sx={fontSize13Sx}>{label}</Text>
       </Stack>
-      <Box sx={{ flex: 1, display: 'flex', alignItems: 'center' }}>
-        <Box
-          sx={{
-            width: '100%',
-            height: 10,
-            borderRadius: 5,
-            bgcolor: 'action.hover',
-            overflow: 'hidden',
-          }}
-        >
+      <Box sx={resourceBarContainerSx}>
+        <Box sx={resourceBarBgSx}>
           {usage != null && (
             <Box
               sx={{
@@ -355,13 +420,7 @@ const ResourceBar: React.FC<{
         </Box>
       </Box>
       <Text
-        sx={{
-          fontSize: 12,
-          color: 'neutral.300',
-          minWidth: 100,
-          textAlign: 'right',
-          flexShrink: 0,
-        }}
+        sx={resourceBarTextSx}
         noWrap
       >
         {request} / {limit}
@@ -437,21 +496,10 @@ const RestartInfoCard: React.FC<{ status: ContainerStatus }> = ({ status }) => {
       }}
     >
       {/* Header */}
-      <Box
-        sx={{
-          py: 0.5,
-          px: 1,
-          bgcolor: 'background.surface',
-          borderBottom: '1px solid',
-          borderColor: 'divider',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
+      <Box sx={restartHeaderSx}>
         <Stack direction="row" gap={0.5} alignItems="center">
           <Icon name="LuRotateCw" size={14} />
-          <Text sx={{ fontSize: 13 }} weight="semibold">
+          <Text sx={fontSize13Sx} weight="semibold">
             Restart Info
           </Text>
         </Stack>
@@ -459,25 +507,25 @@ const RestartInfoCard: React.FC<{ status: ContainerStatus }> = ({ status }) => {
           size="xs"
           color={chipColor}
           emphasis="soft"
-          sx={{ borderRadius: 1 }}
+          sx={chipSx}
           label={`${restarts} restart${restarts !== 1 ? 's' : ''}`}
         />
       </Box>
 
-      <Box sx={{ py: 0.75, px: 1 }}>
+      <Box sx={restartBodySx}>
         {/* Current waiting state (e.g. CrashLoopBackOff) */}
         {waiting && (
           <Stack spacing={0.5} sx={{ mb: lastTerminated ? 0.75 : 0 }}>
             <Stack direction="row" spacing={1} alignItems="center">
               <Icon name="LuAlertTriangle" size={14} />
-              <Text sx={{ fontSize: 13 }} weight="semibold">
+              <Text sx={fontSize13Sx} weight="semibold">
                 Current State
               </Text>
               <Chip
                 size="xs"
                 color="warning"
                 emphasis="soft"
-                sx={{ borderRadius: 1 }}
+                sx={chipSx}
                 label={waiting.reason || 'Waiting'}
               />
             </Stack>
@@ -500,27 +548,21 @@ const RestartInfoCard: React.FC<{ status: ContainerStatus }> = ({ status }) => {
         {/* Last termination details */}
         {lastTerminated && (
           <>
-            {waiting && <Divider sx={{ my: 0.75 }} />}
+            {waiting && <Divider sx={waitingDividerSx} />}
             <Stack spacing={0.25}>
               <Text
                 size="xs"
                 weight="semibold"
-                sx={{
-                  color: 'text.secondary',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.08em',
-                  fontSize: 10,
-                  mb: 0.25,
-                }}
+                sx={lastTermLabelSx}
               >
                 Last Termination
               </Text>
               {formatTerminated(lastTerminated).map((entry) => (
-                <Grid container key={entry.label} spacing={0.5} sx={{ minHeight: 22 }}>
-                  <Grid size={4} sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Text sx={{ fontSize: 12, color: 'text.secondary' }}>{entry.label}</Text>
+                <Grid container key={entry.label} spacing={0.5} sx={termEntryRowSx}>
+                  <Grid size={4} sx={termLabelCellSx}>
+                    <Text sx={termLabelTextSx}>{entry.label}</Text>
                   </Grid>
-                  <Grid size={8} sx={{ display: 'flex', alignItems: 'center' }}>
+                  <Grid size={8} sx={termValueCellSx}>
                     <Text
                       sx={{
                         fontSize: 12,
@@ -750,9 +792,9 @@ const ContainerSlice: React.FC<ContainerSliceProps> = ({
   });
 
   return (
-    <Box sx={{ py: 1, px: 1.25 }}>
+    <Box sx={containerSx}>
       {/* ── Header: dot + name + type chip + restart count + status ── */}
-      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+      <Stack direction="row" spacing={1} alignItems="center" sx={headerSx}>
         <Box
           sx={{
             width: 8,
@@ -770,7 +812,7 @@ const ContainerSlice: React.FC<ContainerSliceProps> = ({
             size="xs"
             color={chipColor}
             emphasis="soft"
-            sx={{ borderRadius: 1 }}
+            sx={chipSx}
             label={label}
           />
         )}
@@ -795,7 +837,7 @@ const ContainerSlice: React.FC<ContainerSliceProps> = ({
                 size="xs"
                 color={color}
                 emphasis="soft"
-                sx={{ borderRadius: 1 }}
+                sx={chipSx}
                 label={`${status.restartCount} restart${status.restartCount !== 1 ? 's' : ''}`}
               />
             );
@@ -814,16 +856,7 @@ const ContainerSlice: React.FC<ContainerSliceProps> = ({
 
         {/* Image / Command / Args — full width, wrapping text */}
         <Grid size={12}>
-          <Box
-            sx={{
-              borderRadius: 1,
-              border: '1px solid',
-              borderColor: 'divider',
-              bgcolor: 'background.level1',
-              overflow: 'hidden',
-              p: 1,
-            }}
-          >
+          <Box sx={infoCardSx}>
             <InfoRow icon="LuImage" label="Image" value={container.image || ''} />
             {!!container.command?.length && (
               <InfoRow
@@ -840,34 +873,16 @@ const ContainerSlice: React.FC<ContainerSliceProps> = ({
 
         {/* Resources with utilization bars — full width */}
         <Grid size={12}>
-          <Box
-            sx={{
-              borderRadius: 1,
-              border: '1px solid',
-              borderColor: 'divider',
-              bgcolor: 'background.level1',
-              overflow: 'hidden',
-            }}
-          >
-            <Box
-              sx={{
-                py: 0.5,
-                px: 1,
-                bgcolor: 'background.surface',
-                borderBottom: '1px solid',
-                borderColor: 'divider',
-                display: 'flex',
-                alignItems: 'center',
-              }}
-            >
+          <Box sx={resourceCardSx}>
+            <Box sx={resourceCardHeaderSx}>
               <Stack direction="row" gap={0.5} alignItems="center">
                 <Icon name="LuGauge" size={14} />
-                <Text sx={{ fontSize: 13 }} weight="semibold">
+                <Text sx={fontSize13Sx} weight="semibold">
                   Resources
                 </Text>
               </Stack>
             </Box>
-            <Box sx={{ py: 0.75, px: 1 }}>
+            <Box sx={resourceCardBodySx}>
               <ResourceBar
                 label="CPU"
                 icon="LuCpu"

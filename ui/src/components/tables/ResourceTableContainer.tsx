@@ -27,6 +27,110 @@ import { LuCircleAlert } from 'react-icons/lu';
 
 import MemoizedRow from './MemoizedRow';
 
+const skeletonContainerSx = {
+  backgroundColor: 'inherit',
+  width: '100%',
+  borderRadius: '4px',
+  flex: 1,
+  minHeight: 0,
+  border: '1px solid',
+  borderColor: 'divider',
+  overflow: 'hidden',
+} as const;
+
+const skeletonTextSx = { fontSize: '0.75rem' } as const;
+
+const syncingOverlaySx = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  height: '100%',
+  width: '100%',
+  gap: 2,
+} as const;
+
+const syncingSpinnerSx = { color: 'var(--ov-accent-fg, #58a6ff)' } as const;
+
+const syncingProgressSx = {
+  width: 200,
+  height: 3,
+  borderRadius: 1.5,
+  bgcolor: 'rgba(255,255,255,0.08)',
+  '& .MuiLinearProgress-bar': {
+    bgcolor: 'var(--ov-accent-fg, #58a6ff)',
+    borderRadius: 1.5,
+  },
+} as const;
+
+const errorContainerSx = {
+  display: 'flex',
+  gap: 2,
+  justifyContent: 'center',
+  flexDirection: 'column',
+  alignItems: 'center',
+  height: '100%',
+  width: '100%',
+  userSelect: 'none',
+} as const;
+
+const errorDetailStackSx = { maxWidth: 560, textAlign: 'center' } as const;
+
+const errorSuggestionListSx = { textAlign: 'left', pl: 2, m: 0 } as const;
+
+const errorSuggestionItemSx = { py: 0.25 } as const;
+
+const errorDetailTextSx = {
+  color: 'text.disabled',
+  fontFamily: 'monospace',
+  mt: 1,
+  p: 1,
+  borderRadius: 1,
+  bgcolor: 'action.hover',
+  wordBreak: 'break-all',
+  maxHeight: 80,
+  overflow: 'auto',
+} as const;
+
+const tableStyle = {
+  display: 'grid',
+  width: '100%',
+  borderCollapse: 'collapse',
+  WebkitUserSelect: 'none',
+} as const;
+
+const theadStyle = {
+  display: 'grid',
+  position: 'sticky',
+  top: 0,
+  zIndex: 1,
+} as const;
+
+const syncingIndicatorSx = {
+  position: 'absolute',
+  top: 0,
+  left: 0,
+  right: 0,
+  height: 2,
+  zIndex: 2,
+  bgcolor: 'transparent',
+  '& .MuiLinearProgress-bar': {
+    bgcolor: 'var(--ov-accent-fg, #58a6ff)',
+  },
+} as const;
+
+const skeletonTableStyle = { display: 'grid', width: '100%', borderCollapse: 'collapse' } as const;
+
+const skeletonTheadStyle = { display: 'grid', position: 'sticky', top: 0, zIndex: 1 } as const;
+
+const skeletonTbodyStyle = { display: 'grid' } as const;
+
+const syncingTextSx = { color: 'var(--ov-fg-muted)' } as const;
+
+const errorHeadingSx = { color: 'danger.main' } as const;
+
+const textSecondarySx = { color: 'text.secondary' } as const;
+
 export type Memoizer = string | string[] | ((data: Record<string, unknown>) => string);
 export type IdAccessor = string | ((data: Record<string, unknown>) => string);
 
@@ -162,28 +266,19 @@ const ResourceTableContainer: React.FC<Props> = ({
   if (showSkeleton) {
     return (
       <Box
-        sx={{
-          backgroundColor: 'inherit',
-          width: '100%',
-          borderRadius: '4px',
-          flex: 1,
-          minHeight: 0,
-          border: '1px solid',
-          borderColor: 'divider',
-          overflow: 'hidden',
-        }}
+        sx={skeletonContainerSx}
       >
-        <table style={{ display: 'grid', width: '100%', borderCollapse: 'collapse' }}>
-          <thead style={{ display: 'grid', position: 'sticky', top: 0, zIndex: 1 }}>
+        <table style={skeletonTableStyle}>
+          <thead style={skeletonTheadStyle}>
             <tr style={{ display: 'flex', width: '100%' }}>
               {columns.slice(0, 5).map((col) => (
                 <th key={col.id ?? col.header?.toString()} style={{ flex: 1, padding: '8px 12px' }}>
-                  <Skeleton variant="text" width="60%" sx={{ fontSize: '0.75rem' }} />
+                  <Skeleton variant="text" width="60%" sx={skeletonTextSx} />
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody style={{ display: 'grid' }}>
+          <tbody style={skeletonTbodyStyle}>
             {Array.from({ length: 8 }, (_, i) => `skeleton-row-${i}`).map((rowKey, i) => (
               <tr
                 key={rowKey}
@@ -197,7 +292,7 @@ const ResourceTableContainer: React.FC<Props> = ({
                     <Skeleton
                       variant="text"
                       width={`${50 + Math.random() * 40}%`}
-                      sx={{ fontSize: '0.75rem' }}
+                      sx={skeletonTextSx}
                     />
                   </td>
                 ))}
@@ -212,32 +307,15 @@ const ResourceTableContainer: React.FC<Props> = ({
   if (showSyncingOverlay) {
     return (
       <Box
-        sx={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100%',
-          width: '100%',
-          gap: 2,
-        }}
+        sx={syncingOverlaySx}
       >
-        <CircularProgress size={32} thickness={4} sx={{ color: 'var(--ov-accent-fg, #58a6ff)' }} />
-        <Text size="sm" sx={{ color: 'var(--ov-fg-muted)' }}>
+        <CircularProgress size={32} thickness={4} sx={syncingSpinnerSx} />
+        <Text size="sm" sx={syncingTextSx}>
           Syncing {resourceKey.split('::').pop()}...
         </Text>
         <LinearProgress
           variant="indeterminate"
-          sx={{
-            width: 200,
-            height: 3,
-            borderRadius: 1.5,
-            bgcolor: 'rgba(255,255,255,0.08)',
-            '& .MuiLinearProgress-bar': {
-              bgcolor: 'var(--ov-accent-fg, #58a6ff)',
-              borderRadius: 1.5,
-            },
-          }}
+          sx={syncingProgressSx}
         />
       </Box>
     );
@@ -314,16 +392,7 @@ const ResourceTableContainer: React.FC<Props> = ({
 
     return (
       <Box
-        sx={{
-          display: 'flex',
-          gap: 2,
-          justifyContent: 'center',
-          flexDirection: 'column',
-          alignItems: 'center',
-          height: '100%',
-          width: '100%',
-          userSelect: 'none',
-        }}
+        sx={errorContainerSx}
       >
         <Alert
           emphasis="soft"
@@ -331,19 +400,19 @@ const ResourceTableContainer: React.FC<Props> = ({
           startAdornment={<LuCircleAlert size={20} />}
           color="danger"
         >
-          <Heading level="h4" sx={{ color: 'danger.main' }}>
+          <Heading level="h4" sx={errorHeadingSx}>
             {title}
           </Heading>
         </Alert>
-        <Stack direction="column" spacing={1} sx={{ maxWidth: 560, textAlign: 'center' }}>
-          <Text size="sm" sx={{ color: 'text.secondary' }}>
+        <Stack direction="column" spacing={1} sx={errorDetailStackSx}>
+          <Text size="sm" sx={textSecondarySx}>
             {detail}
           </Text>
           {suggestions.length > 0 && (
-            <Box component="ul" sx={{ textAlign: 'left', pl: 2, m: 0 }}>
+            <Box component="ul" sx={errorSuggestionListSx}>
               {suggestions.map((s) => (
-                <Box component="li" key={s} sx={{ py: 0.25 }}>
-                  <Text size="xs" sx={{ color: 'text.secondary' }}>
+                <Box component="li" key={s} sx={errorSuggestionItemSx}>
+                  <Text size="xs" sx={textSecondarySx}>
                     {s}
                   </Text>
                 </Box>
@@ -352,17 +421,7 @@ const ResourceTableContainer: React.FC<Props> = ({
           )}
           <Text
             size="xs"
-            sx={{
-              color: 'text.disabled',
-              fontFamily: 'monospace',
-              mt: 1,
-              p: 1,
-              borderRadius: 1,
-              bgcolor: 'action.hover',
-              wordBreak: 'break-all',
-              maxHeight: 80,
-              overflow: 'auto',
-            }}
+            sx={errorDetailTextSx}
           >
             {resourceKey}: {errstring || 'Unknown error'}
           </Text>
@@ -397,36 +456,15 @@ const ResourceTableContainer: React.FC<Props> = ({
       {showSyncingIndicator && (
         <LinearProgress
           variant="indeterminate"
-          sx={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 2,
-            zIndex: 2,
-            bgcolor: 'transparent',
-            '& .MuiLinearProgress-bar': {
-              bgcolor: 'var(--ov-accent-fg, #58a6ff)',
-            },
-          }}
+          sx={syncingIndicatorSx}
         />
       )}
       <table
         aria-labelledby={'table-title'}
-        style={{
-          display: 'grid',
-          width: '100%',
-          borderCollapse: 'collapse',
-          WebkitUserSelect: 'none',
-        }}
+        style={tableStyle}
       >
         <thead
-          style={{
-            display: 'grid',
-            position: 'sticky',
-            top: 0,
-            zIndex: 1,
-          }}
+          style={theadStyle}
         >
           {table.getHeaderGroups().map((headerGroup) => (
             <tr key={headerGroup.id} style={{ display: 'flex', width: '100%', cursor: 'pointer' }}>

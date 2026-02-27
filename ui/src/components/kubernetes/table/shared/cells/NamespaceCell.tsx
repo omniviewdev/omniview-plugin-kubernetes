@@ -4,6 +4,15 @@ import type { CellContext } from '@tanstack/react-table';
 import { useState } from 'react';
 import { LuFilter } from 'react-icons/lu';
 
+const namespaceCellSx = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 0.25,
+  minWidth: 0,
+} as const;
+
+const namespaceTextStyle = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } as const;
+
 /**
  * NamespaceCell renders the namespace value with hover actions:
  * - Copy to clipboard
@@ -35,14 +44,9 @@ export const NamespaceCell = <T,>({ getValue, table, column }: CellContext<T, un
     <Box
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      sx={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 0.25,
-        minWidth: 0,
-      }}
+      sx={namespaceCellSx}
     >
-      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <span style={namespaceTextStyle}>
         {val}
       </span>
       {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}

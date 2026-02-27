@@ -13,6 +13,15 @@ import { withNamespacedResourceColumns } from '../../shared/columns';
 
 import ConfigMapSidebar from './Sidebar';
 
+const hideScrollbarSx = {
+  scrollbarWidth: 'none',
+  '&::-webkit-scrollbar': {
+    display: 'none',
+  },
+} as const;
+
+const chipBorderRadiusSx = { borderRadius: '2px' } as const;
+
 const resourceKey = 'core::v1::ConfigMap';
 
 const ConfigMapTable: React.FC = () => {
@@ -45,19 +54,13 @@ const ConfigMapTable: React.FC = () => {
                   direction={'row'}
                   overflow={'scroll'}
                   gap={0.25}
-                  sx={{
-                    scrollbarWidth: 'none',
-                    // hide scrollbar
-                    '&::-webkit-scrollbar': {
-                      display: 'none',
-                    },
-                  }}
+                  sx={hideScrollbarSx}
                 >
                   {(getValue() as string[]).map((value) => (
                     <Chip
                       key={value}
                       size={'sm'}
-                      sx={{ borderRadius: '2px' }}
+                      sx={chipBorderRadiusSx}
                       emphasis="outline"
                       label={value}
                     />

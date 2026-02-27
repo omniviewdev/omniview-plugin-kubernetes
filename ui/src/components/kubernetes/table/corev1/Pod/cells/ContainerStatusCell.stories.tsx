@@ -3,6 +3,15 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import ContainerStatusCell from './ContainerStatusCell';
 import data from './mock.json';
 
+const decoratorStyle = {
+  padding: '2px 8px',
+  display: 'flex',
+  alignItems: 'center',
+  height: 35,
+  width: 600,
+  border: '1px solid darkgrey',
+} as const;
+
 // More on how to set up stories at: https://storybook.js.org/docs/writing-stories#default-export
 const meta = {
   title: 'Kubernetes/Table Cells/ContainerStatusCell',
@@ -23,16 +32,7 @@ export const Primary: Story = {
 
 Primary.decorators = [
   (Story) => (
-    <div
-      style={{
-        padding: '2px 8px',
-        display: 'flex',
-        alignItems: 'center',
-        height: 35,
-        width: 600,
-        border: '1px solid darkgrey',
-      }}
-    >
+    <div style={decoratorStyle}>
       <Story />
     </div>
   ),

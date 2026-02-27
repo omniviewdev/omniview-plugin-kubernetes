@@ -37,6 +37,91 @@ const WELL_KNOWN_NAMESPACES = [
   'default',
 ];
 
+const colorInheritSx = { color: 'inherit' } as const;
+
+const cardBorderSx = { borderColor: 'divider' } as const;
+
+const cardBodySx = { p: 1.5 } as const;
+
+const providerHeaderSx = { mb: 1 } as const;
+
+const noProviderWarningBoxSx = {
+  mt: 1,
+  px: 1,
+  py: 0.75,
+  borderRadius: 1,
+  bgcolor: 'warning.softBg',
+  border: '1px solid',
+  borderColor: 'warning.softColor',
+} as const;
+
+const providerItemSx = {
+  px: 1.25,
+  py: 0.5,
+  borderRadius: 1,
+  bgcolor: 'background.level1',
+  display: 'flex',
+  flexDirection: 'column',
+} as const;
+
+const providerListSx = { mt: 1 } as const;
+
+const promConfigHeaderSx = { mb: 0.5 } as const;
+
+const successBannerSx = {
+  mb: 1.5,
+  px: 1.25,
+  py: 0.75,
+  borderRadius: 1,
+  bgcolor: 'success.softBg',
+  border: '1px solid',
+  borderColor: 'success.softColor',
+} as const;
+
+const failureBannerSx = {
+  mb: 1.5,
+  px: 1.25,
+  py: 0.75,
+  borderRadius: 1,
+  bgcolor: 'error.softBg',
+  border: '1px solid',
+  borderColor: 'error.softColor',
+} as const;
+
+const failureIconSx = { mt: 0.125, flexShrink: 0 } as const;
+
+const infoRowSx = { mt: 1.25 } as const;
+
+const infoIconSx = { color: 'text.tertiary', mt: 0.25, flexShrink: 0 } as const;
+
+const autoDetectionBodySx = { p: 1.5, display: 'flex', flexDirection: 'column' } as const;
+
+const sectionLabelSx = {
+  mb: 0.5,
+  textTransform: 'uppercase',
+  opacity: 0.4,
+  letterSpacing: '0.05em',
+  fontSize: '0.6rem',
+} as const;
+
+const wellKnownItemSx = { px: 1, py: 0.375, borderRadius: 0.75, bgcolor: 'background.level1' } as const;
+
+const monoTextSx = { fontFamily: 'monospace', fontSize: '0.7rem' } as const;
+
+const descTextSx = { opacity: 0.4, fontSize: '0.65rem' } as const;
+
+const warningTextSx = { lineHeight: 1.4 } as const;
+
+const providerDescSx = { opacity: 0.5 } as const;
+
+const promSubtitleSx = { mb: 1.5, opacity: 0.6 } as const;
+
+const infoTextSx = { color: 'text.tertiary', lineHeight: 1.4 } as const;
+
+const autoDetectionTitleSx = { mb: 0.25 } as const;
+
+const autoDetectionSubtitleSx = { mb: 1.25, opacity: 0.5 } as const;
+
 type TestState = 'idle' | 'testing' | 'success' | 'failure';
 
 const MetricsTabContent: React.FC<Props> = ({ pluginID, connectionID, connected }) => {
@@ -185,9 +270,9 @@ const MetricsTabContent: React.FC<Props> = ({ pluginID, connectionID, connected 
   return (
     <Stack direction="column" gap={1.5}>
       {/* Provider status */}
-      <Card variant="outlined" sx={{ borderColor: 'divider' }}>
-        <Box sx={{ p: 1.5 }}>
-          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+      <Card variant="outlined" sx={cardBorderSx}>
+        <Box sx={cardBodySx}>
+          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={providerHeaderSx}>
             <Stack direction="row" alignItems="center" gap={0.75}>
               <LuActivity size={14} />
               <Text size="sm" weight="semibold">
@@ -211,7 +296,7 @@ const MetricsTabContent: React.FC<Props> = ({ pluginID, connectionID, connected 
               }
               startAdornment={
                 providersLoading ? (
-                  <CircularProgress size={7} sx={{ color: 'inherit' }} />
+                  <CircularProgress size={7} sx={colorInheritSx} />
                 ) : (
                   <LuCircle size={7} fill="currentColor" />
                 )
@@ -229,17 +314,9 @@ const MetricsTabContent: React.FC<Props> = ({ pluginID, connectionID, connected 
           </Stack>
           {connected && providerCount === 0 && !providersLoading && (
             <Box
-              sx={{
-                mt: 1,
-                px: 1,
-                py: 0.75,
-                borderRadius: 1,
-                bgcolor: 'warning.softBg',
-                border: '1px solid',
-                borderColor: 'warning.softColor',
-              }}
+              sx={noProviderWarningBoxSx}
             >
-              <Text size="xs" sx={{ lineHeight: 1.4 }}>
+              <Text size="xs" sx={warningTextSx}>
                 No metric providers found. This usually means the plugin binary needs to be rebuilt
                 with metric support, or the plugin hasn&apos;t fully initialized yet. Try reconnecting
                 the cluster or restarting the app.
@@ -247,24 +324,17 @@ const MetricsTabContent: React.FC<Props> = ({ pluginID, connectionID, connected 
             </Box>
           )}
           {connected && providerCount > 0 && (
-            <Stack gap={0.5} sx={{ mt: 1 }}>
+            <Stack gap={0.5} sx={providerListSx}>
               {providers!.map((p) => (
                 <Box
                   key={p.provider_id}
-                  sx={{
-                    px: 1.25,
-                    py: 0.5,
-                    borderRadius: 1,
-                    bgcolor: 'background.level1',
-                    display: 'flex',
-                    flexDirection: 'column',
-                  }}
+                  sx={providerItemSx}
                 >
                   <Text size="xs" weight="medium">
                     {p.name || p.provider_id}
                   </Text>
                   {p.description && (
-                    <Text size="xs" sx={{ opacity: 0.5 }}>
+                    <Text size="xs" sx={providerDescSx}>
                       {p.description}
                     </Text>
                   )}
@@ -276,13 +346,13 @@ const MetricsTabContent: React.FC<Props> = ({ pluginID, connectionID, connected 
       </Card>
 
       {/* Prometheus configuration */}
-      <Card variant="outlined" sx={{ borderColor: 'divider' }}>
-        <Box sx={{ p: 1.5 }}>
+      <Card variant="outlined" sx={cardBorderSx}>
+        <Box sx={cardBodySx}>
           <Stack
             direction="row"
             alignItems="center"
             justifyContent="space-between"
-            sx={{ mb: 0.5 }}
+            sx={promConfigHeaderSx}
           >
             <Text size="sm" weight="semibold">
               Prometheus Configuration
@@ -306,7 +376,7 @@ const MetricsTabContent: React.FC<Props> = ({ pluginID, connectionID, connected 
                 disabled={!connected || testState === 'testing'}
                 startAdornment={
                   testState === 'testing' ? (
-                    <CircularProgress size={12} sx={{ color: 'inherit' }} />
+                    <CircularProgress size={12} sx={colorInheritSx} />
                   ) : testState === 'success' ? (
                     <LuCheck size={14} />
                   ) : testState === 'failure' ? (
@@ -327,7 +397,7 @@ const MetricsTabContent: React.FC<Props> = ({ pluginID, connectionID, connected 
               </Button>
             </Stack>
           </Stack>
-          <Text size="xs" sx={{ mb: 1.5, opacity: 0.6 }}>
+          <Text size="xs" sx={promSubtitleSx}>
             Override Prometheus service details for this cluster. Leave fields empty to use
             auto-detection.
           </Text>
@@ -335,15 +405,7 @@ const MetricsTabContent: React.FC<Props> = ({ pluginID, connectionID, connected 
           {/* Test result banner */}
           {testState === 'success' && (
             <Box
-              sx={{
-                mb: 1.5,
-                px: 1.25,
-                py: 0.75,
-                borderRadius: 1,
-                bgcolor: 'success.softBg',
-                border: '1px solid',
-                borderColor: 'success.softColor',
-              }}
+              sx={successBannerSx}
             >
               <Stack direction="row" gap={0.75} alignItems="center">
                 <LuCheck size={14} />
@@ -355,18 +417,10 @@ const MetricsTabContent: React.FC<Props> = ({ pluginID, connectionID, connected 
           )}
           {testState === 'failure' && (
             <Box
-              sx={{
-                mb: 1.5,
-                px: 1.25,
-                py: 0.75,
-                borderRadius: 1,
-                bgcolor: 'error.softBg',
-                border: '1px solid',
-                borderColor: 'error.softColor',
-              }}
+              sx={failureBannerSx}
             >
               <Stack direction="row" gap={0.75} alignItems="flex-start">
-                <Box sx={{ mt: 0.125, flexShrink: 0 }}>
+                <Box sx={failureIconSx}>
                   <LuX size={14} />
                 </Box>
                 <Text size="xs" weight="medium">
@@ -412,11 +466,11 @@ const MetricsTabContent: React.FC<Props> = ({ pluginID, connectionID, connected 
             </Grid>
           </Grid>
 
-          <Stack direction="row" gap={0.75} alignItems="flex-start" sx={{ mt: 1.25 }}>
-            <Box sx={{ color: 'text.tertiary', mt: 0.25, flexShrink: 0 }}>
+          <Stack direction="row" gap={0.75} alignItems="flex-start" sx={infoRowSx}>
+            <Box sx={infoIconSx}>
               <LuInfo size={12} />
             </Box>
-            <Text size="xs" sx={{ color: 'text.tertiary', lineHeight: 1.4 }}>
+            <Text size="xs" sx={infoTextSx}>
               When fields are empty, the backend scans for well-known Prometheus service names and
               namespaces automatically. Set these values if your Prometheus installation uses a
               non-standard configuration.
@@ -426,12 +480,12 @@ const MetricsTabContent: React.FC<Props> = ({ pluginID, connectionID, connected 
       </Card>
 
       {/* Auto-detection reference */}
-      <Card variant="outlined" sx={{ borderColor: 'divider' }}>
-        <Box sx={{ p: 1.5, display: 'flex', flexDirection: 'column' }}>
-          <Text size="sm" weight="semibold" sx={{ mb: 0.25 }}>
+      <Card variant="outlined" sx={cardBorderSx}>
+        <Box sx={autoDetectionBodySx}>
+          <Text size="sm" weight="semibold" sx={autoDetectionTitleSx}>
             Auto-Detection Reference
           </Text>
-          <Text size="xs" sx={{ mb: 1.25, opacity: 0.5 }}>
+          <Text size="xs" sx={autoDetectionSubtitleSx}>
             Well-known service names and namespaces scanned during auto-detection.
           </Text>
           <Grid container spacing={1.5}>
@@ -439,13 +493,7 @@ const MetricsTabContent: React.FC<Props> = ({ pluginID, connectionID, connected 
               <Text
                 size="xs"
                 weight="semibold"
-                sx={{
-                  mb: 0.5,
-                  textTransform: 'uppercase',
-                  opacity: 0.4,
-                  letterSpacing: '0.05em',
-                  fontSize: '0.6rem',
-                }}
+                sx={sectionLabelSx}
               >
                 Service Names
               </Text>
@@ -456,12 +504,12 @@ const MetricsTabContent: React.FC<Props> = ({ pluginID, connectionID, connected 
                     direction="row"
                     gap={0.75}
                     alignItems="baseline"
-                    sx={{ px: 1, py: 0.375, borderRadius: 0.75, bgcolor: 'background.level1' }}
+                    sx={wellKnownItemSx}
                   >
-                    <Text size="xs" sx={{ fontFamily: 'monospace', fontSize: '0.7rem' }}>
+                    <Text size="xs" sx={monoTextSx}>
                       {s.name}
                     </Text>
-                    <Text size="xs" sx={{ opacity: 0.4, fontSize: '0.65rem' }}>
+                    <Text size="xs" sx={descTextSx}>
                       {s.desc}
                     </Text>
                   </Stack>
@@ -472,13 +520,7 @@ const MetricsTabContent: React.FC<Props> = ({ pluginID, connectionID, connected 
               <Text
                 size="xs"
                 weight="semibold"
-                sx={{
-                  mb: 0.5,
-                  textTransform: 'uppercase',
-                  opacity: 0.4,
-                  letterSpacing: '0.05em',
-                  fontSize: '0.6rem',
-                }}
+                sx={sectionLabelSx}
               >
                 Namespaces
               </Text>
@@ -486,9 +528,9 @@ const MetricsTabContent: React.FC<Props> = ({ pluginID, connectionID, connected 
                 {WELL_KNOWN_NAMESPACES.map((ns) => (
                   <Box
                     key={ns}
-                    sx={{ px: 1, py: 0.375, borderRadius: 0.75, bgcolor: 'background.level1' }}
+                    sx={wellKnownItemSx}
                   >
-                    <Text size="xs" sx={{ fontFamily: 'monospace', fontSize: '0.7rem' }}>
+                    <Text size="xs" sx={monoTextSx}>
                       {ns}
                     </Text>
                   </Box>

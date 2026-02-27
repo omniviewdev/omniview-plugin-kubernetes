@@ -7,6 +7,30 @@ import { LuSquareTerminal } from 'react-icons/lu';
 
 import ActionMenuListItem from './ActionMenuListItem';
 
+// ---------------------------------------------------------------------------
+// Static styles
+// ---------------------------------------------------------------------------
+
+const listItemSx = { listStyle: 'none' } as const;
+const submenuSx = {
+  listStyle: 'none',
+  p: 0.5,
+  m: 0,
+  bgcolor: 'background.surface',
+  border: '1px solid',
+  borderColor: 'divider',
+  borderRadius: 'sm',
+  boxShadow: 'md',
+  minWidth: 100,
+} as const;
+const targetItemSx = {
+  px: 1,
+  py: 0.5,
+  cursor: 'pointer',
+  borderRadius: 'sm',
+  '&:hover': { bgcolor: 'action.hover' },
+} as const;
+
 /** Command to detect the shell */
 const DefaultShellCmd = ['/bin/sh', '-c', 'stty -echo && /bin/sh'];
 
@@ -87,7 +111,7 @@ const ExecAction: React.FC<Props> = ({
   };
 
   return (
-    <Box component="li" sx={{ listStyle: 'none' }}>
+    <Box component="li" sx={listItemSx}>
       <ActionMenuListItem
         label="Exec"
         icon={<LuSquareTerminal />}
@@ -97,29 +121,13 @@ const ExecAction: React.FC<Props> = ({
         menu={
           <Box
             component="ul"
-            sx={{
-              listStyle: 'none',
-              p: 0.5,
-              m: 0,
-              bgcolor: 'background.surface',
-              border: '1px solid',
-              borderColor: 'divider',
-              borderRadius: 'sm',
-              boxShadow: 'md',
-              minWidth: 100,
-            }}
+            sx={submenuSx}
           >
             {targets.map((target) => (
               <Box
                 component="li"
                 key={target.label}
-                sx={{
-                  px: 1,
-                  py: 0.5,
-                  cursor: 'pointer',
-                  borderRadius: 'sm',
-                  '&:hover': { bgcolor: 'action.hover' },
-                }}
+                sx={targetItemSx}
                 onClick={() => {
                   handlePerformExec(target.label, target.params);
                   handleDeselect();

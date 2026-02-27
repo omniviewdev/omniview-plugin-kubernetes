@@ -7,6 +7,12 @@ import { LuX } from 'react-icons/lu';
 import type { FilterState, ConnectionAttribute } from '../../types/clusters';
 import { getProviderLabel } from '../../utils/providers';
 
+const wrapperSx = { flexWrap: 'wrap', alignItems: 'center' } as const;
+
+const chipSx = { cursor: 'pointer' } as const;
+
+const separatorSx = { opacity: 0.5, px: 0.5 } as const;
+
 type Props = {
   filters: FilterState;
   availableProviders: string[];
@@ -47,7 +53,7 @@ const FilterChips: React.FC<Props> = ({
   if (!showProviders && !showTags && filterableAttrs.length === 0 && !hasActiveFilters) return null;
 
   return (
-    <Stack direction="row" gap={0.75} sx={{ flexWrap: 'wrap', alignItems: 'center' }}>
+    <Stack direction="row" gap={0.75} sx={wrapperSx}>
       {/* Provider chips */}
       {showProviders &&
         availableProviders.map((provider) => (
@@ -57,7 +63,7 @@ const FilterChips: React.FC<Props> = ({
             emphasis={filters.providers?.includes(provider) ? 'soft' : 'outline'}
             color={filters.providers?.includes(provider) ? 'primary' : 'neutral'}
             onClick={() => onToggleProvider(provider)}
-            sx={{ cursor: 'pointer' }}
+            sx={chipSx}
             label={getProviderLabel(provider)}
           />
         ))}
@@ -83,7 +89,7 @@ const FilterChips: React.FC<Props> = ({
       {/* Tag chips */}
       {showTags && (
         <>
-          <Text size="xs" sx={{ opacity: 0.5, px: 0.5 }}>
+          <Text size="xs" sx={separatorSx}>
             |
           </Text>
           {availableTags.map((tag) => (
@@ -93,7 +99,7 @@ const FilterChips: React.FC<Props> = ({
               emphasis={filters.tags?.includes(tag) ? 'soft' : 'outline'}
               color={filters.tags?.includes(tag) ? 'warning' : 'neutral'}
               onClick={() => onToggleTag(tag)}
-              sx={{ cursor: 'pointer' }}
+              sx={chipSx}
               label={tag}
             />
           ))}
@@ -103,7 +109,7 @@ const FilterChips: React.FC<Props> = ({
       {/* Dynamic attribute filter chips */}
       {filterableAttrs.map((attr) => (
         <React.Fragment key={`attr:${attr.key}`}>
-          <Text size="xs" sx={{ opacity: 0.5, px: 0.5 }}>
+          <Text size="xs" sx={separatorSx}>
             |
           </Text>
           {attr.distinctValues.map((val) => {
@@ -115,7 +121,7 @@ const FilterChips: React.FC<Props> = ({
                 emphasis={isActive ? 'soft' : 'outline'}
                 color={isActive ? 'primary' : 'neutral'}
                 onClick={() => onToggleLabelFilter(attr.key, val)}
-                sx={{ cursor: 'pointer' }}
+                sx={chipSx}
                 label={val}
               />
             );

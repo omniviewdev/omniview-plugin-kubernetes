@@ -9,6 +9,23 @@ import * as React from 'react';
 
 import Icon from '../../../shared/Icon';
 
+// ---------------------------------------------------------------------------
+// Static styles
+// ---------------------------------------------------------------------------
+
+const cardSx = {
+  p: 0.5,
+  minWidth: 300,
+  maxWidth: 800,
+  bgcolor: 'background.level1',
+} as const;
+const statusChipSx = { borderRadius: 'sm' } as const;
+const cardBodySx = { p: 0.5 } as const;
+const healthyTextSx = { color: 'success.main' } as const;
+const lastStateCardSx = { px: 1, gap: 0.5, pb: 1, pt: 0.5 } as const;
+const lastStateLabelSx = { fontSize: 12, color: 'neutral.50' } as const;
+const lastStateBodySx = { p: 0.5 } as const;
+
 import {
   ContainerTerminatedStatusInfo,
   ContainerWaitingStatusInfo,
@@ -49,14 +66,7 @@ const ContainerStatusCard: React.FC<Props> = ({
   };
 
   return (
-    <Card
-      sx={{
-        p: 0.5,
-        minWidth: 300,
-        maxWidth: 800,
-        bgcolor: 'background.level1',
-      }}
-    >
+    <Card sx={cardSx}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" gap={2}>
         {showContainerName && <Text size="sm">{status.name}</Text>}
         <Stack gap={1} direction="row" alignItems="center">
@@ -64,7 +74,7 @@ const ContainerStatusCard: React.FC<Props> = ({
             size="sm"
             color={statusInfo.color}
             emphasis={getEmphasis()}
-            sx={{ borderRadius: 'sm' }}
+            sx={statusChipSx}
             startAdornment={statusInfo.icon && <Icon name={statusInfo.icon} size={16} />}
             label={statusInfo.text}
           />
@@ -72,7 +82,7 @@ const ContainerStatusCard: React.FC<Props> = ({
             size="sm"
             color={status.ready ? 'primary' : 'warning'}
             emphasis="outline"
-            sx={{ borderRadius: 'sm' }}
+            sx={statusChipSx}
             label={getStatusText()}
           />
         </Stack>
@@ -82,31 +92,31 @@ const ContainerStatusCard: React.FC<Props> = ({
           </Text>
         )}
       </Stack>
-      <Box sx={{ p: 0.5 }}>
+      <Box sx={cardBodySx}>
         <Stack direction="column" gap={0}>
           {status.state?.terminated && (
             <ContainerTerminatedStatusInfo state={status.state.terminated} />
           )}
           {status.state?.waiting && <ContainerWaitingStatusInfo state={status.state.waiting} />}
           {status.state?.running && !status.lastState?.terminated && (
-            <Text size="sm" sx={{ color: 'success.main' }}>
+            <Text size="sm" sx={healthyTextSx}>
               Container is healthy
             </Text>
           )}
           {status.lastState?.terminated && (
-            <Card variant="outlined" sx={{ px: 1, gap: 0.5, pb: 1, pt: 0.5 }}>
+            <Card variant="outlined" sx={lastStateCardSx}>
               <Stack direction="row" gap={1} alignItems="center" justifyContent="space-between">
-                <Text sx={{ fontSize: 12, color: 'neutral.50' }}>Last State</Text>
+                <Text sx={lastStateLabelSx}>Last State</Text>
                 <Chip
                   size="sm"
                   color="danger"
                   emphasis="outline"
-                  sx={{ borderRadius: 'sm' }}
+                  sx={statusChipSx}
                   label="Terminated"
                 />
               </Stack>
               <Divider />
-              <Box sx={{ p: 0.5 }}>
+              <Box sx={lastStateBodySx}>
                 <ContainerTerminatedStatusInfo state={status.lastState.terminated} />
               </Box>
             </Card>

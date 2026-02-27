@@ -24,7 +24,36 @@ const scrollableSx = {
   '&-ms-overflow-style:': {
     display: 'none',
   },
-};
+} as const;
+
+const listSx = {
+  py: 0,
+  userSelect: 'none',
+  '--ListItem-radius': '8px',
+  '--List-nestedInsetStart': '0px',
+} as const;
+
+const subheaderSx = { minBlockSize: 0, pt: 1.5 } as const;
+
+const nestedListSx = {
+  py: 0,
+  '--List-nestedInsetStart': '13px',
+  '--ListItem-paddingLeft': '8px',
+} as const;
+
+const iconContainerSx = {
+  display: 'flex',
+  alignItems: 'center',
+  marginInlineEnd: '-0.5rem',
+} as const;
+
+const avatarSx = { borderRadius: 'sm', maxHeight: 20, maxWidth: 20 } as const;
+
+const flexBoxSx = { flex: 1, minWidth: 0 } as const;
+
+const decoratorChipSx = { borderRadius: 'sm' } as const;
+
+const decoratorTextSx = { fontSize: 10 } as const;
 
 const getInitialOpenState = (
   items: SidebarItem[] | undefined,
@@ -111,27 +140,18 @@ const NavMenu: React.FC<SidebarProps> = ({ header, size, items, sections }) => {
       {header}
       <List
         size={size ?? 'md'}
-        sx={{
-          py: 0,
-          userSelect: 'none',
-          '--ListItem-radius': '8px',
-          '--List-nestedInsetStart': '0px',
-        }}
+        sx={listSx}
       >
         {/** Sections */}
         {sections?.map((section) => (
           <ListItem key={section.id} nested>
             {section.title && (
-              <ListSubheader sx={{ minBlockSize: 0, pt: 1.5 }}>{section.title}</ListSubheader>
+              <ListSubheader sx={subheaderSx}>{section.title}</ListSubheader>
             )}
             <List
               aria-labelledby="nav-list-browse"
               size={size ?? 'md'}
-              sx={{
-                py: 0,
-                '--List-nestedInsetStart': '13px',
-                '--ListItem-paddingLeft': '8px',
-              }}
+              sx={nestedListSx}
             >
               {section.items.map((item) => (
                 <SidebarListItem
@@ -233,18 +253,14 @@ const SidebarListItem: React.FC<SidebarListItemProps> = ({
       >
         {item.icon && (
           <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              marginInlineEnd: '-0.5rem',
-            }}
+            sx={iconContainerSx}
           >
             {typeof item.icon === 'string' ? (
               IsImage(item.icon) ? (
                 <Avatar
                   size="sm"
                   src={item.icon}
-                  sx={{ borderRadius: 'sm', maxHeight: 20, maxWidth: 20 }}
+                  sx={avatarSx}
                 />
               ) : (
                 <Icon name={item.icon} size={16} />
@@ -254,7 +270,7 @@ const SidebarListItem: React.FC<SidebarListItemProps> = ({
             )}
           </Box>
         )}
-        <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Box sx={flexBoxSx}>
           <Text
             weight={level === 0 || item.children?.length ? 'semibold' : undefined}
             size={level === 0 || item.children?.length ? 'sm' : 'xs'}
@@ -272,9 +288,9 @@ const SidebarListItem: React.FC<SidebarListItemProps> = ({
             size="sm"
             emphasis="outline"
             color="neutral"
-            sx={{ borderRadius: 'sm' }}
+            sx={decoratorChipSx}
             label={
-              <Text size="xs" sx={{ fontSize: 10 }}>
+              <Text size="xs" sx={decoratorTextSx}>
                 {item.decorator}
               </Text>
             }

@@ -14,6 +14,8 @@ import { LuTrash } from 'react-icons/lu';
 
 import { useTableDrawer } from '../../../../shared/table/TableDrawerContext';
 
+const triggerButtonSx = { flex: 'none', minHeight: 28, minWidth: 28 } as const;
+
 type Props = {
   connectionID: string;
   resourceID: string;
@@ -147,7 +149,7 @@ const ActionsCell: React.FC<Props> = ({ connectionID, resourceKey, resourceID, d
       placement="bottom-end"
       items={items}
       trigger={
-        <IconButton size="sm" emphasis="ghost" sx={{ flex: 'none', minHeight: 28, minWidth: 28 }}>
+        <IconButton size="sm" emphasis="ghost" sx={triggerButtonSx}>
           <MoreHorizRounded />
         </IconButton>
       }

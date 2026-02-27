@@ -11,6 +11,19 @@ import { convertByteUnits } from '../../../utils/units';
 
 import ResourceLinkCell from './ResourceLinkCell';
 
+// ---------------------------------------------------------------------------
+// Static styles
+// ---------------------------------------------------------------------------
+
+const cellScrollSx = {
+  overflowY: 'hidden',
+  overflowX: 'scroll',
+  scrollbarWidth: 'none',
+  '&::-webkit-scrollbar': { display: 'none' },
+} as const;
+
+const cellContentSx = { display: 'flex', alignItems: 'center', gap: 0.5 } as const;
+
 type CellValue = string | number | string[] | number[];
 
 type Props = {
@@ -178,15 +191,10 @@ const CellBase: React.FC<Props> = ({
       flex={1}
       justifyContent={getAlignment()}
       alignItems="center"
-      sx={{
-        overflowY: 'hidden',
-        overflowX: 'scroll',
-        scrollbarWidth: 'none',
-        '&::-webkit-scrollbar': { display: 'none' },
-      }}
+      sx={cellScrollSx}
     >
       {children ?? (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        <Box sx={cellContentSx}>
           {startDecorator}
           <Text size="xs" sx={{ color: getColor() ? `${getColor()}.main` : undefined }} noWrap>
             {formatter && formatters[formatter] ? formatters[formatter](value) : String(value)}

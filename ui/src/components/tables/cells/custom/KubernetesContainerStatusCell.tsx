@@ -7,6 +7,12 @@ import React from 'react';
 
 import ContainerStatusCard from './KubernetesContainerStatusCard';
 
+// ---------------------------------------------------------------------------
+// Static styles
+// ---------------------------------------------------------------------------
+
+const containerStackSx = { width: '100%' } as const;
+
 type Props = {
   data?: unknown;
 };
@@ -46,7 +52,7 @@ export const KubernetesContainerStatusCell: React.FC<Props> = ({ data }) => {
   return (
     <Stack
       direction="row"
-      sx={{ width: '100%' }}
+      sx={containerStackSx}
       alignItems="center"
       justifyContent="flex-start"
       gap={1}

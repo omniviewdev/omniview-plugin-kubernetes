@@ -10,6 +10,31 @@ import DeleteAction from './DeleteAction';
 import ExecAction from './ExecAction';
 import { type Actions } from './types';
 
+// ---------------------------------------------------------------------------
+// Static styles
+// ---------------------------------------------------------------------------
+
+const menuButtonSx = {
+  flex: 'none',
+  minHeight: 28,
+  minWidth: 28,
+} as const;
+
+const menuListSx = {
+  listStyle: 'none',
+  maxWidth: 400,
+  minWidth: 110,
+  borderRadius: 'sm',
+  border: '1px solid',
+  borderColor: 'divider',
+  backgroundColor: 'background.body',
+  paddingBlock: 0,
+  paddingX: '2px',
+  m: 0,
+  p: 0,
+  '--IconButton-size': '28px',
+} as const;
+
 type Props = {
   id: string;
   connection: string;
@@ -66,11 +91,7 @@ const ActionMenu: React.FC<Props> = (props) => {
       <IconButton
         size="sm"
         emphasis="ghost"
-        sx={{
-          flex: 'none',
-          minHeight: 28,
-          minWidth: 28,
-        }}
+        sx={menuButtonSx}
         onClick={handleClick}
       >
         <MoreHorizRounded />
@@ -135,20 +156,7 @@ const ActionsMenuList: React.FC<ActionMenuListProps> = ({
   return (
     <Box
       component="ul"
-      sx={{
-        listStyle: 'none',
-        maxWidth: 400,
-        minWidth: 110,
-        borderRadius: 'sm',
-        border: '1px solid',
-        borderColor: 'divider',
-        backgroundColor: 'background.body',
-        paddingBlock: 0,
-        paddingX: '2px',
-        m: 0,
-        p: 0,
-        '--IconButton-size': '28px',
-      }}
+      sx={menuListSx}
     >
       {actions.exec && (
         <ExecAction

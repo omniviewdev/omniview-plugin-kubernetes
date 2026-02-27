@@ -14,6 +14,8 @@ import ObjectMetaSection from '../../../shared/ObjectMetaSection';
 
 import RuleTable from './RuleTable';
 
+const ruleChipSx = { px: 1, borderRadius: 'sm' } as const;
+
 interface Props {
   ctx: DrawerContext<Ingress>;
 }
@@ -81,7 +83,7 @@ const RuleInfo: React.FC<InfoSectionProps> = ({ obj }) => {
       {obj.spec?.rules?.map((rule) => (
         <Stack key={rule.host ?? '*'} direction="column" spacing={1} p={1}>
           <Chip
-            sx={{ px: 1, borderRadius: 'sm' }}
+            sx={ruleChipSx}
             emphasis="outline"
             onClick={() =>
               rule.host &&

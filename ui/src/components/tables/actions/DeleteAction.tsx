@@ -11,6 +11,20 @@ import { Text } from '@omniviewdev/ui/typography';
 import * as React from 'react';
 import { LuCircleAlert, LuTrash } from 'react-icons/lu';
 
+// ---------------------------------------------------------------------------
+// Static styles
+// ---------------------------------------------------------------------------
+
+const listItemSx = { listStyle: 'none' } as const;
+const deleteRowStackSx = { flex: 1, px: 1, alignItems: 'center', justifyContent: 'flex-start' } as const;
+const deleteLabelSx = { pl: 0.5 } as const;
+const modalBodySx = { p: 2, minWidth: 360 } as const;
+const confirmHeaderSx = { mb: 1 } as const;
+const confirmBodySx = { py: 2, display: 'flex', flexDirection: 'column', gap: 2 } as const;
+const alertWrapperSx = { display: 'flex', gap: 2, width: '100%', flexDirection: 'column' } as const;
+const alertSx = { alignItems: 'flex-start' } as const;
+const alertTextSx = { color: 'danger.main' } as const;
+
 type Props = {
   plugin: string;
   connection: string;
@@ -46,7 +60,7 @@ export const DeleteAction: React.FC<Props> = ({
 
   return (
     <React.Fragment>
-      <Box component="li" sx={{ listStyle: 'none' }}>
+      <Box component="li" sx={listItemSx}>
         <Box
           component="button"
           onMouseEnter={handleSelect}
@@ -72,10 +86,10 @@ export const DeleteAction: React.FC<Props> = ({
           <Stack
             direction="row"
             gap={1}
-            sx={{ flex: 1, px: 1, alignItems: 'center', justifyContent: 'flex-start' }}
+            sx={deleteRowStackSx}
           >
             <LuTrash />
-            <Text sx={{ pl: 0.5 }} size="sm">
+            <Text sx={deleteLabelSx} size="sm">
               Delete
             </Text>
           </Stack>
@@ -87,27 +101,27 @@ export const DeleteAction: React.FC<Props> = ({
           setOpen(false);
         }}
       >
-        <Box sx={{ p: 2, minWidth: 360 }}>
-          <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 1 }}>
+        <Box sx={modalBodySx}>
+          <Stack direction="row" alignItems="center" gap={1} sx={confirmHeaderSx}>
             <WarningRounded />
             <Text weight="semibold">Confirmation</Text>
           </Stack>
           <Divider />
-          <Box sx={{ py: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Box sx={confirmBodySx}>
             <Text size="sm">
               Are you sure you want to delete {resource} &apos;{id}&apos;?
             </Text>
             {alert && (
-              <Box sx={{ display: 'flex', gap: 2, width: '100%', flexDirection: 'column' }}>
+              <Box sx={alertWrapperSx}>
                 <Alert
-                  sx={{ alignItems: 'flex-start' }}
+                  sx={alertSx}
                   startAdornment={<LuCircleAlert />}
                   emphasis="soft"
                   color="danger"
                 >
                   <div>
                     <div>Error</div>
-                    <Text size="sm" sx={{ color: 'danger.main' }}>
+                    <Text size="sm" sx={alertTextSx}>
                       {alert}
                     </Text>
                   </div>

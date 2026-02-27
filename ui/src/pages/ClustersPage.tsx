@@ -27,6 +27,28 @@ import type {
 
 const DEFAULT_VISIBLE_COLUMNS = ['cluster', 'kubeconfig', 'user'];
 
+const outerContainerSx = {
+  width: '100%',
+  flex: 1,
+  minHeight: 0,
+  display: 'flex',
+  flexDirection: 'column',
+} as const;
+
+const tabsSx = {
+  px: 1,
+  pt: 0.5,
+  minHeight: 0,
+} as const;
+
+const tabItemSx = { minHeight: 32, py: 0.5, textTransform: 'none' } as const;
+
+const fullSizeSx = { width: '100%', height: '100%' } as const;
+
+const loadingSkeletonSx = { display: 'flex', flexDirection: 'column', gap: 1.5, p: 1 } as const;
+
+const skeletonItemSx = { borderRadius: 1 } as const;
+
 export default function ClustersPage(): React.ReactElement {
   const { meta } = usePluginContext();
   const { connections } = useConnections({ plugin: meta.id });
@@ -195,7 +217,7 @@ export default function ClustersPage(): React.ReactElement {
       setFolderDialog({
         mode: 'edit',
         groupId,
-        initial: { name: group.name, color: group.color, icon: group.icon },
+        initial: { name: group.name, color: group.color, icon: group.icon, customImage: group.customImage },
       });
     },
     [preferences.customGroups],
@@ -212,6 +234,7 @@ export default function ClustersPage(): React.ReactElement {
           name: values.name,
           color: values.color,
           icon: values.icon,
+          customImage: values.customImage,
           connectionIds: folderDialog?.pendingConnectionId
             ? [folderDialog.pendingConnectionId]
             : [],
@@ -241,30 +264,20 @@ export default function ClustersPage(): React.ReactElement {
   const noResults = !noConnections && grouped.filteredCount === 0;
 
   return (
-    <Stack direction="column" sx={{ width: '100%', height: '100%' }}>
+    <Stack direction="column" sx={fullSizeSx}>
       <Box
-        sx={{
-          width: '100%',
-          flex: 1,
-          minHeight: 0,
-          display: 'flex',
-          flexDirection: 'column',
-        }}
+        sx={outerContainerSx}
       >
         <MuiTabs
           value={activeTab}
           onChange={(_e: React.SyntheticEvent, val: string) => setActiveTab(val as 'hub' | 'all')}
-          sx={{
-            px: 1,
-            pt: 0.5,
-            minHeight: 0,
-          }}
+          sx={tabsSx}
         >
-          <MuiTab value="hub" label="Hub" sx={{ minHeight: 32, py: 0.5, textTransform: 'none' }} />
+          <MuiTab value="hub" label="Hub" sx={tabItemSx} />
           <MuiTab
             value="all"
             label="All Clusters"
-            sx={{ minHeight: 32, py: 0.5, textTransform: 'none' }}
+            sx={tabItemSx}
           />
         </MuiTabs>
 
@@ -400,9 +413,9 @@ export default function ClustersPage(): React.ReactElement {
 
 function ConnectionsLoadingSkeleton() {
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, p: 1 }}>
+    <Box sx={loadingSkeletonSx}>
       {Array.from({ length: 4 }, (_, i) => (
-        <Skeleton key={i} variant="rounded" height={48} sx={{ borderRadius: 1 }} />
+        <Skeleton key={i} variant="rounded" height={48} sx={skeletonItemSx} />
       ))}
     </Box>
   );

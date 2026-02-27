@@ -18,6 +18,18 @@ import GroupBySelector from './GroupBySelector';
 import SortBySelector from './SortBySelector';
 import ViewModeToggle from './ViewModeToggle';
 
+const toolbarSx = {
+  px: 1,
+  py: 0.5,
+  display: 'flex',
+  flexDirection: 'column',
+  width: '100%',
+  borderRadius: 'var(--ov-radius-md, 6px)',
+  gap: 0.5,
+  border: '1px solid var(--ov-border-default, rgba(255,255,255,0.08))',
+  bgcolor: 'var(--ov-bg-surface, rgba(255,255,255,0.03))',
+} as const;
+
 type Props = {
   search: string;
   onSearchChange: (value: string) => void;
@@ -54,17 +66,7 @@ const ClustersToolbar: React.FC<Props> = ({
   availableTags,
 }) => (
   <Box
-    sx={{
-      px: 1,
-      py: 0.5,
-      display: 'flex',
-      flexDirection: 'column',
-      width: '100%',
-      borderRadius: 'var(--ov-radius-md, 6px)',
-      gap: 0.5,
-      border: '1px solid var(--ov-border-default, rgba(255,255,255,0.08))',
-      bgcolor: 'var(--ov-bg-surface, rgba(255,255,255,0.03))',
-    }}
+    sx={toolbarSx}
   >
     <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1}>
       {/* Left: title + count */}

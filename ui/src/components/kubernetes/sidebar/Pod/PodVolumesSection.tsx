@@ -9,6 +9,22 @@ import DetailsCard, { DetailsCardEntry } from '../../../shared/DetailsCard';
 import ExpandableSections from '../../../shared/ExpandableSections';
 import ResourceLinkChip from '../../../shared/ResourceLinkChip';
 
+const sectionHeadingLabelSx = {
+  color: 'text.secondary',
+  textTransform: 'uppercase',
+  letterSpacing: '0.08em',
+  fontSize: 11,
+  flexShrink: 0,
+} as const;
+
+const chipBorderRadiusSx = { borderRadius: 1, flexShrink: 0 } as const;
+
+const sectionHeadingDividerSx = { flex: 1, height: '1px', bgcolor: 'divider' } as const;
+
+const sectionHeadingStackSx = { mb: 0.75 } as const;
+
+const volumeChipSx = { borderRadius: 1 } as const;
+
 interface Props {
   pod: Pod;
   /** When provided, resource references (ConfigMap, Secret, PVC) become clickable */
@@ -205,17 +221,11 @@ function getVolumeInfo(
 
 // ── IDE-style section heading ──
 const SectionHeading: React.FC<{ label: string; count: number }> = ({ label, count }) => (
-  <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 0.75 }}>
+  <Stack direction="row" alignItems="center" gap={1} sx={sectionHeadingStackSx}>
     <Text
       size="xs"
       weight="semibold"
-      sx={{
-        color: 'text.secondary',
-        textTransform: 'uppercase',
-        letterSpacing: '0.08em',
-        fontSize: 11,
-        flexShrink: 0,
-      }}
+      sx={sectionHeadingLabelSx}
     >
       {label}
     </Text>
@@ -223,10 +233,10 @@ const SectionHeading: React.FC<{ label: string; count: number }> = ({ label, cou
       size="xs"
       emphasis="outline"
       color="primary"
-      sx={{ borderRadius: 1, flexShrink: 0 }}
+      sx={chipBorderRadiusSx}
       label={String(count)}
     />
-    <Box sx={{ flex: 1, height: '1px', bgcolor: 'divider' }} />
+    <Box sx={sectionHeadingDividerSx} />
   </Stack>
 );
 
@@ -240,7 +250,7 @@ const PodVolumesSection: React.FC<Props> = ({ pod, connectionID, namespace }) =>
       icon: 'LuHardDrive',
       title: volume.name,
       endDecorator: (
-        <Chip size="xs" emphasis="outline" color="primary" sx={{ borderRadius: 1 }} label={type} />
+        <Chip size="xs" emphasis="outline" color="primary" sx={volumeChipSx} label={type} />
       ),
       children: details.length > 0 ? <DetailsCard data={details} /> : null,
     };

@@ -3,6 +3,42 @@ import { Stack } from '@omniviewdev/ui/layout';
 import { Text, Heading } from '@omniviewdev/ui/typography';
 import * as React from 'react';
 
+const cardWrapperSx = { p: 0.5 } as const;
+
+const scoreBoxSx = {
+  alignItems: 'center',
+  justifyContent: 'center',
+  px: 3,
+  display: 'flex',
+  gap: 2,
+  border: '1px solid',
+  borderColor: 'divider',
+  borderRadius: 1,
+} as const;
+
+const statusBoxSx = {
+  bgcolor: 'background.level1',
+  borderRadius: 1,
+  p: 1,
+  display: 'flex',
+  flex: 1,
+  gap: 2,
+} as const;
+
+const flexOneSx = { flex: 1 } as const;
+
+const scoreLabelSx = { fontWeight: 'bold', color: 'primary.main' } as const;
+
+const scoreValueSx = { fontWeight: 'bold' } as const;
+
+const passingLabelSx = { fontWeight: 'bold', color: 'success.main' } as const;
+
+const warningLabelSx = { fontWeight: 'bold', color: 'warning.main' } as const;
+
+const failingLabelSx = { fontWeight: 'bold', color: 'error.main' } as const;
+
+const boldSx = { fontWeight: 'bold' } as const;
+
 type Props = {
   cluster: string;
   icon: string;
@@ -14,56 +50,40 @@ type Props = {
 
 export const ClusterOverviewCard: React.FC<Props> = ({ passing, warning, failing, score }) => {
   return (
-    <Box sx={{ p: 0.5 }}>
+    <Box sx={cardWrapperSx}>
       <Stack direction="row" gap={1}>
         <Box
-          sx={{
-            alignItems: 'center',
-            justifyContent: 'center',
-            px: 3,
-            display: 'flex',
-            gap: 2,
-            border: '1px solid',
-            borderColor: 'divider',
-            borderRadius: 1,
-          }}
+          sx={scoreBoxSx}
         >
-          <Stack direction="column" sx={{ flex: 1 }}>
-            <Text size="xs" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+          <Stack direction="column" sx={flexOneSx}>
+            <Text size="xs" sx={scoreLabelSx}>
               Score
             </Text>
-            <Heading level={4} sx={{ fontWeight: 'bold' }}>
+            <Heading level={4} sx={scoreValueSx}>
               {score}
             </Heading>
           </Stack>
         </Box>
         <Box
-          sx={{
-            bgcolor: 'background.level1',
-            borderRadius: 1,
-            p: 1,
-            display: 'flex',
-            flex: 1,
-            gap: 2,
-          }}
+          sx={statusBoxSx}
         >
-          <Stack direction="column" sx={{ flex: 1 }}>
-            <Text size="xs" sx={{ fontWeight: 'bold', color: 'success.main' }}>
+          <Stack direction="column" sx={flexOneSx}>
+            <Text size="xs" sx={passingLabelSx}>
               Passing
             </Text>
-            <Text sx={{ fontWeight: 'bold' }}>{passing}</Text>
+            <Text sx={boldSx}>{passing}</Text>
           </Stack>
-          <Stack direction="column" sx={{ flex: 1 }}>
-            <Text size="xs" sx={{ fontWeight: 'bold', color: 'warning.main' }}>
+          <Stack direction="column" sx={flexOneSx}>
+            <Text size="xs" sx={warningLabelSx}>
               Warning
             </Text>
-            <Text sx={{ fontWeight: 'bold' }}>{warning}</Text>
+            <Text sx={boldSx}>{warning}</Text>
           </Stack>
-          <Stack direction="column" sx={{ flex: 1 }}>
-            <Text size="xs" sx={{ fontWeight: 'bold', color: 'error.main' }}>
+          <Stack direction="column" sx={flexOneSx}>
+            <Text size="xs" sx={failingLabelSx}>
               Failing
             </Text>
-            <Text sx={{ fontWeight: 'bold' }}>{failing}</Text>
+            <Text sx={boldSx}>{failing}</Text>
           </Stack>
         </Box>
       </Stack>

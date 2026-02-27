@@ -11,6 +11,31 @@ import ConnectionStatusBadge from './ConnectionStatusBadge';
 import FavoriteButton from './FavoriteButton';
 import ProviderIcon from './ProviderIcon';
 
+const cardSx = {
+  cursor: 'pointer',
+  '&:hover': { borderColor: 'primary.outlinedHoverBorder', boxShadow: 'sm' },
+  transition: 'border-color 0.15s, box-shadow 0.15s',
+} as const;
+
+const avatarSx = {
+  borderRadius: 6,
+  backgroundColor: 'transparent',
+  maxHeight: 28,
+  maxWidth: 28,
+} as const;
+
+const headerContentSx = { flex: 1, minWidth: 0 } as const;
+
+const descriptionSx = { opacity: 0.7 } as const;
+
+const detailsContentSx = { flex: 1, minWidth: 0 } as const;
+
+const kubeconfigSx = { opacity: 0.6 } as const;
+
+const userSx = { opacity: 0.6 } as const;
+
+const actionsContainerSx = { flexShrink: 0 } as const;
+
 type Props = {
   enriched: EnrichedConnection;
   customGroups: ConnectionGroup[];
@@ -44,11 +69,7 @@ const ConnectionCard: React.FC<Props> = ({
   return (
     <Card
       variant="outlined"
-      sx={{
-        cursor: 'pointer',
-        '&:hover': { borderColor: 'primary.outlinedHoverBorder', boxShadow: 'sm' },
-        transition: 'border-color 0.15s, box-shadow 0.15s',
-      }}
+      sx={cardSx}
       onClick={onClick}
     >
       <Stack gap={0.75}>
@@ -59,23 +80,18 @@ const ConnectionCard: React.FC<Props> = ({
               <Avatar
                 size="sm"
                 src={enriched.avatar}
-                sx={{
-                  borderRadius: 6,
-                  backgroundColor: 'transparent',
-                  maxHeight: 28,
-                  maxWidth: 28,
-                }}
+                sx={avatarSx}
               />
             ) : (
               <NamedAvatar value={displayName} color={enriched.avatarColor} />
             )}
           </ConnectionStatusBadge>
-          <Stack sx={{ flex: 1, minWidth: 0 }}>
+          <Stack sx={headerContentSx}>
             <Text weight="semibold" size="sm" noWrap>
               {displayName}
             </Text>
             {displayDescription && (
-              <Text size="xs" noWrap sx={{ opacity: 0.7 }}>
+              <Text size="xs" noWrap sx={descriptionSx}>
                 {displayDescription}
               </Text>
             )}
@@ -85,18 +101,18 @@ const ConnectionCard: React.FC<Props> = ({
 
         {/* Details + context menu */}
         <Stack direction="row" alignItems="flex-end" gap={0.5}>
-          <Stack gap={0.25} sx={{ flex: 1, minWidth: 0 }}>
+          <Stack gap={0.25} sx={detailsContentSx}>
             <Stack direction="row" alignItems="center" gap={0.75}>
               <ProviderIcon provider={provider} size={14} />
               <Text size="xs">{String(connection.labels?.cluster ?? '')}</Text>
             </Stack>
             {connection.labels?.kubeconfig && (
-              <Text size="xs" noWrap sx={{ opacity: 0.6 }}>
+              <Text size="xs" noWrap sx={kubeconfigSx}>
                 {String(connection.labels.kubeconfig)}
               </Text>
             )}
             {connection.labels?.user && (
-              <Text size="xs" sx={{ opacity: 0.6 }}>
+              <Text size="xs" sx={userSx}>
                 {String(connection.labels.user)}
               </Text>
             )}
@@ -104,7 +120,7 @@ const ConnectionCard: React.FC<Props> = ({
           <Stack
             direction="row"
             alignItems="center"
-            sx={{ flexShrink: 0 }}
+            sx={actionsContainerSx}
             onClick={(e) => e.stopPropagation()}
           >
             <ConnectionContextMenu

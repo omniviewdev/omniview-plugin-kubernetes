@@ -1,6 +1,21 @@
 import Box, { type BoxProps } from '@mui/material/Box';
 import React from 'react';
 
+const backdropSx = {
+  position: 'absolute',
+  inset: 0,
+  bgcolor: 'rgba(0, 0, 0, 0.5)',
+} as const;
+
+const drawerContentSx = {
+  minWidth: 256,
+  width: 'max-content',
+  height: '100%',
+  p: 2,
+  boxShadow: 6,
+  bgcolor: 'background.paper',
+} as const;
+
 type Props = BoxProps & {
   onClose: React.MouseEventHandler<HTMLDivElement>;
 };
@@ -25,21 +40,10 @@ const SideDrawer: React.FC<Props> = ({ onClose, ...props }) => (
     <Box
       role="button"
       onClick={onClose}
-      sx={{
-        position: 'absolute',
-        inset: 0,
-        bgcolor: 'rgba(0, 0, 0, 0.5)',
-      }}
+      sx={backdropSx}
     />
     <Box
-      sx={{
-        minWidth: 256,
-        width: 'max-content',
-        height: '100%',
-        p: 2,
-        boxShadow: 6,
-        bgcolor: 'background.paper',
-      }}
+      sx={drawerContentSx}
     >
       {props.children}
     </Box>

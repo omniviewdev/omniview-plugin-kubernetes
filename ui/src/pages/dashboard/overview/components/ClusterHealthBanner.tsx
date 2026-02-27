@@ -5,6 +5,8 @@ import type { Node as K8sNode, Event as K8sEvent, Pod, NodeCondition  } from 'ku
 import React from 'react';
 import { LuCircleCheck, LuTriangleAlert, LuCircleX } from 'react-icons/lu';
 
+const issueListSx = { flexWrap: 'wrap' } as const;
+
 type Props = {
   nodes: K8sNode[];
   pods: Pod[];
@@ -78,7 +80,7 @@ const ClusterHealthBanner: React.FC<Props> = ({ nodes, pods, events }) => {
       }}
     >
       <Icon size={14} />
-      <Stack direction="row" gap={2} sx={{ flexWrap: 'wrap' }}>
+      <Stack direction="row" gap={2} sx={issueListSx}>
         {health.issues.map((issue) => (
           <Text key={issue} size="xs">
             {issue}

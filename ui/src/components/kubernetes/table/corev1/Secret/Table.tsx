@@ -12,6 +12,15 @@ import ResourceTable from '../../../../shared/table/ResourceTable';
 import SecretSidebar from '../../../sidebar/SecretSidebar';
 import { withNamespacedResourceColumns } from '../../shared/columns';
 
+const hideScrollbarSx = {
+  scrollbarWidth: 'none',
+  '&::-webkit-scrollbar': {
+    display: 'none',
+  },
+} as const;
+
+const chipBorderRadiusSx = { borderRadius: '2px' } as const;
+
 const resourceKey = 'core::v1::Secret';
 
 const SecretTable: React.FC = () => {
@@ -50,19 +59,13 @@ const SecretTable: React.FC = () => {
                   direction={'row'}
                   overflow={'scroll'}
                   gap={0.25}
-                  sx={{
-                    scrollbarWidth: 'none',
-                    // hide scrollbar
-                    '&::-webkit-scrollbar': {
-                      display: 'none',
-                    },
-                  }}
+                  sx={hideScrollbarSx}
                 >
                   {(getValue() as string[]).map((value) => (
                     <Chip
                       key={value}
                       size={'sm'}
-                      sx={{ borderRadius: '2px' }}
+                      sx={chipBorderRadiusSx}
                       emphasis="outline"
                       label={value}
                     />

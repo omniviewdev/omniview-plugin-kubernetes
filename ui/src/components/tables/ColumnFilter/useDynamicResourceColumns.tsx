@@ -7,6 +7,12 @@ import { LuTag, LuStickyNote } from 'react-icons/lu';
 import { type KubernetesResourceObject } from '../../../types/resource';
 import { useStoredState } from '../../shared/hooks/useStoredState';
 
+// ---------------------------------------------------------------------------
+// Static styles
+// ---------------------------------------------------------------------------
+
+const columnHeaderChipSx = { borderRadius: 'sm' } as const;
+
 type Args = {
   connectionID: string;
   resourceKey: string;
@@ -118,7 +124,7 @@ export const useDynamicResourceColumns = <T extends KubernetesResourceObject>({
           size="sm"
           color={'neutral'}
           emphasis="soft"
-          sx={{ borderRadius: 'sm' }}
+          sx={columnHeaderChipSx}
           startAdornment={<LuTag />}
           label={key}
         />
@@ -138,7 +144,7 @@ export const useDynamicResourceColumns = <T extends KubernetesResourceObject>({
           size="sm"
           color={'neutral'}
           emphasis="soft"
-          sx={{ borderRadius: 'sm' }}
+          sx={columnHeaderChipSx}
           startAdornment={<LuStickyNote />}
           label={key}
         />

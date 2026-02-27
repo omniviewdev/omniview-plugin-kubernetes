@@ -30,6 +30,59 @@ import RepoSidebar from './RepoSidebar';
 
 const resourceKey = 'helm::v1::Repository';
 
+const headerSx = { px: 2.5, pt: 2, pb: 1.5 } as const;
+const contentSx = { flex: 1, overflow: 'auto', px: 2.5, py: 2 } as const;
+const footerSx = { px: 2.5, py: 1.5 } as const;
+const validatingContainerSx = { py: 4 } as const;
+const validatingDetailSx = { color: 'neutral.400' } as const;
+const authSectionToggleSx = { cursor: 'pointer', py: 0.5, userSelect: 'none' } as const;
+const authSectionLabelSx = { color: 'neutral.400' } as const;
+const authFieldsSx = { pt: 1, pl: 2.5 } as const;
+const errorCardSx = { p: 1.25, borderRadius: 'sm', borderColor: 'error.main' } as const;
+const errorTextSx = { color: 'error.light' } as const;
+const successCardSx = { p: 1.25, borderRadius: 'sm', borderColor: 'success.main' } as const;
+const successIconSx = {
+  width: 20,
+  height: 20,
+  borderRadius: '50%',
+  bgcolor: 'success.main',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+} as const;
+const successUrlSx = { color: 'neutral.400' } as const;
+const chartCountSx = { color: 'neutral.300' } as const;
+const chartListSx = {
+  maxHeight: 280,
+  overflow: 'auto',
+  borderRadius: '6px',
+  border: '1px solid',
+  borderColor: 'neutral.800',
+} as const;
+const chartNameSx = { lineHeight: 1.3 } as const;
+const chartDescSx = {
+  color: 'neutral.500',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  lineHeight: 1.3,
+} as const;
+const chartVersionTextSx = { color: 'neutral.500', flexShrink: 0 } as const;
+const chartDetailColumnSx = { flex: 1, minWidth: 0 } as const;
+const miniChartIconContainerSx = {
+  width: 24,
+  height: 24,
+  borderRadius: '4px',
+  flexShrink: 0,
+  bgcolor: 'rgba(255,255,255,0.08)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+} as const;
+const miniChartImgSx = { width: 20, height: 20, objectFit: 'contain', borderRadius: '3px' } as const;
+const overflowTextSx = { color: 'neutral.500' } as const;
+const ociInfoSx = { color: 'neutral.400' } as const;
+
 /** Shape of a Helm repository row. */
 interface HelmRepo {
   name?: string;
@@ -80,24 +133,13 @@ const MiniChartIcon: React.FC<{ icon?: string; name: string }> = ({ icon, name }
   const [failed, setFailed] = React.useState(false);
   if (icon && !failed) {
     return (
-      <Box
-        sx={{
-          width: 24,
-          height: 24,
-          borderRadius: '4px',
-          flexShrink: 0,
-          bgcolor: 'rgba(255,255,255,0.08)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
+      <Box sx={miniChartIconContainerSx}>
         <Box
           component="img"
           src={icon}
           alt={name}
           onError={() => setFailed(true)}
-          sx={{ width: 20, height: 20, objectFit: 'contain', borderRadius: '3px' }}
+          sx={miniChartImgSx}
         />
       </Box>
     );
@@ -158,11 +200,11 @@ const AuthSection: React.FC<{
         alignItems="center"
         spacing={0.75}
         onClick={() => setExpanded(!expanded)}
-        sx={{ cursor: 'pointer', py: 0.5, userSelect: 'none' }}
+        sx={authSectionToggleSx}
       >
         {expanded ? <LuChevronDown size={12} /> : <LuChevronRight size={12} />}
         <LuLock size={11} style={{ opacity: 0.6 }} />
-        <Text size="xs" weight="semibold" sx={{ color: 'neutral.400' }}>
+        <Text size="xs" weight="semibold" sx={authSectionLabelSx}>
           Authentication
         </Text>
         {!expanded && hasAuth && (
@@ -170,7 +212,7 @@ const AuthSection: React.FC<{
         )}
       </Stack>
       {expanded && (
-        <Stack direction="column" spacing={1.5} sx={{ pt: 1, pl: 2.5 }}>
+        <Stack direction="column" spacing={1.5} sx={authFieldsSx}>
           <TextField
             value={username}
             onChange={onUsernameChange}
@@ -385,7 +427,7 @@ const AddRepoDialog: React.FC<{
           direction="row"
           justifyContent="space-between"
           alignItems="center"
-          sx={{ px: 2.5, pt: 2, pb: 1.5 }}
+          sx={headerSx}
         >
           <Stack direction="row" alignItems="center" spacing={1}>
             <SiHelm size={16} />
@@ -400,17 +442,17 @@ const AddRepoDialog: React.FC<{
         <Divider />
 
         {/* Content */}
-        <Box sx={{ flex: 1, overflow: 'auto', px: 2.5, py: 2 }}>
+        <Box sx={contentSx}>
           {step === 'input' && renderFormFields()}
 
           {step === 'validating' && (
-            <Stack direction="column" alignItems="center" spacing={2} sx={{ py: 4 }}>
+            <Stack direction="column" alignItems="center" spacing={2} sx={validatingContainerSx}>
               <CircularProgress size={28} />
               <Stack direction="column" alignItems="center" spacing={0.5}>
                 <Text size="sm" weight="semibold">
                   {isOCI ? 'Connecting to registry...' : 'Validating repository...'}
                 </Text>
-                <Text size="xs" sx={{ color: 'neutral.400' }}>
+                <Text size="xs" sx={validatingDetailSx}>
                   {isOCI
                     ? `Authenticating with ${url.trim().replace('oci://', '')}`
                     : `Downloading index from ${url.trim()}`}
@@ -423,10 +465,10 @@ const AddRepoDialog: React.FC<{
             <Stack direction="column" spacing={2}>
               {renderFormFields()}
               <Card
-                sx={{ p: 1.25, borderRadius: 'sm', borderColor: 'error.main' }}
+                sx={errorCardSx}
                 emphasis="outline"
               >
-                <Text size="xs" sx={{ color: 'error.light' }}>
+                <Text size="xs" sx={errorTextSx}>
                   {errorMsg}
                 </Text>
               </Card>
@@ -437,21 +479,11 @@ const AddRepoDialog: React.FC<{
             <Stack direction="column" spacing={2}>
               {/* Success banner */}
               <Card
-                sx={{ p: 1.25, borderRadius: 'sm', borderColor: 'success.main' }}
+                sx={successCardSx}
                 emphasis="outline"
               >
                 <Stack direction="row" alignItems="center" spacing={1}>
-                  <Box
-                    sx={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: '50%',
-                      bgcolor: 'success.main',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
+                  <Box sx={successIconSx}>
                     <LuCheck size={12} color="#fff" />
                   </Box>
                   <Stack direction="column" spacing={0}>
@@ -461,7 +493,7 @@ const AddRepoDialog: React.FC<{
                       </Text>
                       {isOCI && <Chip size="sm" emphasis="soft" color="info" label="OCI" />}
                     </Stack>
-                    <Text size="xs" sx={{ color: 'neutral.400' }}>
+                    <Text size="xs" sx={successUrlSx}>
                       {url}
                     </Text>
                   </Stack>
@@ -474,7 +506,7 @@ const AddRepoDialog: React.FC<{
                   <Stack direction="row" alignItems="center" justifyContent="space-between">
                     <Stack direction="row" alignItems="center" spacing={0.75}>
                       <LuPackage size={13} style={{ opacity: 0.6 }} />
-                      <Text size="xs" weight="semibold" sx={{ color: 'neutral.300' }}>
+                      <Text size="xs" weight="semibold" sx={chartCountSx}>
                         {charts.length} chart{charts.length !== 1 ? 's' : ''} available
                       </Text>
                     </Stack>
@@ -499,17 +531,7 @@ const AddRepoDialog: React.FC<{
                     />
                   )}
 
-                  <Stack
-                    direction="column"
-                    spacing={0}
-                    sx={{
-                      maxHeight: 280,
-                      overflow: 'auto',
-                      borderRadius: '6px',
-                      border: '1px solid',
-                      borderColor: 'neutral.800',
-                    }}
-                  >
+                  <Stack direction="column" spacing={0} sx={chartListSx}>
                     {filteredCharts.slice(0, 50).map((chart, i) => (
                       <Stack
                         key={chart.name}
@@ -525,40 +547,31 @@ const AddRepoDialog: React.FC<{
                         }}
                       >
                         <MiniChartIcon icon={chart.icon} name={chart.name} />
-                        <Stack direction="column" spacing={0} sx={{ flex: 1, minWidth: 0 }}>
-                          <Text size="xs" weight="semibold" sx={{ lineHeight: 1.3 }}>
+                        <Stack direction="column" spacing={0} sx={chartDetailColumnSx}>
+                          <Text size="xs" weight="semibold" sx={chartNameSx}>
                             {chart.name}
                           </Text>
                           {chart.description && (
-                            <Text
-                              size="xs"
-                              sx={{
-                                color: 'neutral.500',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                                lineHeight: 1.3,
-                              }}
-                            >
+                            <Text size="xs" sx={chartDescSx}>
                               {chart.description}
                             </Text>
                           )}
                         </Stack>
-                        <Text size="xs" sx={{ color: 'neutral.500', flexShrink: 0 }}>
+                        <Text size="xs" sx={chartVersionTextSx}>
                           {chart.version}
                         </Text>
                       </Stack>
                     ))}
                     {filteredCharts.length > 50 && (
                       <Box sx={{ px: 1.25, py: 0.75, textAlign: 'center' }}>
-                        <Text size="xs" sx={{ color: 'neutral.500' }}>
+                        <Text size="xs" sx={overflowTextSx}>
                           and {filteredCharts.length - 50} more...
                         </Text>
                       </Box>
                     )}
                     {charts.length === 0 && (
                       <Box sx={{ px: 1.25, py: 2, textAlign: 'center' }}>
-                        <Text size="xs" sx={{ color: 'neutral.500' }}>
+                        <Text size="xs" sx={overflowTextSx}>
                           Repository added but no charts found in the index.
                         </Text>
                       </Box>
@@ -569,7 +582,7 @@ const AddRepoDialog: React.FC<{
 
               {/* OCI success message */}
               {isOCI && (
-                <Text size="xs" sx={{ color: 'neutral.400' }}>
+                <Text size="xs" sx={ociInfoSx}>
                   OCI registry added. Charts from OCI registries are discovered when you reference
                   them directly (e.g. oci://ghcr.io/org/chart-name).
                 </Text>
@@ -580,7 +593,7 @@ const AddRepoDialog: React.FC<{
 
         {/* Footer */}
         <Divider />
-        <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ px: 2.5, py: 1.5 }}>
+        <Stack direction="row" spacing={1} justifyContent="flex-end" sx={footerSx}>
           {step === 'input' && (
             <>
               <Button size="xs" emphasis="ghost" color="neutral" onClick={handleClose}>

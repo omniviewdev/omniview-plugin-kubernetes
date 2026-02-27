@@ -4,6 +4,20 @@ import { Chip } from '@omniviewdev/ui';
 import { Tooltip } from '@omniviewdev/ui/overlays';
 import React from 'react';
 
+// ---------------------------------------------------------------------------
+// Static styles
+// ---------------------------------------------------------------------------
+
+const badgeDotSx = {
+  borderRadius: 2,
+  width: 12,
+  height: 12,
+  maxWidth: 12,
+  maxHeight: 12,
+  minWidth: 12,
+  minHeight: 12,
+} as const;
+
 type Props = {
   values: string[];
   colorMap: Record<string, 'success' | 'warning' | 'danger' | 'primary' | 'neutral'>;
@@ -40,15 +54,7 @@ export const BadgesCell: React.FC<Props> = ({ align, values, colorMap, hoverMenu
               size="sm"
               emphasis="solid"
               color={getColor(value)}
-              sx={{
-                borderRadius: 2,
-                width: 12,
-                height: 12,
-                maxWidth: 12,
-                maxHeight: 12,
-                minWidth: 12,
-                minHeight: 12,
-              }}
+              sx={badgeDotSx}
               label=""
             />
           </Tooltip>
@@ -58,15 +64,7 @@ export const BadgesCell: React.FC<Props> = ({ align, values, colorMap, hoverMenu
             size="sm"
             emphasis="solid"
             color={getColor(value)}
-            sx={{
-              borderRadius: 2,
-              width: 12,
-              height: 12,
-              maxWidth: 12,
-              maxHeight: 12,
-              minWidth: 12,
-              minHeight: 12,
-            }}
+            sx={badgeDotSx}
             label=""
           />
         ),

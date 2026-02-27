@@ -23,6 +23,44 @@ import { useSidebarLayout } from '../hooks/useSidebarLayout';
 import Layout from '../layouts/resource';
 import { stringAvatar } from '../utils/color';
 
+const rootSx = {
+  p: 0,
+  gap: 0,
+} as const;
+
+const sidenavStackSx = {
+  maxHeight: '100%',
+  height: '100%',
+  overflow: 'hidden',
+} as const;
+
+const sidenavHeaderSx = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  p: 1,
+  borderRadius: 1,
+  border: '1px solid',
+  borderColor: 'divider',
+} as const;
+
+const clusterAvatarSx = {
+  backgroundColor: 'transparent',
+  objectFit: 'contain',
+  border: 0,
+  maxHeight: 28,
+  maxWidth: 28,
+} as const;
+
+const mainSx = {
+  display: 'flex',
+  flexDirection: 'column',
+} as const;
+
+const mainContentSx = { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 } as const;
+
+const clusterNameSx = { textOverflow: 'ellipsis' } as const;
+
 export default function ClusterResourcesPage(): React.ReactElement {
   const { id = '' } = useParams<{ id: string }>();
 
@@ -162,32 +200,17 @@ export default function ClusterResourcesPage(): React.ReactElement {
 
   return (
     <Layout.Root
-      sx={{
-        p: 0,
-        gap: 0,
-      }}
+      sx={rootSx}
     >
       <ResourceCommandPalette connectionID={id} layout={layout} onNavigate={handleSelect} />
       <Layout.SideNav type="bordered" padding={0.5}>
         <Stack
           direction="column"
-          sx={{
-            maxHeight: '100%',
-            height: '100%',
-            overflow: 'hidden',
-          }}
+          sx={sidenavStackSx}
           gap={0.5}
         >
           <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              p: 1,
-              borderRadius: 1,
-              border: '1px solid',
-              borderColor: 'divider',
-            }}
+            sx={sidenavHeaderSx}
           >
             <Stack direction="row" alignItems="center" gap={1}>
               {(() => {
@@ -198,13 +221,7 @@ export default function ClusterResourcesPage(): React.ReactElement {
                     <Avatar
                       size="sm"
                       src={avatarSrc}
-                      sx={{
-                        backgroundColor: 'transparent',
-                        objectFit: 'contain',
-                        border: 0,
-                        maxHeight: 28,
-                        maxWidth: 28,
-                      }}
+                      sx={clusterAvatarSx}
                     />
                   );
                 }
@@ -216,7 +233,7 @@ export default function ClusterResourcesPage(): React.ReactElement {
                 }
                 return <Avatar size="sm" {...avatarProps} />;
               })()}
-              <Text weight="semibold" size="sm" sx={{ textOverflow: 'ellipsis' }}>
+              <Text weight="semibold" size="sm" sx={clusterNameSx}>
                 {connectionOverrides[id]?.displayName || connection.data?.name}
               </Text>
             </Stack>
@@ -241,12 +258,9 @@ export default function ClusterResourcesPage(): React.ReactElement {
         </Stack>
       </Layout.SideNav>
       <Layout.Main
-        sx={{
-          display: 'flex',
-          flexDirection: 'column',
-        }}
+        sx={mainSx}
       >
-        <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        <Box sx={mainContentSx}>
           <Outlet />
         </Box>
       </Layout.Main>

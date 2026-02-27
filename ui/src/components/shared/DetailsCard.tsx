@@ -9,6 +9,16 @@ import React from 'react';
 // project imports
 import Icon from './Icon';
 
+const outerBoxSx = {
+  borderRadius: 1,
+  border: '1px solid',
+  borderColor: 'divider',
+  bgcolor: 'background.level1',
+  overflow: 'hidden',
+} as const;
+
+const avatarSx = { maxHeight: 16, maxWidth: 16, borderRadius: 4 } as const;
+
 export interface DetailsCardEntry {
   key: string;
   value: string;
@@ -78,13 +88,7 @@ export const DetailsCard: React.FC<DetailsCardProps> = ({
 
   return (
     <Box
-      sx={{
-        borderRadius: 1,
-        border: '1px solid',
-        borderColor: 'divider',
-        bgcolor: 'background.level1',
-        overflow: 'hidden',
-      }}
+      sx={outerBoxSx}
     >
       {title && (
         <Box
@@ -107,7 +111,7 @@ export const DetailsCard: React.FC<DetailsCardProps> = ({
                   <Avatar
                     src={icon}
                     size="sm"
-                    sx={{ maxHeight: 16, maxWidth: 16, borderRadius: 4 }}
+                    sx={avatarSx}
                   />
                 ) : (
                   <Icon name={icon} size={cfg.iconSize} />

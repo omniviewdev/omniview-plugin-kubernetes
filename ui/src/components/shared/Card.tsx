@@ -9,6 +9,16 @@ import React from 'react';
 // project imports
 import Icon from './Icon';
 
+const outerCardSx = { p: 0, gap: 0 } as const;
+
+const headerStackSx = { p: 1 } as const;
+
+const avatarSx = { maxHeight: 16, maxWidth: 16, borderRadius: 4 } as const;
+
+const chipSx = { borderRadius: '4px' } as const;
+
+const bodyBoxSx = { p: 1 } as const;
+
 export interface Props {
   title: string;
   icon?: string | React.ReactNode;
@@ -21,11 +31,11 @@ export interface Props {
  */
 export const Card: React.FC<Props> = ({ title, titleDecorator, icon, children }) => {
   return (
-    <UiCard variant="outlined" sx={{ p: 0, gap: 0 }}>
+    <UiCard variant="outlined" sx={outerCardSx}>
       <Stack
         direction="row"
         gap={1}
-        sx={{ p: 1 }}
+        sx={headerStackSx}
         alignItems="center"
         justifyContent="space-between"
       >
@@ -36,7 +46,7 @@ export const Card: React.FC<Props> = ({ title, titleDecorator, icon, children })
                 <Avatar
                   src={icon}
                   size="sm"
-                  sx={{ maxHeight: 16, maxWidth: 16, borderRadius: 4 }}
+                  sx={avatarSx}
                 />
               ) : (
                 <Icon name={icon} size={14} />
@@ -51,7 +61,7 @@ export const Card: React.FC<Props> = ({ title, titleDecorator, icon, children })
         {titleDecorator &&
           (typeof titleDecorator === 'string' || typeof titleDecorator === 'number' ? (
             <Chip
-              sx={{ borderRadius: '4px' }}
+              sx={chipSx}
               size="sm"
               color="primary"
               emphasis="outline"
@@ -62,7 +72,7 @@ export const Card: React.FC<Props> = ({ title, titleDecorator, icon, children })
           ))}
       </Stack>
       <Divider />
-      <Box sx={{ p: 1 }}>{children}</Box>
+      <Box sx={bodyBoxSx}>{children}</Box>
     </UiCard>
   );
 };

@@ -5,6 +5,25 @@ import { useExtensionPoint, usePluginRouter } from '@omniviewdev/runtime';
 import React from 'react';
 import { Outlet } from 'react-router-dom';
 
+const rootSx = {
+  display: 'flex',
+  flexDirection: 'column',
+  flex: 1,
+  minHeight: 0,
+  bgcolor: 'transparent',
+} as const;
+
+const dashboardTabsSx = { bgcolor: 'transparent', minHeight: 0 } as const;
+
+const dashboardTabItemSx = { minHeight: 32, py: 0.5, textTransform: 'none' } as const;
+
+const mainSx = {
+  flex: 1,
+  display: 'flex',
+  minHeight: 0,
+  overflow: 'auto',
+} as const;
+
 const builtinTabs: Record<string, string> = {
   '': 'Overview',
   metrics: 'Metrics',
@@ -26,13 +45,7 @@ export const DashboardLayout: React.FC = () => {
 
   return (
     <Box
-      sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        flex: 1,
-        minHeight: 0,
-        bgcolor: 'transparent',
-      }}
+      sx={rootSx}
     >
       <MuiTabs
         value={activeTab}
@@ -42,14 +55,14 @@ export const DashboardLayout: React.FC = () => {
             navigate(value || '.', { replace: true });
           }
         }}
-        sx={{ bgcolor: 'transparent', minHeight: 0 }}
+        sx={dashboardTabsSx}
       >
         {Object.entries(builtinTabs).map(([path, label]) => (
           <MuiTab
             key={path}
             value={path}
             label={label}
-            sx={{ minHeight: 32, py: 0.5, textTransform: 'none' }}
+            sx={dashboardTabItemSx}
           />
         ))}
         {extensionTabs.map((ext) => (
@@ -57,18 +70,13 @@ export const DashboardLayout: React.FC = () => {
             key={ext.id}
             value={(ext.meta as { path?: string } | undefined)?.path ?? ext.id}
             label={ext.label}
-            sx={{ minHeight: 32, py: 0.5, textTransform: 'none' }}
+            sx={dashboardTabItemSx}
           />
         ))}
       </MuiTabs>
       <Box
         component="main"
-        sx={{
-          flex: 1,
-          display: 'flex',
-          minHeight: 0,
-          overflow: 'auto',
-        }}
+        sx={mainSx}
       >
         <Outlet />
       </Box>

@@ -17,6 +17,40 @@ type Props = {
   onConnectionClick: (connectionId: string) => void;
 };
 
+const drillDownHeaderSx = { mb: 1 } as const;
+
+const drillDownGridSx = {
+  display: 'flex',
+  flexDirection: 'row',
+  flexWrap: 'wrap',
+  gap: 1.5,
+} as const;
+
+const browseHeaderSx = { mb: 1 } as const;
+
+const browseSelectSx = { minWidth: 120 } as const;
+
+const browseGridSx = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+  gap: 1.5,
+} as const;
+
+const groupCardSx = {
+  cursor: 'pointer',
+  p: 1.5,
+  border: '1px solid var(--ov-border-default, rgba(255,255,255,0.08))',
+  bgcolor: 'var(--ov-bg-surface, rgba(255,255,255,0.03))',
+  '&:hover': {
+    borderColor: 'var(--ov-border-emphasis, rgba(255,255,255,0.15))',
+    bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))',
+    boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
+  },
+  transition: 'border-color 0.15s, background-color 0.15s, box-shadow 0.15s',
+} as const;
+
+const groupCountSx = { opacity: 0.6 } as const;
+
 const MIN_COVERAGE = 0.3;
 
 const GroupBrowser: React.FC<Props> = ({ connections, availableAttributes, onConnectionClick }) => {
@@ -73,7 +107,7 @@ const GroupBrowser: React.FC<Props> = ({ connections, availableAttributes, onCon
     const groupConns = groups.find(([key]) => key === drillDown)?.[1] ?? [];
     return (
       <Box>
-        <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 1 }}>
+        <Stack direction="row" alignItems="center" gap={1} sx={drillDownHeaderSx}>
           <Button
             size="sm"
             emphasis="ghost"
@@ -89,12 +123,7 @@ const GroupBrowser: React.FC<Props> = ({ connections, availableAttributes, onCon
           <Chip size="sm" emphasis="soft" color="neutral" label={String(groupConns.length)} />
         </Stack>
         <Box
-          sx={{
-            display: 'flex',
-            flexDirection: 'row',
-            flexWrap: 'wrap',
-            gap: 1.5,
-          }}
+          sx={drillDownGridSx}
         >
           {groupConns.map((conn) => (
             <CompactClusterCard
@@ -110,7 +139,7 @@ const GroupBrowser: React.FC<Props> = ({ connections, availableAttributes, onCon
 
   return (
     <Box>
-      <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 1 }}>
+      <Stack direction="row" alignItems="center" gap={1} sx={browseHeaderSx}>
         <Text weight="semibold" size="sm">
           Browse by
         </Text>
@@ -120,7 +149,7 @@ const GroupBrowser: React.FC<Props> = ({ connections, availableAttributes, onCon
           onChange={(val) => {
             if (val) setBrowseBy(val as string);
           }}
-          sx={{ minWidth: 120 }}
+          sx={browseSelectSx}
           options={filteredAttributes.map((attr) => ({
             value: attr.key,
             label: attr.displayName,
@@ -128,34 +157,19 @@ const GroupBrowser: React.FC<Props> = ({ connections, availableAttributes, onCon
         />
       </Stack>
       <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
-          gap: 1.5,
-        }}
+        sx={browseGridSx}
       >
         {groups.map(([value, conns]) => (
           <Card
             key={value}
             variant="outlined"
             onClick={() => setDrillDown(value)}
-            sx={{
-              cursor: 'pointer',
-              p: 1.5,
-              border: '1px solid var(--ov-border-default, rgba(255,255,255,0.08))',
-              bgcolor: 'var(--ov-bg-surface, rgba(255,255,255,0.03))',
-              '&:hover': {
-                borderColor: 'var(--ov-border-emphasis, rgba(255,255,255,0.15))',
-                bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))',
-                boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
-              },
-              transition: 'border-color 0.15s, background-color 0.15s, box-shadow 0.15s',
-            }}
+            sx={groupCardSx}
           >
             <Text weight="semibold" size="sm" noWrap>
               {value}
             </Text>
-            <Text size="xs" sx={{ opacity: 0.6 }}>
+            <Text size="xs" sx={groupCountSx}>
               {conns.length} cluster{conns.length !== 1 ? 's' : ''}
             </Text>
           </Card>

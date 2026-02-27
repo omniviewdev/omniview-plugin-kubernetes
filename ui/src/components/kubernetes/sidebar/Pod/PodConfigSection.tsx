@@ -10,6 +10,39 @@ import React from 'react';
 import KVCard from '../../../shared/KVCard';
 import ResourceLinkChip from '../../../shared/ResourceLinkChip';
 
+const entryRowSx = { minHeight: 22, alignItems: 'center' } as const;
+const entryLabelSx = { color: 'neutral.300' } as const;
+const entryValueSx = { fontWeight: 600, fontSize: 12 } as const;
+const outerBoxSx = { borderRadius: 1, border: '1px solid', borderColor: 'divider' } as const;
+const titleAreaSx = { py: 0.5, px: 1 } as const;
+const contentAreaSx = { py: 0.5, px: 1, bgcolor: 'background.level1' } as const;
+const securityContextHeadingSx = { mb: 0.25 } as const;
+const securityContextLabelSx = {
+  color: 'neutral.400',
+  fontSize: 10,
+  textTransform: 'uppercase',
+  letterSpacing: 0.5,
+} as const;
+const tolerationsHeaderSx = {
+  py: 0.5,
+  px: 1,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+} as const;
+const tolerationsChipSx = { borderRadius: 1 } as const;
+const tolerationsLegendChipSx = { borderRadius: 1, fontSize: 9 } as const;
+const tolerationsBodySx = { bgcolor: 'background.level1' } as const;
+const tolerationKeyBoxSx = { flex: 1, minWidth: 0 } as const;
+const tolerationOperatorChipSx = {
+  borderRadius: 1,
+  fontSize: 10,
+  fontFamily: 'var(--ov-font-mono, monospace)',
+  flexShrink: 0,
+} as const;
+const tolerationEffectChipSx = { borderRadius: 1, fontSize: 10, flexShrink: 0 } as const;
+const tolerationSecondsChipSx = { borderRadius: 1, fontSize: 10, flexShrink: 0 } as const;
+
 interface Props {
   pod: Pod;
   /** When provided, the Service Account chip becomes clickable */
@@ -26,15 +59,15 @@ const ConfigEntry: React.FC<{
 }> = ({ label, value }) => {
   if (value === undefined || value === null) return null;
   return (
-    <Grid container spacing={0} sx={{ minHeight: 22, alignItems: 'center' }}>
+    <Grid container spacing={0} sx={entryRowSx}>
       <Grid size={4}>
-        <Text sx={{ color: 'neutral.300' }} size="xs">
+        <Text sx={entryLabelSx} size="xs">
           {label}
         </Text>
       </Grid>
       <Grid size={8}>
         {typeof value === 'string' ? (
-          <Text sx={{ fontWeight: 600, fontSize: 12 }} size="xs">
+          <Text sx={entryValueSx} size="xs">
             {value}
           </Text>
         ) : (
@@ -83,7 +116,7 @@ const TolerationRow: React.FC<{ toleration: Toleration; isLast: boolean }> = ({
         '&:hover': { bgcolor: 'action.hover' },
       }}
     >
-      <Box sx={{ flex: 1, minWidth: 0 }}>
+      <Box sx={tolerationKeyBoxSx}>
         <Text
           size="xs"
           noWrap
@@ -102,12 +135,7 @@ const TolerationRow: React.FC<{ toleration: Toleration; isLast: boolean }> = ({
         size="xs"
         emphasis="soft"
         color="neutral"
-        sx={{
-          borderRadius: 1,
-          fontSize: 10,
-          fontFamily: 'var(--ov-font-mono, monospace)',
-          flexShrink: 0,
-        }}
+        sx={tolerationOperatorChipSx}
         label={isExists ? 'Exists' : `= ${toleration.value || ''}`}
       />
       {toleration.effect && (
@@ -115,7 +143,7 @@ const TolerationRow: React.FC<{ toleration: Toleration; isLast: boolean }> = ({
           size="xs"
           emphasis="soft"
           color={effectColor(toleration.effect)}
-          sx={{ borderRadius: 1, fontSize: 10, flexShrink: 0 }}
+          sx={tolerationEffectChipSx}
           label={toleration.effect}
         />
       )}
@@ -124,7 +152,7 @@ const TolerationRow: React.FC<{ toleration: Toleration; isLast: boolean }> = ({
           size="xs"
           emphasis="outline"
           color="neutral"
-          sx={{ borderRadius: 1, fontSize: 10, flexShrink: 0 }}
+          sx={tolerationSecondsChipSx}
           label={`${toleration.tolerationSeconds}s`}
         />
       )}
@@ -156,14 +184,14 @@ const PodConfigSection: React.FC<Props> = ({ pod, connectionID }) => {
   return (
     <Stack direction="column" gap={0.5}>
       {/* Configuration card — same Box style as Status */}
-      <Box sx={{ borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
-        <Box sx={{ py: 0.5, px: 1 }}>
+      <Box sx={outerBoxSx}>
+        <Box sx={titleAreaSx}>
           <Text weight="semibold" size="sm">
             Configuration
           </Text>
         </Box>
         <Divider />
-        <Box sx={{ py: 0.5, px: 1, bgcolor: 'background.level1' }}>
+        <Box sx={contentAreaSx}>
           <ConfigEntry
             label="Service Account"
             value={
@@ -201,17 +229,12 @@ const PodConfigSection: React.FC<Props> = ({ pod, connectionID }) => {
         {hasSecurityContext && sc && (
           <>
             <Divider />
-            <Box sx={{ py: 0.5, px: 1, bgcolor: 'background.level1' }}>
-              <Box sx={{ mb: 0.25 }}>
+            <Box sx={contentAreaSx}>
+              <Box sx={securityContextHeadingSx}>
                 <Text
                   size="xs"
                   weight="semibold"
-                  sx={{
-                    color: 'neutral.400',
-                    fontSize: 10,
-                    textTransform: 'uppercase',
-                    letterSpacing: 0.5,
-                  }}
+                  sx={securityContextLabelSx}
                 >
                   Security Context
                 </Text>
@@ -236,16 +259,8 @@ const PodConfigSection: React.FC<Props> = ({ pod, connectionID }) => {
       )}
 
       {hasTolerations && (
-        <Box sx={{ borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
-          <Box
-            sx={{
-              py: 0.5,
-              px: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
+        <Box sx={outerBoxSx}>
+          <Box sx={tolerationsHeaderSx}>
             <Stack direction="row" gap={0.75} alignItems="center">
               <Text weight="semibold" size="sm">
                 Tolerations
@@ -254,7 +269,7 @@ const PodConfigSection: React.FC<Props> = ({ pod, connectionID }) => {
                 size="xs"
                 emphasis="outline"
                 color="primary"
-                sx={{ borderRadius: 1 }}
+                sx={tolerationsChipSx}
                 label={String(tolerations.length)}
               />
             </Stack>
@@ -263,20 +278,20 @@ const PodConfigSection: React.FC<Props> = ({ pod, connectionID }) => {
                 size="xs"
                 emphasis="soft"
                 color="danger"
-                sx={{ borderRadius: 1, fontSize: 9 }}
+                sx={tolerationsLegendChipSx}
                 label="NoExecute"
               />
               <Chip
                 size="xs"
                 emphasis="soft"
                 color="warning"
-                sx={{ borderRadius: 1, fontSize: 9 }}
+                sx={tolerationsLegendChipSx}
                 label="NoSchedule"
               />
             </Stack>
           </Box>
           <Divider />
-          <Box sx={{ bgcolor: 'background.level1' }}>
+          <Box sx={tolerationsBodySx}>
             {tolerations.map((t, i) => (
               <TolerationRow
                 key={`${t.key}-${t.operator}-${t.value}-${t.effect}`}

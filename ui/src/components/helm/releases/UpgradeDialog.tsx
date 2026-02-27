@@ -9,6 +9,23 @@ import { stringify } from 'yaml';
 
 import CodeEditor from '../../shared/CodeEditor';
 
+const checkboxLabelSx = { display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer' } as const;
+const fieldLabelSx = { color: 'neutral.400' } as const;
+const valuesEditorSx = {
+  height: 250,
+  border: '1px solid',
+  borderColor: 'neutral.700',
+  borderRadius: 'sm',
+  overflow: 'hidden',
+} as const;
+const dryRunEditorSx = {
+  height: 200,
+  border: '1px solid',
+  borderColor: 'neutral.700',
+  borderRadius: 'sm',
+  overflow: 'hidden',
+} as const;
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -132,7 +149,7 @@ const UpgradeDialog: React.FC<Props> = ({
           <Stack direction="row" spacing={2} alignItems="center">
             <Box
               component="label"
-              sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer' }}
+              sx={checkboxLabelSx}
             >
               <Box
                 component="input"
@@ -148,18 +165,10 @@ const UpgradeDialog: React.FC<Props> = ({
 
           {/* Values editor */}
           <Stack direction="column" spacing={0.5}>
-            <Text size="sm" sx={{ color: 'neutral.400' }}>
+            <Text size="sm" sx={fieldLabelSx}>
               Values (YAML)
             </Text>
-            <Box
-              sx={{
-                height: 250,
-                border: '1px solid',
-                borderColor: 'neutral.700',
-                borderRadius: 'sm',
-                overflow: 'hidden',
-              }}
-            >
+            <Box sx={valuesEditorSx}>
               <CodeEditor
                 filename="values.yaml"
                 language="yaml"
@@ -173,18 +182,10 @@ const UpgradeDialog: React.FC<Props> = ({
           {/* Dry run preview */}
           {dryRunManifest !== null && (
             <Stack direction="column" spacing={0.5}>
-              <Text size="sm" sx={{ color: 'neutral.400' }}>
+              <Text size="sm" sx={fieldLabelSx}>
                 Dry Run Preview
               </Text>
-              <Box
-                sx={{
-                  height: 200,
-                  border: '1px solid',
-                  borderColor: 'neutral.700',
-                  borderRadius: 'sm',
-                  overflow: 'hidden',
-                }}
-              >
+              <Box sx={dryRunEditorSx}>
                 <CodeEditor
                   filename="manifest.yaml"
                   language="yaml"

@@ -132,7 +132,7 @@ export function useClusterPreferences(pluginID: string) {
   );
 
   const updateGroup = useCallback(
-    async (groupId: string, updates: { name?: string; color?: string; icon?: string }) => {
+    async (groupId: string, updates: { name?: string; color?: string; icon?: string; customImage?: string }) => {
       const current = customGroups ?? [];
       await setCustomGroups(
         current.map((g) => {

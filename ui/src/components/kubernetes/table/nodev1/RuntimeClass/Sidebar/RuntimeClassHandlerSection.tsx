@@ -7,6 +7,18 @@ import { Text } from '@omniviewdev/ui/typography';
 import type { RuntimeClass } from 'kubernetes-types/node/v1';
 import React from 'react';
 
+const infoEntryGridSx = { minHeight: 22, alignItems: 'center' } as const;
+
+const infoEntryLabelSx = { color: 'neutral.300' } as const;
+
+const infoEntryValueSx = { fontWeight: 600, fontSize: 12 } as const;
+
+const sectionBorderSx = { borderRadius: 1, border: '1px solid', borderColor: 'divider' } as const;
+
+const sectionHeaderSx = { py: 0.5, px: 1 } as const;
+
+const overheadBodySx = { py: 0.5, px: 1, bgcolor: 'background.level1' } as const;
+
 interface Props {
   data: RuntimeClass;
 }
@@ -14,14 +26,14 @@ interface Props {
 const InfoEntry: React.FC<{ label: string; value?: string }> = ({ label, value }) => {
   if (!value) return null;
   return (
-    <Grid container spacing={0} sx={{ minHeight: 22, alignItems: 'center' }}>
+    <Grid container spacing={0} sx={infoEntryGridSx}>
       <Grid size={4}>
-        <Text sx={{ color: 'neutral.300' }} size="xs">
+        <Text sx={infoEntryLabelSx} size="xs">
           {label}
         </Text>
       </Grid>
       <Grid size={8}>
-        <Text sx={{ fontWeight: 600, fontSize: 12 }} size="xs" noWrap>
+        <Text sx={infoEntryValueSx} size="xs" noWrap>
           {value}
         </Text>
       </Grid>
@@ -33,8 +45,8 @@ const RuntimeClassHandlerSection: React.FC<Props> = ({ data }) => {
   const overhead = data.overhead?.podFixed;
 
   return (
-    <Box sx={{ borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
-      <Box sx={{ py: 0.5, px: 1 }}>
+    <Box sx={sectionBorderSx}>
+      <Box sx={sectionHeaderSx}>
         <Stack direction="row" gap={0.75} alignItems="center">
           <Text weight="semibold" size="sm">
             Runtime
@@ -47,7 +59,7 @@ const RuntimeClassHandlerSection: React.FC<Props> = ({ data }) => {
       {overhead && Object.keys(overhead).length > 0 && (
         <>
           <Divider />
-          <Box sx={{ py: 0.5, px: 1, bgcolor: 'background.level1' }}>
+          <Box sx={overheadBodySx}>
             <InfoEntry label="CPU Overhead" value={overhead.cpu} />
             <InfoEntry label="Memory Overhead" value={overhead.memory} />
           </Box>

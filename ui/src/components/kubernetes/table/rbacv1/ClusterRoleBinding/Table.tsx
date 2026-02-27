@@ -18,6 +18,13 @@ import { withClusterResourceColumns } from '../../shared/columns';
 
 import ClusterRoleBindingSidebar from './Sidebar';
 
+const hideScrollbarSx = {
+  scrollbarWidth: 'none',
+  '&::-webkit-scrollbar': {
+    display: 'none',
+  },
+} as const;
+
 const resourceKey = 'rbac::v1::ClusterRoleBinding';
 
 const ownerRefKeyMap: Record<string, string> = {
@@ -75,13 +82,7 @@ const ClusterRoleBindingTable: React.FC = () => {
                   direction={'row'}
                   overflow={'scroll'}
                   gap={0.25}
-                  sx={{
-                    scrollbarWidth: 'none',
-                    // hide scrollbar
-                    '&::-webkit-scrollbar': {
-                      display: 'none',
-                    },
-                  }}
+                  sx={hideScrollbarSx}
                 >
                   {refs.map((v) => (
                     <ResourceLinkCell

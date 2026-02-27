@@ -6,6 +6,10 @@ import React from 'react';
 
 import DynamicIcon from '../DynamicIcon';
 
+const chipSx = {
+  borderRadius: 'sm',
+} as const;
+
 type Props = {
   value: string;
   color?: 'success' | 'warning' | 'danger' | 'primary' | 'neutral';
@@ -62,9 +66,7 @@ export const ChipRow: React.FC<Props> = ({
         size="sm"
         color={getColor()}
         emphasis={getVariant()}
-        sx={{
-          borderRadius: 'sm',
-        }}
+        sx={chipSx}
         startAdornment={
           typeof startDecorator === 'string' ? (
             <DynamicIcon name={startDecorator} size={16} />

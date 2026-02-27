@@ -3,6 +3,20 @@ import Skeleton from '@mui/material/Skeleton';
 import { StatCard } from '@omniviewdev/ui';
 import React from 'react';
 
+const skeletonSx = { borderRadius: 1, height: '100%', minHeight: 88 } as const;
+
+const statCardSx = { height: '100%' } as const;
+
+const clickableWrapperSx = {
+  cursor: 'pointer',
+  height: '100%',
+  borderRadius: 1,
+  transition: 'box-shadow 0.15s',
+  '&:hover > .MuiCard-root': {
+    borderColor: 'var(--ov-accent-default)',
+  },
+} as const;
+
 type StatusEntry = {
   label: string;
   count: number;
@@ -43,7 +57,7 @@ const WorkloadSummaryCard: React.FC<Props> = ({
   onClick,
 }) => {
   if (loading) {
-    return <Skeleton variant="rounded" sx={{ borderRadius: 1, height: '100%', minHeight: 88 }} />;
+    return <Skeleton variant="rounded" sx={skeletonSx} />;
   }
 
   const card = (
@@ -53,7 +67,7 @@ const WorkloadSummaryCard: React.FC<Props> = ({
       description={deriveDescription(statuses)}
       icon={icon}
       color={deriveColor(statuses)}
-      sx={{ height: '100%' }}
+      sx={statCardSx}
     />
   );
 
@@ -62,15 +76,7 @@ const WorkloadSummaryCard: React.FC<Props> = ({
   return (
     <Box
       onClick={onClick}
-      sx={{
-        cursor: 'pointer',
-        height: '100%',
-        borderRadius: 1,
-        transition: 'box-shadow 0.15s',
-        '&:hover > .MuiCard-root': {
-          borderColor: 'var(--ov-accent-default)',
-        },
-      }}
+      sx={clickableWrapperSx}
     >
       {card}
     </Box>

@@ -35,6 +35,79 @@ import NamespaceSelect from '../../tables/NamespaceSelect';
 import { useConnectionNamespaces } from '../hooks/useConnectionNamespaces';
 import { useStoredState } from '../hooks/useStoredState';
 
+// ---------------------------------------------------------------------------
+// Static styles
+// ---------------------------------------------------------------------------
+
+const errorHeadingSx = { color: 'danger.main' } as const;
+
+const errorWrapperSx = {
+  display: 'flex',
+  gap: 2,
+  justifyContent: 'center',
+  flexDirection: 'column',
+  alignItems: 'center',
+  height: '100%',
+  width: '100%',
+  userSelect: 'none',
+} as const;
+
+const errorStackSx = { maxWidth: 560, textAlign: 'center' } as const;
+const errorDetailSx = { color: 'text.secondary' } as const;
+const errorListSx = { textAlign: 'left', pl: 2, m: 0 } as const;
+const errorListItemSx = { py: 0.25 } as const;
+const errorListItemTextSx = { color: 'text.secondary' } as const;
+const errorCodeSx = {
+  color: 'text.disabled',
+  fontFamily: 'monospace',
+  mt: 1,
+  p: 1,
+  borderRadius: 1,
+  bgcolor: 'action.hover',
+  wordBreak: 'break-all',
+  maxHeight: 80,
+  overflow: 'auto',
+} as const;
+
+const tableOuterSx = { display: 'flex', flex: 1, flexDirection: 'column', p: 0.75, gap: 0, minHeight: 0 } as const;
+const tableWrapperRelativeSx = { position: 'relative' } as const;
+
+const syncIndicatorSx = {
+  position: 'absolute',
+  top: 0,
+  left: 0,
+  right: 0,
+  height: 2,
+  zIndex: 3,
+  bgcolor: 'transparent',
+  '& .MuiLinearProgress-bar': {
+    bgcolor: 'var(--ov-accent-fg, #58a6ff)',
+  },
+} as const;
+
+const toolbarSx = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 1,
+  px: 1,
+  py: 0.5,
+  borderBottom: '1px solid var(--ov-border-default)',
+  bgcolor: 'var(--ov-bg-surface)',
+  flexShrink: 0,
+} as const;
+
+const toolbarSpacerSx = { flex: 1 } as const;
+const resetColumnsButtonSx = { width: 28, height: 28 } as const;
+
+const sortLabelSx = {
+  fontSize: 'inherit',
+  fontWeight: 'inherit',
+  color: 'inherit !important',
+  '& .MuiTableSortLabel-icon': { fontSize: 12, opacity: 0.5 },
+} as const;
+
+const skeletonSx = { fontSize: '0.75rem' } as const;
+
 import ResourceTableBody from './ResourceTableBody';
 import { TableDrawerContext } from './TableDrawerContext';
 import { ColumnMeta } from './types';
@@ -344,37 +417,26 @@ const ResourceTableContainer: React.FC<Props> = ({
     }
 
     return (
-      <Box
-        sx={{
-          display: 'flex',
-          gap: 2,
-          justifyContent: 'center',
-          flexDirection: 'column',
-          alignItems: 'center',
-          height: '100%',
-          width: '100%',
-          userSelect: 'none',
-        }}
-      >
+      <Box sx={errorWrapperSx}>
         <Alert
           emphasis="soft"
           size="lg"
           startAdornment={<LuCircleAlert size={20} />}
           color="danger"
         >
-          <Heading level="h4" sx={{ color: 'danger.main' }}>
+          <Heading level="h4" sx={errorHeadingSx}>
             {title}
           </Heading>
         </Alert>
-        <Stack direction="column" spacing={1} sx={{ maxWidth: 560, textAlign: 'center' }}>
-          <Text size="sm" sx={{ color: 'text.secondary' }}>
+        <Stack direction="column" spacing={1} sx={errorStackSx}>
+          <Text size="sm" sx={errorDetailSx}>
             {detail}
           </Text>
           {suggestions.length > 0 && (
-            <Box component="ul" sx={{ textAlign: 'left', pl: 2, m: 0 }}>
+            <Box component="ul" sx={errorListSx}>
               {suggestions.map((s) => (
-                <Box component="li" key={s} sx={{ py: 0.25 }}>
-                  <Text size="xs" sx={{ color: 'text.secondary' }}>
+                <Box component="li" key={s} sx={errorListItemSx}>
+                  <Text size="xs" sx={errorListItemTextSx}>
                     {s}
                   </Text>
                 </Box>
@@ -383,17 +445,7 @@ const ResourceTableContainer: React.FC<Props> = ({
           )}
           <Text
             size="xs"
-            sx={{
-              color: 'text.disabled',
-              fontFamily: 'monospace',
-              mt: 1,
-              p: 1,
-              borderRadius: 1,
-              bgcolor: 'action.hover',
-              wordBreak: 'break-all',
-              maxHeight: 80,
-              overflow: 'auto',
-            }}
+            sx={errorCodeSx}
           >
             {resourceKey}: {errstring || 'Unknown error'}
           </Text>
@@ -404,40 +456,16 @@ const ResourceTableContainer: React.FC<Props> = ({
 
   return (
     <TableDrawerContext.Provider value={drawer}>
-      <Box
-        sx={{ display: 'flex', flex: 1, flexDirection: 'column', p: 0.75, gap: 0, minHeight: 0 }}
-      >
-        <TableWrapper sx={{ position: 'relative' }}>
+      <Box sx={tableOuterSx}>
+        <TableWrapper sx={tableWrapperRelativeSx}>
           {showSyncingIndicator && (
             <LinearProgress
               variant="indeterminate"
-              sx={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                height: 2,
-                zIndex: 3,
-                bgcolor: 'transparent',
-                '& .MuiLinearProgress-bar': {
-                  bgcolor: 'var(--ov-accent-fg, #58a6ff)',
-                },
-              }}
+              sx={syncIndicatorSx}
             />
           )}
           {/* Compact toolbar — outside scroll container so it never scrolls horizontally */}
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1,
-              px: 1,
-              py: 0.5,
-              borderBottom: '1px solid var(--ov-border-default)',
-              bgcolor: 'var(--ov-bg-surface)',
-              flexShrink: 0,
-            }}
-          >
+          <Box sx={toolbarSx}>
             <DebouncedInput
               value={search ?? ''}
               onChange={(value) => {
@@ -445,7 +473,7 @@ const ResourceTableContainer: React.FC<Props> = ({
               }}
               placeholder={placeHolderText()}
             />
-            <Box sx={{ flex: 1 }} />
+            <Box sx={toolbarSpacerSx} />
             <Stack direction="row" gap={1} alignItems="center">
               {createEnabled && (
                 <CreateResourceButton connectionID={connectionID} resourceKey={resourceKey} />
@@ -464,7 +492,7 @@ const ResourceTableContainer: React.FC<Props> = ({
                     emphasis="outline"
                     color="neutral"
                     onClick={() => setColumnSizing({})}
-                    sx={{ width: 28, height: 28 }}
+                    sx={resetColumnsButtonSx}
                   >
                     <LuColumns3 size={14} />
                   </IconButton>
@@ -535,12 +563,7 @@ const ResourceTableContainer: React.FC<Props> = ({
                               active={!!header.column.getIsSorted()}
                               direction={header.column.getIsSorted() === 'desc' ? 'desc' : 'asc'}
                               onClick={header.column.getToggleSortingHandler()}
-                              sx={{
-                                fontSize: 'inherit',
-                                fontWeight: 'inherit',
-                                color: 'inherit !important',
-                                '& .MuiTableSortLabel-icon': { fontSize: 12, opacity: 0.5 },
-                              }}
+                              sx={sortLabelSx}
                             >
                               {flexRender(header.column.columnDef.header, header.getContext())}
                             </TableSortLabel>
@@ -586,7 +609,7 @@ const ResourceTableContainer: React.FC<Props> = ({
                               }),
                             }}
                           >
-                            <Skeleton variant="text" width="70%" sx={{ fontSize: '0.75rem' }} />
+                            <Skeleton variant="text" width="70%" sx={skeletonSx} />
                           </td>
                         );
                       })}

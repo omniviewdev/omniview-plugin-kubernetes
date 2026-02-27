@@ -20,6 +20,70 @@ import NamedAvatar from '../shared/NamedAvatar';
 
 // Icons
 
+const containerSx = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  py: 0.5,
+  px: 1,
+} as const;
+
+const clickableRowSx = {
+  display: 'flex',
+  flex: 1,
+  alignItems: 'center',
+  borderRadius: 'sm',
+  cursor: 'pointer',
+  '&:hover': { bgcolor: 'background.level1' },
+  py: 0.5,
+  px: 1,
+} as const;
+
+const avatarWrapperSx = { mr: 1.5, display: 'flex' } as const;
+
+const avatarSx = {
+  borderRadius: 6,
+  backgroundColor: 'transparent',
+  objectFit: 'contain',
+  border: 0,
+  maxHeight: 28,
+  maxWidth: 28,
+} as const;
+
+const nameStackSx = { width: '100%' } as const;
+
+const innerNameStackSx = { width: '100%', height: '100%' } as const;
+
+const chipSx = { pointerEvents: 'none', borderRadius: 'sm' } as const;
+
+const menuContainerSx = { position: 'relative' } as const;
+
+const backdropStyle = { position: 'fixed', inset: 0, zIndex: 999 } as const;
+
+const menuDropdownSx = {
+  position: 'absolute',
+  right: 0,
+  top: '100%',
+  zIndex: 1000,
+  bgcolor: 'background.surface',
+  border: '1px solid',
+  borderColor: 'divider',
+  borderRadius: 'sm',
+  boxShadow: 'md',
+  py: 0.5,
+  minWidth: 140,
+} as const;
+
+const menuItemSx = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 1,
+  px: 1.5,
+  py: 0.75,
+  cursor: 'pointer',
+  '&:hover': { bgcolor: 'background.level1' },
+} as const;
+
 type Props = Omit<types.Connection, 'createFrom' | 'convertValues'>;
 
 const ConnectionListItem: React.FC<Props> = ({
@@ -112,28 +176,13 @@ const ConnectionListItem: React.FC<Props> = ({
   return (
     <Box
       id={`connection-${id}`}
-      sx={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        py: 0.5,
-        px: 1,
-      }}
+      sx={containerSx}
     >
       <Box
-        sx={{
-          display: 'flex',
-          flex: 1,
-          alignItems: 'center',
-          borderRadius: 'sm',
-          cursor: 'pointer',
-          '&:hover': { bgcolor: 'background.level1' },
-          py: 0.5,
-          px: 1,
-        }}
+        sx={clickableRowSx}
         onClick={handleClick}
       >
-        <Box sx={{ mr: 1.5, display: 'flex' }}>
+        <Box sx={avatarWrapperSx}>
           <Badge
             color="success"
             invisible={!isConnected()}
@@ -147,22 +196,15 @@ const ConnectionListItem: React.FC<Props> = ({
               <Avatar
                 size="sm"
                 src={avatar}
-                sx={{
-                  borderRadius: 6,
-                  backgroundColor: 'transparent',
-                  objectFit: 'contain',
-                  border: 0,
-                  maxHeight: 28,
-                  maxWidth: 28,
-                }}
+                sx={avatarSx}
               />
             ) : (
               <NamedAvatar value={name} />
             )}
           </Badge>
         </Box>
-        <Stack direction="row" sx={{ width: '100%' }} alignItems="center">
-          <Stack direction="row" sx={{ width: '100%', height: '100%' }} alignItems="center" gap={2}>
+        <Stack direction="row" sx={nameStackSx} alignItems="center">
+          <Stack direction="row" sx={innerNameStackSx} alignItems="center" gap={2}>
             <Text weight="semibold" size="sm" noWrap>
               {name}
             </Text>
@@ -183,14 +225,14 @@ const ConnectionListItem: React.FC<Props> = ({
                     emphasis="outline"
                     color="primary"
                     size="sm"
-                    sx={{ pointerEvents: 'none', borderRadius: 'sm' }}
+                    sx={chipSx}
                     label={key}
                   />
                 ))}
           </Stack>
         </Stack>
       </Box>
-      <Box sx={{ position: 'relative' }}>
+      <Box sx={menuContainerSx}>
         <IconButton
           size="sm"
           emphasis="ghost"
@@ -203,35 +245,15 @@ const ConnectionListItem: React.FC<Props> = ({
           <>
             {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
             <div
-              style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+              style={backdropStyle}
               onClick={() => setMenuOpen(false)}
             />
             <Box
-              sx={{
-                position: 'absolute',
-                right: 0,
-                top: '100%',
-                zIndex: 1000,
-                bgcolor: 'background.surface',
-                border: '1px solid',
-                borderColor: 'divider',
-                borderRadius: 'sm',
-                boxShadow: 'md',
-                py: 0.5,
-                minWidth: 140,
-              }}
+              sx={menuDropdownSx}
             >
               <Link to={`/connection/${id}/edit`}>
                 <Box
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
-                    px: 1.5,
-                    py: 0.75,
-                    cursor: 'pointer',
-                    '&:hover': { bgcolor: 'background.level1' },
-                  }}
+                  sx={menuItemSx}
                   onClick={() => setMenuOpen(false)}
                 >
                   <LuPencil size={14} />

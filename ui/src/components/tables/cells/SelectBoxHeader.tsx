@@ -2,16 +2,20 @@ import Box from '@mui/material/Box';
 import { Checkbox } from '@omniviewdev/ui/inputs';
 import { type Table } from '@tanstack/react-table';
 
+// ---------------------------------------------------------------------------
+// Static styles
+// ---------------------------------------------------------------------------
+
+const selectBoxSx = {
+  display: 'flex',
+  justifyContent: 'center',
+  alignItems: 'center',
+  height: '100%',
+  maxWidth: 24,
+} as const;
+
 export const SelectBoxHeader = ({ table }: { table: Table<Record<string, unknown>> }) => (
-  <Box
-    sx={{
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      height: '100%',
-      maxWidth: 24,
-    }}
-  >
+  <Box sx={selectBoxSx}>
     <Checkbox
       size="sm"
       checked={table.getIsAllPageRowsSelected()}

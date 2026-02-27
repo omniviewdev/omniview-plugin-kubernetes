@@ -17,7 +17,7 @@ import {
 } from 'react-icons/lu';
 
 import type { ConnectionGroup } from '../../types/clusters';
-import { getFolderIcon } from '../../utils/folderIcons';
+import { FolderIconDisplay } from '../../utils/folderIcons';
 
 const ICON_SIZE = 14;
 
@@ -87,23 +87,33 @@ const ConnectionContextMenu: React.FC<Props> = ({
       onClick: () => navigate(`/cluster/${encodeURIComponent(connectionId)}/edit`),
     });
 
-    // Favorite
+    // Favorite — dividerAfter is set when there's no folders section below
+    const hasFolders = customGroups.length > 0 || !!onCreateFolder;
     result.push({
       key: 'favorite',
       label: isFavorite ? 'Unfavorite' : 'Favorite',
       icon: <LuStar size={ICON_SIZE} />,
       onClick: onToggleFavorite,
+      dividerAfter: !hasFolders,
     });
 
     // Folders submenu
-    if (customGroups.length > 0 || onCreateFolder) {
+    if (hasFolders) {
       const folderChildren: ContextMenuItem[] = customGroups.map((group) => {
         const isInGroup = group.connectionIds.includes(connectionId);
-        const Icon = getFolderIcon(group.icon);
         return {
           key: `folder-${group.id}`,
           label: group.name,
-          icon: isInGroup ? <LuCheck size={ICON_SIZE} /> : <Icon size={ICON_SIZE} />,
+          icon: isInGroup ? (
+            <LuCheck size={ICON_SIZE} />
+          ) : (
+            <FolderIconDisplay
+              icon={group.icon}
+              customImage={group.customImage}
+              size={ICON_SIZE}
+              color={group.color}
+            />
+          ),
           onClick: () => {
             if (isInGroup && onRemoveFromGroup) {
               onRemoveFromGroup(group.id);
@@ -130,9 +140,6 @@ const ConnectionContextMenu: React.FC<Props> = ({
         dividerAfter: true,
         children: folderChildren,
       });
-    } else {
-      // Add divider after favorite when no folders section
-      result[result.length - 1].dividerAfter = true;
     }
 
     // Copy ID

@@ -16,6 +16,14 @@ import Icon from '../../../shared/Icon';
 import ContainerStatusCard from './KubernetesContainerStatusCard';
 import { getStatus } from './utils';
 
+// ---------------------------------------------------------------------------
+// Static styles
+// ---------------------------------------------------------------------------
+
+const kvPairsSx = { p: 1, borderRadius: 'sm', bgcolor: 'background.level1' } as const;
+const messageChipSx = { my: 1, borderRadius: 'sm' } as const;
+const decoratorChipSx = { borderRadius: 'sm', px: 1 } as const;
+
 const KeyValuePairs = ({ message }: { message: string }) => {
   const regex = /(\w+)=(?:"([^"]*)"|(\S*))/g;
   const pairs = [];
@@ -28,7 +36,7 @@ const KeyValuePairs = ({ message }: { message: string }) => {
   }
 
   return (
-    <Box sx={{ p: 1, borderRadius: 'sm', bgcolor: 'background.level1' }}>
+    <Box sx={kvPairsSx}>
       <Grid container>
         {pairs.map((pair) => (
           <React.Fragment key={pair.key}>
@@ -72,7 +80,7 @@ export const ContainerTerminatedStatusInfo: React.FC<{
       )}
       {state.message && (
         <Grid size={12}>
-          <Chip size="sm" emphasis="outline" sx={{ my: 1, borderRadius: 'sm' }} label="Message" />
+          <Chip size="sm" emphasis="outline" sx={messageChipSx} label="Message" />
           <KeyValuePairs message={state.message} />
         </Grid>
       )}
@@ -131,10 +139,7 @@ export const ContainerStatusDecorator: React.FC<{
     >
       <Chip
         size="sm"
-        sx={{
-          borderRadius: 'sm',
-          px: 1,
-        }}
+        sx={decoratorChipSx}
         color={statusInfo.color}
         emphasis={getEmphasis()}
         startAdornment={statusInfo.icon && <Icon name={statusInfo.icon} size={16} />}

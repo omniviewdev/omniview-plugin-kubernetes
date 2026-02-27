@@ -2,6 +2,20 @@ import { TextField } from '@omniviewdev/ui/inputs';
 import React from 'react';
 import { LuSearch, LuX } from 'react-icons/lu';
 
+const clearIconStyle = { cursor: 'pointer' } as const;
+
+const searchInputSx = {
+  flexBasis: '240px',
+  display: 'flex',
+  boxShadow: 'none',
+  minWidth: {
+    md: 200,
+    lg: 240,
+    xl: 280,
+  },
+  '--wails-draggable': 'no-drag',
+} as const;
+
 type Props = {
   /** Placeholder for the search input. */
   placeholder?: string;
@@ -24,7 +38,7 @@ const SearchInput: React.FC<Props> = ({ placeholder, value, onChange, autoFocus 
   // Recompute only if the value changes
   const hasValue = React.useMemo(() => value !== '', [value]);
   const endAdornment = React.useMemo(
-    () => (hasValue ? <LuX onClick={handleClear} style={{ cursor: 'pointer' }} /> : null),
+    () => (hasValue ? <LuX onClick={handleClear} style={clearIconStyle} /> : null),
     [hasValue, handleClear],
   );
 
@@ -42,17 +56,7 @@ const SearchInput: React.FC<Props> = ({ placeholder, value, onChange, autoFocus 
       onChange={(e) => {
         onChange(e);
       }}
-      sx={{
-        flexBasis: '240px',
-        display: 'flex',
-        boxShadow: 'none',
-        minWidth: {
-          md: 200,
-          lg: 240,
-          xl: 280,
-        },
-        '--wails-draggable': 'no-drag',
-      }}
+      sx={searchInputSx}
     />
   );
 };

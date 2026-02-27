@@ -10,6 +10,53 @@ import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
 import React, { useState, useMemo, useCallback } from 'react';
 
+const outerBoxSx = { borderRadius: 1, border: '1px solid', borderColor: 'divider' } as const;
+const metricsHeaderSx = {
+  py: 0.5,
+  px: 1,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+} as const;
+const metricsContentSx = { px: 0.5, pb: 1 } as const;
+const loadingBoxSx = { display: 'flex', justifyContent: 'center', py: 2 } as const;
+const noMetricsHeaderSx = { py: 0.5, px: 1 } as const;
+const noMetricsBodySx = { px: 1, pb: 1 } as const;
+const noMetricsTextSx = { color: 'neutral.500' } as const;
+const errorBoxSx = { px: 1, pb: 0.5 } as const;
+const errorTextSx = { color: 'danger.400' } as const;
+const gaugeLabelSx = { color: 'neutral.400' } as const;
+const gaugeValueSx = { fontVariantNumeric: 'tabular-nums' } as const;
+const progressBarSx = { height: 4, borderRadius: 2 } as const;
+const gaugeSubtitleSx = { color: 'neutral.500', fontSize: '0.6rem', mt: 0.25 } as const;
+const gaugeContainerSx = { minWidth: 0, flex: 1 } as const;
+const gaugeHeaderSx = { mb: 0.25 } as const;
+const statTileSx = {
+  py: 0.5,
+  px: 1,
+  borderRadius: 1,
+  border: '1px solid',
+  borderColor: 'divider',
+  bgcolor: 'background.level1',
+} as const;
+const statLabelSx = { color: 'neutral.400', display: 'block', mb: 0.25 } as const;
+const statValueSx = { fontVariantNumeric: 'tabular-nums' } as const;
+const sectionSubheadingSx = {
+  color: 'neutral.400',
+  textTransform: 'uppercase',
+  letterSpacing: '0.04em',
+  fontSize: '0.6rem',
+  mb: 0.75,
+} as const;
+const sectionSubheadingAltSx = {
+  color: 'neutral.400',
+  textTransform: 'uppercase',
+  letterSpacing: '0.04em',
+  fontSize: '0.6rem',
+  mb: 0.5,
+} as const;
+const sectionPaddingSx = { px: 0.5 } as const;
+
 interface Props {
   connectionID: string;
   resourceKey: string;
@@ -90,12 +137,12 @@ const PercentGauge: React.FC<{
   const color = value >= 90 ? 'error' : value >= 70 ? 'warning' : 'primary';
 
   return (
-    <Box sx={{ minWidth: 0, flex: 1 }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="baseline" sx={{ mb: 0.25 }}>
-        <Text size="xs" sx={{ color: 'neutral.400' }}>
+    <Box sx={gaugeContainerSx}>
+      <Stack direction="row" justifyContent="space-between" alignItems="baseline" sx={gaugeHeaderSx}>
+        <Text size="xs" sx={gaugeLabelSx}>
           {label}
         </Text>
-        <Text size="xs" weight="semibold" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+        <Text size="xs" weight="semibold" sx={gaugeValueSx}>
           {value.toFixed(1)}%
         </Text>
       </Stack>
@@ -103,10 +150,10 @@ const PercentGauge: React.FC<{
         variant="determinate"
         value={Math.min(value, 100)}
         color={color}
-        sx={{ height: 4, borderRadius: 2 }}
+        sx={progressBarSx}
       />
       {subtitle && (
-        <Text size="xs" sx={{ color: 'neutral.500', fontSize: '0.6rem', mt: 0.25 }}>
+        <Text size="xs" sx={gaugeSubtitleSx}>
           {subtitle}
         </Text>
       )}
@@ -119,20 +166,11 @@ const StatTile: React.FC<{
   label: string;
   value: string;
 }> = ({ label, value }) => (
-  <Box
-    sx={{
-      py: 0.5,
-      px: 1,
-      borderRadius: 1,
-      border: '1px solid',
-      borderColor: 'divider',
-      bgcolor: 'background.level1',
-    }}
-  >
-    <Text size="xs" sx={{ color: 'neutral.400', display: 'block', mb: 0.25 }}>
+  <Box sx={statTileSx}>
+    <Text size="xs" sx={statLabelSx}>
       {label}
     </Text>
-    <Text size="sm" weight="semibold" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+    <Text size="sm" weight="semibold" sx={statValueSx}>
       {value}
     </Text>
   </Box>
@@ -144,10 +182,10 @@ const NodeMetricsSection: React.FC<Props> = ({
   resourceID,
   resourceData,
 }) => {
-  const [timeRange, setTimeRange] = useState<ChartTimeRange>({
+  const [timeRange, setTimeRange] = useState<ChartTimeRange>(() => ({
     from: new Date(Date.now() - 60 * 60 * 1000),
     to: new Date(),
-  });
+  }));
 
   // Instant values (shape=0 CURRENT)
   const {
@@ -273,7 +311,7 @@ const NodeMetricsSection: React.FC<Props> = ({
 
   if (isLoading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+      <Box sx={loadingBoxSx}>
         <CircularProgress size={20} />
       </Box>
     );
@@ -281,20 +319,14 @@ const NodeMetricsSection: React.FC<Props> = ({
 
   if (metrics.size === 0 && !hasTimeSeries && !error) {
     return (
-      <Box
-        sx={{
-          borderRadius: 1,
-          border: '1px solid',
-          borderColor: 'divider',
-        }}
-      >
-        <Box sx={{ py: 0.5, px: 1 }}>
+      <Box sx={outerBoxSx}>
+        <Box sx={noMetricsHeaderSx}>
           <Text weight="semibold" size="sm">
             Metrics
           </Text>
         </Box>
-        <Box sx={{ px: 1, pb: 1 }}>
-          <Text size="xs" sx={{ color: 'neutral.500' }}>
+        <Box sx={noMetricsBodySx}>
+          <Text size="xs" sx={noMetricsTextSx}>
             No metrics available. Ensure metrics-server or Prometheus is installed.
           </Text>
         </Box>
@@ -318,23 +350,9 @@ const NodeMetricsSection: React.FC<Props> = ({
   const hasPrometheus = cpuUtilPct !== undefined;
 
   return (
-    <Box
-      sx={{
-        borderRadius: 1,
-        border: '1px solid',
-        borderColor: 'divider',
-      }}
-    >
+    <Box sx={outerBoxSx}>
       {/* Header */}
-      <Box
-        sx={{
-          py: 0.5,
-          px: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
+      <Box sx={metricsHeaderSx}>
         <Text weight="semibold" size="sm">
           Metrics
         </Text>
@@ -342,14 +360,14 @@ const NodeMetricsSection: React.FC<Props> = ({
       </Box>
 
       {error && (
-        <Box sx={{ px: 1, pb: 0.5 }}>
-          <Text size="xs" sx={{ color: 'danger.400' }}>
+        <Box sx={errorBoxSx}>
+          <Text size="xs" sx={errorTextSx}>
             {error.message || 'Failed to load metrics'}
           </Text>
         </Box>
       )}
 
-      <Box sx={{ px: 0.5, pb: 1 }}>
+      <Box sx={metricsContentSx}>
         <Stack spacing={0.75}>
           {/* Time-series charts */}
           {hasTimeSeries && (
@@ -466,18 +484,8 @@ const NodeMetricsSection: React.FC<Props> = ({
 
           {/* Utilization gauges (instant values) — shown when no charts available */}
           {hasPrometheus && !hasTimeSeries && (
-            <Box sx={{ px: 0.5 }}>
-              <Text
-                size="xs"
-                weight="semibold"
-                sx={{
-                  color: 'neutral.400',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
-                  fontSize: '0.6rem',
-                  mb: 0.75,
-                }}
-              >
+            <Box sx={sectionPaddingSx}>
+              <Text size="xs" weight="semibold" sx={sectionSubheadingSx}>
                 Utilization
               </Text>
               <Stack spacing={0.75}>
@@ -502,18 +510,8 @@ const NodeMetricsSection: React.FC<Props> = ({
 
           {/* Metrics-server CPU/Memory */}
           {(cpuUsage > 0 || memUsage > 0) && (
-            <Box sx={{ px: 0.5 }}>
-              <Text
-                size="xs"
-                weight="semibold"
-                sx={{
-                  color: 'neutral.400',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
-                  fontSize: '0.6rem',
-                  mb: 0.5,
-                }}
-              >
+            <Box sx={sectionPaddingSx}>
+              <Text size="xs" weight="semibold" sx={sectionSubheadingAltSx}>
                 {hasPrometheus ? 'Current Usage' : 'Usage'}
               </Text>
               <Grid container spacing={0.5}>
@@ -540,18 +538,8 @@ const NodeMetricsSection: React.FC<Props> = ({
 
           {/* Network stats (instant, when no charts) */}
           {!hasTimeSeries && (netRx !== undefined || netTx !== undefined) && (
-            <Box sx={{ px: 0.5 }}>
-              <Text
-                size="xs"
-                weight="semibold"
-                sx={{
-                  color: 'neutral.400',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
-                  fontSize: '0.6rem',
-                  mb: 0.5,
-                }}
-              >
+            <Box sx={sectionPaddingSx}>
+              <Text size="xs" weight="semibold" sx={sectionSubheadingAltSx}>
                 Network
               </Text>
               <Grid container spacing={0.5}>
@@ -571,18 +559,8 @@ const NodeMetricsSection: React.FC<Props> = ({
 
           {/* System stats */}
           {(loadAvg !== undefined || podCount !== undefined) && (
-            <Box sx={{ px: 0.5 }}>
-              <Text
-                size="xs"
-                weight="semibold"
-                sx={{
-                  color: 'neutral.400',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
-                  fontSize: '0.6rem',
-                  mb: 0.5,
-                }}
-              >
+            <Box sx={sectionPaddingSx}>
+              <Text size="xs" weight="semibold" sx={sectionSubheadingAltSx}>
                 System
               </Text>
               <Grid container spacing={0.5}>

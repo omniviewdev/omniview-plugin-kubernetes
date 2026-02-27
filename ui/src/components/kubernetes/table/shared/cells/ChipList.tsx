@@ -1,6 +1,15 @@
 import { Chip } from '@omniviewdev/ui';
 import { Stack } from '@omniviewdev/ui/layout';
 
+const chipListStackSx = {
+  scrollbarWidth: 'none',
+  '&::-webkit-scrollbar': {
+    display: 'none',
+  },
+} as const;
+
+const chipSx = { borderRadius: '2px' } as const;
+
 type Props = {
   values: string[];
 };
@@ -20,16 +29,10 @@ const ChipList: React.FC<Props> = ({ values }) => {
       direction={'row'}
       overflow={'scroll'}
       gap={0.25}
-      sx={{
-        scrollbarWidth: 'none',
-        // hide scrollbar
-        '&::-webkit-scrollbar': {
-          display: 'none',
-        },
-      }}
+      sx={chipListStackSx}
     >
       {values.map((value) => (
-        <Chip key={value} size={'sm'} sx={{ borderRadius: '2px' }} emphasis="outline" label={value} />
+        <Chip key={value} size={'sm'} sx={chipSx} emphasis="outline" label={value} />
       ))}
     </Stack>
   );

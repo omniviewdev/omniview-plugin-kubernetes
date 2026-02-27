@@ -8,6 +8,16 @@ import React from 'react';
 
 import { convertKubernetesByteUnits } from '../../../../utils/convert';
 
+const outerBoxSx = { borderRadius: 1, border: '1px solid', borderColor: 'divider' } as const;
+const titleAreaSx = { py: 0.5, px: 1 } as const;
+const contentAreaSx = { py: 0.5, px: 1, bgcolor: 'background.level1' } as const;
+const resourceRowSx = { py: 0.25 } as const;
+const resourceLabelSx = { fontWeight: 600, minWidth: 60 } as const;
+const capacityTextSx = { color: 'neutral.300' } as const;
+const usageBarRowSx = { mt: 0.25 } as const;
+const progressBarSx = { flex: 1, height: 6, borderRadius: 3 } as const;
+const usageTextSx = { color: 'neutral.400', minWidth: 44, textAlign: 'right' } as const;
+
 interface Props {
   node: Node;
   /** CPU usage in millicores (from metrics) */
@@ -27,26 +37,26 @@ const ResourceRow: React.FC<{
   usage?: number; // 0..100 percent
   usageLabel?: string;
 }> = ({ label, capacity, allocatable, usage, usageLabel }) => (
-  <Box sx={{ py: 0.25 }}>
+  <Box sx={resourceRowSx}>
     <Stack direction="row" justifyContent="space-between" alignItems="center">
-      <Text size="xs" sx={{ fontWeight: 600, minWidth: 60 }}>
+      <Text size="xs" sx={resourceLabelSx}>
         {label}
       </Text>
       <Stack direction="row" gap={1.5} alignItems="center">
-        <Text size="xs" sx={{ color: 'neutral.300' }}>
+        <Text size="xs" sx={capacityTextSx}>
           {allocatable ?? '-'} / {capacity ?? '-'}
         </Text>
       </Stack>
     </Stack>
     {usage != null && (
-      <Stack direction="row" gap={1} alignItems="center" sx={{ mt: 0.25 }}>
+      <Stack direction="row" gap={1} alignItems="center" sx={usageBarRowSx}>
         <LinearProgress
           variant="determinate"
           value={Math.min(usage, 100)}
           color={usage > 90 ? 'error' : usage > 70 ? 'warning' : 'primary'}
-          sx={{ flex: 1, height: 6, borderRadius: 3 }}
+          sx={progressBarSx}
         />
-        <Text size="xs" sx={{ color: 'neutral.400', minWidth: 44, textAlign: 'right' }}>
+        <Text size="xs" sx={usageTextSx}>
           {usageLabel || `${usage.toFixed(1)}%`}
         </Text>
       </Stack>
@@ -99,14 +109,14 @@ const NodeResourcesSection: React.FC<Props> = ({
   const memPercent = memoryUsage != null && memCap ? (memoryUsage / memCap) * 100 : undefined;
 
   return (
-    <Box sx={{ borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
-      <Box sx={{ py: 0.5, px: 1 }}>
+    <Box sx={outerBoxSx}>
+      <Box sx={titleAreaSx}>
         <Text weight="semibold" size="sm">
           Resources
         </Text>
       </Box>
       <Divider />
-      <Box sx={{ py: 0.5, px: 1, bgcolor: 'background.level1' }}>
+      <Box sx={contentAreaSx}>
         <ResourceRow
           label="CPU"
           capacity={capacity?.cpu}

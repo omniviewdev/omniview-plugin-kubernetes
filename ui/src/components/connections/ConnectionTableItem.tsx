@@ -31,6 +31,14 @@ type Props = {
   onRecordAccess: () => void;
 };
 
+const rowStyle = { cursor: 'pointer' } as const;
+
+const nameRowSx = { display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 } as const;
+
+const descriptionSx = { color: 'var(--ov-fg-faint)', flexShrink: 1, minWidth: 0 } as const;
+
+const columnValueSx = { color: 'var(--ov-fg-muted)' } as const;
+
 const truncate = (input: string) => (input.length > 60 ? `${input.substring(0, 60)}...` : input);
 
 const tdSx: React.CSSProperties = {
@@ -142,7 +150,7 @@ const ConnectionTableItem: React.FC<Props> = ({
   return (
     <tr
       id={`connection-${id}`}
-      style={{ cursor: 'pointer' }}
+      style={rowStyle}
       onMouseOver={(e) => {
         (e.currentTarget as HTMLElement).style.backgroundColor =
           'var(--ov-bg-surface-hover, rgba(255,255,255,0.04))';
@@ -165,7 +173,7 @@ const ConnectionTableItem: React.FC<Props> = ({
 
       {/* Name */}
       <td onClick={handleClick} style={{ ...tdSx }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
+        <Box sx={nameRowSx}>
           <ConnectionStatusBadge isConnected={isConnected}>
             {enriched.avatar ? (
               <Avatar size="sm" src={enriched.avatar} />
@@ -178,7 +186,7 @@ const ConnectionTableItem: React.FC<Props> = ({
             {displayName}
           </Text>
           {Boolean(displayDescription) && (
-            <Text size="xs" noWrap sx={{ color: 'var(--ov-fg-faint)', flexShrink: 1, minWidth: 0 }}>
+            <Text size="xs" noWrap sx={descriptionSx}>
               {displayDescription}
             </Text>
           )}
@@ -194,7 +202,7 @@ const ConnectionTableItem: React.FC<Props> = ({
       {visibleColumns.map((col) => (
         <td key={`${id}-${col}`} onClick={handleClick} style={{ ...tdSx }}>
           {labels?.[col] ? (
-            <Text size="xs" noWrap sx={{ color: 'var(--ov-fg-muted)' }}>
+            <Text size="xs" noWrap sx={columnValueSx}>
               {truncate(String(labels[col]))}
             </Text>
           ) : null}

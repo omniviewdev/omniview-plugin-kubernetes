@@ -12,6 +12,35 @@ import React from 'react';
 import ConditionChip from '../../../shared/ConditionChip';
 import ResourceLinkChip from '../../../shared/ResourceLinkChip';
 
+const statusEntryGridSx = { minHeight: 22, alignItems: 'center' } as const;
+
+const statusEntryLabelSx = { color: 'neutral.300' } as const;
+
+const statusEntryValueSx = { fontWeight: 600, fontSize: 12 } as const;
+
+const sectionBorderSx = {
+  borderRadius: 1,
+  border: '1px solid',
+  borderColor: 'divider',
+} as const;
+
+const headerSx = {
+  py: 0.5,
+  px: 1,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 1,
+} as const;
+
+const chipBorderRadiusSx = { borderRadius: 1 } as const;
+
+const bodyBgSx = {
+  py: 0.5,
+  px: 1,
+  bgcolor: 'background.level1',
+} as const;
+
 interface Props {
   pod: Pod;
   /** When provided, the Node chip becomes clickable and opens the Node sidebar */
@@ -39,15 +68,15 @@ const StatusEntry: React.FC<{
 }> = ({ label, value }) => {
   if (value === undefined || value === null) return null;
   return (
-    <Grid container spacing={0} sx={{ minHeight: 22, alignItems: 'center' }}>
+    <Grid container spacing={0} sx={statusEntryGridSx}>
       <Grid size={3}>
-        <Text sx={{ color: 'neutral.300' }} size="xs">
+        <Text sx={statusEntryLabelSx} size="xs">
           {label}
         </Text>
       </Grid>
       <Grid size={9}>
         {typeof value === 'string' ? (
-          <ClipboardText value={value} variant="inherit" sx={{ fontWeight: 600, fontSize: 12 }} />
+          <ClipboardText value={value} variant="inherit" sx={statusEntryValueSx} />
         ) : (
           value
         )}
@@ -70,24 +99,9 @@ const PodStatusSection: React.FC<Props> = ({ pod, connectionID }) => {
     (pod.status?.initContainerStatuses?.reduce((sum, cs) => sum + (cs.restartCount || 0), 0) ?? 0);
 
   return (
-    <Box
-      sx={{
-        borderRadius: 1,
-        border: '1px solid',
-        borderColor: 'divider',
-      }}
-    >
+    <Box sx={sectionBorderSx}>
       {/* Header: title + phase chip + conditions */}
-      <Box
-        sx={{
-          py: 0.5,
-          px: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 1,
-        }}
-      >
+      <Box sx={headerSx}>
         <Stack direction="row" gap={0.75} alignItems="center" flexShrink={0}>
           <Text weight="semibold" size="sm">
             Status
@@ -96,7 +110,7 @@ const PodStatusSection: React.FC<Props> = ({ pod, connectionID }) => {
             size="xs"
             color={phaseColor(phase)}
             emphasis="soft"
-            sx={{ borderRadius: 1 }}
+            sx={chipBorderRadiusSx}
             label={phase || 'Unknown'}
           />
         </Stack>
@@ -109,13 +123,7 @@ const PodStatusSection: React.FC<Props> = ({ pod, connectionID }) => {
         )}
       </Box>
       <Divider />
-      <Box
-        sx={{
-          py: 0.5,
-          px: 1,
-          bgcolor: 'background.level1',
-        }}
-      >
+      <Box sx={bodyBgSx}>
         <StatusEntry label="QoS" value={qosClass} />
         <StatusEntry label="Pod IP" value={podIP} />
         <StatusEntry label="Host IP" value={hostIP} />
@@ -135,7 +143,7 @@ const PodStatusSection: React.FC<Props> = ({ pod, connectionID }) => {
                   size="xs"
                   color="primary"
                   emphasis="soft"
-                  sx={{ borderRadius: 1 }}
+                  sx={chipBorderRadiusSx}
                   label={nodeName}
                 />
               )
@@ -150,7 +158,7 @@ const PodStatusSection: React.FC<Props> = ({ pod, connectionID }) => {
                 size="xs"
                 color={totalRestarts > 5 ? 'danger' : 'warning'}
                 emphasis="soft"
-                sx={{ borderRadius: 1 }}
+                sx={chipBorderRadiusSx}
                 label={String(totalRestarts)}
               />
             }

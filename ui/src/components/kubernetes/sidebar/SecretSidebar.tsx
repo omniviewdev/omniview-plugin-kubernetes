@@ -24,17 +24,17 @@ import {
 import { isMultiLine } from '../../../utils/text';
 import ObjectMetaSection from '../../shared/ObjectMetaSection';
 
+const gridAlignCenterSx = { alignItems: 'center', alignContent: 'center' } as const;
+
+const removeButtonSx = { '--IconButton-size': '24px' } as const;
+
 const decodeEntries = (data?: Record<string, string>) => {
   if (!data) {
     return {};
   }
   // return a new data map with the decoded values
-  return Object.entries(data).reduce(
-    (acc, [key, value]) => {
-      acc[key] = atob(value);
-      return acc;
-    },
-    {} as Record<string, string>,
+  return Object.fromEntries(
+    Object.entries(data).map(([key, value]) => [key, atob(value)]),
   );
 };
 
@@ -135,25 +135,19 @@ export const SecretSidebar: React.FC<Props> = ({ ctx }) => {
   };
 
   const handleSubmit = () => {
-    const draft = secret;
-
     // we decoded our values upfront to save on rerender performance, so re-encode them here
-    draft.data = Object.entries(values).reduce(
-      (acc, [key, value]) => {
-        acc[key] = btoa(value);
-        return acc;
-      },
-      {} as Record<string, string>,
+    const encodedExisting = Object.fromEntries(
+      Object.entries(values).map(([key, value]) => [key, btoa(value)]),
     );
 
     // add our new values
-    newValues.forEach((entry) => {
-      if (draft.data === undefined) {
-        draft.data = {};
-      }
+    const encodedNew = Object.fromEntries(
+      newValues.map((entry) => [entry.key, btoa(entry.value)]),
+    );
 
-      draft.data[entry.key] = btoa(entry.value);
-    });
+    // Mutate the original secret's data in-place (expected by the drawer context)
+    // eslint-disable-next-line react-hooks/immutability
+    secret.data = { ...encodedExisting, ...encodedNew };
 
     try {
       setEdited(false);
@@ -204,7 +198,7 @@ export const SecretSidebar: React.FC<Props> = ({ ctx }) => {
           <Grid container spacing={0.5}>
             {Object.entries(values).map(([key, value]) => (
               <React.Fragment key={key}>
-                <Grid size={4} key={key} sx={{ alignItems: 'center', alignContent: 'center' }}>
+                <Grid size={4} key={key} sx={gridAlignCenterSx}>
                   <Text size="sm">{key}</Text>
                 </Grid>
                 <Grid size={8}>
@@ -273,9 +267,7 @@ export const SecretSidebar: React.FC<Props> = ({ ctx }) => {
                   InputProps={{
                     endAdornment: (
                       <IconButton
-                        sx={{
-                          '--IconButton-size': '24px',
-                        }}
+                        sx={removeButtonSx}
                         onClick={() => handleRemoveKey(index)}
                         size="sm"
                         emphasis="soft"

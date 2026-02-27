@@ -14,6 +14,18 @@ import CodeEditor from '../../../shared/CodeEditor';
 
 import { getTemplate } from './templates';
 
+const headerSx = { px: 2.5, pt: 2, pb: 1.5 } as const;
+const contentSx = { flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' } as const;
+const editorWrapperSx = { height: 'calc(80vh - 120px)', overflow: 'hidden' } as const;
+const errorSx = {
+  px: 2.5,
+  py: 1,
+  bgcolor: 'rgba(248, 81, 73, 0.1)',
+  borderTop: '1px solid rgba(248, 81, 73, 0.3)',
+} as const;
+const errorTextSx = { color: '#f85149' } as const;
+const footerSx = { px: 2.5, py: 1.5 } as const;
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -102,7 +114,7 @@ const CreateResourceModal: React.FC<Props> = ({
           direction="row"
           justifyContent="space-between"
           alignItems="center"
-          sx={{ px: 2.5, pt: 2, pb: 1.5 }}
+          sx={headerSx}
         >
           <Stack direction="row" alignItems="center" spacing={1}>
             <LuPlus size={16} />
@@ -117,8 +129,8 @@ const CreateResourceModal: React.FC<Props> = ({
         <Divider />
 
         {/* Content — editor */}
-        <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <Box sx={{ height: 'calc(80vh - 120px)', overflow: 'hidden' }}>
+        <Box sx={contentSx}>
+          <Box sx={editorWrapperSx}>
             <CodeEditor
               filename={`${kind}.yaml`}
               language="yaml"
@@ -131,15 +143,8 @@ const CreateResourceModal: React.FC<Props> = ({
 
           {/* Inline error */}
           {error && (
-            <Box
-              sx={{
-                px: 2.5,
-                py: 1,
-                bgcolor: 'rgba(248, 81, 73, 0.1)',
-                borderTop: '1px solid rgba(248, 81, 73, 0.3)',
-              }}
-            >
-              <Text size="xs" sx={{ color: '#f85149' }}>
+            <Box sx={errorSx}>
+              <Text size="xs" sx={errorTextSx}>
                 {error}
               </Text>
             </Box>
@@ -148,7 +153,7 @@ const CreateResourceModal: React.FC<Props> = ({
 
         {/* Footer */}
         <Divider />
-        <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ px: 2.5, py: 1.5 }}>
+        <Stack direction="row" spacing={1} justifyContent="flex-end" sx={footerSx}>
           <Button size="xs" emphasis="ghost" color="neutral" onClick={onClose}>
             Cancel
           </Button>

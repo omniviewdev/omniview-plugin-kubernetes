@@ -9,6 +9,60 @@ import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
 import React, { useState, useMemo, useCallback } from 'react';
 
+const metricTileBoxSx = {
+  py: 0.75,
+  px: 1,
+  borderRadius: 1,
+  border: '1px solid',
+  borderColor: 'divider',
+  bgcolor: 'background.level1',
+} as const;
+
+const metricTileLabelSx = { color: 'neutral.400', mb: 0.25, display: 'block' } as const;
+
+const metricTileValueSx = { fontVariantNumeric: 'tabular-nums' } as const;
+
+const loadingContainerSx = { display: 'flex', justifyContent: 'center', py: 2 } as const;
+
+const sectionBorderSx = {
+  borderRadius: 1,
+  border: '1px solid',
+  borderColor: 'divider',
+} as const;
+
+const sectionHeaderSx = {
+  py: 0.5,
+  px: 1,
+} as const;
+
+const sectionHeaderWithActionsSx = {
+  py: 0.5,
+  px: 1,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+} as const;
+
+const errorBoxSx = { px: 1, pb: 0.5 } as const;
+
+const errorTextSx = { color: 'danger.400' } as const;
+
+const noMetricsTextSx = { color: 'neutral.500' } as const;
+
+const bodyPaddingSx = { px: 0.5, pb: 1 } as const;
+
+const noMetricsBodySx = { px: 1, pb: 1 } as const;
+
+const tileContainerSx = { px: 0.5 } as const;
+
+const tileHeadingSx = {
+  color: 'neutral.400',
+  textTransform: 'uppercase',
+  letterSpacing: '0.04em',
+  fontSize: '0.6rem',
+  mb: 0.5,
+} as const;
+
 interface Props {
   connectionID: string;
   resourceKey: string;
@@ -44,20 +98,11 @@ const MetricTile: React.FC<{
   label: string;
   value: string;
 }> = ({ label, value }) => (
-  <Box
-    sx={{
-      py: 0.75,
-      px: 1,
-      borderRadius: 1,
-      border: '1px solid',
-      borderColor: 'divider',
-      bgcolor: 'background.level1',
-    }}
-  >
-    <Text size="xs" sx={{ color: 'neutral.400', mb: 0.25, display: 'block' }}>
+  <Box sx={metricTileBoxSx}>
+    <Text size="xs" sx={metricTileLabelSx}>
       {label}
     </Text>
-    <Text size="sm" weight="semibold" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+    <Text size="sm" weight="semibold" sx={metricTileValueSx}>
       {value}
     </Text>
   </Box>
@@ -147,10 +192,10 @@ const PodMetricsSection: React.FC<Props> = ({
   resourceNamespace,
   resourceData,
 }) => {
-  const [timeRange, setTimeRange] = useState<ChartTimeRange>({
+  const [timeRange, setTimeRange] = useState<ChartTimeRange>(() => ({
     from: new Date(Date.now() - 60 * 60 * 1000), // 1h ago
     to: new Date(),
-  });
+  }));
 
   // Instant values (shape=0 CURRENT) for tiles and current value annotations
   const {
@@ -235,7 +280,7 @@ const PodMetricsSection: React.FC<Props> = ({
 
   if (isLoading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+      <Box sx={loadingContainerSx}>
         <CircularProgress size={20} />
       </Box>
     );
@@ -243,20 +288,14 @@ const PodMetricsSection: React.FC<Props> = ({
 
   if (currentMetrics.size === 0 && !hasTimeSeries && !error) {
     return (
-      <Box
-        sx={{
-          borderRadius: 1,
-          border: '1px solid',
-          borderColor: 'divider',
-        }}
-      >
-        <Box sx={{ py: 0.5, px: 1 }}>
+      <Box sx={sectionBorderSx}>
+        <Box sx={sectionHeaderSx}>
           <Text weight="semibold" size="sm">
             Metrics
           </Text>
         </Box>
-        <Box sx={{ px: 1, pb: 1 }}>
-          <Text size="xs" sx={{ color: 'neutral.500' }}>
+        <Box sx={noMetricsBodySx}>
+          <Text size="xs" sx={noMetricsTextSx}>
             No metrics available. Ensure metrics-server or Prometheus is installed.
           </Text>
         </Box>
@@ -265,23 +304,9 @@ const PodMetricsSection: React.FC<Props> = ({
   }
 
   return (
-    <Box
-      sx={{
-        borderRadius: 1,
-        border: '1px solid',
-        borderColor: 'divider',
-      }}
-    >
+    <Box sx={sectionBorderSx}>
       {/* Header */}
-      <Box
-        sx={{
-          py: 0.5,
-          px: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
+      <Box sx={sectionHeaderWithActionsSx}>
         <Text weight="semibold" size="sm">
           Metrics
         </Text>
@@ -289,14 +314,14 @@ const PodMetricsSection: React.FC<Props> = ({
       </Box>
 
       {error && (
-        <Box sx={{ px: 1, pb: 0.5 }}>
-          <Text size="xs" sx={{ color: 'danger.400' }}>
+        <Box sx={errorBoxSx}>
+          <Text size="xs" sx={errorTextSx}>
             {error.message || 'Failed to load metrics'}
           </Text>
         </Box>
       )}
 
-      <Box sx={{ px: 0.5, pb: 1 }}>
+      <Box sx={bodyPaddingSx}>
         <Stack spacing={0.75}>
           {/* Time-series charts */}
           {hasTimeSeries && (
@@ -347,17 +372,11 @@ const PodMetricsSection: React.FC<Props> = ({
 
           {/* Instant-only tiles */}
           {tileMetrics.length > 0 && (
-            <Box sx={{ px: 0.5 }}>
+            <Box sx={tileContainerSx}>
               <Text
                 size="xs"
                 weight="semibold"
-                sx={{
-                  color: 'neutral.400',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
-                  fontSize: '0.6rem',
-                  mb: 0.5,
-                }}
+                sx={tileHeadingSx}
               >
                 Current Values
               </Text>

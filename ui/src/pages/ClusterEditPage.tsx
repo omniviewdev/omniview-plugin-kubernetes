@@ -24,6 +24,64 @@ import type { ConnectionOverride } from '../types/clusters';
 import { getInitials } from '../utils/avatarUtils';
 import { stringToColor } from '../utils/color';
 
+const sidenavHeaderSx = { px: 1, py: 1, borderBottom: '1px solid', borderColor: 'divider' } as const;
+
+const clusterCardWrapperSx = { px: 1, py: 1 } as const;
+
+const clusterCardSx = {
+  bgcolor: 'background.level1',
+  border: '1px solid',
+  borderColor: 'divider',
+  borderRadius: 1,
+  p: 1.25,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 1.25,
+} as const;
+
+const avatarImgSx = { width: 40, height: 40, borderRadius: 1, '--Avatar-size': '40px' } as const;
+
+const clusterNameSx = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } as const;
+
+const navMenuSx = { py: 0.5 } as const;
+
+const sectionWrapperHeaderSx = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 1.5,
+  pb: 2,
+  borderBottom: '1px solid',
+  borderColor: 'divider',
+} as const;
+
+const sectionWrapperBodySx = { flex: 1, overflow: 'auto', minHeight: 0, pt: 2 } as const;
+
+const formRowSx = { py: 2.5, display: 'flex', gap: 4, alignItems: 'flex-start' } as const;
+
+const formLabelColumnSx = { minWidth: 180, maxWidth: 180, display: 'flex', flexDirection: 'column' } as const;
+
+const formFieldColumnSx = { flex: 1, maxWidth: 480 } as const;
+
+const tagsContainerSx = { maxWidth: 600 } as const;
+
+const infoRowSx = { py: 1.5, display: 'flex', gap: 4, alignItems: 'baseline' } as const;
+
+const infoLabelSx = { color: 'text.secondary', minWidth: 140 } as const;
+
+const sidenavColumnSx = { height: '100%' } as const;
+
+const headerTitleSx = { flex: 1, ml: 0.25 } as const;
+
+const clusterInfoColumnSx = { minWidth: 0, flex: 1 } as const;
+
+const sectionWrapperStackSx = { width: '100%', height: '100%' } as const;
+
+const mainPanelSx = { p: 3, overflow: 'auto' } as const;
+
+const formHintSx = { color: 'text.secondary', mt: 0.25 } as const;
+
+const sectionDescriptionSx = { color: 'text.secondary' } as const;
+
 type SectionId = 'identity' | 'tags' | 'cluster-info' | 'connection' | 'metrics' | 'node-shell';
 
 const SECTIONS: NavSection[] = [
@@ -124,10 +182,11 @@ const ClusterEditPage: React.FC = () => {
     if (!conn) return false;
     const refreshTime = new Date(conn.last_refresh as unknown as string);
     if (refreshTime.toString() === 'Invalid Date') return false;
+    // eslint-disable-next-line react-hooks/purity -- Date.now() is intentionally impure here
     return refreshTime.getTime() + conn.expiry_time > Date.now();
   }, [conn]);
 
-  const formatTime = (timestamp: string | number | Date | null | undefined): string => {
+  const formatTime = React.useCallback((timestamp: string | number | Date | null | undefined): string => {
     if (!timestamp) return 'Never';
     const date = new Date(timestamp);
     if (date.toString() === 'Invalid Date') return 'Never';
@@ -139,7 +198,7 @@ const ClusterEditPage: React.FC = () => {
     if (hours < 24) return `${hours}h ago`;
     const days = Math.floor(hours / 24);
     return `${days}d ago`;
-  };
+  }, []);
 
   const handleSectionChange = (id: string) => {
     setSearchParams({ section: id }, { replace: true });
@@ -153,18 +212,18 @@ const ClusterEditPage: React.FC = () => {
   return (
     <Layout.Root>
       <Layout.SideNav type="bordered" scrollable>
-        <Stack direction="column" sx={{ height: '100%' }}>
+        <Stack direction="column" sx={sidenavColumnSx}>
           {/* Header with back + title + actions */}
           <Stack
             direction="row"
             alignItems="center"
             gap={0.5}
-            sx={{ px: 1, py: 1, borderBottom: '1px solid', borderColor: 'divider' }}
+            sx={sidenavHeaderSx}
           >
             <IconButton size="sm" emphasis="ghost" onClick={handleBack}>
               <LuArrowLeft size={16} />
             </IconButton>
-            <Text size="sm" weight="semibold" sx={{ flex: 1, ml: 0.25 }}>
+            <Text size="sm" weight="semibold" sx={headerTitleSx}>
               Cluster Settings
             </Text>
             {hasDrafts && (
@@ -184,23 +243,14 @@ const ClusterEditPage: React.FC = () => {
           </Stack>
 
           {/* Cluster card */}
-          <Box sx={{ px: 1, py: 1 }}>
+          <Box sx={clusterCardWrapperSx}>
             <Box
-              sx={{
-                bgcolor: 'background.level1',
-                border: '1px solid',
-                borderColor: 'divider',
-                borderRadius: 1,
-                p: 1.25,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1.25,
-              }}
+              sx={clusterCardSx}
             >
               {avatarUrl ? (
                 <Avatar
                   src={avatarUrl}
-                  sx={{ width: 40, height: 40, borderRadius: 1, '--Avatar-size': '40px' }}
+                  sx={avatarImgSx}
                 />
               ) : (
                 <MuiAvatar
@@ -215,11 +265,11 @@ const ClusterEditPage: React.FC = () => {
                   {cardInitials}
                 </MuiAvatar>
               )}
-              <Stack direction="column" gap={0.25} sx={{ minWidth: 0, flex: 1 }}>
+              <Stack direction="column" gap={0.25} sx={clusterInfoColumnSx}>
                 <Text
                   size="sm"
                   weight="semibold"
-                  sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                  sx={clusterNameSx}
                 >
                   {cardName}
                 </Text>
@@ -242,12 +292,12 @@ const ClusterEditPage: React.FC = () => {
             sections={SECTIONS}
             selected={section}
             onSelect={handleSectionChange}
-            sx={{ py: 0.5 }}
+            sx={navMenuSx}
           />
         </Stack>
       </Layout.SideNav>
 
-      <Layout.Main sx={{ p: 3, overflow: 'auto' }}>
+      <Layout.Main sx={mainPanelSx}>
         {section === 'identity' && (
           <IdentitySection
             displayName={displayName}
@@ -309,27 +359,20 @@ function SectionWrapper({
   children: React.ReactNode;
 }) {
   return (
-    <Stack direction="column" gap={0} sx={{ width: '100%', height: '100%' }}>
+    <Stack direction="column" gap={0} sx={sectionWrapperStackSx}>
       <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1.5,
-          pb: 2,
-          borderBottom: '1px solid',
-          borderColor: 'divider',
-        }}
+        sx={sectionWrapperHeaderSx}
       >
         <Stack direction="column" gap={0.25}>
           <Text weight="semibold" size="lg">
             {title}
           </Text>
-          <Text size="xs" sx={{ color: 'text.secondary' }}>
+          <Text size="xs" sx={sectionDescriptionSx}>
             {description}
           </Text>
         </Stack>
       </Box>
-      <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0, pt: 2 }}>{children}</Box>
+      <Box sx={sectionWrapperBodySx}>{children}</Box>
     </Stack>
   );
 }
@@ -366,12 +409,12 @@ function IdentitySection({
     >
       <Stack direction="column" gap={0}>
         {/* Avatar row */}
-        <Box sx={{ py: 2.5, display: 'flex', gap: 4, alignItems: 'flex-start' }}>
-          <Box sx={{ minWidth: 180, maxWidth: 180, display: 'flex', flexDirection: 'column' }}>
+        <Box sx={formRowSx}>
+          <Box sx={formLabelColumnSx}>
             <Text size="sm" weight="medium">
               Avatar
             </Text>
-            <Text size="xs" sx={{ color: 'text.secondary', mt: 0.25 }}>
+            <Text size="xs" sx={formHintSx}>
               Upload an image or pick a color
             </Text>
           </Box>
@@ -386,16 +429,16 @@ function IdentitySection({
         <Divider />
 
         {/* Display name row */}
-        <Box sx={{ py: 2.5, display: 'flex', gap: 4, alignItems: 'flex-start' }}>
-          <Box sx={{ minWidth: 180, maxWidth: 180, display: 'flex', flexDirection: 'column' }}>
+        <Box sx={formRowSx}>
+          <Box sx={formLabelColumnSx}>
             <Text size="sm" weight="medium">
               Display Name
             </Text>
-            <Text size="xs" sx={{ color: 'text.secondary', mt: 0.25 }}>
+            <Text size="xs" sx={formHintSx}>
               Override the default context name
             </Text>
           </Box>
-          <Box sx={{ flex: 1, maxWidth: 480 }}>
+          <Box sx={formFieldColumnSx}>
             <FormField>
               <TextField
                 size="sm"
@@ -410,16 +453,16 @@ function IdentitySection({
         <Divider />
 
         {/* Description row */}
-        <Box sx={{ py: 2.5, display: 'flex', gap: 4, alignItems: 'flex-start' }}>
-          <Box sx={{ minWidth: 180, maxWidth: 180, display: 'flex', flexDirection: 'column' }}>
+        <Box sx={formRowSx}>
+          <Box sx={formLabelColumnSx}>
             <Text size="sm" weight="medium">
               Description
             </Text>
-            <Text size="xs" sx={{ color: 'text.secondary', mt: 0.25 }}>
+            <Text size="xs" sx={formHintSx}>
               Optional note for this cluster
             </Text>
           </Box>
-          <Box sx={{ flex: 1, maxWidth: 480 }}>
+          <Box sx={formFieldColumnSx}>
             <FormField>
               <TextArea
                 size="sm"
@@ -456,7 +499,7 @@ function TagsSection({
       title="Tags"
       description="Organize clusters by environment, team, or any custom category."
     >
-      <Box sx={{ maxWidth: 600 }}>
+      <Box sx={tagsContainerSx}>
         <TagInput tags={tags} availableTags={availableTags} onChange={onChange} />
       </Box>
     </SectionWrapper>
@@ -537,8 +580,8 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   const empty = value === '-';
   return (
     <>
-      <Box sx={{ py: 1.5, display: 'flex', gap: 4, alignItems: 'baseline' }}>
-        <Text size="xs" sx={{ color: 'text.secondary', minWidth: 140 }}>
+      <Box sx={infoRowSx}>
+        <Text size="xs" sx={infoLabelSx}>
           {label}
         </Text>
         <Text

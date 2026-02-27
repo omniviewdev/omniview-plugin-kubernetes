@@ -4,12 +4,26 @@ import { TextField } from '@omniviewdev/ui/inputs';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Tooltip } from '@omniviewdev/ui/overlays';
 import { Text } from '@omniviewdev/ui/typography';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { LuSearch, LuFolderPlus, LuChevronLeft, LuChevronRight } from 'react-icons/lu';
 
 import type { EnrichedConnection } from '../../types/clusters';
 
 import RowHandler from './RowHandler';
+
+const containerSx = { px: 0.5, pt: 0.5 } as const;
+
+const paginationTextSx = { color: 'var(--ov-fg-muted)', whiteSpace: 'nowrap' } as const;
+
+const searchFieldSx = { maxWidth: 240 } as const;
+
+const emptyTextSx = { textAlign: 'center', py: 3, opacity: 0.5 } as const;
+
+const gridSx = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+  gap: 1,
+} as const;
 
 type Props = {
   connections: EnrichedConnection[];
@@ -46,16 +60,20 @@ const QuickConnectGrid: React.FC<Props> = ({
     });
   }, [connections, search]);
 
-  // Reset to first page when filtered results change
-  useEffect(() => {
-    setPage(0);
-  }, [filtered.length]);
+  // Reset to first page when filtered result count changes (derived during render)
+  const [prevFilteredLen, setPrevFilteredLen] = useState(filtered.length);
+  if (prevFilteredLen !== filtered.length) {
+    setPrevFilteredLen(filtered.length);
+    if (page !== 0) {
+      setPage(0);
+    }
+  }
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paged = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   return (
-    <Stack gap={1} sx={{ px: 0.5, pt: 0.5 }}>
+    <Stack gap={1} sx={containerSx}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1}>
         <Stack direction="row" alignItems="center" gap={0.75}>
           <Text weight="semibold">All Clusters ({connections.length})</Text>
@@ -84,7 +102,7 @@ const QuickConnectGrid: React.FC<Props> = ({
               >
                 <LuChevronLeft size={16} />
               </IconButton>
-              <Text size="xs" sx={{ color: 'var(--ov-fg-muted)', whiteSpace: 'nowrap' }}>
+              <Text size="xs" sx={paginationTextSx}>
                 {page + 1} / {totalPages}
               </Text>
               <IconButton
@@ -106,21 +124,17 @@ const QuickConnectGrid: React.FC<Props> = ({
             onChange={(e) => setSearch(e)}
             // eslint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
-            sx={{ maxWidth: 240 }}
+            sx={searchFieldSx}
           />
         </Stack>
       </Stack>
       {filtered.length === 0 ? (
-        <Text size="sm" sx={{ textAlign: 'center', py: 3, opacity: 0.5 }}>
+        <Text size="sm" sx={emptyTextSx}>
           No clusters match &apos;{search}&apos;
         </Text>
       ) : (
         <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-            gap: 1,
-          }}
+          sx={gridSx}
         >
           {paged.map((enriched) => (
             <RowHandler

@@ -15,6 +15,76 @@ import { LuCircleCheck, LuCircleAlert, LuCircleSlash, LuX } from 'react-icons/lu
 import { useStableObject } from '../../hooks/useStableRef';
 import { parseResourceKey, formatGroup } from '../../utils/resourceKey';
 
+// ---------------------------------------------------------------------------
+// Static styles
+// ---------------------------------------------------------------------------
+
+const pendingSpinnerSx = { color: 'var(--ov-fg-faint)' } as const;
+const syncingSpinnerSx = { color: 'var(--ov-accent-fg, #58a6ff)' } as const;
+
+const groupProgressWrapperSx = { display: 'flex', alignItems: 'center', gap: 1, ml: 'auto' } as const;
+const groupProgressCountSx = {
+  color: 'var(--ov-fg-faint)',
+  minWidth: 28,
+  textAlign: 'right',
+  fontFamily: 'var(--ov-font-mono, monospace)',
+} as const;
+
+const dialogPaperSx = {
+  bgcolor: 'var(--ov-bg-elevated, #1c2128)',
+  border: '1px solid var(--ov-border-default, #30363d)',
+  borderRadius: '8px',
+  color: 'var(--ov-fg-default, #c9d1d9)',
+  backgroundImage: 'none',
+} as const;
+
+const headerSx = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  px: 2,
+  py: 1.5,
+  borderBottom: '1px solid var(--ov-border-default, #30363d)',
+} as const;
+
+const headerLeftSx = { display: 'flex', alignItems: 'center', gap: 1 } as const;
+const closeButtonSx = { color: 'var(--ov-fg-muted)' } as const;
+
+const progressBarWrapperSx = { px: 2, py: 1, borderBottom: '1px solid var(--ov-border-default, #30363d)' } as const;
+const progressBarInnerSx = { display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 } as const;
+const progressPercentSx = { color: 'var(--ov-fg-muted)', minWidth: 64, textAlign: 'right' } as const;
+
+const resourceListSx = { p: 0, maxHeight: 400 } as const;
+
+const groupHeaderSx = {
+  display: 'flex',
+  alignItems: 'center',
+  px: 2,
+  py: 0.75,
+  bgcolor: 'rgba(255,255,255,0.03)',
+  borderBottom: '1px solid var(--ov-border-default, #30363d)',
+} as const;
+
+const groupLabelSx = {
+  color: 'var(--ov-fg-muted)',
+  textTransform: 'uppercase',
+  letterSpacing: '0.04em',
+} as const;
+
+const kindTextSx = { flex: 1 } as const;
+const skippedTextSx = { color: 'var(--ov-fg-faint)', fontStyle: 'italic' } as const;
+const countTextSx = {
+  color: 'var(--ov-fg-faint)',
+  fontFamily: 'var(--ov-font-mono, monospace)',
+} as const;
+const retryButtonSx = { minWidth: 0, fontSize: '0.625rem', px: 1, py: 0.25 } as const;
+
+const footerSx = {
+  borderTop: '1px solid var(--ov-border-default, #30363d)',
+  px: 2,
+  py: 1,
+} as const;
+
 interface SyncProgressDialogProps {
   open: boolean;
   onClose: () => void;
@@ -34,10 +104,10 @@ const isTerminal = (s: InformerResourceState) =>
 function StateIcon({ state }: { state: InformerResourceState }) {
   switch (state) {
     case InformerResourceState.Pending:
-      return <CircularProgress size={14} thickness={5} sx={{ color: 'var(--ov-fg-faint)' }} />;
+      return <CircularProgress size={14} thickness={5} sx={pendingSpinnerSx} />;
     case InformerResourceState.Syncing:
       return (
-        <CircularProgress size={14} thickness={5} sx={{ color: 'var(--ov-accent-fg, #58a6ff)' }} />
+        <CircularProgress size={14} thickness={5} sx={syncingSpinnerSx} />
       );
     case InformerResourceState.Synced:
       return <LuCircleCheck size={14} color="#3fb950" />;
@@ -59,7 +129,7 @@ const GroupProgress = React.memo(function GroupProgress({ items }: { items: Reso
   const percent = total > 0 ? Math.round((done / total) * 100) : 0;
 
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 'auto' }}>
+    <Box sx={groupProgressWrapperSx}>
       <LinearProgress
         variant="determinate"
         value={percent}
@@ -76,12 +146,7 @@ const GroupProgress = React.memo(function GroupProgress({ items }: { items: Reso
       />
       <Text
         size="xs"
-        sx={{
-          color: 'var(--ov-fg-faint)',
-          minWidth: 28,
-          textAlign: 'right',
-          fontFamily: 'var(--ov-font-mono, monospace)',
-        }}
+        sx={groupProgressCountSx}
       >
         {done}/{total}
       </Text>
@@ -170,33 +235,18 @@ function SyncProgressDialogInner({
       fullWidth
       slotProps={{
         paper: {
-          sx: {
-            bgcolor: 'var(--ov-bg-elevated, #1c2128)',
-            border: '1px solid var(--ov-border-default, #30363d)',
-            borderRadius: '8px',
-            color: 'var(--ov-fg-default, #c9d1d9)',
-            backgroundImage: 'none',
-          },
+          sx: dialogPaperSx,
         },
       }}
     >
       {/* Header */}
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          px: 2,
-          py: 1.5,
-          borderBottom: '1px solid var(--ov-border-default, #30363d)',
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Box sx={headerSx}>
+        <Box sx={headerLeftSx}>
           {!isFullySynced && (
             <CircularProgress
               size={16}
               thickness={5}
-              sx={{ color: 'var(--ov-accent-fg, #58a6ff)' }}
+              sx={syncingSpinnerSx}
             />
           )}
           {isFullySynced && <LuCircleCheck size={16} color="#3fb950" />}
@@ -204,14 +254,14 @@ function SyncProgressDialogInner({
             {isFullySynced ? `Synced "${clusterName}"` : `Syncing "${clusterName}"`}
           </Text>
         </Box>
-        <IconButton size="small" onClick={onClose} sx={{ color: 'var(--ov-fg-muted)' }}>
+        <IconButton size="small" onClick={onClose} sx={closeButtonSx}>
           <LuX size={16} />
         </IconButton>
       </Box>
 
       {/* Progress bar */}
-      <Box sx={{ px: 2, py: 1, borderBottom: '1px solid var(--ov-border-default, #30363d)' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+      <Box sx={progressBarWrapperSx}>
+        <Box sx={progressBarInnerSx}>
           <LinearProgress
             variant="determinate"
             value={percent}
@@ -227,35 +277,22 @@ function SyncProgressDialogInner({
               },
             }}
           />
-          <Text size="xs" sx={{ color: 'var(--ov-fg-muted)', minWidth: 64, textAlign: 'right' }}>
+          <Text size="xs" sx={progressPercentSx}>
             {percent}%&ensp;{doneCount}/{totalResources}
           </Text>
         </Box>
       </Box>
 
       {/* Resource list */}
-      <DialogContent sx={{ p: 0, maxHeight: 400 }}>
+      <DialogContent sx={resourceListSx}>
         {grouped.map(([groupLabel, items]) => (
           <Box key={groupLabel}>
             {/* Group header with progress */}
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                px: 2,
-                py: 0.75,
-                bgcolor: 'rgba(255,255,255,0.03)',
-                borderBottom: '1px solid var(--ov-border-default, #30363d)',
-              }}
-            >
+            <Box sx={groupHeaderSx}>
               <Text
                 size="xs"
                 weight="semibold"
-                sx={{
-                  color: 'var(--ov-fg-muted)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
-                }}
+                sx={groupLabelSx}
               >
                 {groupLabel}
               </Text>
@@ -276,21 +313,18 @@ function SyncProgressDialogInner({
                 }}
               >
                 <StateIcon state={state} />
-                <Text size="xs" sx={{ flex: 1 }}>
+                <Text size="xs" sx={kindTextSx}>
                   {kind}
                 </Text>
                 {state === InformerResourceState.Cancelled && (
-                  <Text size="xs" sx={{ color: 'var(--ov-fg-faint)', fontStyle: 'italic' }}>
+                  <Text size="xs" sx={skippedTextSx}>
                     skipped
                   </Text>
                 )}
                 {state === InformerResourceState.Synced && count > 0 && (
                   <Text
                     size="xs"
-                    sx={{
-                      color: 'var(--ov-fg-faint)',
-                      fontFamily: 'var(--ov-font-mono, monospace)',
-                    }}
+                    sx={countTextSx}
                   >
                     {count}
                   </Text>
@@ -301,7 +335,7 @@ function SyncProgressDialogInner({
                     size="sm"
                     color="danger"
                     onClick={() => { void handleRetry(key); }}
-                    sx={{ minWidth: 0, fontSize: '0.625rem', px: 1, py: 0.25 }}
+                    sx={retryButtonSx}
                   >
                     Retry
                   </Button>
@@ -313,13 +347,7 @@ function SyncProgressDialogInner({
       </DialogContent>
 
       {/* Footer */}
-      <DialogActions
-        sx={{
-          borderTop: '1px solid var(--ov-border-default, #30363d)',
-          px: 2,
-          py: 1,
-        }}
-      >
+      <DialogActions sx={footerSx}>
         <Button emphasis="soft" size="sm" color="neutral" onClick={onClose}>
           Dismiss
         </Button>

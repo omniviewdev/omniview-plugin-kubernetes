@@ -6,6 +6,15 @@ import { LuChevronRight } from 'react-icons/lu';
 
 import ProviderIcon from './ProviderIcon';
 
+const headerSx = {
+  cursor: 'pointer',
+  py: 0.5,
+  px: 0.75,
+  borderRadius: 'var(--ov-radius-sm, 4px)',
+  '&:hover': { bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))' },
+  userSelect: 'none',
+} as const;
+
 type Props = {
   label: string;
   count: number;
@@ -26,14 +35,7 @@ const ConnectionGroupHeader: React.FC<Props> = ({
     alignItems="center"
     gap={1}
     onClick={onToggle}
-    sx={{
-      cursor: 'pointer',
-      py: 0.5,
-      px: 0.75,
-      borderRadius: 'var(--ov-radius-sm, 4px)',
-      '&:hover': { bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))' },
-      userSelect: 'none',
-    }}
+    sx={headerSx}
   >
     <LuChevronRight
       size={16}

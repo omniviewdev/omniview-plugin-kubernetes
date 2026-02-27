@@ -5,6 +5,32 @@ import React, { createContext, useContext } from 'react';
 
 import type { PodMetricsMap } from '../../../../../../hooks/usePodMetricsBatch';
 
+const emptyValueSx = {
+  fontSize: 12,
+  color: 'text.tertiary',
+  fontVariantNumeric: 'tabular-nums',
+} as const;
+
+const outerStackSx = { width: '100%' } as const;
+
+const barTrackSx = {
+  flex: 1,
+  minWidth: 24,
+  maxWidth: 40,
+  height: 6,
+  borderRadius: 3,
+  bgcolor: 'action.hover',
+  overflow: 'hidden',
+  flexShrink: 0,
+} as const;
+
+const valueLabelSx = {
+  fontSize: 12,
+  fontVariantNumeric: 'tabular-nums',
+  fontFamily: 'var(--ov-font-mono, monospace)',
+  lineHeight: 1,
+} as const;
+
 // ── Context for passing batch metrics to table cells ──
 
 export const PodMetricsContext = createContext<PodMetricsMap>(new Map());
@@ -41,13 +67,7 @@ const MetricUsageCell: React.FC<MetricUsageCellProps> = ({ podKey, format }) => 
 
   if (!entry) {
     return (
-      <Text
-        sx={{
-          fontSize: 12,
-          color: 'text.tertiary',
-          fontVariantNumeric: 'tabular-nums',
-        }}
-      >
+      <Text sx={emptyValueSx}>
         —
       </Text>
     );
@@ -67,20 +87,9 @@ const MetricUsageCell: React.FC<MetricUsageCellProps> = ({ podKey, format }) => 
   const barColor = pct > 80 ? 'error.main' : pct > 60 ? 'warning.main' : 'success.main';
 
   return (
-    <Stack direction="row" spacing={0.75} alignItems="center" sx={{ width: '100%' }}>
+    <Stack direction="row" spacing={0.75} alignItems="center" sx={outerStackSx}>
       {/* Mini bar */}
-      <Box
-        sx={{
-          flex: 1,
-          minWidth: 24,
-          maxWidth: 40,
-          height: 6,
-          borderRadius: 3,
-          bgcolor: 'action.hover',
-          overflow: 'hidden',
-          flexShrink: 0,
-        }}
-      >
+      <Box sx={barTrackSx}>
         <Box
           sx={{
             width: `${Math.max(pct, 2)}%`,
@@ -94,12 +103,7 @@ const MetricUsageCell: React.FC<MetricUsageCellProps> = ({ podKey, format }) => 
       {/* Value text */}
       <Text
         noWrap
-        sx={{
-          fontSize: 12,
-          fontVariantNumeric: 'tabular-nums',
-          fontFamily: 'var(--ov-font-mono, monospace)',
-          lineHeight: 1,
-        }}
+        sx={valueLabelSx}
       >
         {label}
       </Text>

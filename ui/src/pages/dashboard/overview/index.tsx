@@ -19,6 +19,26 @@ import { useClusterPreferences } from '../../../hooks/useClusterPreferences';
 import ClusterInfoCard from './components/ClusterInfoCard';
 import ClusterMetricsSection from './components/ClusterMetricsSection';
 import ClusterResourceGauges from './components/ClusterResourceGauges';
+
+const pageSx = {
+  p: 1.5,
+  overflow: 'auto',
+  height: '100%',
+  width: '100%',
+  flex: 1,
+  display: 'flex',
+  flexDirection: 'column',
+} as const;
+
+const namespaceLabelSx = { color: 'text.secondary' } as const;
+
+const eventsContainerSx = {
+  height: 'clamp(300px, 40vh, 600px)',
+  overflow: 'auto',
+  border: '1px solid',
+  borderColor: 'divider',
+  borderRadius: 1,
+} as const;
 import {
   PodStatCard,
   DeploymentStatCard,
@@ -55,10 +75,10 @@ const ClusterDashboardOverviewPage: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
   const { navigate } = usePluginRouter();
   const [namespaces, setNamespaces] = React.useState<string[]>([]);
-  const [timeRange, setTimeRange] = React.useState<ChartTimeRange>({
+  const [timeRange, setTimeRange] = React.useState<ChartTimeRange>(() => ({
     from: new Date(Date.now() - 3600000),
     to: new Date(),
-  });
+  }));
 
   const goToResource = React.useCallback(
     (resourceKey: string) => {
@@ -127,15 +147,7 @@ const ClusterDashboardOverviewPage: React.FC = () => {
 
   return (
     <Box
-      sx={{
-        p: 1.5,
-        overflow: 'auto',
-        height: '100%',
-        width: '100%',
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-      }}
+      sx={pageSx}
     >
       <Stack gap={1.5}>
         {/* Cluster info + health status */}
@@ -150,7 +162,7 @@ const ClusterDashboardOverviewPage: React.FC = () => {
 
         {/* Namespace filter */}
         <Stack direction="row" alignItems="center" gap={1}>
-          <Text size="sm" sx={{ color: 'text.secondary' }}>
+          <Text size="sm" sx={namespaceLabelSx}>
             Namespace:
           </Text>
           <NamespaceSelect connectionID={id} selected={namespaces} setNamespaces={setNamespaces} />
@@ -221,13 +233,7 @@ const ClusterDashboardOverviewPage: React.FC = () => {
             Recent Events ({allEvents.length})
           </Text>
           <Box
-            sx={{
-              height: 'clamp(300px, 40vh, 600px)',
-              overflow: 'auto',
-              border: '1px solid',
-              borderColor: 'divider',
-              borderRadius: 1,
-            }}
+            sx={eventsContainerSx}
           >
             <EventsTable events={allEvents} loading={events.isLoading} connectionID={id} />
           </Box>

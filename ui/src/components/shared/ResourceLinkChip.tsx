@@ -36,6 +36,8 @@ export function ownerRefToResourceKey(ref: OwnerReference): string {
   return `${ref.apiVersion?.replace('/', '::')}::${ref.kind}`;
 }
 
+const chipSx = { borderRadius: 1, maxWidth: '100%' } as const;
+
 type Props = {
   /** ID of the plugin this resource belongs to */
   pluginID?: string;
@@ -91,7 +93,7 @@ const ResourceLinkChip: React.FC<Props> = ({
       icon={config.icon}
       onClick={handleClick}
       label={resourceName}
-      sx={{ borderRadius: 1, maxWidth: '100%' }}
+      sx={chipSx}
     />
   );
 };

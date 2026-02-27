@@ -4,6 +4,26 @@ import { Chip } from '@omniviewdev/ui';
 import { Tooltip } from '@omniviewdev/ui/overlays';
 import React from 'react';
 
+const badgeSx = {
+  borderRadius: 2,
+  width: 12,
+  height: 12,
+  maxWidth: 12,
+  maxHeight: 12,
+  minWidth: 12,
+  minHeight: 12,
+} as const;
+
+const badgeWithTypoSx = {
+  borderRadius: 2,
+  width: 12,
+  height: 12,
+  wmaxWidth: 12,
+  maxHeight: 12,
+  minWidth: 12,
+  minHeight: 12,
+} as const;
+
 type Props = {
   /** The values to use for calculating the badge colors */
   values: string[];
@@ -54,15 +74,7 @@ export const BadgesRow: React.FC<Props> = ({
               size="sm"
               emphasis="solid"
               color={getColor(value)}
-              sx={{
-                borderRadius: 2,
-                width: 12,
-                height: 12,
-                maxWidth: 12,
-                maxHeight: 12,
-                minWidth: 12,
-                minHeight: 12,
-              }}
+              sx={badgeSx}
             />
           </Tooltip>
         ) : (
@@ -71,15 +83,7 @@ export const BadgesRow: React.FC<Props> = ({
             size="sm"
             emphasis="solid"
             color={getColor(value)}
-            sx={{
-              borderRadius: 2,
-              width: 12,
-              height: 12,
-              wmaxWidth: 12,
-              maxHeight: 12,
-              minWidth: 12,
-              minHeight: 12,
-            }}
+            sx={badgeWithTypoSx}
           />
         ),
       )}

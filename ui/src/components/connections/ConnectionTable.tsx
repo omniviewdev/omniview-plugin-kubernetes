@@ -153,6 +153,41 @@ const GridCardWrapper: React.FC<{
   );
 };
 
+const gridContainerSx = { display: 'flex', flexDirection: 'column', gap: 1 } as const;
+
+const paginationSx = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 1,
+  py: 1.5,
+} as const;
+
+const paginationTextSx = { color: 'var(--ov-fg-muted)' } as const;
+
+const tableWrapperSx = {
+  width: '100%',
+  borderRadius: 'var(--ov-radius-md, 6px)',
+  overflow: 'auto',
+  border: '1px solid var(--ov-border-default, rgba(255,255,255,0.08))',
+  bgcolor: 'var(--ov-bg-surface, rgba(255,255,255,0.03))',
+} as const;
+
+const tableStyle = { width: '100%', borderCollapse: 'collapse' } as const;
+
+const theadRowStyle = {
+  backgroundColor: 'var(--ov-bg-surface-inset, rgba(255,255,255,0.02))',
+  height: 28,
+} as const;
+
+const columnHeaderSx = {
+  color: 'var(--ov-fg-muted)',
+  textTransform: 'uppercase',
+  letterSpacing: '0.04em',
+} as const;
+
+const columnPickerSx = { display: 'flex', justifyContent: 'flex-end', position: 'relative' } as const;
+
 /* ---- shared table styles ---- */
 const thSx: React.CSSProperties = {
   padding: '2px 8px',
@@ -194,7 +229,7 @@ const ConnectionTable: React.FC<Props> = ({
 
   if (viewMode === 'grid') {
     return (
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+      <Box sx={gridContainerSx}>
         {grouped.groups.map((group) => {
           // Paginate only flat (ungrouped) views
           const connections = isFlat
@@ -241,13 +276,7 @@ const ConnectionTable: React.FC<Props> = ({
               </Box>
               {isFlat && totalPages > 1 && (
                 <Box
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 1,
-                    py: 1.5,
-                  }}
+                  sx={paginationSx}
                 >
                   <IconButton
                     size="sm"
@@ -258,7 +287,7 @@ const ConnectionTable: React.FC<Props> = ({
                   >
                     <LuChevronLeft size={16} />
                   </IconButton>
-                  <Text size="sm" sx={{ color: 'var(--ov-fg-muted)' }}>
+                  <Text size="sm" sx={paginationTextSx}>
                     Page {page + 1} of {totalPages}
                   </Text>
                   <IconButton
@@ -289,7 +318,7 @@ const ConnectionTable: React.FC<Props> = ({
     .sort();
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+    <Box sx={gridContainerSx}>
       {grouped.groups.map((group) => (
         <ConnectionGroupComp
           key={group.key}
@@ -302,32 +331,22 @@ const ConnectionTable: React.FC<Props> = ({
           hideHeader={isFlat}
         >
           <Box
-            sx={{
-              width: '100%',
-              borderRadius: 'var(--ov-radius-md, 6px)',
-              overflow: 'auto',
-              border: '1px solid var(--ov-border-default, rgba(255,255,255,0.08))',
-              bgcolor: 'var(--ov-bg-surface, rgba(255,255,255,0.03))',
-            }}
+            sx={tableWrapperSx}
           >
             <table
               aria-label="connections table"
-              style={{ width: '100%', borderCollapse: 'collapse' }}
+              style={tableStyle}
             >
               <thead>
                 <tr
-                  style={{ backgroundColor: 'var(--ov-bg-surface-inset, rgba(255,255,255,0.02))', height: 28 }}
+                  style={theadRowStyle}
                 >
                   <th style={{ ...thSx, width: 32, padding: '2px 4px' }} />
                   <th style={{ ...thSx, width: '40%' }}>
                     <Text
                       size="xs"
                       weight="semibold"
-                      sx={{
-                        color: 'var(--ov-fg-muted)',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.04em',
-                      }}
+                      sx={columnHeaderSx}
                     >
                       Name
                     </Text>
@@ -354,7 +373,7 @@ const ConnectionTable: React.FC<Props> = ({
                     </th>
                   ))}
                   <th style={{ ...thSx, width: 36, padding: '0 4px', position: 'relative', textAlign: 'right' }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', position: 'relative' }}>
+                    <Box sx={columnPickerSx}>
                       <ColumnPicker
                         allColumns={allLabelKeys}
                         visibleColumns={visibleColumns}

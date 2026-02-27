@@ -208,6 +208,12 @@ const CLUSTER_CHARTS: ChartDef[] = [
   },
 ];
 
+const chartGridSx = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+  gap: 1.5,
+} as const;
+
 const NAMESPACE_CHARTS: ChartDef[] = [
   {
     title: 'Workload CPU',
@@ -351,11 +357,7 @@ const ClusterMetricsSection: React.FC<ClusterMetricsSectionProps> = ({
 
   return (
     <Box
-      sx={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-        gap: 1.5,
-      }}
+      sx={chartGridSx}
     >
       {(isLoading && activeCharts.length === 0 ? charts : activeCharts).map((def) => {
         const series: TimeSeriesDef[] = [];

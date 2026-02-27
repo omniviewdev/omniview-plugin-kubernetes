@@ -17,6 +17,34 @@ import { LuRefreshCw, LuLink, LuShieldCheck, LuShieldOff } from 'react-icons/lu'
 
 import NamedAvatar from '../../shared/NamedAvatar';
 
+const metaLabelSx = { color: 'neutral.400' } as const;
+const metaValueSx = { fontWeight: 400, color: 'neutral.100' } as const;
+const chartIconContainerSx = {
+  width: 36,
+  height: 36,
+  borderRadius: '6px',
+  flexShrink: 0,
+  bgcolor: 'rgba(255,255,255,0.08)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+} as const;
+const chartIconImgSx = { width: 30, height: 30, objectFit: 'contain', borderRadius: '4px' } as const;
+const chartDescriptionSx = {
+  color: 'neutral.400',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+} as const;
+const chartVersionSx = { color: 'neutral.500', mt: 0.25 } as const;
+const chartListContainerSx = { flex: 1, minHeight: 0, overflow: 'auto' } as const;
+const chartsSectionSx = { flex: 1, minHeight: 0, mt: 2 } as const;
+const chartsHeaderSx = { flexShrink: 0 } as const;
+const chartDetailColumnSx = { flex: 1, minWidth: 0 } as const;
+const noChartsSx = { color: 'neutral.400', textAlign: 'center', py: 2 } as const;
+const urlTextSx = { wordBreak: 'break-all' } as const;
+const rootSx = { height: '100%', minHeight: 0 } as const;
+
 // ── types ──
 
 /** Shape of a Helm repository as returned by the backend. */
@@ -46,12 +74,12 @@ interface Props {
 const MetaEntry: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
   <Grid container spacing={0}>
     <Grid size={3}>
-      <Text sx={{ color: 'neutral.400' }} size="sm">
+      <Text sx={metaLabelSx} size="sm">
         {label}
       </Text>
     </Grid>
     <Grid size={9}>
-      <Text sx={{ fontWeight: 400, color: 'neutral.100' }} weight="semibold" size="sm">
+      <Text sx={metaValueSx} weight="semibold" size="sm">
         {value}
       </Text>
     </Grid>
@@ -63,24 +91,13 @@ const ChartIcon: React.FC<{ icon?: string; name: string }> = ({ icon, name }) =>
   const [failed, setFailed] = React.useState(false);
   if (icon && !failed) {
     return (
-      <Box
-        sx={{
-          width: 36,
-          height: 36,
-          borderRadius: '6px',
-          flexShrink: 0,
-          bgcolor: 'rgba(255,255,255,0.08)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
+      <Box sx={chartIconContainerSx}>
         <Box
           component="img"
           src={icon}
           alt={name}
           onError={() => setFailed(true)}
-          sx={{ width: 30, height: 30, objectFit: 'contain', borderRadius: '4px' }}
+          sx={chartIconImgSx}
         />
       </Box>
     );
@@ -134,7 +151,7 @@ export const RepoSidebar: React.FC<Props> = ({ ctx }) => {
     : repoCharts;
 
   return (
-    <Stack direction="column" width="100%" sx={{ height: '100%', minHeight: 0 }}>
+    <Stack direction="column" width="100%" sx={rootSx}>
       {/* ── Fixed header ── */}
       <Card
         sx={{ p: 1.5, borderRadius: 'sm', flexShrink: 0, overflow: 'visible' }}
@@ -170,7 +187,7 @@ export const RepoSidebar: React.FC<Props> = ({ ctx }) => {
             value={
               <Stack direction="row" alignItems="center" spacing={0.5}>
                 <LuLink size={12} />
-                <Text size="sm" sx={{ wordBreak: 'break-all' }}>
+                <Text size="sm" sx={urlTextSx}>
                   {data.url ?? '—'}
                 </Text>
               </Stack>
@@ -199,12 +216,12 @@ export const RepoSidebar: React.FC<Props> = ({ ctx }) => {
       </Card>
 
       {/* ── Charts section — fills remaining space ── */}
-      <Stack direction="column" spacing={1} sx={{ flex: 1, minHeight: 0, mt: 2 }}>
+      <Stack direction="column" spacing={1} sx={chartsSectionSx}>
         <Stack
           direction="row"
           justifyContent="space-between"
           alignItems="center"
-          sx={{ flexShrink: 0 }}
+          sx={chartsHeaderSx}
         >
           <Text weight="semibold" size="sm">
             Charts in this repository ({repoCharts.length})
@@ -222,7 +239,7 @@ export const RepoSidebar: React.FC<Props> = ({ ctx }) => {
         />
 
         {/* Chart list — scrolls within remaining space */}
-        <Stack direction="column" spacing={0.5} sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+        <Stack direction="column" spacing={0.5} sx={chartListContainerSx}>
           {filteredCharts.map((chart) => (
             <Card
               key={chart.id ?? chart.name ?? ''}
@@ -246,24 +263,16 @@ export const RepoSidebar: React.FC<Props> = ({ ctx }) => {
             >
               <Stack direction="row" spacing={1.5} alignItems="flex-start">
                 <ChartIcon icon={chart.icon} name={chart.name ?? ''} />
-                <Stack direction="column" spacing={0} sx={{ flex: 1, minWidth: 0 }}>
+                <Stack direction="column" spacing={0} sx={chartDetailColumnSx}>
                   <Text weight="semibold" size="sm">
                     {chart.name ?? ''}
                   </Text>
                   {chart.description && (
-                    <Text
-                      size="xs"
-                      sx={{
-                        color: 'neutral.400',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
+                    <Text size="xs" sx={chartDescriptionSx}>
                       {chart.description}
                     </Text>
                   )}
-                  <Text size="xs" sx={{ color: 'neutral.500', mt: 0.25 }}>
+                  <Text size="xs" sx={chartVersionSx}>
                     v{chart.version ?? ''}
                     {chart.appVersion ? ` · App: ${chart.appVersion}` : ''}
                   </Text>
@@ -272,7 +281,7 @@ export const RepoSidebar: React.FC<Props> = ({ ctx }) => {
             </Card>
           ))}
           {chartsQuery.isSuccess && filteredCharts.length === 0 && (
-            <Text size="sm" sx={{ color: 'neutral.400', textAlign: 'center', py: 2 }}>
+            <Text size="sm" sx={noChartsSx}>
               {chartFilter
                 ? 'No charts match the filter'
                 : data.type === 'oci'
@@ -281,7 +290,7 @@ export const RepoSidebar: React.FC<Props> = ({ ctx }) => {
             </Text>
           )}
           {chartsQuery.isLoading && (
-            <Text size="sm" sx={{ color: 'neutral.400', textAlign: 'center', py: 2 }}>
+            <Text size="sm" sx={noChartsSx}>
               Loading charts...
             </Text>
           )}

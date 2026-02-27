@@ -7,6 +7,18 @@ import React from 'react';
 
 import ExpandableSections from './ExpandableSections';
 
+const titleTextSx = { fontSize: 12 } as const;
+
+const chipSx = { borderRadius: 1 } as const;
+
+const gridContainerSx = { px: 1, py: 0.5 } as const;
+
+const gridCellSx = { alignItems: 'center' } as const;
+
+const keyTextSx = { fontSize: 11, fontWeight: 400 } as const;
+
+const valueTextSx = { fontSize: 11, fontWeight: 600 } as const;
+
 interface Props {
   title: string;
   kvs: Record<string, string>;
@@ -19,35 +31,35 @@ const KVCard: React.FC<Props> = ({ title, kvs, defaultExpanded, size = 'sm' }) =
     {
       title: (
         <Stack direction="row" gap={0.75} alignItems="center">
-          <Text weight="semibold" size="xs" sx={{ fontSize: 12 }}>
+          <Text weight="semibold" size="xs" sx={titleTextSx}>
             {title}
           </Text>
           <Chip
             size="xs"
             emphasis="outline"
             color="primary"
-            sx={{ borderRadius: 1 }}
+            sx={chipSx}
             label={String(Object.keys(kvs).length)}
           />
         </Stack>
       ),
       defaultExpanded: defaultExpanded && Object.keys(kvs).length > 0,
       children: (
-        <Grid container spacing={0.25} sx={{ px: 1, py: 0.5 }}>
+        <Grid container spacing={0.25} sx={gridContainerSx}>
           {Object.entries(kvs).map(([key, value]) => (
             <React.Fragment key={key}>
-              <Grid size={6} sx={{ alignItems: 'center' }}>
+              <Grid size={6} sx={gridCellSx}>
                 <ClipboardText
                   value={key}
                   variant="inherit"
-                  sx={{ fontSize: 11, fontWeight: 400 }}
+                  sx={keyTextSx}
                 />
               </Grid>
-              <Grid size={6} sx={{ alignItems: 'center' }}>
+              <Grid size={6} sx={gridCellSx}>
                 <ClipboardText
                   value={value}
                   variant="inherit"
-                  sx={{ fontSize: 11, fontWeight: 600 }}
+                  sx={valueTextSx}
                 />
               </Grid>
             </React.Fragment>

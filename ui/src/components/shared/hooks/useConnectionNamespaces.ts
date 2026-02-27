@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useState } from 'react';
 
 import { useStoredState } from './useStoredState';
 
@@ -66,20 +66,20 @@ function migrateOnce(connectionID: string): string[] {
  * so that the selection persists across all namespaced resources within a connection.
  */
 export function useConnectionNamespaces(connectionID: string) {
-  const migrated = useRef(false);
-
-  // Run migration before the first read
-  if (!migrated.current) {
+  // Run migration synchronously before the first read per connectionID.
+  // useState with an initializer ensures this runs once; when connectionID
+  // changes we detect the mismatch and re-run migration during render.
+  const [migratedFor, setMigratedFor] = useState(() => {
     migrateOnce(connectionID);
-    migrated.current = true;
+    return connectionID;
+  });
+
+  if (migratedFor !== connectionID) {
+    migrateOnce(connectionID);
+    setMigratedFor(connectionID);
   }
 
   const [namespaces, setNamespacesRaw] = useStoredState<string[]>(sharedKey(connectionID), []);
-
-  // Reset migration flag when connection changes
-  useEffect(() => {
-    migrated.current = false;
-  }, [connectionID]);
 
   const setNamespaces = useCallback(
     (value: string[]) => {

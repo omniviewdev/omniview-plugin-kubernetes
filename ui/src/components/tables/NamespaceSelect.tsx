@@ -3,6 +3,14 @@ import { Select } from '@omniviewdev/ui/inputs';
 import type { Namespace } from 'kubernetes-types/core/v1';
 import React from 'react';
 
+const selectSx = {
+  minWidth: 160,
+  maxWidth: 280,
+  '& .MuiSelect-select': {
+    py: '2px !important',
+  },
+} as const;
+
 type Props = {
   /** The active connection being used */
   connectionID: string;
@@ -47,13 +55,7 @@ const NamespaceSelect: React.FC<Props> = ({ connectionID, selected, setNamespace
       value={selected}
       onChange={handleChange}
       placeholder="All Namespaces"
-      sx={{
-        minWidth: 160,
-        maxWidth: 280,
-        '& .MuiSelect-select': {
-          py: '2px !important',
-        },
-      }}
+      sx={selectSx}
       options={namespaceNames.map((ns: string) => ({
         value: ns,
         label: ns,

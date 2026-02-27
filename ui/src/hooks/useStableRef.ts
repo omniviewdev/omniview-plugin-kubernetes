@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useState } from 'react';
 
 /**
  * Returns a stable object reference that only changes when any of its
@@ -7,13 +7,19 @@ import { useRef } from 'react';
  * with identical content.
  */
 export function useStableObject<T extends Record<string, unknown> | undefined>(value: T): T {
-  const ref = useRef(value);
+  const [stable, setStable] = useState(value);
 
-  if (!shallowEqual(ref.current, value)) {
-    ref.current = value;
+  // React allows calling setState during render to derive state.
+  // Update only when the incoming value is shallowly different.
+  if (!shallowEqual(stable, value)) {
+    setStable(value);
   }
 
-  return ref.current;
+  // If we just called setStable, React will re-render with the new value.
+  // Until then, return whichever is current: if they're equal, `stable`
+  // is already correct; if not, we return the new `value` directly so
+  // the caller sees the updated reference on this render.
+  return shallowEqual(stable, value) ? stable : value;
 }
 
 function shallowEqual<T extends Record<string, unknown> | undefined>(a: T, b: T): boolean {

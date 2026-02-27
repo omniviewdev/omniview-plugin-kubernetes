@@ -281,18 +281,65 @@ const CATEGORY_ORDER = [
 ];
 
 // ---------------------------------------------------------------------------
+// Static styles
+// ---------------------------------------------------------------------------
+
+const gaugeWrapperSx = { minWidth: 0, flex: 1 } as const;
+const gaugeHeaderSx = { mb: 0.25 } as const;
+const gaugeLabelSx = { color: 'neutral.400' } as const;
+const gaugeValueSx = { fontVariantNumeric: 'tabular-nums' } as const;
+const gaugeBarSx = { height: 4, borderRadius: 2 } as const;
+
+const tileSx = {
+  py: 0.75,
+  px: 1,
+  borderRadius: 1,
+  border: '1px solid',
+  borderColor: 'divider',
+  bgcolor: 'background.level1',
+} as const;
+const tileLabelSx = { color: 'neutral.400', mb: 0.25, display: 'block' } as const;
+const tileValueSx = { fontVariantNumeric: 'tabular-nums' } as const;
+
+const pageRootSx = { p: 1 } as const;
+const noProvidersSx = { p: 2 } as const;
+const noProvidersTextSx = { color: 'neutral.500' } as const;
+const loadingSx = { display: 'flex', justifyContent: 'center', py: 4 } as const;
+const noDataSx = { p: 2 } as const;
+const noDataTextSx = { color: 'neutral.500' } as const;
+const errorBannerSx = { mb: 1 } as const;
+const errorTextSx = { color: 'error.main' } as const;
+const refreshBarSx = { height: 2, borderRadius: 1, mb: 0.5 } as const;
+const chartsGridSx = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+  gap: 1,
+  mb: 1.5,
+} as const;
+const tileGroupWrapperSx = { px: 0.5 } as const;
+const tileCategoryLabelSx = {
+  color: 'neutral.400',
+  textTransform: 'uppercase',
+  letterSpacing: '0.04em',
+  fontSize: '0.6rem',
+  mb: 0.5,
+} as const;
+const percentGaugeStackSx = { mb: 0.5 } as const;
+const timeRangePickerSx = { mb: 1 } as const;
+
+// ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
 
 const PercentGauge: React.FC<{ label: string; value: number }> = ({ label, value }) => {
   const color = value >= 90 ? 'error' : value >= 70 ? 'warning' : 'primary';
   return (
-    <Box sx={{ minWidth: 0, flex: 1 }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="baseline" sx={{ mb: 0.25 }}>
-        <Text size="xs" sx={{ color: 'neutral.400' }}>
+    <Box sx={gaugeWrapperSx}>
+      <Stack direction="row" justifyContent="space-between" alignItems="baseline" sx={gaugeHeaderSx}>
+        <Text size="xs" sx={gaugeLabelSx}>
           {label}
         </Text>
-        <Text size="xs" weight="semibold" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+        <Text size="xs" weight="semibold" sx={gaugeValueSx}>
           {value.toFixed(1)}%
         </Text>
       </Stack>
@@ -300,27 +347,18 @@ const PercentGauge: React.FC<{ label: string; value: number }> = ({ label, value
         variant="determinate"
         value={Math.min(value, 100)}
         color={color}
-        sx={{ height: 4, borderRadius: 2 }}
+        sx={gaugeBarSx}
       />
     </Box>
   );
 };
 
 const MetricTile: React.FC<{ label: string; value: string }> = ({ label, value }) => (
-  <Box
-    sx={{
-      py: 0.75,
-      px: 1,
-      borderRadius: 1,
-      border: '1px solid',
-      borderColor: 'divider',
-      bgcolor: 'background.level1',
-    }}
-  >
-    <Text size="xs" sx={{ color: 'neutral.400', mb: 0.25, display: 'block' }}>
+  <Box sx={tileSx}>
+    <Text size="xs" sx={tileLabelSx}>
       {label}
     </Text>
-    <Text size="sm" weight="semibold" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+    <Text size="sm" weight="semibold" sx={tileValueSx}>
       {value}
     </Text>
   </Box>
@@ -406,10 +444,10 @@ const ResourceMetricsPage: React.FC<Props> = ({ ctx }) => {
   }, [ctx.data, metricConfig]);
 
   // Time range state for charts (shared across all panels)
-  const [timeRange, setTimeRange] = useState<ChartTimeRange>({
+  const [timeRange, setTimeRange] = useState<ChartTimeRange>(() => ({
     from: new Date(Date.now() - 60 * 60 * 1000), // 1h ago
     to: new Date(),
-  });
+  }));
 
   // Instant values (shape=0) for tiles and current value display
   const {
@@ -485,11 +523,11 @@ const ResourceMetricsPage: React.FC<Props> = ({ ctx }) => {
 
   // Zero early returns — every render must call the same hooks.
   return (
-    <Box sx={{ p: 1 }}>
+    <Box sx={pageRootSx}>
       {/* No providers */}
       {noProviders && (
-        <Box sx={{ p: 2 }}>
-          <Text size="sm" sx={{ color: 'neutral.500' }}>
+        <Box sx={noProvidersSx}>
+          <Text size="sm" sx={noProvidersTextSx}>
             No metric providers registered for this resource type.
           </Text>
         </Box>
@@ -497,15 +535,15 @@ const ResourceMetricsPage: React.FC<Props> = ({ ctx }) => {
 
       {/* Loading initial data */}
       {isLoading && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+        <Box sx={loadingSx}>
           <CircularProgress size={24} />
         </Box>
       )}
 
       {/* No data message */}
       {noData && (
-        <Box sx={{ p: 2 }}>
-          <Text size="sm" sx={{ color: 'neutral.500' }}>
+        <Box sx={noDataSx}>
+          <Text size="sm" sx={noDataTextSx}>
             No metrics available. Ensure metrics-server or Prometheus is installed in the cluster.
           </Text>
         </Box>
@@ -513,8 +551,8 @@ const ResourceMetricsPage: React.FC<Props> = ({ ctx }) => {
 
       {/* Error banner */}
       {error && (
-        <Box sx={{ mb: 1 }}>
-          <Text size="xs" sx={{ color: 'error.main' }}>
+        <Box sx={errorBannerSx}>
+          <Text size="xs" sx={errorTextSx}>
             {error.message || 'Failed to load metrics'}
           </Text>
         </Box>
@@ -522,23 +560,16 @@ const ResourceMetricsPage: React.FC<Props> = ({ ctx }) => {
 
       {/* Refresh indicator */}
       {(currentLoading || tsLoading) && hasAnyData && (
-        <LinearProgress sx={{ height: 2, borderRadius: 1, mb: 0.5 }} />
+        <LinearProgress sx={refreshBarSx} />
       )}
 
       {/* Main content — only when we have data */}
       {hasAnyData && (
         <>
-          <TimeRangePicker value={timeRange} onChange={handlePickerChange} sx={{ mb: 1 }} />
+          <TimeRangePicker value={timeRange} onChange={handlePickerChange} sx={timeRangePickerSx} />
 
           {/* Charts grid — 2-up when wide enough */}
-          <Box
-            sx={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
-              gap: 1,
-              mb: 1.5,
-            }}
-          >
+          <Box sx={chartsGridSx}>
             {charts.map((def) => {
               const series: TimeSeriesDef[] = [];
 
@@ -575,23 +606,17 @@ const ResourceMetricsPage: React.FC<Props> = ({ ctx }) => {
           {tileGroups.length > 0 && (
             <Stack spacing={0.75}>
               {tileGroups.map((group) => (
-                <Box key={group.category} sx={{ px: 0.5 }}>
+                <Box key={group.category} sx={tileGroupWrapperSx}>
                   <Text
                     size="xs"
                     weight="semibold"
-                    sx={{
-                      color: 'neutral.400',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.04em',
-                      fontSize: '0.6rem',
-                      mb: 0.5,
-                    }}
+                    sx={tileCategoryLabelSx}
                   >
                     {group.category}
                   </Text>
 
                   {group.metrics.some((m) => m.unit === 5) && (
-                    <Stack spacing={0.75} sx={{ mb: 0.5 }}>
+                    <Stack spacing={0.75} sx={percentGaugeStackSx}>
                       {group.metrics
                         .filter((m) => m.unit === 5)
                         .map((m) => (

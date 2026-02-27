@@ -7,6 +7,43 @@ import type { metric } from '@omniviewdev/runtime/models';
 import React, { useMemo } from 'react';
 import { LuCpu, LuMemoryStick, LuBox, LuHardDrive } from 'react-icons/lu';
 
+const gaugeGridSx = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(4, 1fr)',
+  gap: 1.5,
+} as const;
+
+const gaugeCardSx = {
+  p: 1.5,
+  border: '1px solid',
+  borderColor: 'divider',
+  borderRadius: 1,
+  bgcolor: 'background.paper',
+} as const;
+
+const gaugeHeaderSx = { display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5 } as const;
+
+const gaugeIconSx = { color: 'text.secondary', display: 'flex' } as const;
+
+const gaugeLabelSx = {
+  fontWeight: 600,
+  color: 'text.secondary',
+  textTransform: 'uppercase',
+  letterSpacing: '0.03em',
+  fontSize: '0.65rem',
+} as const;
+
+const gaugePrimarySx = {
+  fontWeight: 700,
+  fontSize: '1.1rem',
+  lineHeight: 1.2,
+  fontVariantNumeric: 'tabular-nums',
+} as const;
+
+const gaugeSecondarySx = { color: 'text.secondary', fontSize: '0.7rem' } as const;
+
+const skeletonBarSx = { mt: 1, borderRadius: 1 } as const;
+
 interface ClusterResourceGaugesProps {
   connectionID: string;
   metricConfig?: {
@@ -146,11 +183,7 @@ const ClusterResourceGauges: React.FC<ClusterResourceGaugesProps> = ({
 
   return (
     <Box
-      sx={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
-        gap: 1.5,
-      }}
+      sx={gaugeGridSx}
     >
       {gauges.map((g) => (
         <GaugeStatCard key={g.label} {...g} loading={isLoading && values.size === 0} />
@@ -176,58 +209,35 @@ function GaugeStatCard({
   if (loading) {
     return (
       <Box
-        sx={{
-          p: 1.5,
-          border: '1px solid',
-          borderColor: 'divider',
-          borderRadius: 1,
-          bgcolor: 'background.paper',
-        }}
+        sx={gaugeCardSx}
       >
         <Skeleton variant="text" width="40%" />
         <Skeleton variant="text" width="60%" />
-        <Skeleton variant="rectangular" height={4} sx={{ mt: 1, borderRadius: 1 }} />
+        <Skeleton variant="rectangular" height={4} sx={skeletonBarSx} />
       </Box>
     );
   }
 
   return (
     <Box
-      sx={{
-        p: 1.5,
-        border: '1px solid',
-        borderColor: 'divider',
-        borderRadius: 1,
-        bgcolor: 'background.paper',
-      }}
+      sx={gaugeCardSx}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5 }}>
-        <Box sx={{ color: 'text.secondary', display: 'flex' }}>{icon}</Box>
+      <Box sx={gaugeHeaderSx}>
+        <Box sx={gaugeIconSx}>{icon}</Box>
         <Typography
           variant="caption"
-          sx={{
-            fontWeight: 600,
-            color: 'text.secondary',
-            textTransform: 'uppercase',
-            letterSpacing: '0.03em',
-            fontSize: '0.65rem',
-          }}
+          sx={gaugeLabelSx}
         >
           {label}
         </Typography>
       </Box>
       <Typography
         variant="h6"
-        sx={{
-          fontWeight: 700,
-          fontSize: '1.1rem',
-          lineHeight: 1.2,
-          fontVariantNumeric: 'tabular-nums',
-        }}
+        sx={gaugePrimarySx}
       >
         {primary}
       </Typography>
-      <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
+      <Typography variant="caption" sx={gaugeSecondarySx}>
         {secondary}
       </Typography>
       <LinearProgress

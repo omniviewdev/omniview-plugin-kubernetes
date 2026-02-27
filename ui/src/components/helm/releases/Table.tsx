@@ -12,6 +12,8 @@ import ReleaseSidebar from './ReleaseSidebar';
 
 const resourceKey = 'helm::v1::Release';
 
+const statusChipSx = { borderRadius: 'sm' } as const;
+
 /** Shape of a Helm release row as rendered in the table. */
 interface HelmRelease {
   name?: string;
@@ -89,7 +91,7 @@ const HelmReleaseTable: React.FC = () => {
               size="sm"
               emphasis="soft"
               color={statusColorMap[status] ?? 'neutral'}
-              sx={{ borderRadius: 'sm' }}
+              sx={statusChipSx}
               label={status}
             />
           );

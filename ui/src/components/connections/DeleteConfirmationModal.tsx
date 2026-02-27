@@ -7,6 +7,12 @@ import { Text } from '@omniviewdev/ui/typography';
 import React from 'react';
 import { LuTriangleAlert } from 'react-icons/lu';
 
+const modalBodySx = { p: 2, minWidth: 360 } as const;
+
+const headerSx = { mb: 1 } as const;
+
+const contentSx = { py: 2 } as const;
+
 type Props = {
   open: boolean;
   connectionName: string;
@@ -21,13 +27,13 @@ const DeleteConfirmationModal: React.FC<Props> = ({
   onCancel,
 }) => (
   <Modal open={open} onClose={onCancel}>
-    <Box sx={{ p: 2, minWidth: 360 }}>
-      <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 1 }}>
+    <Box sx={modalBodySx}>
+      <Stack direction="row" alignItems="center" gap={1} sx={headerSx}>
         <LuTriangleAlert size={20} />
         <Text weight="semibold">Delete Connection</Text>
       </Stack>
       <Divider />
-      <Box sx={{ py: 2 }}>
+      <Box sx={contentSx}>
         <Text>
           Are you sure you want to delete <strong>{connectionName}</strong>? This action cannot be
           undone.

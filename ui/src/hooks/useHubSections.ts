@@ -16,6 +16,7 @@ export interface HubSectionData {
   groupId?: string;
   groupColor?: string;
   groupIcon?: string;
+  groupCustomImage?: string;
 }
 
 interface UseHubSectionsParams {
@@ -130,6 +131,7 @@ export function useHubSections({
               groupId: group.id,
               groupColor: group.color,
               groupIcon: group.icon,
+              groupCustomImage: group.customImage,
             };
           }
           return {

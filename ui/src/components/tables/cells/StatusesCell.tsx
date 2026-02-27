@@ -5,6 +5,12 @@ import { Tooltip } from '@omniviewdev/ui/overlays';
 import jsonpath from 'jsonpath';
 import React from 'react';
 
+// ---------------------------------------------------------------------------
+// Static styles
+// ---------------------------------------------------------------------------
+
+const statusStackSx = { width: '100%' } as const;
+
 type Status = 'success' | 'warning' | 'danger' | 'neutral';
 
 type Props = {
@@ -43,7 +49,7 @@ export const ContainerStatusCell: React.FC<Props> = ({
   return (
     <Stack
       direction="row"
-      sx={{ width: '100%' }}
+      sx={statusStackSx}
       alignItems="center"
       justifyContent="flex-start"
       gap={1}

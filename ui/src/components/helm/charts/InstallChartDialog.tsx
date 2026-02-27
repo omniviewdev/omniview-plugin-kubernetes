@@ -13,6 +13,27 @@ import { SiHelm } from 'react-icons/si';
 import CodeEditor from '../../shared/CodeEditor';
 import NamespaceSelect from '../../shared/NamespaceSelect';
 
+const headerSx = { px: 2.5, pt: 2, pb: 1.5 } as const;
+const contentSx = { flex: 1, overflow: 'auto', px: 2.5, py: 2 } as const;
+const footerSx = { px: 2.5, py: 1.5 } as const;
+const fieldLabelSx = { color: 'neutral.400', fontWeight: 500 } as const;
+const fieldFlexSx = { flex: 1 } as const;
+const versionFieldSx = { minWidth: 180 } as const;
+const valuesEditorSx = {
+  height: 400,
+  border: '1px solid',
+  borderColor: 'neutral.700',
+  borderRadius: 'sm',
+  overflow: 'hidden',
+} as const;
+const dryRunEditorSx = {
+  height: 350,
+  border: '1px solid',
+  borderColor: 'neutral.700',
+  borderRadius: 'sm',
+  overflow: 'hidden',
+} as const;
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -187,7 +208,7 @@ const InstallChartDialog: React.FC<Props> = ({
           direction="row"
           justifyContent="space-between"
           alignItems="center"
-          sx={{ px: 2.5, pt: 2, pb: 1.5 }}
+          sx={headerSx}
         >
           <Stack direction="row" alignItems="center" spacing={1}>
             <SiHelm size={16} />
@@ -202,12 +223,12 @@ const InstallChartDialog: React.FC<Props> = ({
         <Divider />
 
         {/* Content */}
-        <Box sx={{ flex: 1, overflow: 'auto', px: 2.5, py: 2 }}>
+        <Box sx={contentSx}>
           <Stack direction="column" spacing={2}>
             {/* Form inputs */}
             <Stack direction="row" spacing={2}>
-              <Stack direction="column" spacing={0.5} sx={{ flex: 1 }}>
-                <Text size="xs" sx={{ color: 'neutral.400', fontWeight: 500 }}>
+              <Stack direction="column" spacing={0.5} sx={fieldFlexSx}>
+                <Text size="xs" sx={fieldLabelSx}>
                   Release Name
                 </Text>
                 <TextField
@@ -219,8 +240,8 @@ const InstallChartDialog: React.FC<Props> = ({
                   autoComplete="off"
                 />
               </Stack>
-              <Stack direction="column" spacing={0.5} sx={{ flex: 1 }}>
-                <Text size="xs" sx={{ color: 'neutral.400', fontWeight: 500 }}>
+              <Stack direction="column" spacing={0.5} sx={fieldFlexSx}>
+                <Text size="xs" sx={fieldLabelSx}>
                   Namespace
                 </Text>
                 <NamespaceSelect
@@ -231,8 +252,8 @@ const InstallChartDialog: React.FC<Props> = ({
                   placeholder="Select or create namespace"
                 />
               </Stack>
-              <Stack direction="column" spacing={0.5} sx={{ minWidth: 180 }}>
-                <Text size="xs" sx={{ color: 'neutral.400', fontWeight: 500 }}>
+              <Stack direction="column" spacing={0.5} sx={versionFieldSx}>
+                <Text size="xs" sx={fieldLabelSx}>
                   Version
                 </Text>
                 <Select
@@ -249,18 +270,10 @@ const InstallChartDialog: React.FC<Props> = ({
 
             {/* Values editor */}
             <Stack direction="column" spacing={0.5}>
-              <Text size="xs" sx={{ color: 'neutral.400', fontWeight: 500 }}>
+              <Text size="xs" sx={fieldLabelSx}>
                 Values (YAML)
               </Text>
-              <Box
-                sx={{
-                  height: 400,
-                  border: '1px solid',
-                  borderColor: 'neutral.700',
-                  borderRadius: 'sm',
-                  overflow: 'hidden',
-                }}
-              >
+              <Box sx={valuesEditorSx}>
                 <CodeEditor
                   filename="values.yaml"
                   language="yaml"
@@ -274,18 +287,10 @@ const InstallChartDialog: React.FC<Props> = ({
             {/* Dry run preview */}
             {dryRunManifest !== null && (
               <Stack direction="column" spacing={0.5}>
-                <Text size="xs" sx={{ color: 'neutral.400', fontWeight: 500 }}>
+                <Text size="xs" sx={fieldLabelSx}>
                   Dry Run Preview
                 </Text>
-                <Box
-                  sx={{
-                    height: 350,
-                    border: '1px solid',
-                    borderColor: 'neutral.700',
-                    borderRadius: 'sm',
-                    overflow: 'hidden',
-                  }}
-                >
+                <Box sx={dryRunEditorSx}>
                   <CodeEditor
                     filename="manifest.yaml"
                     language="yaml"
@@ -301,7 +306,7 @@ const InstallChartDialog: React.FC<Props> = ({
 
         {/* Footer */}
         <Divider />
-        <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ px: 2.5, py: 1.5 }}>
+        <Stack direction="row" spacing={1} justifyContent="flex-end" sx={footerSx}>
           <Button size="xs" emphasis="ghost" color="neutral" onClick={handleClose}>
             Cancel
           </Button>

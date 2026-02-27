@@ -7,7 +7,49 @@ import { Text } from '@omniviewdev/ui/typography';
 import React from 'react';
 import { LuChevronDown, LuChevronRight, LuGripVertical, LuPencil } from 'react-icons/lu';
 
-import { getFolderIcon } from '../../utils/folderIcons';
+import { FolderIconDisplay } from '../../utils/folderIcons';
+
+const headerRowSx = {
+  py: 0.5,
+  px: 0.5,
+  borderRadius: 'sm',
+  userSelect: 'none',
+  '&:hover .folder-edit-btn': { opacity: 1 },
+} as const;
+
+const dragHandleSx = {
+  cursor: 'grab',
+  display: 'flex',
+  alignItems: 'center',
+  color: 'neutral.400',
+  '&:hover': { color: 'neutral.600' },
+  '&:active': { cursor: 'grabbing' },
+} as const;
+
+const toggleAreaSx = {
+  cursor: 'pointer',
+  flex: 1,
+  borderRadius: 'sm',
+  py: 0.25,
+  px: 0.25,
+  '&:hover': { backgroundColor: 'background.level1' },
+} as const;
+
+const countSx = { opacity: 0.5 } as const;
+
+const editButtonSx = { opacity: 0, transition: 'opacity 0.15s', width: 24, height: 24 } as const;
+
+const emptyHintSx = { py: 2, px: 1, textAlign: 'center', opacity: 0.5 } as const;
+
+const gridSx = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+  gap: 1,
+  py: 0.5,
+  px: 0.5,
+} as const;
+
+const passthroughSx = { py: 0.5, px: 0.5 } as const;
 
 type Props = {
   id: string;
@@ -19,6 +61,7 @@ type Props = {
   variant?: 'grid' | 'passthrough';
   folderColor?: string;
   folderIcon?: string;
+  folderCustomImage?: string;
   onEdit?: () => void;
   /** Show section even when empty (for folder drop targets) */
   showEmpty?: boolean;
@@ -35,6 +78,7 @@ const HubSection: React.FC<Props> = ({
   variant = 'grid',
   folderColor,
   folderIcon,
+  folderCustomImage,
   onEdit,
   showEmpty,
   emptyHint,
@@ -54,8 +98,7 @@ const HubSection: React.FC<Props> = ({
   const isEmpty = count === 0;
   if (isEmpty && !showEmpty) return null;
 
-  const isFolder = !!folderColor || !!folderIcon;
-  const FolderIcon = isFolder ? getFolderIcon(folderIcon) : null;
+  const isFolder = !!folderColor || !!folderIcon || !!folderCustomImage;
 
   return (
     <Box
@@ -67,25 +110,12 @@ const HubSection: React.FC<Props> = ({
         direction="row"
         alignItems="center"
         gap={0.5}
-        sx={{
-          py: 0.5,
-          px: 0.5,
-          borderRadius: 'sm',
-          userSelect: 'none',
-          '&:hover .folder-edit-btn': { opacity: 1 },
-        }}
+        sx={headerRowSx}
       >
         <Box
           {...attributes}
           {...listeners}
-          sx={{
-            cursor: 'grab',
-            display: 'flex',
-            alignItems: 'center',
-            color: 'neutral.400',
-            '&:hover': { color: 'neutral.600' },
-            '&:active': { cursor: 'grabbing' },
-          }}
+          sx={dragHandleSx}
         >
           <LuGripVertical size={14} />
         </Box>
@@ -94,25 +124,23 @@ const HubSection: React.FC<Props> = ({
           alignItems="center"
           gap={0.75}
           onClick={onToggleCollapse}
-          sx={{
-            cursor: 'pointer',
-            flex: 1,
-            borderRadius: 'sm',
-            py: 0.25,
-            px: 0.25,
-            '&:hover': { backgroundColor: 'background.level1' },
-          }}
+          sx={toggleAreaSx}
         >
           {collapsed ? <LuChevronRight size={14} /> : <LuChevronDown size={14} />}
-          {FolderIcon && (
+          {isFolder && (
             <Box sx={{ display: 'flex', color: folderColor }}>
-              <FolderIcon size={14} />
+              <FolderIconDisplay
+                icon={folderIcon}
+                customImage={folderCustomImage}
+                size={14}
+                color={folderColor}
+              />
             </Box>
           )}
           <Text weight="semibold" size="sm">
             {title}
           </Text>
-          <Text size="xs" sx={{ opacity: 0.5 }}>
+          <Text size="xs" sx={countSx}>
             ({count})
           </Text>
         </Stack>
@@ -125,7 +153,7 @@ const HubSection: React.FC<Props> = ({
               e.stopPropagation();
               onEdit();
             }}
-            sx={{ opacity: 0, transition: 'opacity 0.15s', width: 24, height: 24 }}
+            sx={editButtonSx}
           >
             <LuPencil size={12} />
           </MuiIconButton>
@@ -134,24 +162,18 @@ const HubSection: React.FC<Props> = ({
       {!collapsed &&
         (isEmpty ? (
           emptyHint ? (
-            <Text size="xs" sx={{ py: 2, px: 1, textAlign: 'center', opacity: 0.5 }}>
+            <Text size="xs" sx={emptyHintSx}>
               {emptyHint}
             </Text>
           ) : null
         ) : variant === 'grid' ? (
           <Box
-            sx={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-              gap: 1,
-              py: 0.5,
-              px: 0.5,
-            }}
+            sx={gridSx}
           >
             {children}
           </Box>
         ) : (
-          <Box sx={{ py: 0.5, px: 0.5 }}>{children}</Box>
+          <Box sx={passthroughSx}>{children}</Box>
         ))}
     </Box>
   );

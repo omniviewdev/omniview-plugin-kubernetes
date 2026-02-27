@@ -11,6 +11,36 @@ import { LuX } from 'react-icons/lu';
 
 import DynamicIcon from '../components/DynamicIcon';
 
+const decoratorChipSx = { borderRadius: 'sm' } as const;
+
+const containerSx = {
+  borderRadius: 'md',
+  p: 1,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 1,
+  maxHeight: 'calc(100vh - 64px)',
+  minHeight: 'calc(100vh - 64px)',
+  overflow: 'auto',
+} as const;
+
+const titleChipSx = { borderRadius: 'sm' } as const;
+
+const titleTextSx = { flexGrow: 1 } as const;
+
+const dialogContentSx = {
+  gap: 2,
+  p: 0.5,
+  overflowY: 'auto',
+  maxWidth: '100%',
+  overflowX: 'hidden',
+  scrollbarWidth: 'none',
+  '&::-webkit-scrollbar': {
+    display: 'none',
+  },
+  'ms-overflow-style': 'none',
+} as const;
+
 type Props = {
   icon?: string | React.ReactNode;
   type: string;
@@ -37,7 +67,7 @@ const ResourceDrawerDecorator: FC<{
     <Chip
       size="lg"
       emphasis="soft"
-      sx={{ borderRadius: 'sm' }}
+      sx={decoratorChipSx}
       startAdornment={typeof icon === 'string' ? <DynamicIcon name={icon} size={16} /> : icon}
       label={
         <Text weight="semibold" size="sm">
@@ -50,23 +80,14 @@ const ResourceDrawerDecorator: FC<{
 
 const ResourceDrawerContainer: FC<Props> = ({ icon, type, title, children }) => (
   <Box
-    sx={{
-      borderRadius: 'md',
-      p: 1,
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 1,
-      maxHeight: 'calc(100vh - 64px)',
-      minHeight: 'calc(100vh - 64px)',
-      overflow: 'auto',
-    }}
+    sx={containerSx}
   >
     <Stack direction="row" alignItems="center" justifyContent={'space-between'}>
       <Chip
         size="lg"
         emphasis="ghost"
-        sx={{ borderRadius: 'sm' }}
-        label={<Text sx={{ flexGrow: 1 }}>{title}</Text>}
+        sx={titleChipSx}
+        label={<Text sx={titleTextSx}>{title}</Text>}
       />
       <Stack direction="row" gap={1}>
         <ResourceDrawerDecorator icon={icon ?? 'LuBox'} type={type} />
@@ -77,19 +98,7 @@ const ResourceDrawerContainer: FC<Props> = ({ icon, type, title, children }) => 
     </Stack>
     <Divider />
     <DialogContent
-      sx={{
-        gap: 2,
-        p: 0.5,
-        overflowY: 'auto',
-        maxWidth: '100%',
-        overflowX: 'hidden',
-        scrollbarWidth: 'none',
-        // hide scrollbar
-        '&::-webkit-scrollbar': {
-          display: 'none',
-        },
-        'ms-overflow-style': 'none',
-      }}
+      sx={dialogContentSx}
     >
       {children}
     </DialogContent>
