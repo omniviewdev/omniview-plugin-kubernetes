@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
+
 import ClustersPage from './ClustersPage';
 
 // ---------------------------------------------------------------------------
@@ -57,15 +58,17 @@ vi.mock('../hooks/useClusterPreferences', () => ({
 
 vi.mock('../hooks/useConnectionGrouping', () => ({
   useConnectionGrouping: (opts: any) => ({
-    groups: [{
-      key: 'all',
-      label: 'All',
-      connections: (opts.connections ?? []).map((c: any) => ({
-        ...c,
-        isFavorite: false,
-        groupIds: [],
-      })),
-    }],
+    groups: [
+      {
+        key: 'all',
+        label: 'All',
+        connections: (opts.connections ?? []).map((c: any) => ({
+          ...c,
+          isFavorite: false,
+          groupIds: [],
+        })),
+      },
+    ],
     totalCount: opts.connections?.length ?? 0,
     filteredCount: opts.connections?.length ?? 0,
     availableProviders: [],

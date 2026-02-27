@@ -1,19 +1,19 @@
-import * as React from 'react';
+import { WarningRounded } from '@mui/icons-material';
+import Box from '@mui/material/Box';
 
 // @omniviewdev/ui
-import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
 import Divider from '@mui/material/Divider';
-import { Alert } from '@omniviewdev/ui/feedback';
-import { Modal } from '@omniviewdev/ui/overlays';
+import { useResource } from '@omniviewdev/runtime';
 import { Button } from '@omniviewdev/ui/buttons';
+import { Alert } from '@omniviewdev/ui/feedback';
 import { Stack } from '@omniviewdev/ui/layout';
+import { Modal } from '@omniviewdev/ui/overlays';
 import { Text } from '@omniviewdev/ui/typography';
 
 // icons
-import { WarningRounded } from '@mui/icons-material';
+import * as React from 'react';
 import { LuCircleAlert, LuTrash } from 'react-icons/lu';
-import { useResource } from '@omniviewdev/runtime';
 
 type Props = {
   plugin: string;
@@ -26,21 +26,33 @@ type Props = {
   handleDismiss: () => void;
 };
 
-export const DeleteAction: React.FC<Props> = ({ id, resource, plugin, connection, namespace, handleSelect, handleDeselect, handleDismiss }) => {
+export const DeleteAction: React.FC<Props> = ({
+  id,
+  resource,
+  plugin,
+  connection,
+  namespace,
+  handleSelect,
+  handleDeselect,
+  handleDismiss,
+}) => {
   const [open, setOpen] = React.useState<boolean>(false);
   const [pending, setPending] = React.useState<boolean>(false);
   const [alert, setAlert] = React.useState<string>('');
 
-  const { remove } = useResource({ pluginID: plugin, connectionID: connection, resourceKey: resource, resourceID: id, namespace });
+  const { remove } = useResource({
+    pluginID: plugin,
+    connectionID: connection,
+    resourceKey: resource,
+    resourceID: id,
+    namespace,
+  });
 
   return (
     <React.Fragment>
-      <Box
-        component='li'
-        sx={{ listStyle: 'none' }}
-      >
+      <Box component="li" sx={{ listStyle: 'none' }}>
         <Box
-          component='button'
+          component="button"
           onMouseEnter={handleSelect}
           onMouseLeave={handleDeselect}
           onClick={() => {
@@ -62,65 +74,82 @@ export const DeleteAction: React.FC<Props> = ({ id, resource, plugin, connection
           }}
         >
           <Stack
-            direction='row'
+            direction="row"
             gap={1}
             sx={{ flex: 1, px: 1, alignItems: 'center', justifyContent: 'flex-start' }}
           >
             <LuTrash />
-            <Text sx={{ pl: 0.5 }} size='sm'>Delete</Text>
+            <Text sx={{ pl: 0.5 }} size="sm">
+              Delete
+            </Text>
           </Stack>
         </Box>
       </Box>
-      <Modal open={open} onClose={() => {
-        setOpen(false);
-      }}>
+      <Modal
+        open={open}
+        onClose={() => {
+          setOpen(false);
+        }}
+      >
         <Box sx={{ p: 2, minWidth: 360 }}>
-          <Stack direction='row' alignItems='center' gap={1} sx={{ mb: 1 }}>
+          <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 1 }}>
             <WarningRounded />
-            <Text weight='semibold'>Confirmation</Text>
+            <Text weight="semibold">Confirmation</Text>
           </Stack>
           <Divider />
           <Box sx={{ py: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <Text size='sm'>
+            <Text size="sm">
               Are you sure you want to delete {resource} '{id}'?
             </Text>
-            {alert && <Box sx={{ display: 'flex', gap: 2, width: '100%', flexDirection: 'column' }}>
-              <Alert
-                sx={{ alignItems: 'flex-start' }}
-                startAdornment={<LuCircleAlert />}
-                emphasis="soft"
-                color='danger'
-              >
-                <div>
-                  <div>Error</div>
-                  <Text size='sm' sx={{ color: 'danger.main' }}>
-                    {alert}
-                  </Text>
-                </div>
-              </Alert>
-            </Box>
-            }
+            {alert && (
+              <Box sx={{ display: 'flex', gap: 2, width: '100%', flexDirection: 'column' }}>
+                <Alert
+                  sx={{ alignItems: 'flex-start' }}
+                  startAdornment={<LuCircleAlert />}
+                  emphasis="soft"
+                  color="danger"
+                >
+                  <div>
+                    <div>Error</div>
+                    <Text size="sm" sx={{ color: 'danger.main' }}>
+                      {alert}
+                    </Text>
+                  </div>
+                </Alert>
+              </Box>
+            )}
           </Box>
-          <Stack direction='row' justifyContent='flex-end' gap={1}>
-            <Button emphasis="solid" color="danger" onClick={() => {
-              setPending(true);
-              remove({}).then(() => {
-                setOpen(false);
-                handleDismiss();
-              }).catch((e) => {
-                if (e instanceof Error) {
-                  setAlert(e.message);
-                }
-              }).finally(() => {
-                setPending(false);
-              });
-            }}>
+          <Stack direction="row" justifyContent="flex-end" gap={1}>
+            <Button
+              emphasis="solid"
+              color="danger"
+              onClick={() => {
+                setPending(true);
+                remove({})
+                  .then(() => {
+                    setOpen(false);
+                    handleDismiss();
+                  })
+                  .catch((e) => {
+                    if (e instanceof Error) {
+                      setAlert(e.message);
+                    }
+                  })
+                  .finally(() => {
+                    setPending(false);
+                  });
+              }}
+            >
               {pending ? <CircularProgress size={16} /> : 'Delete'}
             </Button>
-            <Button emphasis="ghost" color="neutral" onClick={() => {
-              setOpen(false);
-              handleDismiss();
-            }}>
+            <Button
+              emphasis="ghost"
+              color="neutral"
+              onClick={() => {
+                setOpen(false);
+                handleDismiss();
+              }}
+            >
               Cancel
             </Button>
           </Stack>

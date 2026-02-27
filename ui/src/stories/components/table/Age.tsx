@@ -1,5 +1,3 @@
-import { useEffect, useMemo, useState } from 'react';
-
 import { Text } from '@omniviewdev/ui/typography';
 import {
   differenceInSeconds,
@@ -7,11 +5,12 @@ import {
   differenceInHours,
   differenceInDays,
 } from 'date-fns';
+import { useEffect, useMemo, useState } from 'react';
 
 /**
-  * Formats the time difference between the given date and the current date
-  * @param date The date to calculate the difference from
-  */
+ * Formats the time difference between the given date and the current date
+ * @param date The date to calculate the difference from
+ */
 function formatTimeDifference(date: Date) {
   const now = new Date();
   const sec = differenceInSeconds(now, date);
@@ -73,5 +72,5 @@ export const Age = ({ startTime }: { startTime: string }) => {
     };
   }, [startTime, initialAge]);
 
-  return <Text size='xs'>{time}</Text>;
+  return <Text size="xs">{time}</Text>;
 };

@@ -1,19 +1,9 @@
-import React from 'react';
-
+import { useRightDrawer } from '@omniviewdev/runtime';
 import { Chip } from '@omniviewdev/ui';
 import type { SemanticColor } from '@omniviewdev/ui/types';
-import { useRightDrawer } from '@omniviewdev/runtime';
-import {
-  LuCopy,
-  LuLayers,
-  LuDatabase,
-  LuPlay,
-  LuClock,
-  LuServer,
-  LuUser,
-} from 'react-icons/lu';
-
 import type { OwnerReference } from 'kubernetes-types/meta/v1';
+import React from 'react';
+import { LuCopy, LuLayers, LuDatabase, LuPlay, LuClock, LuServer, LuUser } from 'react-icons/lu';
 
 type KindConfig = {
   color: SemanticColor;
@@ -22,14 +12,14 @@ type KindConfig = {
 
 /** Map Kubernetes resource kinds to chip color + icon */
 const kindConfigMap: Record<string, KindConfig> = {
-  ReplicaSet:            { color: 'primary',   icon: <LuCopy size={10} /> },
-  ReplicationController: { color: 'primary',   icon: <LuCopy size={10} /> },
-  StatefulSet:           { color: 'info',      icon: <LuDatabase size={10} /> },
-  DaemonSet:             { color: 'warning',   icon: <LuLayers size={10} /> },
-  Job:                   { color: 'secondary', icon: <LuPlay size={10} /> },
-  CronJob:               { color: 'secondary', icon: <LuClock size={10} /> },
-  Node:                  { color: 'success',   icon: <LuServer size={10} /> },
-  ServiceAccount:        { color: 'neutral',   icon: <LuUser size={10} /> },
+  ReplicaSet: { color: 'primary', icon: <LuCopy size={10} /> },
+  ReplicationController: { color: 'primary', icon: <LuCopy size={10} /> },
+  StatefulSet: { color: 'info', icon: <LuDatabase size={10} /> },
+  DaemonSet: { color: 'warning', icon: <LuLayers size={10} /> },
+  Job: { color: 'secondary', icon: <LuPlay size={10} /> },
+  CronJob: { color: 'secondary', icon: <LuClock size={10} /> },
+  Node: { color: 'success', icon: <LuServer size={10} /> },
+  ServiceAccount: { color: 'neutral', icon: <LuUser size={10} /> },
 };
 
 const defaultConfig: KindConfig = { color: 'neutral', icon: <LuCopy size={10} /> };
@@ -94,8 +84,8 @@ const ResourceLinkChip: React.FC<Props> = ({
 
   return (
     <Chip
-      size='xs'
-      emphasis='outline'
+      size="xs"
+      emphasis="outline"
       color={config.color}
       icon={config.icon}
       onClick={handleClick}

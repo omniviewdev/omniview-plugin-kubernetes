@@ -1,7 +1,7 @@
+import Box from '@mui/material/Box';
 import React from 'react';
 
 // @mui/material
-import Box from '@mui/material/Box';
 
 type Props = {
   padding?: number;
@@ -14,7 +14,13 @@ type Props = {
 /**
  * The side navigation component for the sidenav layout
  */
-const SideNav: React.FC<Props> = ({ type = 'inset', scrollable = false, children, width, padding }) => {
+const SideNav: React.FC<Props> = ({
+  type = 'inset',
+  scrollable = false,
+  children,
+  width,
+  padding,
+}) => {
   const BorderedSx = {
     bgcolor: 'background.paper',
     borderRight: '1px solid',
@@ -48,8 +54,8 @@ const SideNav: React.FC<Props> = ({ type = 'inset', scrollable = false, children
 
   return (
     <Box
-      component='nav'
-      className='Navigation'
+      component="nav"
+      className="Navigation"
       sx={[
         {
           minHeight: '100%',

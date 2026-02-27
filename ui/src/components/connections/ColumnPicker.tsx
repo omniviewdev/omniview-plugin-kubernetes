@@ -1,8 +1,8 @@
-import React from 'react';
 import Box from '@mui/material/Box';
-import { Checkbox } from '@omniviewdev/ui/inputs';
 import { IconButton } from '@omniviewdev/ui/buttons';
+import { Checkbox } from '@omniviewdev/ui/inputs';
 import { Text } from '@omniviewdev/ui/typography';
+import React from 'react';
 import { LuColumns3 } from 'react-icons/lu';
 
 type Props = {
@@ -12,9 +12,7 @@ type Props = {
 };
 
 function formatColumnName(key: string): string {
-  return key
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, c => c.toUpperCase());
+  return key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 const ColumnPicker: React.FC<Props> = ({ allColumns, visibleColumns, onToggleColumn }) => {
@@ -31,11 +29,11 @@ const ColumnPicker: React.FC<Props> = ({ allColumns, visibleColumns, onToggleCol
   return (
     <>
       <IconButton
-        size='sm'
-        emphasis='ghost'
-        color='neutral'
-        onClick={() => setOpen(prev => !prev)}
-        title='Select visible columns'
+        size="sm"
+        emphasis="ghost"
+        color="neutral"
+        onClick={() => setOpen((prev) => !prev)}
+        title="Select visible columns"
       >
         <LuColumns3 size={14} />
       </IconButton>
@@ -64,10 +62,21 @@ const ColumnPicker: React.FC<Props> = ({ allColumns, visibleColumns, onToggleCol
               bgcolor: 'var(--ov-bg-surface, #1e1e1e)',
             }}
           >
-            <Text size='xs' weight='semibold' sx={{ px: 0.5, pb: 0.25, color: 'var(--ov-fg-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: '0.625rem' }}>
+            <Text
+              size="xs"
+              weight="semibold"
+              sx={{
+                px: 0.5,
+                pb: 0.25,
+                color: 'var(--ov-fg-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+                fontSize: '0.625rem',
+              }}
+            >
               Visible Columns
             </Text>
-            {sorted.map(col => (
+            {sorted.map((col) => (
               <Box
                 key={col}
                 onClick={() => onToggleColumn(col)}
@@ -83,11 +92,11 @@ const ColumnPicker: React.FC<Props> = ({ allColumns, visibleColumns, onToggleCol
                 }}
               >
                 <Checkbox
-                  size='sm'
+                  size="sm"
                   checked={visibleColumns.includes(col)}
                   onChange={() => onToggleColumn(col)}
                 />
-                <Text size='xs' sx={{ userSelect: 'none' }}>
+                <Text size="xs" sx={{ userSelect: 'none' }}>
                   {formatColumnName(col)}
                 </Text>
               </Box>

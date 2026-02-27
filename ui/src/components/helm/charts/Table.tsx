@@ -1,14 +1,16 @@
-import React from 'react';
-import { ColumnDef } from '@tanstack/react-table';
-import { useParams } from 'react-router-dom';
 import Box from '@mui/material/Box';
-import { Text } from '@omniviewdev/ui/typography';
-import ResourceTable from '../../shared/table/ResourceTable';
 import { DrawerComponent } from '@omniviewdev/runtime';
+import { Text } from '@omniviewdev/ui/typography';
+import { ColumnDef } from '@tanstack/react-table';
+import React from 'react';
 import { SiHelm } from 'react-icons/si';
-import ChartSidebar from './ChartSidebar';
-import { createStandardViews } from '../../shared/sidebar/createDrawerViews';
+import { useParams } from 'react-router-dom';
+
 import { stringToColor } from '../../../utils/color';
+import { createStandardViews } from '../../shared/sidebar/createDrawerViews';
+import ResourceTable from '../../shared/table/ResourceTable';
+
+import ChartSidebar from './ChartSidebar';
 
 const resourceKey = 'helm::v1::Chart';
 const ICON_SIZE = 20;
@@ -92,7 +94,10 @@ const HelmChartTable: React.FC = () => {
         cell: ({ row, getValue }) => (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, overflow: 'hidden' }}>
             <ChartIcon icon={row.original.icon} name={getValue() as string} />
-            <Text size="sm" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <Text
+              size="sm"
+              sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+            >
               {getValue() as string}
             </Text>
           </Box>
@@ -105,7 +110,10 @@ const HelmChartTable: React.FC = () => {
         size: 300,
         meta: { flex: 1 },
         cell: ({ getValue }) => (
-          <Text size="sm" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <Text
+            size="sm"
+            sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+          >
             {getValue() as string}
           </Text>
         ),
@@ -132,12 +140,15 @@ const HelmChartTable: React.FC = () => {
     [],
   );
 
-  const drawer: DrawerComponent<HelmChart> = React.useMemo(() => ({
-    title: 'Chart',
-    icon: <SiHelm />,
-    views: createStandardViews({ SidebarComponent: ChartSidebar }),
-    actions: [],
-  }), []);
+  const drawer: DrawerComponent<HelmChart> = React.useMemo(
+    () => ({
+      title: 'Chart',
+      icon: <SiHelm />,
+      views: createStandardViews({ SidebarComponent: ChartSidebar }),
+      actions: [],
+    }),
+    [],
+  );
 
   return (
     <ResourceTable

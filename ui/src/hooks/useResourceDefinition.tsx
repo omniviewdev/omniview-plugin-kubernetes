@@ -1,23 +1,20 @@
-import React from 'react';
-import { useQuery } from '@tanstack/react-query';
-
 // third party
+import { ResourceClient, ExecClient } from '@omniviewdev/runtime/api';
+import { type types } from '@omniviewdev/runtime/models';
+import { useQuery } from '@tanstack/react-query';
 import { type ColumnDef } from '@tanstack/react-table';
 import jsonpath from 'jsonpath';
 import get from 'lodash.get';
 
 // project imports
-import { ResourceClient, ExecClient } from '@omniviewdev/runtime/api';
-import { type types } from '@omniviewdev/runtime/models';
+import React from 'react';
 
+import ActionMenu from '../components/tables/actions/ActionMenu';
+import { type Actions } from '../components/tables/actions/types';
+import { TextCell } from '../components/tables/cells';
+import KubernetesContainerStatusCell from '../components/tables/cells/custom/KubernetesContainerStatusCell';
 import SelectBoxHeader from '../components/tables/cells/SelectBoxHeader';
 import SelectBoxRow from '../components/tables/cells/SelectBoxRow';
-import { type Actions } from '../components/tables/actions/types';
-import ActionMenu from '../components/tables/actions/ActionMenu';
-import { TextCell } from '../components/tables/cells';
-
-import KubernetesContainerStatusCell from '../components/tables/cells/custom/KubernetesContainerStatusCell';
-
 
 type UseResourceDefinitionOptions = {
   /**
@@ -30,8 +27,8 @@ type UseResourceDefinitionOptions = {
    */
   connectionID: string;
   /**
-  * Resource key that uniquely identifies the resource
-  */
+   * Resource key that uniquely identifies the resource
+   */
   resourceKey: string;
 };
 
@@ -66,14 +63,14 @@ export type ResourceMetadata = {
 /**
  * Render one of the custom cells. Should likely restructure out of the backend-focused one
  */
-const CustomTableCell: React.FC<{ name: string, data?: unknown }> = ({ name, data }) => {
+const CustomTableCell: React.FC<{ name: string; data?: unknown }> = ({ name, data }) => {
   switch (name) {
     case 'ContainerStatusCell':
       return <KubernetesContainerStatusCell data={data} />;
     default:
       return <TextCell value={data as string} />;
   }
-}
+};
 
 /**
  * Use our metadata and resource defenitions to dynamically build out our ColumnDefs at runtime.
@@ -105,17 +102,20 @@ const parseColumnDef = ({
   ];
 
   columnDefs.forEach((def) => {
-    let column: ColumnDef<any> = {
+    const column: ColumnDef<any> = {
       id: def.id,
       header: def.header,
       accessorFn: (data) => {
-        const val = def.accessor.split(',').map((accessor) => {
-          if (accessor.startsWith('$.')) {
-            return jsonpath.value(data, accessor) ?? '';
-          }
+        const val = def.accessor
+          .split(',')
+          .map((accessor) => {
+            if (accessor.startsWith('$.')) {
+              return jsonpath.value(data, accessor) ?? '';
+            }
 
-          return get(data, accessor, '');
-        }).filter((v) => v !== undefined && v !== '');
+            return get(data, accessor, '');
+          })
+          .filter((v) => v !== undefined && v !== '');
 
         let prioritized = '';
         switch (def.accessorPriority) {
@@ -145,11 +145,12 @@ const parseColumnDef = ({
         return val.length === 1 ? val[0] : val;
       },
       cell: ({ getValue, row }) =>
-        !!def.component
+        def.component ? (
           // using a custom federated component
-          ? <CustomTableCell data={getValue()} name={def.component} />
+          <CustomTableCell data={getValue()} name={def.component} />
+        ) : (
           // in-house component
-          : <TextCell
+          <TextCell
             align={getAlignment(def.align)}
             value={getValue() as string}
             formatter={def.formatter}
@@ -162,7 +163,8 @@ const parseColumnDef = ({
               resourceID: row.id,
               namespace: namespaceAccessor ? get(row.original, namespaceAccessor, '') : '',
             }}
-          />,
+          />
+        ),
     };
 
     if (def.width) {
@@ -176,14 +178,16 @@ const parseColumnDef = ({
     // add the actions to the end
     defs.push({
       id: 'menu',
-      cell: ({ row }) => <ActionMenu
-        actions={actions}
-        connection={connectionID}
-        resource={resourceKey}
-        data={row.original}
-        id={row.id}
-        namespace={namespaceAccessor ? get(row.original, namespaceAccessor, '') : ''}
-      />,
+      cell: ({ row }) => (
+        <ActionMenu
+          actions={actions}
+          connection={connectionID}
+          resource={resourceKey}
+          data={row.original}
+          id={row.id}
+          namespace={namespaceAccessor ? get(row.original, namespaceAccessor, '') : ''}
+        />
+      ),
       size: 50,
       enableSorting: false,
       enableHiding: false,
@@ -200,7 +204,11 @@ const parseColumnDef = ({
  * Fetches the resource definition for the given resource key and returns calculated resource
  * schema objects for rendering the resource.
  */
-export const useResourceDefinition = ({ pluginID, resourceKey, connectionID }: UseResourceDefinitionOptions) => {
+export const useResourceDefinition = ({
+  pluginID,
+  resourceKey,
+  connectionID,
+}: UseResourceDefinitionOptions) => {
   const queryKey = [pluginID, 'resource_definition', resourceKey];
 
   const definition = useQuery({
@@ -226,14 +234,18 @@ export const useResourceDefinition = ({ pluginID, resourceKey, connectionID }: U
     retry: false,
   });
 
-  const columns = React.useMemo(() => parseColumnDef({
-    columnDefs: definition.data?.columnDefs,
-    actions: actions.data,
-    pluginID,
-    connectionID,
-    resourceKey,
-    namespaceAccessor: definition.data?.namespace_accessor,
-  }), [pluginID, connectionID, resourceKey]);
+  const columns = React.useMemo(
+    () =>
+      parseColumnDef({
+        columnDefs: definition.data?.columnDefs,
+        actions: actions.data,
+        pluginID,
+        connectionID,
+        resourceKey,
+        namespaceAccessor: definition.data?.namespace_accessor,
+      }),
+    [pluginID, connectionID, resourceKey],
+  );
 
   return {
     data: definition.data,

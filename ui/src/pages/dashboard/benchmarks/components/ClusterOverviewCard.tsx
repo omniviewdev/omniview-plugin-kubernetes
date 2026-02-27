@@ -1,21 +1,21 @@
-import * as React from 'react';
 import Box from '@mui/material/Box';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text, Heading } from '@omniviewdev/ui/typography';
+import * as React from 'react';
 
 type Props = {
-  cluster: string
-  icon: string
-  passing: number
-  warning: number
-  failing: number
-  score: number
-}
+  cluster: string;
+  icon: string;
+  passing: number;
+  warning: number;
+  failing: number;
+  score: number;
+};
 
 export const ClusterOverviewCard: React.FC<Props> = ({ passing, warning, failing, score }) => {
   return (
     <Box sx={{ p: 0.5 }}>
-      <Stack direction='row' gap={1}>
+      <Stack direction="row" gap={1}>
         <Box
           sx={{
             alignItems: 'center',
@@ -28,11 +28,13 @@ export const ClusterOverviewCard: React.FC<Props> = ({ passing, warning, failing
             borderRadius: 1,
           }}
         >
-          <Stack direction='column' sx={{ flex: 1 }}>
-            <Text size='xs' sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+          <Stack direction="column" sx={{ flex: 1 }}>
+            <Text size="xs" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
               Score
             </Text>
-            <Heading level={4} sx={{ fontWeight: 'bold' }}>{score}</Heading>
+            <Heading level={4} sx={{ fontWeight: 'bold' }}>
+              {score}
+            </Heading>
           </Stack>
         </Box>
         <Box
@@ -45,20 +47,20 @@ export const ClusterOverviewCard: React.FC<Props> = ({ passing, warning, failing
             gap: 2,
           }}
         >
-          <Stack direction='column' sx={{ flex: 1 }}>
-            <Text size='xs' sx={{ fontWeight: 'bold', color: 'success.main' }}>
+          <Stack direction="column" sx={{ flex: 1 }}>
+            <Text size="xs" sx={{ fontWeight: 'bold', color: 'success.main' }}>
               Passing
             </Text>
             <Text sx={{ fontWeight: 'bold' }}>{passing}</Text>
           </Stack>
-          <Stack direction='column' sx={{ flex: 1 }}>
-            <Text size='xs' sx={{ fontWeight: 'bold', color: 'warning.main' }}>
+          <Stack direction="column" sx={{ flex: 1 }}>
+            <Text size="xs" sx={{ fontWeight: 'bold', color: 'warning.main' }}>
               Warning
             </Text>
             <Text sx={{ fontWeight: 'bold' }}>{warning}</Text>
           </Stack>
-          <Stack direction='column' sx={{ flex: 1 }}>
-            <Text size='xs' sx={{ fontWeight: 'bold', color: 'error.main' }}>
+          <Stack direction="column" sx={{ flex: 1 }}>
+            <Text size="xs" sx={{ fontWeight: 'bold', color: 'error.main' }}>
               Failing
             </Text>
             <Text sx={{ fontWeight: 'bold' }}>{failing}</Text>
@@ -66,7 +68,7 @@ export const ClusterOverviewCard: React.FC<Props> = ({ passing, warning, failing
         </Box>
       </Stack>
     </Box>
-  )
-}
+  );
+};
 
-export default ClusterOverviewCard
+export default ClusterOverviewCard;

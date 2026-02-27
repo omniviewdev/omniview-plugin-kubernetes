@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
 import { useResources } from '@omniviewdev/runtime';
 import type { KubeEvent, TimelineEvent } from '@omniviewdev/ui/domain';
+import { useMemo } from 'react';
 
 const MAX_EVENTS = 100;
 
@@ -114,7 +114,7 @@ export function useResourceEvents({
       title: ev.reason ?? 'Event',
       description: ev.message,
       timestamp: formatAge(ev.lastTimestamp ?? ev.firstTimestamp ?? ev.metadata?.creationTimestamp),
-      color: ev.type === 'Warning' ? 'warning' as const : 'info' as const,
+      color: ev.type === 'Warning' ? ('warning' as const) : ('info' as const),
     }));
 
     const warningCount = events.filter((e) => e.type === 'Warning').length;

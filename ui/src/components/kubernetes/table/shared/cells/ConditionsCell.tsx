@@ -1,30 +1,35 @@
-import { Stack } from "@omniviewdev/ui/layout";
-import { Condition } from "kubernetes-types/meta/v1";
-import ConditionChip from "../../../../shared/ConditionChip";
+import { Stack } from '@omniviewdev/ui/layout';
+import { Condition } from 'kubernetes-types/meta/v1';
+
+import ConditionChip from '../../../../shared/ConditionChip';
 
 type Props = {
   conditions: Array<Condition> | undefined;
 
-  /** 
+  /**
    * The default healthy color to use for all the conditions.
    * TODO: change so we can supply a map of status types
    */
   defaultHealthyColor?: 'success' | 'neutral';
 
-  /** 
+  /**
    * The default healthy color to use for all the conditions.
    * TODO: change so we can supply a map of status types
    */
   defaultUnhealthyColor?: 'warning' | 'danger' | 'faded';
-}
+};
 
-/** 
+/**
  * Render a list of conditions for the table columns. The conditions here should
  * come from the status cell
  */
-const ConditionsCell: React.FC<Props> = ({ conditions, defaultHealthyColor, defaultUnhealthyColor }) => {
+const ConditionsCell: React.FC<Props> = ({
+  conditions,
+  defaultHealthyColor,
+  defaultUnhealthyColor,
+}) => {
   if (!conditions) {
-    return <></>
+    return <></>;
   }
 
   return (
@@ -35,18 +40,25 @@ const ConditionsCell: React.FC<Props> = ({ conditions, defaultHealthyColor, defa
       gap={0.5}
       overflow={'scroll'}
       sx={{
-        scrollbarWidth: "none",
+        scrollbarWidth: 'none',
         // hide scrollbar
-        "&::-webkit-scrollbar": {
-          display: "none",
+        '&::-webkit-scrollbar': {
+          display: 'none',
         },
       }}
     >
-      {conditions.filter(condition => condition.status === 'True').map((condition) => (
-        <ConditionChip key={condition.type} condition={condition} healthyColor={defaultHealthyColor} unhealthyColor={defaultUnhealthyColor} />
-      ))}
-    </Stack >
-  )
-}
+      {conditions
+        .filter((condition) => condition.status === 'True')
+        .map((condition) => (
+          <ConditionChip
+            key={condition.type}
+            condition={condition}
+            healthyColor={defaultHealthyColor}
+            unhealthyColor={defaultUnhealthyColor}
+          />
+        ))}
+    </Stack>
+  );
+};
 
 export default ConditionsCell;

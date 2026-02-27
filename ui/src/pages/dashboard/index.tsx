@@ -1,20 +1,22 @@
+import Box from '@mui/material/Box';
+import MuiTab from '@mui/material/Tab';
+import MuiTabs from '@mui/material/Tabs';
+import { useExtensionPoint, usePluginRouter } from '@omniviewdev/runtime';
 import React from 'react';
 import { Outlet } from 'react-router-dom';
-import { useExtensionPoint, usePluginRouter } from '@omniviewdev/runtime';
-import Box from '@mui/material/Box';
-import MuiTabs from '@mui/material/Tabs';
-import MuiTab from '@mui/material/Tab';
 
 const builtinTabs: Record<string, string> = {
   '': 'Overview',
-  'metrics': 'Metrics',
+  metrics: 'Metrics',
 };
 
 export const DashboardLayout: React.FC = () => {
   const { pluginPath, navigate } = usePluginRouter();
 
   // Dynamic tabs from extension point
-  const tabEP = useExtensionPoint<{ pluginID: string; connectionID: string }>('omniview/dashboard/tab');
+  const tabEP = useExtensionPoint<{ pluginID: string; connectionID: string }>(
+    'omniview/dashboard/tab',
+  );
   const extensionTabs = tabEP?.list() ?? [];
 
   // Determine the active tab from the last path segment.
@@ -60,7 +62,7 @@ export const DashboardLayout: React.FC = () => {
         ))}
       </MuiTabs>
       <Box
-        component='main'
+        component="main"
         sx={{
           flex: 1,
           display: 'flex',

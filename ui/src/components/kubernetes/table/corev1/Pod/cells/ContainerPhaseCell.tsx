@@ -1,29 +1,26 @@
-import React from "react"
-import { Text } from "@omniviewdev/ui/typography"
+import { Text } from '@omniviewdev/ui/typography';
+import React from 'react';
 
 const colorMap: Record<string, 'success' | 'warning' | 'danger' | 'neutral'> = {
-  "Active": "success",
-  "Pending": "warning",
-  "Running": "success",
-  "Succeeded": "success",
-  "Failed": "danger",
-  "Unknown": "warning",
-  "Terminating": "neutral",
-  "Terminated": "danger",
-}
-
+  Active: 'success',
+  Pending: 'warning',
+  Running: 'success',
+  Succeeded: 'success',
+  Failed: 'danger',
+  Unknown: 'warning',
+  Terminating: 'neutral',
+  Terminated: 'danger',
+};
 
 type Props = {
-  value: string | undefined
-}
+  value: string | undefined;
+};
 
 const ContainerPhaseCell: React.FC<Props> = ({ value }) => {
   if (!value || !colorMap[value]) {
-    return <></>
+    return <></>;
   }
-  return (
-    <Text color={colorMap[value]}>{value}</Text>
-  )
-}
+  return <Text color={colorMap[value]}>{value}</Text>;
+};
 
-export default ContainerPhaseCell
+export default ContainerPhaseCell;

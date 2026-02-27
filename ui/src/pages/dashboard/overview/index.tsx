@@ -1,23 +1,23 @@
-import React from 'react';
-import { useParams } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
-import { Stack } from '@omniviewdev/ui/layout';
-import { Text } from '@omniviewdev/ui/typography';
-import type { ChartTimeRange } from '@omniviewdev/ui/charts';
 import {
   useConnection,
   useExtensionPoint,
   usePluginRouter,
   useResources,
 } from '@omniviewdev/runtime';
+import type { ChartTimeRange } from '@omniviewdev/ui/charts';
+import { Stack } from '@omniviewdev/ui/layout';
+import { Text } from '@omniviewdev/ui/typography';
+import React from 'react';
+import { useParams } from 'react-router-dom';
 
-import { useClusterPreferences } from '../../../hooks/useClusterPreferences';
 import NamespaceSelect from '../../../components/tables/NamespaceSelect';
+import { useClusterPreferences } from '../../../hooks/useClusterPreferences';
+
 import ClusterInfoCard from './components/ClusterInfoCard';
 import ClusterMetricsSection from './components/ClusterMetricsSection';
 import ClusterResourceGauges from './components/ClusterResourceGauges';
-import EventsTable from './EventsTable';
 import {
   PodStatCard,
   DeploymentStatCard,
@@ -26,12 +26,13 @@ import {
   JobStatCard,
   CronJobStatCard,
 } from './components/WorkloadStatCards';
+import EventsTable from './EventsTable';
 
 type KubeResource = Record<string, any>;
 
 function filterByNamespace(resources: KubeResource[], namespaces: string[]): KubeResource[] {
   if (namespaces.length === 0) return resources;
-  return resources.filter(r => namespaces.includes(r.metadata?.namespace));
+  return resources.filter((r) => namespaces.includes(r.metadata?.namespace));
 }
 
 const ClusterDashboardOverviewPage: React.FC = () => {
@@ -43,14 +44,23 @@ const ClusterDashboardOverviewPage: React.FC = () => {
     to: new Date(),
   });
 
-  const goToResource = React.useCallback((resourceKey: string) => {
-    navigate(`/cluster/${id}/resources/${resourceKey}`);
-  }, [navigate, id]);
+  const goToResource = React.useCallback(
+    (resourceKey: string) => {
+      navigate(`/cluster/${id}/resources/${resourceKey}`);
+    },
+    [navigate, id],
+  );
 
   // Stable onClick callbacks per resource type
   const goToPods = React.useCallback(() => goToResource('core_v1_Pod'), [goToResource]);
-  const goToDeployments = React.useCallback(() => goToResource('apps_v1_Deployment'), [goToResource]);
-  const goToStatefulSets = React.useCallback(() => goToResource('apps_v1_StatefulSet'), [goToResource]);
+  const goToDeployments = React.useCallback(
+    () => goToResource('apps_v1_Deployment'),
+    [goToResource],
+  );
+  const goToStatefulSets = React.useCallback(
+    () => goToResource('apps_v1_StatefulSet'),
+    [goToResource],
+  );
   const goToDaemonSets = React.useCallback(() => goToResource('apps_v1_DaemonSet'), [goToResource]);
   const goToJobs = React.useCallback(() => goToResource('batch_v1_Job'), [goToResource]);
   const goToCronJobs = React.useCallback(() => goToResource('batch_v1_CronJob'), [goToResource]);
@@ -82,16 +92,34 @@ const ClusterDashboardOverviewPage: React.FC = () => {
   });
 
   // --- Extension point for dashboard widgets ---
-  const widgetEP = useExtensionPoint<{ pluginID: string; connectionID: string }>('omniview/dashboard/widget');
+  const widgetEP = useExtensionPoint<{ pluginID: string; connectionID: string }>(
+    'omniview/dashboard/widget',
+  );
   const widgets = widgetEP?.list() ?? [];
 
   // --- Filtered data for health banner and events ---
-  const allPods = React.useMemo(() => filterByNamespace(pods.data?.result ?? [], namespaces), [pods.data, namespaces]);
+  const allPods = React.useMemo(
+    () => filterByNamespace(pods.data?.result ?? [], namespaces),
+    [pods.data, namespaces],
+  );
   const allNodes = React.useMemo(() => nodes.data?.result ?? [], [nodes.data]);
-  const allEvents = React.useMemo(() => filterByNamespace(events.data?.result ?? [], namespaces), [events.data, namespaces]);
+  const allEvents = React.useMemo(
+    () => filterByNamespace(events.data?.result ?? [], namespaces),
+    [events.data, namespaces],
+  );
 
   return (
-    <Box sx={{ p: 1.5, overflow: 'auto', height: '100%', width: '100%', flex: 1, display: 'flex', flexDirection: 'column' }}>
+    <Box
+      sx={{
+        p: 1.5,
+        overflow: 'auto',
+        height: '100%',
+        width: '100%',
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
       <Stack gap={1.5}>
         {/* Cluster info + health status */}
         <ClusterInfoCard
@@ -103,8 +131,10 @@ const ClusterDashboardOverviewPage: React.FC = () => {
         />
 
         {/* Namespace filter */}
-        <Stack direction='row' alignItems='center' gap={1}>
-          <Text size='sm' sx={{ color: 'text.secondary' }}>Namespace:</Text>
+        <Stack direction="row" alignItems="center" gap={1}>
+          <Text size="sm" sx={{ color: 'text.secondary' }}>
+            Namespace:
+          </Text>
           <NamespaceSelect connectionID={id} selected={namespaces} setNamespaces={setNamespaces} />
         </Stack>
 
@@ -114,10 +144,18 @@ const ClusterDashboardOverviewPage: React.FC = () => {
             <PodStatCard connectionID={id} namespaces={namespaces} onClick={goToPods} />
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 2 }}>
-            <DeploymentStatCard connectionID={id} namespaces={namespaces} onClick={goToDeployments} />
+            <DeploymentStatCard
+              connectionID={id}
+              namespaces={namespaces}
+              onClick={goToDeployments}
+            />
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 2 }}>
-            <StatefulSetStatCard connectionID={id} namespaces={namespaces} onClick={goToStatefulSets} />
+            <StatefulSetStatCard
+              connectionID={id}
+              namespaces={namespaces}
+              onClick={goToStatefulSets}
+            />
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 2 }}>
             <DaemonSetStatCard connectionID={id} namespaces={namespaces} onClick={goToDaemonSets} />
@@ -131,10 +169,7 @@ const ClusterDashboardOverviewPage: React.FC = () => {
         </Grid>
 
         {/* Resource capacity gauges */}
-        <ClusterResourceGauges
-          connectionID={id}
-          metricConfig={metricConfig}
-        />
+        <ClusterResourceGauges connectionID={id} metricConfig={metricConfig} />
 
         {/* Cluster metrics */}
         <ClusterMetricsSection
@@ -149,10 +184,13 @@ const ClusterDashboardOverviewPage: React.FC = () => {
         {widgets.length > 0 && (
           <Grid container spacing={1.5}>
             {widgets.map((w) => {
-              const Component = w.component as unknown as React.FC<{ pluginID: string; connectionID: string }>;
+              const Component = w.component as unknown as React.FC<{
+                pluginID: string;
+                connectionID: string;
+              }>;
               return (
                 <Grid key={w.id} size={{ xs: 12, sm: 6, md: 4 }}>
-                  <Component pluginID='kubernetes' connectionID={id} />
+                  <Component pluginID="kubernetes" connectionID={id} />
                 </Grid>
               );
             })}
@@ -161,10 +199,18 @@ const ClusterDashboardOverviewPage: React.FC = () => {
 
         {/* Recent events — responsive height, scrolls independently */}
         <Stack gap={0.75}>
-          <Text weight='semibold' size='sm'>
+          <Text weight="semibold" size="sm">
             Recent Events ({allEvents.length})
           </Text>
-          <Box sx={{ height: 'clamp(300px, 40vh, 600px)', overflow: 'auto', border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+          <Box
+            sx={{
+              height: 'clamp(300px, 40vh, 600px)',
+              overflow: 'auto',
+              border: '1px solid',
+              borderColor: 'divider',
+              borderRadius: 1,
+            }}
+          >
             <EventsTable events={allEvents} loading={events.isLoading} connectionID={id} />
           </Box>
         </Stack>

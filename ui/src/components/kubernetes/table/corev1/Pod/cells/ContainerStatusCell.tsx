@@ -1,14 +1,13 @@
-import React from 'react'
+import { useTheme } from '@mui/material/styles';
+import { Stack } from '@omniviewdev/ui/layout';
+import { ContainerStatus } from 'kubernetes-types/core/v1';
+import React from 'react';
 
 // material-ui
-import { Stack } from '@omniviewdev/ui/layout';
-
-import { ContainerStatus } from "kubernetes-types/core/v1";
-import { useTheme } from '@mui/material/styles';
 
 type Props = {
-  data?: Array<object>
-}
+  data?: Array<object>;
+};
 
 export const ContainerStatusCell: React.FC<Props> = ({ data }) => {
   const theme = useTheme();
@@ -17,17 +16,16 @@ export const ContainerStatusCell: React.FC<Props> = ({ data }) => {
     return <React.Fragment />;
   }
 
-  const obj = data as Array<ContainerStatus>
-
+  const obj = data as Array<ContainerStatus>;
 
   /** Get the color for the chip based on the status */
   const getColor = (status: ContainerStatus) => {
     if (status.ready) {
-      return theme.palette.success.main
+      return theme.palette.success.main;
     }
 
     if (status.state?.waiting) {
-      return theme.palette.warning.main
+      return theme.palette.warning.main;
     }
 
     if (status.state?.terminated) {
@@ -35,23 +33,22 @@ export const ContainerStatusCell: React.FC<Props> = ({ data }) => {
         return theme.palette.grey[800];
       }
 
-      return theme.palette.error.main
+      return theme.palette.error.main;
     }
 
     if (status.state?.running) {
       // If the container is running, but not ready, it's still a warning
       // because it's not ready to serve traffic
-      return theme.palette.warning.main
+      return theme.palette.warning.main;
     }
 
     return theme.palette.grey[600];
   };
 
-
   return (
     <Stack
       direction="row"
-      width={"100%"}
+      width={'100%'}
       alignItems={'center'}
       justifyContent={'flex-start'}
       spacing={1}
@@ -73,7 +70,7 @@ export const ContainerStatusCell: React.FC<Props> = ({ data }) => {
         />
       ))}
     </Stack>
-  )
-}
+  );
+};
 
 export default ContainerStatusCell;

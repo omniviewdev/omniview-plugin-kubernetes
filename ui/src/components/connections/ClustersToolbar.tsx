@@ -1,14 +1,22 @@
-import React from 'react';
 import Box from '@mui/material/Box';
 import { Chip } from '@omniviewdev/ui';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
+import React from 'react';
 import { SiKubernetes } from 'react-icons/si';
+
+import type {
+  GroupByMode,
+  SortByField,
+  SortDirection,
+  ViewMode,
+  ConnectionAttribute,
+} from '../../types/clusters';
 import SearchInput from '../shared/SearchInput';
+
 import GroupBySelector from './GroupBySelector';
 import SortBySelector from './SortBySelector';
 import ViewModeToggle from './ViewModeToggle';
-import type { GroupByMode, SortByField, SortDirection, ViewMode, ConnectionAttribute } from '../../types/clusters';
 
 type Props = {
   search: string;
@@ -58,23 +66,25 @@ const ClustersToolbar: React.FC<Props> = ({
       bgcolor: 'var(--ov-bg-surface, rgba(255,255,255,0.03))',
     }}
   >
-    <Stack
-      direction='row'
-      alignItems='center'
-      justifyContent='space-between'
-      gap={1}
-    >
+    <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1}>
       {/* Left: title + count */}
-      <Stack direction='row' alignItems='center' gap={0.75} pl={0.25}>
+      <Stack direction="row" alignItems="center" gap={0.75} pl={0.25}>
         <SiKubernetes size={16} />
-        <Text size='sm' weight='semibold'>Clusters</Text>
-        <Chip size='xs' emphasis='soft' color='neutral' label={filteredCount < totalCount ? `${filteredCount}/${totalCount}` : String(totalCount)} />
+        <Text size="sm" weight="semibold">
+          Clusters
+        </Text>
+        <Chip
+          size="xs"
+          emphasis="soft"
+          color="neutral"
+          label={filteredCount < totalCount ? `${filteredCount}/${totalCount}` : String(totalCount)}
+        />
       </Stack>
 
       {/* Right: controls */}
-      <Stack direction='row' alignItems='center' gap={0.75}>
+      <Stack direction="row" alignItems="center" gap={0.75}>
         <SearchInput
-          placeholder='Search clusters...'
+          placeholder="Search clusters..."
           value={search}
           onChange={onSearchChange}
           autoFocus

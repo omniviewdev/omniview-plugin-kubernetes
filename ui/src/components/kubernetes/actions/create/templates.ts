@@ -323,7 +323,10 @@ export const getTemplate = (resourceKey: string): string => {
   // Generate a generic template
   const apiVersion = resourceKeyToApiVersion(resourceKey);
   const isClusterScoped = clusterScopedKinds.has(kind);
-  const name = `my-${kind.toLowerCase().replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase()}`;
+  const name = `my-${kind
+    .toLowerCase()
+    .replace(/([a-z])([A-Z])/g, '$1-$2')
+    .toLowerCase()}`;
 
   let yaml = `apiVersion: ${apiVersion}\nkind: ${kind}\nmetadata:\n  name: ${name}\n`;
   if (!isClusterScoped) {

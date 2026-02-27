@@ -1,31 +1,31 @@
-import React, { useState, useMemo, useCallback } from "react";
+import Box from '@mui/material/Box';
+import CircularProgress from '@mui/material/CircularProgress';
+import Grid from '@mui/material/Grid';
+import LinearProgress from '@mui/material/LinearProgress';
+import { DrawerComponentView, DrawerContext, useResourceMetrics } from '@omniviewdev/runtime';
+import type { metric } from '@omniviewdev/runtime/models';
+import { MetricsPanel } from '@omniviewdev/ui/charts';
+import type { TimeSeriesDef, ChartTimeRange, MetricFormat } from '@omniviewdev/ui/charts';
+import { TimeRangePicker } from '@omniviewdev/ui/inputs';
+import type { TimeRange } from '@omniviewdev/ui/inputs';
+import { Stack } from '@omniviewdev/ui/layout';
+import { Text } from '@omniviewdev/ui/typography';
+import React, { useState, useMemo, useCallback } from 'react';
+import { LuActivity } from 'react-icons/lu';
 
-import Box from "@mui/material/Box";
-import Grid from "@mui/material/Grid";
-import LinearProgress from "@mui/material/LinearProgress";
-import CircularProgress from "@mui/material/CircularProgress";
-import { Stack } from "@omniviewdev/ui/layout";
-import { Text } from "@omniviewdev/ui/typography";
-import { DrawerComponentView, DrawerContext, useResourceMetrics } from "@omniviewdev/runtime";
-import type { metric } from "@omniviewdev/runtime/models";
-import { MetricsPanel } from "@omniviewdev/ui/charts";
-import type { TimeSeriesDef, ChartTimeRange, MetricFormat } from "@omniviewdev/ui/charts";
-import { TimeRangePicker } from "@omniviewdev/ui/inputs";
-import type { TimeRange } from "@omniviewdev/ui/inputs";
-import { LuActivity } from "react-icons/lu";
-import { useClusterPreferences } from "../../../../../hooks/useClusterPreferences";
+import { useClusterPreferences } from '../../../../../hooks/useClusterPreferences';
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
 const CHART_COLORS = [
-  "var(--ov-accent, #3b82f6)",
-  "var(--ov-accent-secondary, #8b5cf6)",
-  "#22c55e",
-  "#f97316",
-  "#ec4899",
-  "#06b6d4",
+  'var(--ov-accent, #3b82f6)',
+  'var(--ov-accent-secondary, #8b5cf6)',
+  '#22c55e',
+  '#f97316',
+  '#ec4899',
+  '#06b6d4',
 ];
 
 // ---------------------------------------------------------------------------
@@ -33,25 +33,25 @@ const CHART_COLORS = [
 // ---------------------------------------------------------------------------
 
 const UNIT_LABELS: Record<number, string> = {
-  0: "",        // NONE
-  1: "B",       // BYTES
-  2: "KB",
-  3: "MB",
-  4: "GB",
-  5: "%",       // PERCENTAGE
-  6: "ms",      // MILLISECONDS
-  7: "s",       // SECONDS
-  8: "",        // COUNT
-  9: "ops/s",   // OPS_PER_SEC
-  10: "B/s",    // BYTES_PER_SEC
-  11: "m",      // MILLICORES
-  12: "cores",  // CORES
+  0: '', // NONE
+  1: 'B', // BYTES
+  2: 'KB',
+  3: 'MB',
+  4: 'GB',
+  5: '%', // PERCENTAGE
+  6: 'ms', // MILLISECONDS
+  7: 's', // SECONDS
+  8: '', // COUNT
+  9: 'ops/s', // OPS_PER_SEC
+  10: 'B/s', // BYTES_PER_SEC
+  11: 'm', // MILLICORES
+  12: 'cores', // CORES
 };
 
 /** Format CPU cores with automatic millicores for small values */
 function formatCores(v: number | null): string {
-  if (v == null) return "–";
-  if (v === 0) return "0 cores";
+  if (v == null) return '–';
+  if (v === 0) return '0 cores';
   if (Math.abs(v) < 0.01) return `${(v * 1000).toFixed(1)}m`;
   if (Math.abs(v) < 0.1) return `${(v * 1000).toFixed(0)}m`;
   if (Math.abs(v) < 1) return `${v.toFixed(3)} cores`;
@@ -60,8 +60,8 @@ function formatCores(v: number | null): string {
 
 /** Format ops/sec */
 function formatOps(v: number | null): string {
-  if (v == null) return "–";
-  if (v === 0) return "0 ops/s";
+  if (v == null) return '–';
+  if (v === 0) return '0 ops/s';
   if (v < 0.01) return `${(v * 1000).toFixed(2)} mops/s`;
   if (v < 1) return `${v.toFixed(3)} ops/s`;
   if (v < 1000) return `${v.toFixed(1)} ops/s`;
@@ -69,7 +69,7 @@ function formatOps(v: number | null): string {
 }
 
 function formatValue(value: number, unitCode: number): string {
-  const unit = UNIT_LABELS[unitCode] ?? "";
+  const unit = UNIT_LABELS[unitCode] ?? '';
 
   if (unitCode === 1) {
     if (value >= 1024 * 1024 * 1024) return `${(value / (1024 * 1024 * 1024)).toFixed(1)} GB`;
@@ -83,7 +83,7 @@ function formatValue(value: number, unitCode: number): string {
     return `${value.toFixed(0)} B/s`;
   }
   if (unitCode === 9) return formatOps(value);
-  if (unitCode === 11 || unitCode === 12) return formatCores(value) ?? "";
+  if (unitCode === 11 || unitCode === 12) return formatCores(value) ?? '';
   if (unitCode === 5) return `${value.toFixed(1)}%`;
   // Seconds -> human readable uptime
   if (unitCode === 7) {
@@ -92,8 +92,8 @@ function formatValue(value: number, unitCode: number): string {
     if (value >= 60) return `${(value / 60).toFixed(0)}m`;
     return `${value.toFixed(0)}s`;
   }
-  if (Number.isInteger(value)) return `${value}${unit ? ` ${unit}` : ""}`;
-  return `${value.toFixed(2)}${unit ? ` ${unit}` : ""}`;
+  if (Number.isInteger(value)) return `${value}${unit ? ` ${unit}` : ''}`;
+  return `${value.toFixed(2)}${unit ? ` ${unit}` : ''}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -102,9 +102,7 @@ function formatValue(value: number, unitCode: number): string {
 
 type DescriptorMap = Map<string, metric.MetricDescriptor>;
 
-function collectDescriptors(
-  providers: metric.MetricProviderSummary[],
-): DescriptorMap {
+function collectDescriptors(providers: metric.MetricProviderSummary[]): DescriptorMap {
   const map: DescriptorMap = new Map();
   for (const provider of providers) {
     for (const handler of provider.handlers ?? []) {
@@ -163,7 +161,7 @@ function toTimeSeriesDef(
   ts: metric.TimeSeries,
   label: string,
   color: string,
-  opts?: { area?: boolean; lineStyle?: "solid" | "dashed" | "dotted" },
+  opts?: { area?: boolean; lineStyle?: 'solid' | 'dashed' | 'dotted' },
 ): TimeSeriesDef {
   return {
     id: ts.metric_id,
@@ -194,21 +192,21 @@ interface ChartDef {
 
 /** Map MetricUnit enum to MetricFormat for chart rendering. */
 function unitToFormat(unit: number): MetricFormat {
-  if (unit === 5) return "percent";     // UnitPercentage
-  if (unit === 1 || unit === 10) return "bytes"; // UnitBytes, UnitBytesPerSec
-  return "number";
+  if (unit === 5) return 'percent'; // UnitPercentage
+  if (unit === 1 || unit === 10) return 'bytes'; // UnitBytes, UnitBytesPerSec
+  return 'number';
 }
 
 /** Map MetricUnit enum to unit suffix for chart display. */
 function unitToSuffix(unit: number): string | undefined {
-  if (unit === 10) return "/s"; // UnitBytesPerSec
+  if (unit === 10) return '/s'; // UnitBytesPerSec
   return undefined;
 }
 
 /** Pick a valueFormatter based on the primary unit in the group. */
 function unitToFormatter(unit: number): ((v: number | null) => string) | undefined {
   if (unit === 11 || unit === 12) return formatCores; // millicores, cores
-  if (unit === 9) return formatOps;                    // ops/sec
+  if (unit === 9) return formatOps; // ops/sec
   return undefined;
 }
 
@@ -251,27 +249,35 @@ function buildChartsFromDescriptors(
 
 // Icon -> category mapping for tile grouping
 const ICON_CATEGORIES: Record<string, string> = {
-  LuCpu: "CPU",
-  LuMemoryStick: "Memory",
-  LuHardDrive: "Storage",
-  LuHardDriveDownload: "Storage",
-  LuHardDriveUpload: "Storage",
-  LuArrowDown: "Network",
-  LuArrowUp: "Network",
-  LuNetwork: "Network",
-  LuActivity: "System",
-  LuArrowLeftRight: "System",
-  LuBox: "Pods",
-  LuServer: "Nodes",
-  LuRotateCcw: "Lifecycle",
-  LuPlay: "Status",
-  LuClock: "Lifecycle",
-  LuAlertTriangle: "Lifecycle",
+  LuCpu: 'CPU',
+  LuMemoryStick: 'Memory',
+  LuHardDrive: 'Storage',
+  LuHardDriveDownload: 'Storage',
+  LuHardDriveUpload: 'Storage',
+  LuArrowDown: 'Network',
+  LuArrowUp: 'Network',
+  LuNetwork: 'Network',
+  LuActivity: 'System',
+  LuArrowLeftRight: 'System',
+  LuBox: 'Pods',
+  LuServer: 'Nodes',
+  LuRotateCcw: 'Lifecycle',
+  LuPlay: 'Status',
+  LuClock: 'Lifecycle',
+  LuAlertTriangle: 'Lifecycle',
 };
 
 const CATEGORY_ORDER = [
-  "CPU", "Memory", "Storage", "Network", "System",
-  "Pods", "Nodes", "Lifecycle", "Status", "Other",
+  'CPU',
+  'Memory',
+  'Storage',
+  'Network',
+  'System',
+  'Pods',
+  'Nodes',
+  'Lifecycle',
+  'Status',
+  'Other',
 ];
 
 // ---------------------------------------------------------------------------
@@ -279,12 +285,14 @@ const CATEGORY_ORDER = [
 // ---------------------------------------------------------------------------
 
 const PercentGauge: React.FC<{ label: string; value: number }> = ({ label, value }) => {
-  const color = value >= 90 ? "error" : value >= 70 ? "warning" : "primary";
+  const color = value >= 90 ? 'error' : value >= 70 ? 'warning' : 'primary';
   return (
     <Box sx={{ minWidth: 0, flex: 1 }}>
       <Stack direction="row" justifyContent="space-between" alignItems="baseline" sx={{ mb: 0.25 }}>
-        <Text size="xs" sx={{ color: "neutral.400" }}>{label}</Text>
-        <Text size="xs" weight="semibold" sx={{ fontVariantNumeric: "tabular-nums" }}>
+        <Text size="xs" sx={{ color: 'neutral.400' }}>
+          {label}
+        </Text>
+        <Text size="xs" weight="semibold" sx={{ fontVariantNumeric: 'tabular-nums' }}>
           {value.toFixed(1)}%
         </Text>
       </Stack>
@@ -301,15 +309,20 @@ const PercentGauge: React.FC<{ label: string; value: number }> = ({ label, value
 const MetricTile: React.FC<{ label: string; value: string }> = ({ label, value }) => (
   <Box
     sx={{
-      py: 0.75, px: 1,
+      py: 0.75,
+      px: 1,
       borderRadius: 1,
-      border: "1px solid",
-      borderColor: "divider",
-      bgcolor: "background.level1",
+      border: '1px solid',
+      borderColor: 'divider',
+      bgcolor: 'background.level1',
     }}
   >
-    <Text size="xs" sx={{ color: "neutral.400", mb: 0.25, display: "block" }}>{label}</Text>
-    <Text size="sm" weight="semibold" sx={{ fontVariantNumeric: "tabular-nums" }}>{value}</Text>
+    <Text size="xs" sx={{ color: 'neutral.400', mb: 0.25, display: 'block' }}>
+      {label}
+    </Text>
+    <Text size="sm" weight="semibold" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+      {value}
+    </Text>
   </Box>
 );
 
@@ -327,14 +340,14 @@ function buildTileGroups(
   chartMetricIDs: Set<string>,
   descriptors: DescriptorMap,
 ): TileGroup[] {
-  const groups = new Map<string, TileGroup["metrics"]>();
+  const groups = new Map<string, TileGroup['metrics']>();
 
   for (const [metricId, value] of values) {
     // Skip metrics that are rendered as charts
     if (chartMetricIDs.has(metricId)) continue;
 
     const desc = descriptors.get(metricId);
-    const category = desc?.icon ? (ICON_CATEGORIES[desc.icon] ?? "Other") : "Other";
+    const category = desc?.icon ? (ICON_CATEGORIES[desc.icon] ?? 'Other') : 'Other';
 
     let list = groups.get(category);
     if (!list) {
@@ -349,9 +362,10 @@ function buildTileGroups(
     });
   }
 
-  return CATEGORY_ORDER
-    .filter((cat) => groups.has(cat))
-    .map((cat) => ({ category: cat, metrics: groups.get(cat)! }));
+  return CATEGORY_ORDER.filter((cat) => groups.has(cat)).map((cat) => ({
+    category: cat,
+    metrics: groups.get(cat)!,
+  }));
 }
 
 // ---------------------------------------------------------------------------
@@ -363,13 +377,12 @@ interface Props {
 }
 
 const ResourceMetricsPage: React.FC<Props> = ({ ctx }) => {
-  const resourceKey = ctx.resource?.key || "";
-  const connectionID = ctx.resource?.connectionID || "";
-  const resourceID = ctx.resource?.id || "";
-  const resourceNamespace =
-    (ctx.data as Record<string, any>)?.metadata?.namespace ?? "";
+  const resourceKey = ctx.resource?.key || '';
+  const connectionID = ctx.resource?.connectionID || '';
+  const resourceID = ctx.resource?.id || '';
+  const resourceNamespace = (ctx.data as Record<string, any>)?.metadata?.namespace ?? '';
 
-  const { connectionOverrides } = useClusterPreferences("kubernetes");
+  const { connectionOverrides } = useClusterPreferences('kubernetes');
   const metricConfig = connectionOverrides[connectionID]?.metricConfig;
 
   const enrichedData = useMemo(() => {
@@ -384,8 +397,8 @@ const ResourceMetricsPage: React.FC<Props> = ({ ctx }) => {
     return {
       ...base,
       __metric_config__: {
-        service: metricConfig.prometheusService || "",
-        namespace: metricConfig.prometheusNamespace || "",
+        service: metricConfig.prometheusService || '',
+        namespace: metricConfig.prometheusNamespace || '',
         port: metricConfig.prometheusPort || 0,
       },
     };
@@ -398,8 +411,13 @@ const ResourceMetricsPage: React.FC<Props> = ({ ctx }) => {
   });
 
   // Instant values (shape=0) for tiles and current value display
-  const { data: currentData, providers, isLoading: currentLoading, error } = useResourceMetrics({
-    pluginID: "kubernetes",
+  const {
+    data: currentData,
+    providers,
+    isLoading: currentLoading,
+    error,
+  } = useResourceMetrics({
+    pluginID: 'kubernetes',
     connectionID,
     resourceKey,
     resourceID,
@@ -414,7 +432,7 @@ const ResourceMetricsPage: React.FC<Props> = ({ ctx }) => {
 
   // Time-series query (shape=1) - only if descriptors declare time-series support
   const { data: tsData, isLoading: tsLoading } = useResourceMetrics({
-    pluginID: "kubernetes",
+    pluginID: 'kubernetes',
     connectionID,
     resourceKey,
     resourceID,
@@ -424,7 +442,7 @@ const ResourceMetricsPage: React.FC<Props> = ({ ctx }) => {
     timeRange: {
       start: timeRange.from,
       end: timeRange.to,
-      step: "",
+      step: '',
     },
     metricIDs: tsMetricIDList,
     refreshInterval: 30000,
@@ -470,7 +488,7 @@ const ResourceMetricsPage: React.FC<Props> = ({ ctx }) => {
       {/* No providers */}
       {noProviders && (
         <Box sx={{ p: 2 }}>
-          <Text size="sm" sx={{ color: "neutral.500" }}>
+          <Text size="sm" sx={{ color: 'neutral.500' }}>
             No metric providers registered for this resource type.
           </Text>
         </Box>
@@ -478,7 +496,7 @@ const ResourceMetricsPage: React.FC<Props> = ({ ctx }) => {
 
       {/* Loading initial data */}
       {isLoading && (
-        <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
           <CircularProgress size={24} />
         </Box>
       )}
@@ -486,9 +504,8 @@ const ResourceMetricsPage: React.FC<Props> = ({ ctx }) => {
       {/* No data message */}
       {noData && (
         <Box sx={{ p: 2 }}>
-          <Text size="sm" sx={{ color: "neutral.500" }}>
-            No metrics available. Ensure metrics-server or Prometheus is installed
-            in the cluster.
+          <Text size="sm" sx={{ color: 'neutral.500' }}>
+            No metrics available. Ensure metrics-server or Prometheus is installed in the cluster.
           </Text>
         </Box>
       )}
@@ -496,8 +513,8 @@ const ResourceMetricsPage: React.FC<Props> = ({ ctx }) => {
       {/* Error banner */}
       {error && (
         <Box sx={{ mb: 1 }}>
-          <Text size="xs" sx={{ color: "error.main" }}>
-            {error.message || "Failed to load metrics"}
+          <Text size="xs" sx={{ color: 'error.main' }}>
+            {error.message || 'Failed to load metrics'}
           </Text>
         </Box>
       )}
@@ -508,105 +525,100 @@ const ResourceMetricsPage: React.FC<Props> = ({ ctx }) => {
       )}
 
       {/* Main content — only when we have data */}
-      {hasAnyData && <>
-      <TimeRangePicker
-        value={timeRange}
-        onChange={handlePickerChange}
-        sx={{ mb: 1 }}
-      />
+      {hasAnyData && (
+        <>
+          <TimeRangePicker value={timeRange} onChange={handlePickerChange} sx={{ mb: 1 }} />
 
-      {/* Charts grid — 2-up when wide enough */}
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
-          gap: 1,
-          mb: 1.5,
-        }}
-      >
-        {charts.map((def) => {
-          const series: TimeSeriesDef[] = [];
+          {/* Charts grid — 2-up when wide enough */}
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+              gap: 1,
+              mb: 1.5,
+            }}
+          >
+            {charts.map((def) => {
+              const series: TimeSeriesDef[] = [];
 
-          for (const id of def.metricIDs) {
-            const ts = tsSeries.get(id);
-            if (!ts) continue;
-            series.push(
-              toTimeSeriesDef(
-                ts,
-                def.labels[id] || id,
-                def.colors[id] || CHART_COLORS[series.length % CHART_COLORS.length],
-              ),
-            );
-          }
+              for (const id of def.metricIDs) {
+                const ts = tsSeries.get(id);
+                if (!ts) continue;
+                series.push(
+                  toTimeSeriesDef(
+                    ts,
+                    def.labels[id] || id,
+                    def.colors[id] || CHART_COLORS[series.length % CHART_COLORS.length],
+                  ),
+                );
+              }
 
-          return (
-            <MetricsPanel
-              key={def.title}
-              title={def.title}
-              series={series}
-              timeRange={timeRange}
-              valueFormat={def.valueFormat}
-              valueFormatter={def.valueFormatter}
-              unit={def.unit}
-              area
-              variant="default"
-              height={200}
-            />
-          );
-        })}
-      </Box>
+              return (
+                <MetricsPanel
+                  key={def.title}
+                  title={def.title}
+                  series={series}
+                  timeRange={timeRange}
+                  valueFormat={def.valueFormat}
+                  valueFormatter={def.valueFormatter}
+                  unit={def.unit}
+                  area
+                  variant="default"
+                  height={200}
+                />
+              );
+            })}
+          </Box>
 
-      {/* Tile-only metrics (instant values without time-series) */}
-      {tileGroups.length > 0 && (
-        <Stack spacing={0.75}>
-          {tileGroups.map((group) => (
-            <Box key={group.category} sx={{ px: 0.5 }}>
-              <Text
-                size="xs"
-                weight="semibold"
-                sx={{
-                  color: "neutral.400",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.04em",
-                  fontSize: "0.6rem",
-                  mb: 0.5,
-                }}
-              >
-                {group.category}
-              </Text>
+          {/* Tile-only metrics (instant values without time-series) */}
+          {tileGroups.length > 0 && (
+            <Stack spacing={0.75}>
+              {tileGroups.map((group) => (
+                <Box key={group.category} sx={{ px: 0.5 }}>
+                  <Text
+                    size="xs"
+                    weight="semibold"
+                    sx={{
+                      color: 'neutral.400',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em',
+                      fontSize: '0.6rem',
+                      mb: 0.5,
+                    }}
+                  >
+                    {group.category}
+                  </Text>
 
-              {group.metrics.some((m) => m.unit === 5) && (
-                <Stack spacing={0.75} sx={{ mb: 0.5 }}>
-                  {group.metrics
-                    .filter((m) => m.unit === 5)
-                    .map((m) => (
-                      <PercentGauge key={m.id} label={m.name} value={m.value} />
-                    ))}
-                </Stack>
-              )}
+                  {group.metrics.some((m) => m.unit === 5) && (
+                    <Stack spacing={0.75} sx={{ mb: 0.5 }}>
+                      {group.metrics
+                        .filter((m) => m.unit === 5)
+                        .map((m) => (
+                          <PercentGauge key={m.id} label={m.name} value={m.value} />
+                        ))}
+                    </Stack>
+                  )}
 
-              {group.metrics.some((m) => m.unit !== 5) && (
-                <Grid container spacing={0.5}>
-                  {group.metrics
-                    .filter((m) => m.unit !== 5)
-                    .map((m) => {
-                      const count = group.metrics.filter((x) => x.unit !== 5).length;
-                      return (
-                        <Grid key={m.id} size={count === 1 ? 12 : 6}>
-                          <MetricTile
-                            label={m.name}
-                            value={formatValue(m.value, m.unit)}
-                          />
-                        </Grid>
-                      );
-                    })}
-                </Grid>
-              )}
-            </Box>
-          ))}
-        </Stack>
+                  {group.metrics.some((m) => m.unit !== 5) && (
+                    <Grid container spacing={0.5}>
+                      {group.metrics
+                        .filter((m) => m.unit !== 5)
+                        .map((m) => {
+                          const count = group.metrics.filter((x) => x.unit !== 5).length;
+                          return (
+                            <Grid key={m.id} size={count === 1 ? 12 : 6}>
+                              <MetricTile label={m.name} value={formatValue(m.value, m.unit)} />
+                            </Grid>
+                          );
+                        })}
+                    </Grid>
+                  )}
+                </Box>
+              ))}
+            </Stack>
+          )}
+        </>
       )}
-      </>}
     </Box>
   );
 };
@@ -617,7 +629,7 @@ const ResourceMetricsPage: React.FC<Props> = ({ ctx }) => {
 
 export function createMetricsView(): DrawerComponentView<any> {
   return {
-    title: "Metrics",
+    title: 'Metrics',
     icon: <LuActivity />,
     component: (ctx) => <ResourceMetricsPage ctx={ctx} />,
   };

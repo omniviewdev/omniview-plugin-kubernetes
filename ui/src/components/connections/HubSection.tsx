@@ -1,11 +1,12 @@
-import React from 'react';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import Box from '@mui/material/Box';
 import MuiIconButton from '@mui/material/IconButton';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
+import React from 'react';
 import { LuChevronDown, LuChevronRight, LuGripVertical, LuPencil } from 'react-icons/lu';
-import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+
 import { getFolderIcon } from '../../utils/folderIcons';
 
 type Props = {
@@ -39,14 +40,10 @@ const HubSection: React.FC<Props> = ({
   emptyHint,
   children,
 }) => {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id, data: { type: 'section' } });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+    data: { type: 'section' },
+  });
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -67,8 +64,8 @@ const HubSection: React.FC<Props> = ({
       sx={folderColor ? { borderLeft: `3px solid ${folderColor}`, pl: 0.5 } : undefined}
     >
       <Stack
-        direction='row'
-        alignItems='center'
+        direction="row"
+        alignItems="center"
         gap={0.5}
         sx={{
           py: 0.5,
@@ -93,8 +90,8 @@ const HubSection: React.FC<Props> = ({
           <LuGripVertical size={14} />
         </Box>
         <Stack
-          direction='row'
-          alignItems='center'
+          direction="row"
+          alignItems="center"
           gap={0.75}
           onClick={onToggleCollapse}
           sx={{
@@ -106,34 +103,38 @@ const HubSection: React.FC<Props> = ({
             '&:hover': { backgroundColor: 'background.level1' },
           }}
         >
-          {collapsed
-            ? <LuChevronRight size={14} />
-            : <LuChevronDown size={14} />
-          }
+          {collapsed ? <LuChevronRight size={14} /> : <LuChevronDown size={14} />}
           {FolderIcon && (
             <Box sx={{ display: 'flex', color: folderColor }}>
               <FolderIcon size={14} />
             </Box>
           )}
-          <Text weight='semibold' size='sm'>{title}</Text>
-          <Text size='xs' sx={{ opacity: 0.5 }}>({count})</Text>
+          <Text weight="semibold" size="sm">
+            {title}
+          </Text>
+          <Text size="xs" sx={{ opacity: 0.5 }}>
+            ({count})
+          </Text>
         </Stack>
         {onEdit && (
           <MuiIconButton
-            className='folder-edit-btn'
-            size='small'
-            color='default'
-            onClick={(e) => { e.stopPropagation(); onEdit(); }}
+            className="folder-edit-btn"
+            size="small"
+            color="default"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit();
+            }}
             sx={{ opacity: 0, transition: 'opacity 0.15s', width: 24, height: 24 }}
           >
             <LuPencil size={12} />
           </MuiIconButton>
         )}
       </Stack>
-      {!collapsed && (
-        isEmpty ? (
+      {!collapsed &&
+        (isEmpty ? (
           emptyHint ? (
-            <Text size='xs' sx={{ py: 2, px: 1, textAlign: 'center', opacity: 0.5 }}>
+            <Text size="xs" sx={{ py: 2, px: 1, textAlign: 'center', opacity: 0.5 }}>
               {emptyHint}
             </Text>
           ) : null
@@ -150,11 +151,8 @@ const HubSection: React.FC<Props> = ({
             {children}
           </Box>
         ) : (
-          <Box sx={{ py: 0.5, px: 0.5 }}>
-            {children}
-          </Box>
-        )
-      )}
+          <Box sx={{ py: 0.5, px: 0.5 }}>{children}</Box>
+        ))}
     </Box>
   );
 };

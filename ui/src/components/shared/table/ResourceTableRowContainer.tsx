@@ -1,13 +1,10 @@
+import { type Row, flexRender } from '@tanstack/react-table';
+import { type VirtualItem } from '@tanstack/react-virtual';
 import React from 'react';
 
 // Tanstack/react-table
-import {
-  type Row,
-  flexRender,
-} from '@tanstack/react-table';
 
 import { type Memoizer } from './types';
-import { type VirtualItem } from '@tanstack/react-virtual';
 import { getCommonPinningStyles } from './utils';
 
 export type Props<T = any> = {
@@ -38,12 +35,12 @@ export const RowContainer: React.FC<Props> = ({
 }) => {
   const resizedSet: Set<string> = React.useMemo(
     () => new Set(JSON.parse(resizedColumnIds) as string[]),
-    [resizedColumnIds]
+    [resizedColumnIds],
   );
 
   const handleRowClick = (column: string) => {
     if (column !== 'select' && column !== 'menu') {
-      onRowClick(resourceID, row.original)
+      onRowClick(resourceID, row.original);
     }
   };
 
@@ -72,13 +69,15 @@ export const RowContainer: React.FC<Props> = ({
         }
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.backgroundColor = isSelected ? 'var(--ov-accent-subtle)' : 'var(--ov-bg-base)';
+        e.currentTarget.style.backgroundColor = isSelected
+          ? 'var(--ov-accent-subtle)'
+          : 'var(--ov-bg-base)';
         for (const td of e.currentTarget.querySelectorAll<HTMLElement>('[data-pinned]')) {
           td.style.backgroundColor = 'var(--ov-bg-base)';
         }
       }}
     >
-      {row.getVisibleCells().map(cell => {
+      {row.getVisibleCells().map((cell) => {
         const flexMeta = (cell.column.columnDef.meta as { flex?: number } | undefined)?.flex;
         const isUserResized = resizedSet.has(cell.column.id);
         const applyFlex = flexMeta && !isUserResized;
@@ -117,8 +116,6 @@ export const RowContainer: React.FC<Props> = ({
   );
 };
 
-
 RowContainer.displayName = 'RowContainer';
 // RowContainer.whyDidYouRender = true;
 export default RowContainer;
-

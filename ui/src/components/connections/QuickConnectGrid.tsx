@@ -1,12 +1,14 @@
-import React, { useMemo, useState } from 'react';
 import Box from '@mui/material/Box';
 import { IconButton } from '@omniviewdev/ui/buttons';
 import { TextField } from '@omniviewdev/ui/inputs';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Tooltip } from '@omniviewdev/ui/overlays';
 import { Text } from '@omniviewdev/ui/typography';
+import React, { useMemo, useState } from 'react';
 import { LuSearch, LuFolderPlus } from 'react-icons/lu';
+
 import type { EnrichedConnection } from '../../types/clusters';
+
 import RowHandler from './RowHandler';
 
 type Props = {
@@ -27,7 +29,7 @@ const QuickConnectGrid: React.FC<Props> = ({
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return connections;
-    return connections.filter(c => {
+    return connections.filter((c) => {
       if (c.displayName.toLowerCase().includes(q)) return true;
       if (c.connection.name.toLowerCase().includes(q)) return true;
       if (c.provider.toLowerCase().includes(q)) return true;
@@ -44,17 +46,15 @@ const QuickConnectGrid: React.FC<Props> = ({
 
   return (
     <Stack gap={1} sx={{ px: 0.5, pt: 0.5 }}>
-      <Stack direction='row' alignItems='center' justifyContent='space-between' gap={1}>
-        <Stack direction='row' alignItems='center' gap={0.75}>
-          <Text weight='semibold'>
-            All Clusters ({connections.length})
-          </Text>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1}>
+        <Stack direction="row" alignItems="center" gap={0.75}>
+          <Text weight="semibold">All Clusters ({connections.length})</Text>
           {onCreateFolder && (
-            <Tooltip content='Create folder'>
+            <Tooltip content="Create folder">
               <IconButton
-                size='sm'
-                emphasis='ghost'
-                color='neutral'
+                size="sm"
+                emphasis="ghost"
+                color="neutral"
                 onClick={() => onCreateFolder?.()}
               >
                 <LuFolderPlus size={16} />
@@ -63,17 +63,17 @@ const QuickConnectGrid: React.FC<Props> = ({
           )}
         </Stack>
         <TextField
-          size='sm'
-          placeholder='Search clusters...'
+          size="sm"
+          placeholder="Search clusters..."
           startAdornment={<LuSearch size={14} />}
           value={search}
-          onChange={e => setSearch(e)}
+          onChange={(e) => setSearch(e)}
           autoFocus
           sx={{ maxWidth: 240 }}
         />
       </Stack>
       {filtered.length === 0 ? (
-        <Text size='sm' sx={{ textAlign: 'center', py: 3, opacity: 0.5 }}>
+        <Text size="sm" sx={{ textAlign: 'center', py: 3, opacity: 0.5 }}>
           No clusters match '{search}'
         </Text>
       ) : (
@@ -84,11 +84,11 @@ const QuickConnectGrid: React.FC<Props> = ({
             gap: 1,
           }}
         >
-          {filtered.map(enriched => (
+          {filtered.map((enriched) => (
             <RowHandler
               key={enriched.connection.id}
               enriched={enriched}
-              sectionId='all-clusters'
+              sectionId="all-clusters"
               showFavorite
               onRecordAccess={() => onRecordAccess(enriched.connection.id)}
               onToggleFavorite={() => onToggleFavorite(enriched.connection.id)}

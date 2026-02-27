@@ -1,14 +1,14 @@
-import React from "react";
+import { DrawerContext } from '@omniviewdev/runtime';
+import { Stack } from '@omniviewdev/ui/layout';
+import { RoleBinding } from 'kubernetes-types/rbac/v1';
+import React from 'react';
 
 // material-ui
-import { Stack } from "@omniviewdev/ui/layout";
 
 // types
-import { RoleBinding } from "kubernetes-types/rbac/v1";
-import { DrawerContext } from "@omniviewdev/runtime";
 
 // project-imports
-import ObjectMetaSection from "../../../../../shared/ObjectMetaSection";
+import ObjectMetaSection from '../../../../../shared/ObjectMetaSection';
 
 interface Props {
   ctx: DrawerContext<RoleBinding>;
@@ -26,12 +26,12 @@ export const RoleBindingSidebar: React.FC<Props> = ({ ctx }) => {
 
   // compose your component here
   return (
-    <Stack direction="column" width={"100%"} spacing={2}>
+    <Stack direction="column" width={'100%'} spacing={2}>
       <ObjectMetaSection data={data.metadata} />
       {/** TODO: fill this in with more data */}
     </Stack>
   );
 };
 
-RoleBindingSidebar.displayName = "RoleBindingSidebar";
+RoleBindingSidebar.displayName = 'RoleBindingSidebar';
 export default RoleBindingSidebar;

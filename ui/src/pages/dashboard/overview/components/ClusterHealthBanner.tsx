@@ -1,12 +1,8 @@
-import React from 'react';
 import Box from '@mui/material/Box';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
-import {
-  LuCircleCheck,
-  LuTriangleAlert,
-  LuCircleX,
-} from 'react-icons/lu';
+import React from 'react';
+import { LuCircleCheck, LuTriangleAlert, LuCircleX } from 'react-icons/lu';
 
 type KubeResource = Record<string, any>;
 
@@ -18,21 +14,25 @@ type Props = {
 
 const ClusterHealthBanner: React.FC<Props> = ({ nodes, pods, events }) => {
   const health = React.useMemo(() => {
-    const unhealthyNodes = nodes.filter(n => {
+    const unhealthyNodes = nodes.filter((n) => {
       const conditions = n.status?.conditions ?? [];
       const ready = conditions.find((c: any) => c.type === 'Ready');
       return !ready || ready.status !== 'True';
     });
 
-    const failedPods = pods.filter(p => p.status?.phase === 'Failed');
-    const pendingPods = pods.filter(p => p.status?.phase === 'Pending');
-    const warningEvents = events.filter(e => e.type === 'Warning');
+    const failedPods = pods.filter((p) => p.status?.phase === 'Failed');
+    const pendingPods = pods.filter((p) => p.status?.phase === 'Pending');
+    const warningEvents = events.filter((e) => e.type === 'Warning');
 
     const issues: string[] = [];
-    if (unhealthyNodes.length > 0) issues.push(`${unhealthyNodes.length} node${unhealthyNodes.length > 1 ? 's' : ''} not ready`);
-    if (failedPods.length > 0) issues.push(`${failedPods.length} failed pod${failedPods.length > 1 ? 's' : ''}`);
-    if (pendingPods.length > 0) issues.push(`${pendingPods.length} pending pod${pendingPods.length > 1 ? 's' : ''}`);
-    if (warningEvents.length > 0) issues.push(`${warningEvents.length} warning event${warningEvents.length > 1 ? 's' : ''}`);
+    if (unhealthyNodes.length > 0)
+      issues.push(`${unhealthyNodes.length} node${unhealthyNodes.length > 1 ? 's' : ''} not ready`);
+    if (failedPods.length > 0)
+      issues.push(`${failedPods.length} failed pod${failedPods.length > 1 ? 's' : ''}`);
+    if (pendingPods.length > 0)
+      issues.push(`${pendingPods.length} pending pod${pendingPods.length > 1 ? 's' : ''}`);
+    if (warningEvents.length > 0)
+      issues.push(`${warningEvents.length} warning event${warningEvents.length > 1 ? 's' : ''}`);
 
     const hasErrors = unhealthyNodes.length > 0 || failedPods.length > 0;
 
@@ -40,7 +40,8 @@ const ClusterHealthBanner: React.FC<Props> = ({ nodes, pods, events }) => {
   }, [nodes, pods, events]);
 
   const color = health.issues.length === 0 ? 'success' : health.hasErrors ? 'danger' : 'warning';
-  const Icon = health.issues.length === 0 ? LuCircleCheck : health.hasErrors ? LuCircleX : LuTriangleAlert;
+  const Icon =
+    health.issues.length === 0 ? LuCircleCheck : health.hasErrors ? LuCircleX : LuTriangleAlert;
 
   if (health.issues.length === 0) {
     return (
@@ -58,7 +59,7 @@ const ClusterHealthBanner: React.FC<Props> = ({ nodes, pods, events }) => {
         }}
       >
         <Icon size={14} />
-        <Text size='xs'>All systems operational</Text>
+        <Text size="xs">All systems operational</Text>
       </Box>
     );
   }
@@ -78,9 +79,11 @@ const ClusterHealthBanner: React.FC<Props> = ({ nodes, pods, events }) => {
       }}
     >
       <Icon size={14} />
-      <Stack direction='row' gap={2} sx={{ flexWrap: 'wrap' }}>
+      <Stack direction="row" gap={2} sx={{ flexWrap: 'wrap' }}>
         {health.issues.map((issue, i) => (
-          <Text key={i} size='xs'>{issue}</Text>
+          <Text key={i} size="xs">
+            {issue}
+          </Text>
         ))}
       </Stack>
     </Box>

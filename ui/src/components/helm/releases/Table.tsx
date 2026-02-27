@@ -1,12 +1,14 @@
-import React from 'react';
-import { ColumnDef } from '@tanstack/react-table';
-import { useParams } from 'react-router-dom';
-import { Chip } from '@omniviewdev/ui';
-import ResourceTable from '../../shared/table/ResourceTable';
 import { DrawerComponent } from '@omniviewdev/runtime';
+import { Chip } from '@omniviewdev/ui';
+import { ColumnDef } from '@tanstack/react-table';
+import React from 'react';
 import { SiHelm } from 'react-icons/si';
-import ReleaseSidebar from './ReleaseSidebar';
+import { useParams } from 'react-router-dom';
+
 import { createStandardViews } from '../../shared/sidebar/createDrawerViews';
+import ResourceTable from '../../shared/table/ResourceTable';
+
+import ReleaseSidebar from './ReleaseSidebar';
 
 const resourceKey = 'helm::v1::Release';
 
@@ -81,12 +83,15 @@ const HelmReleaseTable: React.FC = () => {
     [],
   );
 
-  const drawer: DrawerComponent<HelmRelease> = React.useMemo(() => ({
-    title: 'Release',
-    icon: <SiHelm />,
-    views: createStandardViews({ SidebarComponent: ReleaseSidebar }),
-    actions: [],
-  }), []);
+  const drawer: DrawerComponent<HelmRelease> = React.useMemo(
+    () => ({
+      title: 'Release',
+      icon: <SiHelm />,
+      views: createStandardViews({ SidebarComponent: ReleaseSidebar }),
+      actions: [],
+    }),
+    [],
+  );
 
   return (
     <ResourceTable

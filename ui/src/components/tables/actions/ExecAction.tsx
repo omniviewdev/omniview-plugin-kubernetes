@@ -1,17 +1,17 @@
+import Box from '@mui/material/Box';
+import { exec } from '@omniviewdev/runtime/models';
+import { Text } from '@omniviewdev/ui/typography';
+import jsonpath from 'jsonpath';
 import React from 'react';
 
 // @omniviewdev/ui
-import Box from '@mui/material/Box';
-import { Text } from '@omniviewdev/ui/typography';
 
 // third party
-import jsonpath from 'jsonpath';
 
 // icons
 import { LuSquareTerminal } from 'react-icons/lu';
 
 // types
-import { exec } from '@omniviewdev/runtime/models';
 
 // project imports
 import ActionMenuListItem from './ActionMenuListItem';
@@ -59,7 +59,9 @@ const calcTargets = (action: exec.Handler, data: Record<string, unknown>): ExecT
 
     targets.push({
       params,
-      label: action.target_builder.label_selector ? params[action.target_builder.label_selector] : action.target_builder.label,
+      label: action.target_builder.label_selector
+        ? params[action.target_builder.label_selector]
+        : action.target_builder.label,
     });
   });
 
@@ -91,11 +93,11 @@ const ExecAction: React.FC<Props> = ({
       tty: true,
     });
 
-    console.log({ opts, label, connection })
+    console.log({ opts, label, connection });
   };
 
   return (
-    <Box component='li' sx={{ listStyle: 'none' }}>
+    <Box component="li" sx={{ listStyle: 'none' }}>
       <ActionMenuListItem
         label="Exec"
         icon={<LuSquareTerminal />}
@@ -104,7 +106,7 @@ const ExecAction: React.FC<Props> = ({
         onLeaveMenu={handleLeaveMenu}
         menu={
           <Box
-            component='ul'
+            component="ul"
             sx={{
               listStyle: 'none',
               p: 0.5,
@@ -119,7 +121,7 @@ const ExecAction: React.FC<Props> = ({
           >
             {targets.map((target) => (
               <Box
-                component='li'
+                component="li"
                 key={target.label}
                 sx={{
                   px: 1,
@@ -131,13 +133,13 @@ const ExecAction: React.FC<Props> = ({
                 onClick={() => {
                   handlePerformExec(target.label, target.params);
                   handleDeselect();
-                  if (typeof itemProps.onClick == 'function') {
+                  if (typeof itemProps.onClick === 'function') {
                     itemProps.onClick();
                   }
                   handleDismiss();
                 }}
               >
-                <Text size='sm'>{target.label}</Text>
+                <Text size="sm">{target.label}</Text>
               </Box>
             ))}
           </Box>

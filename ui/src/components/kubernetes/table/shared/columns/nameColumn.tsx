@@ -1,5 +1,6 @@
-import { ColumnDef } from '@tanstack/react-table'
-import { CopyableCell } from '../cells/CopyableCell'
+import { ColumnDef } from '@tanstack/react-table';
+
+import { CopyableCell } from '../cells/CopyableCell';
 
 export const nameColumn = <T extends { metadata?: { name?: string } }>(): ColumnDef<T> => ({
   id: 'name',
@@ -11,9 +12,9 @@ export const nameColumn = <T extends { metadata?: { name?: string } }>(): Column
   minSize: 120,
   maxSize: 800,
   meta: {
-    flex: 1
+    flex: 1,
   },
   cell: CopyableCell,
-})
+});
 
-export default nameColumn
+export default nameColumn;

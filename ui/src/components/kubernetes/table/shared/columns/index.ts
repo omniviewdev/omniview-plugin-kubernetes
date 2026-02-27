@@ -1,8 +1,8 @@
-import ageColumn from "./ageColumn";
-import nameColumn from "./nameColumn";
-import namespaceColumn from "./namespaceColumn";
-import selectColumn from "./selectColumn";
-import { withClusterResourceColumns, withNamespacedResourceColumns } from "./withResourceColumns";
+import ageColumn from './ageColumn';
+import nameColumn from './nameColumn';
+import namespaceColumn from './namespaceColumn';
+import selectColumn from './selectColumn';
+import { withClusterResourceColumns, withNamespacedResourceColumns } from './withResourceColumns';
 
 export {
   ageColumn,
@@ -11,4 +11,4 @@ export {
   selectColumn,
   withNamespacedResourceColumns,
   withClusterResourceColumns,
-}
+};

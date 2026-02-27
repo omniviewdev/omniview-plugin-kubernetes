@@ -1,13 +1,12 @@
-import React from "react";
+import { DrawerContext } from '@omniviewdev/runtime';
+import { Stack } from '@omniviewdev/ui/layout';
+import { RuntimeClass } from 'kubernetes-types/node/v1';
+import React from 'react';
 
-import { Stack } from "@omniviewdev/ui/layout";
+import MetadataSection from '../../../../../shared/sidebar/pages/overview/sections/MetadataSection';
 
-import { RuntimeClass } from "kubernetes-types/node/v1";
-import { DrawerContext } from "@omniviewdev/runtime";
-
-import MetadataSection from "../../../../../shared/sidebar/pages/overview/sections/MetadataSection";
-import RuntimeClassHandlerSection from "./RuntimeClassHandlerSection";
-import RuntimeClassSchedulingSection from "./RuntimeClassSchedulingSection";
+import RuntimeClassHandlerSection from './RuntimeClassHandlerSection';
+import RuntimeClassSchedulingSection from './RuntimeClassSchedulingSection';
 
 interface Props {
   ctx: DrawerContext<RuntimeClass>;
@@ -26,12 +25,10 @@ export const RuntimeClassSidebar: React.FC<Props> = ({ ctx }) => {
         <MetadataSection data={data.metadata} />
         <RuntimeClassHandlerSection data={data} />
       </Stack>
-      {data.scheduling && (
-        <RuntimeClassSchedulingSection scheduling={data.scheduling} />
-      )}
+      {data.scheduling && <RuntimeClassSchedulingSection scheduling={data.scheduling} />}
     </Stack>
   );
 };
 
-RuntimeClassSidebar.displayName = "RuntimeClassSidebar";
+RuntimeClassSidebar.displayName = 'RuntimeClassSidebar';
 export default RuntimeClassSidebar;

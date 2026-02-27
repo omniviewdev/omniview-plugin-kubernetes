@@ -1,18 +1,15 @@
-import React from 'react';
-
 // @omniviewdev/ui
 import Box from '@mui/material/Box';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
+import React from 'react';
 
 type ActionMenuListItemProps = {
   icon: React.ReactElement;
   menu: React.ReactElement;
   open: boolean;
   onOpen: (
-    event?:
-      | React.MouseEvent<HTMLButtonElement>
-      | React.KeyboardEvent<HTMLButtonElement>,
+    event?: React.MouseEvent<HTMLButtonElement> | React.KeyboardEvent<HTMLButtonElement>,
   ) => void;
   onLeaveMenu: (callback: () => boolean) => void;
   label: string;
@@ -40,7 +37,7 @@ function ActionMenuListItem({
   return (
     <Box sx={{ position: 'relative' }}>
       <Box
-        component='button'
+        component="button"
         onMouseDown={() => {
           internalOpen.current = open;
         }}
@@ -73,12 +70,14 @@ function ActionMenuListItem({
         }}
       >
         <Stack
-          direction='row'
+          direction="row"
           gap={1}
           sx={{ flex: 1, px: 1, alignItems: 'center', justifyContent: 'flex-start' }}
         >
           {icon}
-          <Text sx={{ pl: 0.5 }} size='sm'>{children}</Text>
+          <Text sx={{ pl: 0.5 }} size="sm">
+            {children}
+          </Text>
         </Stack>
       </Box>
       {open && (

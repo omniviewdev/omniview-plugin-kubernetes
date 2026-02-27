@@ -1,15 +1,16 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { PersistentVolumeSidebar } from "./PersistentVolumeSidebar";
+import type { Meta, StoryObj } from '@storybook/react-vite';
 
-import data from "./pv.mock.json";
-import ResourceDrawerContainer from "../../../stories/containers/SidebarContainer";
+import ResourceDrawerContainer from '../../../stories/containers/SidebarContainer';
+
+import { PersistentVolumeSidebar } from './PersistentVolumeSidebar';
+import data from './pv.mock.json';
 
 // More on how to set up stories at: https://storybook.js.org/docs/writing-stories#default-export
 const meta = {
-  title: "Kubernetes/Sidebars/PersistentVolumeSidebar",
+  title: 'Kubernetes/Sidebars/PersistentVolumeSidebar',
   component: PersistentVolumeSidebar,
   // This component will have an automatically generated Autodocs entry: https://storybook.js.org/docs/writing-docs/autodocs
-  tags: ["autodocs"],
+  tags: ['autodocs'],
 } satisfies Meta<typeof PersistentVolumeSidebar>;
 
 export default meta;

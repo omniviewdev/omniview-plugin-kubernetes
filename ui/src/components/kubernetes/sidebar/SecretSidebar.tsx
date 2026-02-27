@@ -1,28 +1,20 @@
-import React from "react";
-
 // material-ui
-import { Button, IconButton } from "@omniviewdev/ui/buttons";
-import FormControl from "@mui/material/FormControl";
-import FormHelperText from "@mui/material/FormHelperText";
-import Grid from "@mui/material/Grid";
-import TextField from "@mui/material/TextField";
+import FormControl from '@mui/material/FormControl';
+import FormHelperText from '@mui/material/FormHelperText';
+import Grid from '@mui/material/Grid';
+import TextField from '@mui/material/TextField';
 // import List from "@mui/material/List";
 // import ListItem from "@mui/material/ListItem";
 // import ListItemButton from "@mui/material/ListItemButton";
-import Textarea from "@mui/material/TextField";
-import { Text } from "@omniviewdev/ui/typography";
-import { Stack } from "@omniviewdev/ui/layout";
+import Textarea from '@mui/material/TextField';
 
 // types
-import { Secret } from "kubernetes-types/core/v1";
 // import { DaemonSet, Deployment, StatefulSet } from "kubernetes-types/apps/v1";
 // import {
 //   ResourceSearchResult,
 // } from "../../../types/resource";
 
 // project-imports
-import ObjectMetaSection from "../../shared/ObjectMetaSection";
-import { isMultiLine } from "../../../utils/text";
 import { useSnackbar } from '@omniviewdev/runtime';
 // import { deplomentUsesSecret } from "../../../utils/filters/appsv1/deployment";
 // import { statefulSetUsesSecret } from "../../../utils/filters/appsv1/statefulset";
@@ -30,6 +22,12 @@ import { useSnackbar } from '@omniviewdev/runtime';
 // import Card from "../../shared/Card";
 
 // icons
+import { DrawerContext } from '@omniviewdev/runtime';
+import { Button, IconButton } from '@omniviewdev/ui/buttons';
+import { Stack } from '@omniviewdev/ui/layout';
+import { Text } from '@omniviewdev/ui/typography';
+import { Secret } from 'kubernetes-types/core/v1';
+import React from 'react';
 import {
   LuClipboardCheck,
   LuClipboardCopy,
@@ -41,8 +39,10 @@ import {
   LuSave,
   LuX,
   LuCircleX,
-} from "react-icons/lu";
-import { DrawerContext } from "@omniviewdev/runtime";
+} from 'react-icons/lu';
+
+import { isMultiLine } from '../../../utils/text';
+import ObjectMetaSection from '../../shared/ObjectMetaSection';
 
 const decodeEntries = (data?: Record<string, string>) => {
   if (!data) {
@@ -65,9 +65,7 @@ interface Props {
 /**
  * Renders a sidebar for a Secret resource
  */
-export const SecretSidebar: React.FC<Props> = ({
-  ctx,
-}) => {
+export const SecretSidebar: React.FC<Props> = ({ ctx }) => {
   if (!ctx.data) {
     return null;
   }
@@ -79,33 +77,30 @@ export const SecretSidebar: React.FC<Props> = ({
   const [copied, setCopied] = React.useState<string | undefined>(undefined);
 
   const originalValues = decodeEntries(secret?.data);
-  const [values, setValues] =
-    React.useState<Record<string, string>>(originalValues);
-  const [newValues, setNewValues] = React.useState<
-    Array<Record<string, string>>
-  >([]);
+  const [values, setValues] = React.useState<Record<string, string>>(originalValues);
+  const [newValues, setNewValues] = React.useState<Array<Record<string, string>>>([]);
   const [edited, setEdited] = React.useState<boolean>(false);
   const [newErrors, setNewErrors] = React.useState<Record<number, string>>({});
 
   // assert this is in fact a secret
-  if (secret?.kind !== "Secret") {
-    throw new Error("Invalid resource kind");
+  if (secret?.kind !== 'Secret') {
+    throw new Error('Invalid resource kind');
   }
 
   const checkNewForErrors = (index: number, key: string, value: string) => {
     if (values[key]) {
-      setNewErrors((prev) => ({ ...prev, [index]: "Key already exists" }));
-    } else if (key === "") {
-      setNewErrors((prev) => ({ ...prev, [index]: "Key cannot be empty" }));
+      setNewErrors((prev) => ({ ...prev, [index]: 'Key already exists' }));
+    } else if (key === '') {
+      setNewErrors((prev) => ({ ...prev, [index]: 'Key cannot be empty' }));
     } else if (key.match(/\s/)) {
       setNewErrors((prev) => ({
         ...prev,
-        [index]: "Key cannot contain whitespace",
+        [index]: 'Key cannot contain whitespace',
       }));
-    } else if (value === "" && newValues[index]?.value !== "") {
-      setNewErrors((prev) => ({ ...prev, [index]: "Value cannot be empty" }));
+    } else if (value === '' && newValues[index]?.value !== '') {
+      setNewErrors((prev) => ({ ...prev, [index]: 'Value cannot be empty' }));
     } else if (newValues.some((val, idx) => val.key === key && idx !== index)) {
-      setNewErrors((prev) => ({ ...prev, [index]: "Key already exists" }));
+      setNewErrors((prev) => ({ ...prev, [index]: 'Key already exists' }));
     } else {
       setNewErrors((prev) => {
         // delete the error if it exists
@@ -133,15 +128,13 @@ export const SecretSidebar: React.FC<Props> = ({
 
   const handleAddKey = () => {
     setEdited(true);
-    setNewValues([...newValues, { key: "", value: "" }]);
+    setNewValues([...newValues, { key: '', value: '' }]);
   };
 
   const handleEditNewKey = (index: number, key: string, value: string) => {
     setEdited(true);
     checkNewForErrors(index, key, value);
-    setNewValues((newVals) =>
-      newVals.map((val, i) => (i === index ? { key, value } : val)),
-    );
+    setNewValues((newVals) => newVals.map((val, i) => (i === index ? { key, value } : val)));
   };
 
   const handleRemoveKey = (index: number) => {
@@ -161,7 +154,7 @@ export const SecretSidebar: React.FC<Props> = ({
   };
 
   const handleSubmit = () => {
-    const draft = secret as Secret;
+    const draft = secret;
 
     // we decoded our values upfront to save on rerender performance, so re-encode them here
     draft.data = Object.entries(values).reduce(
@@ -200,33 +193,28 @@ export const SecretSidebar: React.FC<Props> = ({
     navigator.clipboard.writeText(atob(value));
     setCopied(key);
     showSnackbar({
-      message: "Copied value to clipboard",
-      status: 'success'
-    })
+      message: 'Copied value to clipboard',
+      status: 'success',
+    });
   };
 
   // compose your component here
   return (
-    <Stack direction="column" width={"100%"} spacing={1}>
+    <Stack direction="column" width={'100%'} spacing={1}>
       <ObjectMetaSection data={secret.metadata} />
       <Stack
         direction="row"
         pt={1}
         pl={1}
         spacing={1}
-        justifyContent={"space-between"}
-        alignItems={"center"}
+        justifyContent={'space-between'}
+        alignItems={'center'}
       >
         <Stack direction="row" alignItems="center" gap={0.5}>
           <LuKey />
           <Text weight="semibold">Secrets</Text>
         </Stack>
-        <Button
-          emphasis="outline"
-          startAdornment={<LuPlus />}
-          size="sm"
-          onClick={handleAddKey}
-        >
+        <Button emphasis="outline" startAdornment={<LuPlus />} size="sm" onClick={handleAddKey}>
           Add Entry
         </Button>
       </Stack>
@@ -235,11 +223,7 @@ export const SecretSidebar: React.FC<Props> = ({
           <Grid container spacing={0.5}>
             {Object.entries(values).map(([key, value]) => (
               <React.Fragment key={key}>
-                <Grid
-                  size={4}
-                  key={key}
-                  sx={{ alignItems: "center", alignContent: "center" }}
-                >
+                <Grid size={4} key={key} sx={{ alignItems: 'center', alignContent: 'center' }}>
                   <Text size="sm">{key}</Text>
                 </Grid>
                 <Grid size={8}>
@@ -248,33 +232,22 @@ export const SecretSidebar: React.FC<Props> = ({
                       multiline
                       InputProps={{
                         startAdornment: (
-                          <Stack
-                            direction="row"
-                            spacing={0}
-                            justifyContent={"space-between"}
-                          >
+                          <Stack direction="row" spacing={0} justifyContent={'space-between'}>
                             <IconButton
-                              disabled={value === ""}
+                              disabled={value === ''}
                               onClick={() => handleCopyToClipboard(key, value)}
                               size="sm"
                             >
-                              {copied === key ? (
-                                <LuClipboardCheck />
-                              ) : (
-                                <LuClipboardCopy />
-                              )}
+                              {copied === key ? <LuClipboardCheck /> : <LuClipboardCopy />}
                             </IconButton>
-                            <IconButton
-                              onClick={() => toggleShowSecret(key)}
-                              size="sm"
-                            >
+                            <IconButton onClick={() => toggleShowSecret(key)} size="sm">
                               {shown[key] ? <LuEyeOff /> : <LuEye />}
                             </IconButton>
                           </Stack>
                         ),
                       }}
                       size="small"
-                      value={shown[key] ? values[key] : "********"}
+                      value={shown[key] ? values[key] : '********'}
                     />
                   ) : (
                     <TextField
@@ -282,33 +255,24 @@ export const SecretSidebar: React.FC<Props> = ({
                         endAdornment: (
                           <Stack direction="row" spacing={0}>
                             <IconButton
-                              disabled={value === ""}
+                              disabled={value === ''}
                               onClick={() => handleCopyToClipboard(key, value)}
                               size="sm"
                             >
-                              {copied === key ? (
-                                <LuClipboardCheck />
-                              ) : (
-                                <LuClipboardCopy />
-                              )}
+                              {copied === key ? <LuClipboardCheck /> : <LuClipboardCopy />}
                             </IconButton>
-                            <IconButton
-                              onClick={() => toggleShowSecret(key)}
-                              size="sm"
-                            >
+                            <IconButton onClick={() => toggleShowSecret(key)} size="sm">
                               {shown[key] ? <LuEyeOff /> : <LuEye />}
                             </IconButton>
                           </Stack>
                         ),
                       }}
                       sx={{
-                        "--Input-focused": +!(
-                          values[key] === originalValues[key]
-                        ),
+                        '--Input-focused': +!(values[key] === originalValues[key]),
                       }}
                       size="small"
                       onChange={(e) => handleChange(key, e.target.value)}
-                      value={shown[key] ? values[key] : "********"}
+                      value={shown[key] ? values[key] : '********'}
                     />
                   )}
                 </Grid>
@@ -322,14 +286,12 @@ export const SecretSidebar: React.FC<Props> = ({
               <FormControl error={!!newErrors[index]}>
                 <TextField
                   size="small"
-                  onChange={(e) =>
-                    handleEditNewKey(index, e.target.value, entry.value)
-                  }
+                  onChange={(e) => handleEditNewKey(index, e.target.value, entry.value)}
                   InputProps={{
                     endAdornment: (
                       <IconButton
                         sx={{
-                          "--IconButton-size": "24px",
+                          '--IconButton-size': '24px',
                         }}
                         onClick={() => handleRemoveKey(index)}
                         size="sm"
@@ -341,17 +303,13 @@ export const SecretSidebar: React.FC<Props> = ({
                   }}
                   value={newValues[index].key}
                 />
-                {!!newErrors[index] && (
-                  <FormHelperText>{newErrors[index]}</FormHelperText>
-                )}
+                {!!newErrors[index] && <FormHelperText>{newErrors[index]}</FormHelperText>}
               </FormControl>
             </Grid>
             <Grid size={8}>
               <TextField
                 size="small"
-                onChange={(e) =>
-                  handleEditNewKey(index, entry.key, e.target.value)
-                }
+                onChange={(e) => handleEditNewKey(index, entry.key, e.target.value)}
                 value={newValues[index].value}
               />
             </Grid>
@@ -359,7 +317,7 @@ export const SecretSidebar: React.FC<Props> = ({
         ))}
       </Stack>
       {edited && (
-        <Stack direction="row" justifyContent={"space-between"} spacing={1}>
+        <Stack direction="row" justifyContent={'space-between'} spacing={1}>
           <Stack direction="row" spacing={1}>
             <Button
               emphasis="soft"
@@ -374,7 +332,7 @@ export const SecretSidebar: React.FC<Props> = ({
               emphasis="soft"
               startAdornment={<LuRotate3D />}
               size="sm"
-              onClick={() => console.log("trigerred reload save")}
+              onClick={() => console.log('trigerred reload save')}
               disabled={Object.keys(newErrors).length > 0}
             >
               Save & Reload Resources
@@ -395,5 +353,5 @@ export const SecretSidebar: React.FC<Props> = ({
   );
 };
 
-SecretSidebar.displayName = "SecretSidebar";
+SecretSidebar.displayName = 'SecretSidebar';
 export default SecretSidebar;

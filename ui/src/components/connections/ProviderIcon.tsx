@@ -1,11 +1,8 @@
 import React from 'react';
-import {
-  SiKubernetes,
-  SiAmazonwebservices,
-  SiGooglecloud,
-} from 'react-icons/si';
-import { VscAzure } from 'react-icons/vsc';
 import { LuContainer, LuBox, LuServer } from 'react-icons/lu';
+import { SiKubernetes, SiAmazonwebservices, SiGooglecloud } from 'react-icons/si';
+import { VscAzure } from 'react-icons/vsc';
+
 import { getProviderColor } from '../../utils/providers';
 
 type Props = {

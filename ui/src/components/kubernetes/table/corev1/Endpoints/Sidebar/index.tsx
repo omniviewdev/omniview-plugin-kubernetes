@@ -1,14 +1,14 @@
-import React from "react";
+import { DrawerContext } from '@omniviewdev/runtime';
+import { Stack } from '@omniviewdev/ui/layout';
+import { Endpoints } from 'kubernetes-types/core/v1';
+import React from 'react';
 
 // material-ui
-import { Stack } from "@omniviewdev/ui/layout";
 
 // types
-import { Endpoints } from "kubernetes-types/core/v1";
 
 // project-imports
-import ObjectMetaSection from "../../../../../shared/ObjectMetaSection";
-import { DrawerContext } from "@omniviewdev/runtime";
+import ObjectMetaSection from '../../../../../shared/ObjectMetaSection';
 
 interface Props {
   ctx: DrawerContext<Endpoints>;
@@ -24,12 +24,12 @@ export const EndpointsSidebar: React.FC<Props> = ({ ctx }) => {
 
   // compose your component here
   return (
-    <Stack direction="column" width={"100%"} spacing={2}>
+    <Stack direction="column" width={'100%'} spacing={2}>
       <ObjectMetaSection data={ctx.data.metadata} />
       {/** TODO: fill this in with more data */}
     </Stack>
   );
 };
 
-EndpointsSidebar.displayName = "EndpointsSidebar";
+EndpointsSidebar.displayName = 'EndpointsSidebar';
 export default EndpointsSidebar;

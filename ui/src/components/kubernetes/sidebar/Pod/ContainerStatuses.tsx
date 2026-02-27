@@ -1,25 +1,26 @@
-import React from "react";
-
 // material ui
-import { Chip } from "@omniviewdev/ui";
-import Grid from "@mui/material/Grid";
-import { Tooltip } from "@omniviewdev/ui/overlays";
-import { Text } from "@omniviewdev/ui/typography";
+import Grid from '@mui/material/Grid';
+import { Chip } from '@omniviewdev/ui';
+import { Tooltip } from '@omniviewdev/ui/overlays';
+import { Text } from '@omniviewdev/ui/typography';
 
 // project imports
-import Icon from "../../../shared/Icon";
-import { getStatus } from "./utils";
-
-// types
+import { formatRelative } from 'date-fns';
 import {
   ContainerStateTerminated,
   ContainerStateWaiting,
   ContainerStatus,
-} from "kubernetes-types/core/v1";
-import ContainerStatusCard from "./ContainerStatusCard";
+} from 'kubernetes-types/core/v1';
+import React from 'react';
+
+import Icon from '../../../shared/Icon';
+
+import ContainerStatusCard from './ContainerStatusCard';
+import { getStatus } from './utils';
+
+// types
 
 // third party
-import { formatRelative } from "date-fns";
 
 /**
  * Details on a why a container was terminated
@@ -28,15 +29,11 @@ export const ContainerTerminatedStatusInfo: React.FC<{
   state: ContainerStateTerminated;
 }> = ({ state }) => {
   const info = {
-    "Exit Code": state.exitCode,
+    'Exit Code': state.exitCode,
     Signal: state.signal,
     Reason: state.reason,
-    Started: state.startedAt
-      ? formatRelative(new Date(state.startedAt), new Date())
-      : undefined,
-    Finished: state.finishedAt
-      ? formatRelative(new Date(state.finishedAt), new Date())
-      : undefined,
+    Started: state.startedAt ? formatRelative(new Date(state.startedAt), new Date()) : undefined,
+    Finished: state.finishedAt ? formatRelative(new Date(state.finishedAt), new Date()) : undefined,
   };
 
   return (
@@ -99,12 +96,12 @@ export const ContainerStatusDecorator: React.FC<{
 
   const getVariant = () => {
     switch (statusInfo.text) {
-      case "Completed":
-        return "outline";
-      case "Waiting":
-        return "soft";
+      case 'Completed':
+        return 'outline';
+      case 'Waiting':
+        return 'soft';
       default:
-        return "solid";
+        return 'solid';
     }
   };
 
@@ -117,14 +114,12 @@ export const ContainerStatusDecorator: React.FC<{
       <Chip
         size="sm"
         sx={{
-          borderRadius: "sm",
+          borderRadius: 'sm',
           px: 1,
         }}
         color={statusInfo.color}
         emphasis={getVariant()}
-        startAdornment={
-          statusInfo.icon && <Icon name={statusInfo.icon} size={16} />
-        }
+        startAdornment={statusInfo.icon && <Icon name={statusInfo.icon} size={16} />}
         label={statusInfo.text}
       />
     </Tooltip>

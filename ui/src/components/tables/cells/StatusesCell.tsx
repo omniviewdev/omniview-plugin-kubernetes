@@ -1,11 +1,9 @@
-import React from 'react';
-
 // @omniviewdev/ui
 import { useTheme } from '@mui/material/styles';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Tooltip } from '@omniviewdev/ui/overlays';
-
 import jsonpath from 'jsonpath';
+import React from 'react';
 
 type Status = 'success' | 'warning' | 'danger' | 'neutral';
 
@@ -18,7 +16,12 @@ type Props = {
   hoverMenuComponent?: string;
 };
 
-export const ContainerStatusCell: React.FC<Props> = ({ values, statusAccessor, statusMap, hoverMenuComponent }) => {
+export const ContainerStatusCell: React.FC<Props> = ({
+  values,
+  statusAccessor,
+  statusMap,
+  hoverMenuComponent,
+}) => {
   const theme = useTheme();
 
   const getColor = (data: any) => {
@@ -38,12 +41,15 @@ export const ContainerStatusCell: React.FC<Props> = ({ values, statusAccessor, s
   };
 
   return (
-    <Stack direction="row" sx={{ width: '100%' }} alignItems='center' justifyContent='flex-start' gap={1}>
+    <Stack
+      direction="row"
+      sx={{ width: '100%' }}
+      alignItems="center"
+      justifyContent="flex-start"
+      gap={1}
+    >
       {values.map((status) => (
-        <Tooltip
-          placement="top-end"
-          content={hoverMenuComponent}
-        >
+        <Tooltip placement="top-end" content={hoverMenuComponent}>
           <div
             color={getColor(status)}
             style={{

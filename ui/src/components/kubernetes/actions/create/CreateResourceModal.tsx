@@ -1,17 +1,17 @@
-import React from 'react';
-
 // material-ui
 import Box from '@mui/material/Box';
-import Modal from '@mui/material/Modal';
 import Divider from '@mui/material/Divider';
+import Modal from '@mui/material/Modal';
 import { Button, IconButton } from '@omniviewdev/ui/buttons';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
+import React from 'react';
 import { LuPlus, LuX } from 'react-icons/lu';
 
 // project-imports
-import CodeEditor from '../../../shared/CodeEditor';
 import { parseResourceKey } from '../../../../utils/resourceKey';
+import CodeEditor from '../../../shared/CodeEditor';
+
 import { getTemplate } from './templates';
 
 interface Props {
@@ -97,10 +97,17 @@ const CreateResourceModal: React.FC<Props> = ({
     <Modal open={open} onClose={onClose}>
       <Box sx={modalStyle}>
         {/* Header */}
-        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ px: 2.5, pt: 2, pb: 1.5 }}>
+        <Stack
+          direction="row"
+          justifyContent="space-between"
+          alignItems="center"
+          sx={{ px: 2.5, pt: 2, pb: 1.5 }}
+        >
           <Stack direction="row" alignItems="center" spacing={1}>
             <LuPlus size={16} />
-            <Text weight="semibold" size="md">Create {kind}</Text>
+            <Text weight="semibold" size="md">
+              Create {kind}
+            </Text>
           </Stack>
           <IconButton size="xs" emphasis="ghost" color="neutral" onClick={onClose}>
             <LuX size={14} />
@@ -131,7 +138,9 @@ const CreateResourceModal: React.FC<Props> = ({
                 borderTop: '1px solid rgba(248, 81, 73, 0.3)',
               }}
             >
-              <Text size="xs" sx={{ color: '#f85149' }}>{error}</Text>
+              <Text size="xs" sx={{ color: '#f85149' }}>
+                {error}
+              </Text>
             </Box>
           )}
         </Box>

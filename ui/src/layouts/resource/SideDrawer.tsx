@@ -1,5 +1,5 @@
-import React from 'react';
 import Box, { type BoxProps } from '@mui/material/Box';
+import React from 'react';
 
 type Props = BoxProps & {
   onClose: React.MouseEventHandler<HTMLDivElement>;
@@ -13,13 +13,16 @@ const SideDrawer: React.FC<Props> = ({ onClose, ...props }) => (
     {...props}
     sx={[
       {
-        position: 'fixed', zIndex: 1200, width: '100%', height: '100%',
+        position: 'fixed',
+        zIndex: 1200,
+        width: '100%',
+        height: '100%',
       },
       ...(Array.isArray(props.sx) ? props.sx : [props.sx]),
     ]}
   >
     <Box
-      role='button'
+      role="button"
       onClick={onClose}
       sx={{
         position: 'absolute',

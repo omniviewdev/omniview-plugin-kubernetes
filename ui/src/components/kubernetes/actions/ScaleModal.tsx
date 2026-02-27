@@ -1,8 +1,8 @@
-import React from 'react';
 import Box from '@mui/material/Box';
+import Input from '@mui/material/Input';
 import Modal from '@mui/material/Modal';
 import Slider from '@mui/material/Slider';
-import Input from '@mui/material/Input';
+import React from 'react';
 import { LuScaling, LuX } from 'react-icons/lu';
 
 type ScaleModalProps = {
@@ -131,7 +131,9 @@ const ScaleModal: React.FC<ScaleModalProps> = ({
                 {currentReplicas}
               </Box>
             </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', color: 'var(--ov-fg-faint, #484f58)' }}>
+            <Box
+              sx={{ display: 'flex', alignItems: 'center', color: 'var(--ov-fg-faint, #484f58)' }}
+            >
               →
             </Box>
             <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>

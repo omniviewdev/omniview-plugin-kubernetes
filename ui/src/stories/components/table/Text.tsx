@@ -1,8 +1,7 @@
-import React from 'react';
-
 // material ui
 import Box from '@mui/material/Box';
 import { Text } from '@omniviewdev/ui/typography';
+import React from 'react';
 
 type Props = {
   /** The text value to render */
@@ -20,46 +19,44 @@ type Props = {
 };
 
 /** Render a standard text row for the generic resource table. */
-export const TextRow: React.FC<Props> = ({ align, value, color, colorMap, startDecorator, endDecorator }) => {
+export const TextRow: React.FC<Props> = ({
+  align,
+  value,
+  color,
+  colorMap,
+  startDecorator,
+  endDecorator,
+}) => {
   const getColor = () => {
     if (colorMap) {
       return colorMap[value] || 'neutral';
     }
     return color || 'neutral';
-  }
+  };
 
   const getAlignment = () => {
     if (align) {
       switch (align) {
-      case 'left':
-        return 'flex-start';
-      case 'right':
-        return 'flex-end';
-      case 'center':
-        return 'center';
+        case 'left':
+          return 'flex-start';
+        case 'right':
+          return 'flex-end';
+        case 'center':
+          return 'center';
       }
     }
     return 'flex-start';
-  }
+  };
 
   return (
-    <Box
-      display='flex'
-      flex={1}
-      justifyContent={getAlignment()}
-      alignItems='center'
-    >
+    <Box display="flex" flex={1} justifyContent={getAlignment()} alignItems="center">
       {startDecorator}
-      <Text
-        size='xs'
-        color={getColor()}
-        noWrap
-      >
+      <Text size="xs" color={getColor()} noWrap>
         {value}
       </Text>
       {endDecorator}
     </Box>
   );
-}
+};
 
 export default TextRow;

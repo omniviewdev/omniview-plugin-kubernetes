@@ -1,14 +1,14 @@
-import React from "react";
+import { DrawerContext } from '@omniviewdev/runtime';
+import { Stack } from '@omniviewdev/ui/layout';
+import { EndpointSlice } from 'kubernetes-types/discovery/v1';
+import React from 'react';
 
 // material-ui
-import { Stack } from "@omniviewdev/ui/layout";
 
 // types
-import { EndpointSlice } from "kubernetes-types/discovery/v1";
-import { DrawerContext } from "@omniviewdev/runtime";
 
 // project-imports
-import ObjectMetaSection from "../../../../../shared/ObjectMetaSection";
+import ObjectMetaSection from '../../../../../shared/ObjectMetaSection';
 
 interface Props {
   ctx: DrawerContext<EndpointSlice>;
@@ -26,12 +26,12 @@ export const EndpointSliceSidebar: React.FC<Props> = ({ ctx }) => {
 
   // compose your component here
   return (
-    <Stack direction="column" width={"100%"} spacing={2}>
+    <Stack direction="column" width={'100%'} spacing={2}>
       <ObjectMetaSection data={data.metadata} />
       {/** TODO: fill this in with more data */}
     </Stack>
   );
 };
 
-EndpointSliceSidebar.displayName = "EndpointSliceSidebar";
+EndpointSliceSidebar.displayName = 'EndpointSliceSidebar';
 export default EndpointSliceSidebar;

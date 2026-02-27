@@ -1,9 +1,9 @@
-import { type FC, useEffect, useState } from "react";
-import Editor, { DiffEditor, useMonaco } from "@monaco-editor/react";
+import Editor, { DiffEditor, useMonaco } from '@monaco-editor/react';
+import { type FC, useEffect, useState } from 'react';
 
 // Themes
-import GithubDark from "./themes/GithubDark";
-import BrillianceBlack from "./themes/BrillianceBlack";
+import BrillianceBlack from './themes/BrillianceBlack';
+import GithubDark from './themes/GithubDark';
 
 type Props = {
   filename: string;
@@ -36,8 +36,8 @@ const CodeEditor: FC<Props> = ({
   useEffect(() => {
     if (monaco) {
       // Define all of our themes
-      monaco.editor.defineTheme("github-dark", GithubDark);
-      monaco.editor.defineTheme("brilliance-black", BrillianceBlack);
+      monaco.editor.defineTheme('github-dark', GithubDark);
+      monaco.editor.defineTheme('brilliance-black', BrillianceBlack);
     }
 
     async function detectLanguage() {
@@ -48,11 +48,11 @@ const CodeEditor: FC<Props> = ({
           contents: value,
         });
         if (detected) {
-          console.log("Detected language", detected);
+          console.log('Detected language', detected);
           setLang(detected);
         }
       } catch (err) {
-        console.error("Failed to detect language", err);
+        console.error('Failed to detect language', err);
       }
     }
 
@@ -76,11 +76,11 @@ const CodeEditor: FC<Props> = ({
   if (diff && original && lang) {
     return (
       <DiffEditor
-        theme={lang === "nginx" ? "nginx-theme-dark" : "vs-dark"}
+        theme={lang === 'nginx' ? 'nginx-theme-dark' : 'vs-dark'}
         language={lang}
         original={original}
         modified={value || controlledValue}
-        height={height ?? "100%"}
+        height={height ?? '100%'}
         options={{ readOnly, fontSize: 11 }}
       />
     );
@@ -89,18 +89,18 @@ const CodeEditor: FC<Props> = ({
   if (lang) {
     return (
       <Editor
-        theme={lang === "nginx" ? "nginx-theme-dark" : "vs-dark"}
+        theme={lang === 'nginx' ? 'nginx-theme-dark' : 'vs-dark'}
         language={lang}
         value={
-          lang === "json"
+          lang === 'json'
             ? // pretty print it
-            JSON.stringify(JSON.parse(value), null, 2)
+              JSON.stringify(JSON.parse(value), null, 2)
             : value || controlledValue
         }
         onChange={(value) => {
-          handleChange(value || "");
+          handleChange(value || '');
         }}
-        height={height ?? "100%"}
+        height={height ?? '100%'}
         path={path}
         options={{ readOnly, fontSize: 11 }}
       />

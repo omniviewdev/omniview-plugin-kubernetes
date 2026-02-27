@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react';
-
-import InputBase from '@mui/material/InputBase';
-import Box from '@mui/material/Box';
 import { Search, Close } from '@mui/icons-material';
+import Box from '@mui/material/Box';
+import InputBase from '@mui/material/InputBase';
+import { useState, useEffect } from 'react';
 
 export type DebounceProps = {
   value: string;
@@ -61,10 +60,10 @@ export function DebouncedInput({
       <Search sx={{ fontSize: 14, color: 'var(--ov-fg-faint)', mr: 0.5 }} />
       <InputBase
         value={value}
-        onChange={e => setValue(e.target.value)}
+        onChange={(e) => setValue(e.target.value)}
         placeholder={placeholder}
         autoFocus={autoFocus}
-        autoComplete='off'
+        autoComplete="off"
         sx={{
           flex: 1,
           fontSize: '0.75rem',

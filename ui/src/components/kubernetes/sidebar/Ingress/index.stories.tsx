@@ -1,15 +1,17 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { IngressSidebar } from ".";
-import data from "./mock.json";
+import type { Meta, StoryObj } from '@storybook/react-vite';
 
-import ResourceDrawerContainer from "../../../../stories/containers/SidebarContainer";
+import ResourceDrawerContainer from '../../../../stories/containers/SidebarContainer';
+
+import data from './mock.json';
+
+import { IngressSidebar } from '.';
 
 // More on how to set up stories at: https://storybook.js.org/docs/writing-stories#default-export
 const meta = {
-  title: "Kubernetes/Sidebars/Ingress",
+  title: 'Kubernetes/Sidebars/Ingress',
   component: IngressSidebar,
   // This component will have an automatically generated Autodocs entry: https://storybook.js.org/docs/writing-docs/autodocs
-  tags: ["autodocs"],
+  tags: ['autodocs'],
 } satisfies Meta<typeof IngressSidebar>;
 
 export default meta;

@@ -1,11 +1,13 @@
-import React from 'react';
 import Box from '@mui/material/Box';
 import { Avatar } from '@omniviewdev/ui';
+import React from 'react';
+
 import type { EnrichedConnection } from '../../types/clusters';
-import ProviderIcon from './ProviderIcon';
+import NamedAvatar from '../shared/NamedAvatar';
+
 import ConnectionStatusBadge from './ConnectionStatusBadge';
 import FavoriteButton from './FavoriteButton';
-import NamedAvatar from '../shared/NamedAvatar';
+import ProviderIcon from './ProviderIcon';
 
 type Props = {
   enriched: EnrichedConnection;

@@ -1,26 +1,27 @@
-import React from 'react';
-
 // @omniviewdev/ui
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
 import { Chip } from '@omniviewdev/ui';
-import { Text } from '@omniviewdev/ui/typography';
 import { Tooltip } from '@omniviewdev/ui/overlays';
+import { Text } from '@omniviewdev/ui/typography';
 
 // project imports
-import Icon from '../../../shared/Icon';
-import { getStatus } from './utils';
-
-// types
+import { formatRelative } from 'date-fns';
 import {
   type ContainerStateTerminated,
   type ContainerStateWaiting,
   type ContainerStatus,
 } from 'kubernetes-types/core/v1';
+import React from 'react';
+
+import Icon from '../../../shared/Icon';
+
 import ContainerStatusCard from './KubernetesContainerStatusCard';
+import { getStatus } from './utils';
+
+// types
 
 // third party
-import { formatRelative } from 'date-fns';
 
 const KeyValuePairs = ({ message }: { message: string }) => {
   const regex = /(\w+)=(?:"([^"]*)"|(\S*))/g;
@@ -58,12 +59,8 @@ export const ContainerTerminatedStatusInfo: React.FC<{
     'Exit Code': state.exitCode,
     Signal: state.signal,
     Reason: state.reason,
-    Started: state.startedAt
-      ? formatRelative(new Date(state.startedAt), new Date())
-      : undefined,
-    Finished: state.finishedAt
-      ? formatRelative(new Date(state.finishedAt), new Date())
-      : undefined,
+    Started: state.startedAt ? formatRelative(new Date(state.startedAt), new Date()) : undefined,
+    Finished: state.finishedAt ? formatRelative(new Date(state.finishedAt), new Date()) : undefined,
   };
 
   return (
@@ -80,12 +77,12 @@ export const ContainerTerminatedStatusInfo: React.FC<{
           </React.Fragment>
         ) : null,
       )}
-      {state.message &&
+      {state.message && (
         <Grid size={12}>
-          <Chip size='sm' emphasis='outline' sx={{ my: 1, borderRadius: 'sm' }} label='Message' />
+          <Chip size="sm" emphasis="outline" sx={{ my: 1, borderRadius: 'sm' }} label="Message" />
           <KeyValuePairs message={state.message} />
         </Grid>
-      }
+      )}
     </Grid>
   );
 };
@@ -147,9 +144,7 @@ export const ContainerStatusDecorator: React.FC<{
         }}
         color={statusInfo.color}
         emphasis={getEmphasis()}
-        startAdornment={
-          statusInfo.icon && <Icon name={statusInfo.icon} size={16} />
-        }
+        startAdornment={statusInfo.icon && <Icon name={statusInfo.icon} size={16} />}
         label={statusInfo.text}
       />
     </Tooltip>

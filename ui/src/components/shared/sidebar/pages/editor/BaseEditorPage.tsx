@@ -1,12 +1,13 @@
-import React from "react";
-
-// project-imports
-import { KubernetesResourceObject } from "../../../../../types/resource";
-import CodeEditor from "../../../CodeEditor";
 import { Button } from '@omniviewdev/ui/buttons';
 import { Stack } from '@omniviewdev/ui/layout';
-import { stringify, parse } from 'yaml'
-import { LuFileCode, LuSave, LuX } from "react-icons/lu";
+import React from 'react';
+
+// project-imports
+import { LuFileCode, LuSave, LuX } from 'react-icons/lu';
+import { stringify, parse } from 'yaml';
+
+import { KubernetesResourceObject } from '../../../../../types/resource';
+import CodeEditor from '../../../CodeEditor';
 
 interface Props {
   kind?: string;
@@ -20,51 +21,53 @@ interface Props {
  * Displays the baseline editor for the monaco editor
  */
 export const BaseEditorPage: React.FC<Props> = ({ data, kind, resourceKey, onSubmit }) => {
-  const [value, setValue] = React.useState<string>(stringify(data))
-  const [usingDiff, setUsingDiff] = React.useState<boolean>(false)
-  const [changed, setChanged] = React.useState<boolean>(false)
+  const [value, setValue] = React.useState<string>(stringify(data));
+  const [usingDiff, setUsingDiff] = React.useState<boolean>(false);
+  const [changed, setChanged] = React.useState<boolean>(false);
 
-  const filename = kind ? `${kind}/${data?.metadata?.uid}/spec.yaml` : `${data?.metadata?.uid}/spec.yaml`
+  const filename = kind
+    ? `${kind}/${data?.metadata?.uid}/spec.yaml`
+    : `${data?.metadata?.uid}/spec.yaml`;
   // Use the resource key to construct a path that matches the schema fileMatch pattern
   // e.g. "file:///core::v1::Pod/spec.yaml" matches fileMatch "**/core::v1::Pod/*.yaml"
-  const editorPath = resourceKey ? `file:///${resourceKey}/spec.yaml` : undefined
+  const editorPath = resourceKey ? `file:///${resourceKey}/spec.yaml` : undefined;
 
   const onChange = (value: string) => {
     if (!changed) {
-      setChanged(true)
+      setChanged(true);
     }
-    setValue(value)
-  }
+    setValue(value);
+  };
 
   const handleSubmit = () => {
     if (onSubmit) {
-      const val = parse(value)
-      onSubmit(val)
+      const val = parse(value);
+      onSubmit(val);
     }
-  }
+  };
 
   /**
    * Make sure we update whenever the input data changes
    */
   React.useEffect(() => {
-    setValue(stringify(data))
-  }, [data])
+    setValue(stringify(data));
+  }, [data]);
 
-  const toggleDiff = () => setUsingDiff(prev => !prev)
+  const toggleDiff = () => setUsingDiff((prev) => !prev);
 
   const resetValue = () => {
-    setChanged(false)
-    setValue(stringify(data))
-  }
+    setChanged(false);
+    setValue(stringify(data));
+  };
 
   if (!data) {
-    console.log("did not get any data")
+    console.log('did not get any data');
     return <React.Fragment />;
   }
 
   // compose your component here
   return (
-    <Stack sx={{ flex: 1 }} gap={1} direction='column'>
+    <Stack sx={{ flex: 1 }} gap={1} direction="column">
       <CodeEditor
         diff={usingDiff}
         original={stringify(data)}
@@ -74,34 +77,34 @@ export const BaseEditorPage: React.FC<Props> = ({ data, kind, resourceKey, onSub
         filename={filename}
         path={editorPath}
       />
-      <Stack direction='row' justifyContent='space-between'>
+      <Stack direction="row" justifyContent="space-between">
         <Button
-          size='sm'
-          emphasis='soft'
-          color='neutral'
+          size="sm"
+          emphasis="soft"
+          color="neutral"
           startAdornment={<LuFileCode />}
           onClick={toggleDiff}
         >
-          {usingDiff ? "Show Editor" : "Show Diff"}
+          {usingDiff ? 'Show Editor' : 'Show Diff'}
         </Button>
 
-        <Stack direction='row' gap={0.5}>
+        <Stack direction="row" gap={0.5}>
           <Button
             startAdornment={<LuX />}
-            color='neutral'
+            color="neutral"
             disabled={!changed}
-            size='sm'
-            emphasis='soft'
+            size="sm"
+            emphasis="soft"
             onClick={resetValue}
           >
             Reset
           </Button>
           <Button
             startAdornment={<LuSave />}
-            color='primary'
+            color="primary"
             disabled={!changed}
-            size='sm'
-            emphasis='soft'
+            size="sm"
+            emphasis="soft"
             onClick={handleSubmit}
           >
             Submit
@@ -112,5 +115,5 @@ export const BaseEditorPage: React.FC<Props> = ({ data, kind, resourceKey, onSub
   );
 };
 
-BaseEditorPage.displayName = "BaseEditorPage";
+BaseEditorPage.displayName = 'BaseEditorPage';
 export default BaseEditorPage;

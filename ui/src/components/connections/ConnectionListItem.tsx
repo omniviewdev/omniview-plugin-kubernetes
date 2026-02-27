@@ -1,29 +1,38 @@
-import React from 'react';
-import { Link, usePluginRouter } from '@omniviewdev/runtime';
+import { MoreVert } from '@mui/icons-material';
+import Box from '@mui/material/Box';
 
 // @omniviewdev/ui
-import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
-import { Avatar, Badge, Chip } from '@omniviewdev/ui';
-import { IconButton } from '@omniviewdev/ui/buttons';
-import { Stack } from '@omniviewdev/ui/layout';
-import { Text } from '@omniviewdev/ui/typography';
-
 import {
+  Link,
+  usePluginRouter,
   usePluginContext,
   useConnection,
   useSnackbar,
 } from '@omniviewdev/runtime';
 import { types } from '@omniviewdev/runtime/models';
+import { Avatar, Badge, Chip } from '@omniviewdev/ui';
+import { IconButton } from '@omniviewdev/ui/buttons';
+import { Stack } from '@omniviewdev/ui/layout';
+import { Text } from '@omniviewdev/ui/typography';
+import React from 'react';
+import { LuPencil, LuTrash } from 'react-icons/lu';
+
 import NamedAvatar from '../shared/NamedAvatar';
 
 // Icons
-import { MoreVert } from '@mui/icons-material';
-import { LuPencil, LuTrash } from 'react-icons/lu';
 
 type Props = Omit<types.Connection, 'createFrom' | 'convertValues'>;
 
-const ConnectionListItem: React.FC<Props> = ({ id, name, description, avatar, labels, last_refresh, expiry_time }) => {
+const ConnectionListItem: React.FC<Props> = ({
+  id,
+  name,
+  description,
+  avatar,
+  labels,
+  last_refresh,
+  expiry_time,
+}) => {
   const { meta } = usePluginContext();
   const { navigate } = usePluginRouter();
   const { showSnackbar } = useSnackbar();
@@ -68,10 +77,10 @@ const ConnectionListItem: React.FC<Props> = ({ id, name, description, avatar, la
 
     setConnecting(true);
     startConnection()
-      .then(status => {
+      .then((status) => {
         handleConnectionStatus(status);
       })
-      .catch(err => {
+      .catch((err) => {
         if (err instanceof Error) {
           showSnackbar({
             status: 'error',
@@ -98,7 +107,7 @@ const ConnectionListItem: React.FC<Props> = ({ id, name, description, avatar, la
     }
 
     const now = new Date();
-    return (refreshTime.getTime() + expiry_time) > now.getTime();
+    return refreshTime.getTime() + expiry_time > now.getTime();
   };
 
   return (
@@ -129,15 +138,15 @@ const ConnectionListItem: React.FC<Props> = ({ id, name, description, avatar, la
           <Badge
             color="success"
             invisible={!isConnected()}
-            size='sm'
+            size="sm"
             anchorOrigin={{
               vertical: 'top',
               horizontal: 'right',
             }}
           >
-            {avatar
-              ? <Avatar
-                size='sm'
+            {avatar ? (
+              <Avatar
+                size="sm"
                 src={avatar}
                 sx={{
                   borderRadius: 6,
@@ -148,36 +157,46 @@ const ConnectionListItem: React.FC<Props> = ({ id, name, description, avatar, la
                   maxWidth: 28,
                 }}
               />
-              : <NamedAvatar value={name} />
-            }
+            ) : (
+              <NamedAvatar value={name} />
+            )}
           </Badge>
         </Box>
-        <Stack direction='row' sx={{ width: '100%' }} alignItems='center'>
-          <Stack direction='row' sx={{ width: '100%', height: '100%' }} alignItems='center' gap={2}>
-            <Text weight='semibold' size='sm' noWrap>{name}</Text>
-            {Boolean(description) && <Text size='sm' noWrap>{description}</Text>}
+        <Stack direction="row" sx={{ width: '100%' }} alignItems="center">
+          <Stack direction="row" sx={{ width: '100%', height: '100%' }} alignItems="center" gap={2}>
+            <Text weight="semibold" size="sm" noWrap>
+              {name}
+            </Text>
+            {Boolean(description) && (
+              <Text size="sm" noWrap>
+                {description}
+              </Text>
+            )}
             {connecting && <CircularProgress size={16} />}
           </Stack>
-          <Stack direction='row' gap={1} alignItems='center'>
-            {labels && Object.entries(labels).sort().map(([key, _]) => (
-              <Chip
-                key={key}
-                emphasis='outline'
-                color='primary'
-                size='sm'
-                sx={{ pointerEvents: 'none', borderRadius: 'sm' }}
-                label={key}
-              />
-            ))}
+          <Stack direction="row" gap={1} alignItems="center">
+            {labels &&
+              Object.entries(labels)
+                .sort()
+                .map(([key, _]) => (
+                  <Chip
+                    key={key}
+                    emphasis="outline"
+                    color="primary"
+                    size="sm"
+                    sx={{ pointerEvents: 'none', borderRadius: 'sm' }}
+                    label={key}
+                  />
+                ))}
           </Stack>
         </Stack>
       </Box>
       <Box sx={{ position: 'relative' }}>
         <IconButton
-          size='sm'
-          emphasis='ghost'
-          color='neutral'
-          onClick={() => setMenuOpen(prev => !prev)}
+          size="sm"
+          emphasis="ghost"
+          color="neutral"
+          onClick={() => setMenuOpen((prev) => !prev)}
         >
           <MoreVert />
         </IconButton>
@@ -216,7 +235,7 @@ const ConnectionListItem: React.FC<Props> = ({ id, name, description, avatar, la
                   onClick={() => setMenuOpen(false)}
                 >
                   <LuPencil size={14} />
-                  <Text size='sm'>Edit '{name}'</Text>
+                  <Text size="sm">Edit '{name}'</Text>
                 </Box>
               </Link>
               <Box
@@ -232,7 +251,7 @@ const ConnectionListItem: React.FC<Props> = ({ id, name, description, avatar, la
                 onClick={() => setMenuOpen(false)}
               >
                 <LuTrash size={14} />
-                <Text size='sm'>Delete '{name}'</Text>
+                <Text size="sm">Delete '{name}'</Text>
               </Box>
             </Box>
           </>

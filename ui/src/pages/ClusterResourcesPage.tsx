@@ -1,14 +1,6 @@
-import React from 'react';
-import { Outlet, useParams } from 'react-router-dom';
-import { Link, useInformerState } from '@omniviewdev/runtime';
-
 // @omniviewdev/ui
 import Box from '@mui/material/Box';
-import { Avatar } from '@omniviewdev/ui';
-import { IconButton } from '@omniviewdev/ui/buttons';
-import { Stack } from '@omniviewdev/ui/layout';
-import { Text } from '@omniviewdev/ui/typography';
-import { NavMenu } from '@omniviewdev/ui/sidebars';
+import { Link, useInformerState } from '@omniviewdev/runtime';
 
 // Hooks
 import {
@@ -19,20 +11,26 @@ import {
   usePluginRouter,
   useEditorSchemas,
 } from '@omniviewdev/runtime';
+import { Avatar } from '@omniviewdev/ui';
+import { IconButton } from '@omniviewdev/ui/buttons';
+import { Stack } from '@omniviewdev/ui/layout';
+import { NavMenu } from '@omniviewdev/ui/sidebars';
+import { Text } from '@omniviewdev/ui/typography';
+import React from 'react';
 
 // Layout
-import Layout from '../layouts/resource';
-
-import { stringAvatar } from '../utils/color';
-import { useClusterPreferences } from '../hooks/useClusterPreferences';
 
 // Icons
 import { LuCog } from 'react-icons/lu';
-import { useSidebarLayout } from '../hooks/useSidebarLayout';
+import { Outlet, useParams } from 'react-router-dom';
+
 import { useStoredState } from '../components/shared/hooks/useStoredState';
 import ResourceCommandPalette from '../components/shared/ResourceCommandPalette';
 import SyncProgressDialog from '../components/shared/SyncProgressDialog';
-
+import { useClusterPreferences } from '../hooks/useClusterPreferences';
+import { useSidebarLayout } from '../hooks/useSidebarLayout';
+import Layout from '../layouts/resource';
+import { stringAvatar } from '../utils/color';
 
 export default function ClusterResourcesPage(): React.ReactElement {
   const { id = '' } = useParams<{ id: string }>();
@@ -41,16 +39,19 @@ export default function ClusterResourcesPage(): React.ReactElement {
   const { groups } = useResourceGroups({ pluginID: 'kubernetes', connectionID: id });
   const { connection } = useConnection({ pluginID: 'kubernetes', connectionID: id });
   const { connectionOverrides } = useClusterPreferences('kubernetes');
-  const { layout } = useSidebarLayout({ connectionID: id })
+  const { layout } = useSidebarLayout({ connectionID: id });
   const { location, navigate } = usePluginRouter();
   const [savedExpandedState, setSavedExpandedState] = useStoredState<Record<string, boolean>>(
     `kubernetes-${id}-sidebar-expanded`,
     {},
   );
 
-  const handleExpandedChange = React.useCallback((state: Record<string, boolean>) => {
-    setSavedExpandedState(state);
-  }, [setSavedExpandedState]);
+  const handleExpandedChange = React.useCallback(
+    (state: Record<string, boolean>) => {
+      setSavedExpandedState(state);
+    },
+    [setSavedExpandedState],
+  );
   const { isFullySynced, summary } = useInformerState({ pluginID: 'kubernetes', connectionID: id });
 
   // Fetch and register OpenAPI schemas with the host's Monaco schema registry
@@ -119,18 +120,22 @@ export default function ClusterResourcesPage(): React.ReactElement {
   const lastSegment = location.pathname.split('/').pop() ?? '';
   const selected = DASHBOARD_TABS.has(lastSegment) ? '__dashboard__' : lastSegment;
 
-  const handleSelect = React.useCallback((resourceID: string) => {
-    if (resourceID === '__dashboard__') {
-      navigate(`/cluster/${id}/resources`);
-    } else {
-      navigate(`/cluster/${id}/resources/${resourceID}`);
-    }
-  }, [navigate, id]);
+  const handleSelect = React.useCallback(
+    (resourceID: string) => {
+      if (resourceID === '__dashboard__') {
+        navigate(`/cluster/${id}/resources`);
+      } else {
+        navigate(`/cluster/${id}/resources/${resourceID}`);
+      }
+    },
+    [navigate, id],
+  );
 
   React.useEffect(() => {
     showSnackbar({
       message: 'You are currently running in development mode',
-      details: 'Rendering performance will be slightly degraded until this application is built for production.',
+      details:
+        'Rendering performance will be slightly degraded until this application is built for production.',
       status: 'info',
       showOnce: true,
       autoHideDuration: 15000,
@@ -150,7 +155,7 @@ export default function ClusterResourcesPage(): React.ReactElement {
   }
 
   if (groups.isError) {
-    return (<>{types.error}</>);
+    return <>{types.error}</>;
   }
 
   const clusterName = connectionOverrides[id]?.displayName || connection.data?.name || id;
@@ -163,9 +168,9 @@ export default function ClusterResourcesPage(): React.ReactElement {
       }}
     >
       <ResourceCommandPalette connectionID={id} layout={layout} onNavigate={handleSelect} />
-      <Layout.SideNav type='bordered' padding={0.5} >
+      <Layout.SideNav type="bordered" padding={0.5}>
         <Stack
-          direction='column'
+          direction="column"
           sx={{
             maxHeight: '100%',
             height: '100%',
@@ -184,14 +189,14 @@ export default function ClusterResourcesPage(): React.ReactElement {
               borderColor: 'divider',
             }}
           >
-            <Stack direction='row' alignItems='center' gap={1}>
+            <Stack direction="row" alignItems="center" gap={1}>
               {(() => {
                 const override = connectionOverrides[id];
                 const avatarSrc = override?.avatar || connection.data?.avatar;
                 if (avatarSrc) {
                   return (
                     <Avatar
-                      size='sm'
+                      size="sm"
                       src={avatarSrc}
                       sx={{
                         backgroundColor: 'transparent',
@@ -203,26 +208,28 @@ export default function ClusterResourcesPage(): React.ReactElement {
                     />
                   );
                 }
-                const avatarProps = stringAvatar(override?.displayName || connection.data?.name || '');
+                const avatarProps = stringAvatar(
+                  override?.displayName || connection.data?.name || '',
+                );
                 if (override?.avatarColor) {
                   avatarProps.sx = { ...avatarProps.sx, bgcolor: override.avatarColor };
                 }
-                return <Avatar size='sm' {...avatarProps} />;
+                return <Avatar size="sm" {...avatarProps} />;
               })()}
-              <Text weight='semibold' size='sm' sx={{ textOverflow: 'ellipsis' }}>
+              <Text weight="semibold" size="sm" sx={{ textOverflow: 'ellipsis' }}>
                 {connectionOverrides[id]?.displayName || connection.data?.name}
               </Text>
             </Stack>
-            <Stack direction='row' alignItems='center' gap={1}>
+            <Stack direction="row" alignItems="center" gap={1}>
               <Link to={`/cluster/${id}/edit`}>
-                <IconButton emphasis='soft' size='sm' color='neutral'>
+                <IconButton emphasis="soft" size="sm" color="neutral">
                   <LuCog size={20} />
                 </IconButton>
               </Link>
             </Stack>
           </Box>
           <NavMenu
-            size='sm'
+            size="sm"
             sections={layout}
             selected={selected}
             onSelect={handleSelect}

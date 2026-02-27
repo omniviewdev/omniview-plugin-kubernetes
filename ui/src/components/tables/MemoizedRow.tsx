@@ -1,23 +1,27 @@
-import React from 'react';
 import get from 'lodash.get';
+import React from 'react';
+
 import { RowContainer } from './RowContainer';
 
 type Memoizer = string | string[] | ((data: any) => string);
 
 /**
-* Calculate the memo key based on the memoizer function provided, fallback to default if not provided.
-*/
+ * Calculate the memo key based on the memoizer function provided, fallback to default if not provided.
+ */
 const calcMemoKey = (data: any, memoizer?: Memoizer) => {
   if (typeof memoizer === 'function') {
     return memoizer(data);
   }
 
   if (Array.isArray(memoizer)) {
-    return memoizer.map(key => get(data, key)).join('-');
+    return memoizer.map((key) => get(data, key)).join('-');
   }
 
   if (typeof memoizer === 'string') {
-    return memoizer.split(',').map(key => get(data, key)).join('-');
+    return memoizer
+      .split(',')
+      .map((key) => get(data, key))
+      .join('-');
   }
 
   // memoizer is not provided, so there isn't really a way we can memoize this.
@@ -34,10 +38,12 @@ const MemoizedRow = React.memo(RowContainer, (prev, next) => {
     });
   }
 
-  return prevMemoKey === nextMemoKey
-    && prev.virtualRow.start === next.virtualRow.start
-    && prev.isSelected === next.isSelected
-    && prev.columnVisibility === next.columnVisibility;
+  return (
+    prevMemoKey === nextMemoKey &&
+    prev.virtualRow.start === next.virtualRow.start &&
+    prev.isSelected === next.isSelected &&
+    prev.columnVisibility === next.columnVisibility
+  );
 });
 
 MemoizedRow.displayName = 'MemoizedRow';

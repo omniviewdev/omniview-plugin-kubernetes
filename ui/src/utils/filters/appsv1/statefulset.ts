@@ -1,21 +1,15 @@
-import { StatefulSet } from "kubernetes-types/apps/v1";
-import { Secret } from "kubernetes-types/core/v1";
+import { StatefulSet } from 'kubernetes-types/apps/v1';
+import { Secret } from 'kubernetes-types/core/v1';
 
 // Various filters for find linked resources based on the statefulset
-export const statefulSetUsesSecret = (
-  statefulset: StatefulSet,
-  secret: Secret,
-): boolean => {
+export const statefulSetUsesSecret = (statefulset: StatefulSet, secret: Secret): boolean => {
   if (secret === undefined) {
     return false;
   }
 
   if (statefulset?.spec?.template?.spec?.volumes) {
     return statefulset.spec.template.spec.volumes.some((volume) => {
-      if (
-        volume.secret &&
-        volume.secret.secretName === secret?.metadata?.name
-      ) {
+      if (volume.secret && volume.secret.secretName === secret?.metadata?.name) {
         return true;
       }
     });
@@ -27,10 +21,7 @@ export const statefulSetUsesSecret = (
       if (
         container.envFrom &&
         container.envFrom.some((envFrom) => {
-          if (
-            envFrom.secretRef &&
-            envFrom.secretRef.name === secret?.metadata?.name
-          ) {
+          if (envFrom.secretRef && envFrom.secretRef.name === secret?.metadata?.name) {
             return true;
           }
         })

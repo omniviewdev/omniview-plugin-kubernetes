@@ -1,14 +1,15 @@
-import React from 'react';
-import { Avatar } from '@omniviewdev/ui';
 import MuiAvatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
+import { Avatar } from '@omniviewdev/ui';
 import { Button } from '@omniviewdev/ui/buttons';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
+import React from 'react';
 import { LuUpload, LuPalette, LuRotateCcw } from 'react-icons/lu';
-import { PRESET_COLORS } from '../../utils/folderIcons';
+
 import { getInitials, processImageFile } from '../../utils/avatarUtils';
 import { stringToColor } from '../../utils/color';
+import { PRESET_COLORS } from '../../utils/folderIcons';
 
 type AvatarEditorProps = {
   name: string;
@@ -72,10 +73,13 @@ const AvatarEditor: React.FC<AvatarEditorProps> = ({
   };
 
   return (
-    <Stack alignItems='center' gap={1.5} sx={{ minWidth: 180 }}>
+    <Stack alignItems="center" gap={1.5} sx={{ minWidth: 180 }}>
       {/* Preview with drag-drop and hover overlay */}
       <Box
-        onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragOver(true);
+        }}
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
         sx={{
@@ -124,35 +128,35 @@ const AvatarEditor: React.FC<AvatarEditorProps> = ({
             cursor: 'pointer',
           }}
         >
-          <LuUpload size={24} color='white' />
+          <LuUpload size={24} color="white" />
         </Box>
       </Box>
 
       {/* Actions */}
-      <Stack direction='row' gap={0.75}>
+      <Stack direction="row" gap={0.75}>
         <Button
-          size='sm'
-          emphasis='outline'
-          color='neutral'
+          size="sm"
+          emphasis="outline"
+          color="neutral"
           startAdornment={<LuUpload size={14} />}
           onClick={() => fileInputRef.current?.click()}
         >
           Upload
         </Button>
         <Button
-          size='sm'
+          size="sm"
           emphasis={showColors ? 'solid' : 'outline'}
           color={showColors ? 'primary' : 'neutral'}
           startAdornment={<LuPalette size={14} />}
-          onClick={() => setShowColors(v => !v)}
+          onClick={() => setShowColors((v) => !v)}
         >
           Color
         </Button>
         {(avatarUrl || avatarColor) && (
           <Button
-            size='sm'
-            emphasis='outline'
-            color='neutral'
+            size="sm"
+            emphasis="outline"
+            color="neutral"
             startAdornment={<LuRotateCcw size={14} />}
             onClick={handleReset}
           >
@@ -161,18 +165,12 @@ const AvatarEditor: React.FC<AvatarEditorProps> = ({
         )}
       </Stack>
 
-      <input
-        ref={fileInputRef}
-        type='file'
-        accept='image/*'
-        hidden
-        onChange={handleFileInput}
-      />
+      <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handleFileInput} />
 
       {/* Color swatches */}
       {showColors && (
-        <Stack direction='row' gap={0.75} flexWrap='wrap' justifyContent='center'>
-          {PRESET_COLORS.map(color => (
+        <Stack direction="row" gap={0.75} flexWrap="wrap" justifyContent="center">
+          {PRESET_COLORS.map((color) => (
             <Box
               key={color}
               onClick={() => handleColorPick(color)}
@@ -194,7 +192,7 @@ const AvatarEditor: React.FC<AvatarEditorProps> = ({
 
       {/* Error */}
       {error && (
-        <Text size='xs' color='danger'>
+        <Text size="xs" color="danger">
           {error}
         </Text>
       )}

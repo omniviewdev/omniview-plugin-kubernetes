@@ -1,21 +1,28 @@
-import { ColumnDef } from '@tanstack/react-table'
-import ActionsCell from '../cells/ActionsCell'
+import { ColumnDef } from '@tanstack/react-table';
 import { type ObjectMeta } from 'kubernetes-types/meta/v1';
+
+import ActionsCell from '../cells/ActionsCell';
+
 import { ColumnArgs } from './types';
 
-export const actionsColumn = <T extends { metadata?: ObjectMeta }>({ connectionID, resourceKey }: ColumnArgs): ColumnDef<T> => ({
+export const actionsColumn = <T extends { metadata?: ObjectMeta }>({
+  connectionID,
+  resourceKey,
+}: ColumnArgs): ColumnDef<T> => ({
   id: 'menu',
-  cell: ({ row }) => <ActionsCell
-    connectionID={connectionID}
-    resourceKey={resourceKey}
-    resourceID={row.id}
-    data={row.original}
-    namespace={row.original.metadata?.namespace ?? ''}
-  />,
+  cell: ({ row }) => (
+    <ActionsCell
+      connectionID={connectionID}
+      resourceKey={resourceKey}
+      resourceID={row.id}
+      data={row.original}
+      namespace={row.original.metadata?.namespace ?? ''}
+    />
+  ),
   size: 50,
   enableResizing: false,
   enableSorting: false,
   enableHiding: false,
-})
+});
 
-export default actionsColumn
+export default actionsColumn;

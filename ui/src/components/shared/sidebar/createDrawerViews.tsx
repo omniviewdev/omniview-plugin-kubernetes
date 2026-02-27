@@ -1,10 +1,11 @@
+import type { DrawerComponentView, DrawerContext } from '@omniviewdev/runtime';
 import React from 'react';
 import { LuCode, LuSquareChartGantt, LuZap } from 'react-icons/lu';
-import type { DrawerComponentView, DrawerContext } from '@omniviewdev/runtime';
 
-import { createMetricsView } from './pages/metrics/ResourceMetricsPage';
 import ResourceEventsView from '../../kubernetes/sidebar/ResourceEventsView';
+
 import BaseEditorPage from './pages/editor/BaseEditorPage';
+import { createMetricsView } from './pages/metrics/ResourceMetricsPage';
 
 /**
  * Returns the canonical set of drawer views for a Kubernetes resource sidebar:
@@ -36,7 +37,13 @@ export function createStandardViews<T = any>(opts: {
       title: 'Editor',
       icon: <LuCode />,
       component: onEditorSubmit
-        ? (ctx) => <BaseEditorPage data={ctx.data as any} resourceKey={ctx.resource?.key} onSubmit={(val) => onEditorSubmit(ctx, val)} />
+        ? (ctx) => (
+            <BaseEditorPage
+              data={ctx.data as any}
+              resourceKey={ctx.resource?.key}
+              onSubmit={(val) => onEditorSubmit(ctx, val)}
+            />
+          )
         : (ctx) => <BaseEditorPage data={ctx.data as any} resourceKey={ctx.resource?.key} />,
     },
   ];

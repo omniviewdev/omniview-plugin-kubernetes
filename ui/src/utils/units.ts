@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/naming-convention */
-
 export type ByteUnit =
   | 'E'
   | 'EB'
@@ -71,11 +69,7 @@ const unitMultipliers: { [unit in ByteUnit]: bigint } = {
 //   }
 // }
 
-export function convertByteUnits({
-  from,
-  to = 'MB',
-  round,
-}: ByteConversionOptions): string {
+export function convertByteUnits({ from, to = 'MB', round }: ByteConversionOptions): string {
   const regex = /^(\d+(?:\.\d+)?)([EPTGMkEiPiTiGiMiKiB]*)$/;
   const match = regex.exec(from);
 

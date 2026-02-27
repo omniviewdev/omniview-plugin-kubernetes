@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
+
 import ClusterEditPage from './ClusterEditPage';
 
 // ---------------------------------------------------------------------------
@@ -43,7 +44,10 @@ vi.mock('../hooks/useClusterPreferences', () => ({
 vi.mock('../components/connections/AvatarEditor', () => ({
   default: ({ name, onAvatarUrlChange, onAvatarColorChange }: any) => (
     <div data-testid="avatar-editor" data-name={name}>
-      <button data-testid="avatar-change-url" onClick={() => onAvatarUrlChange('http://new-avatar.png')}>
+      <button
+        data-testid="avatar-change-url"
+        onClick={() => onAvatarUrlChange('http://new-avatar.png')}
+      >
         Change Avatar URL
       </button>
       <button data-testid="avatar-change-color" onClick={() => onAvatarColorChange('#ff0000')}>
@@ -55,7 +59,11 @@ vi.mock('../components/connections/AvatarEditor', () => ({
 
 vi.mock('../components/connections/TagInput', () => ({
   default: ({ tags, availableTags, onChange }: any) => (
-    <div data-testid="tag-input" data-tags={JSON.stringify(tags)} data-available={JSON.stringify(availableTags)}>
+    <div
+      data-testid="tag-input"
+      data-tags={JSON.stringify(tags)}
+      data-available={JSON.stringify(availableTags)}
+    >
       <button data-testid="tag-add" onClick={() => onChange([...tags, 'new-tag'])}>
         Add Tag
       </button>
@@ -65,13 +73,22 @@ vi.mock('../components/connections/TagInput', () => ({
 
 vi.mock('../components/settings/MetricsTabContent', () => ({
   default: ({ pluginID, connectionID, connected }: any) => (
-    <div data-testid="metrics-content" data-plugin-id={pluginID} data-connection-id={connectionID} data-connected={String(connected)} />
+    <div
+      data-testid="metrics-content"
+      data-plugin-id={pluginID}
+      data-connection-id={connectionID}
+      data-connected={String(connected)}
+    />
   ),
 }));
 
 vi.mock('../components/settings/NodeShellTabContent', () => ({
   default: ({ pluginID, connectionID }: any) => (
-    <div data-testid="node-shell-content" data-plugin-id={pluginID} data-connection-id={connectionID} />
+    <div
+      data-testid="node-shell-content"
+      data-plugin-id={pluginID}
+      data-connection-id={connectionID}
+    />
   ),
 }));
 
@@ -209,7 +226,9 @@ describe('Deep linking via search params', () => {
 
   it('renders cluster-info section for ?section=cluster-info', () => {
     renderPage('cluster-info');
-    expect(screen.getByText('Read-only information discovered from the cluster.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Read-only information discovered from the cluster.'),
+    ).toBeInTheDocument();
     expect(screen.getByText('v1.28.3')).toBeInTheDocument();
   });
 
@@ -290,8 +309,10 @@ describe('Back button', () => {
 // ---- 6. Save / Cancel / Dirty state ----
 
 describe('Save / Cancel / Dirty state', () => {
-  const getSaveBtn = (container: HTMLElement) => container.querySelector('[data-tooltip="Save changes"] button');
-  const getCancelBtn = (container: HTMLElement) => container.querySelector('[data-tooltip="Discard changes"] button');
+  const getSaveBtn = (container: HTMLElement) =>
+    container.querySelector('[data-tooltip="Save changes"] button');
+  const getCancelBtn = (container: HTMLElement) =>
+    container.querySelector('[data-tooltip="Discard changes"] button');
 
   it('Save and Cancel buttons hidden when no unsaved changes', () => {
     const { container } = renderPage();
@@ -444,13 +465,17 @@ describe('Edge cases', () => {
     mockConnectionData = null;
     renderPage('cluster-info');
     // ClusterInfoSection is guarded by `conn &&`, so the section header won't render
-    expect(screen.queryByText('Read-only information discovered from the cluster.')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Read-only information discovered from the cluster.'),
+    ).not.toBeInTheDocument();
   });
 
   it('conn is null — connection section does not render content', () => {
     mockConnectionData = null;
     renderPage('connection');
-    expect(screen.queryByText('Kubeconfig context details for this cluster.')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Kubeconfig context details for this cluster.'),
+    ).not.toBeInTheDocument();
   });
 
   it('conn.name undefined falls back to connectionId in the card', () => {

@@ -1,6 +1,7 @@
-import { ColumnDef } from '@tanstack/react-table'
-import SelectHeader from '../headers/SelectHeader'
-import SelectCell from '../cells/SelectCell'
+import { ColumnDef } from '@tanstack/react-table';
+
+import SelectCell from '../cells/SelectCell';
+import SelectHeader from '../headers/SelectHeader';
 
 export const selectColumn = <T extends { metadata?: { name?: string } }>(): ColumnDef<T> => ({
   id: 'select',
@@ -10,6 +11,6 @@ export const selectColumn = <T extends { metadata?: { name?: string } }>(): Colu
   enableResizing: false,
   enableSorting: false,
   enableHiding: false,
-})
+});
 
-export default selectColumn
+export default selectColumn;

@@ -1,15 +1,16 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { SecretSidebar } from "./SecretSidebar.tsx";
+import type { Meta, StoryObj } from '@storybook/react-vite';
 
-import data from "./secret.mock.json";
-import ResourceDrawerContainer from "../../../stories/containers/SidebarContainer";
+import ResourceDrawerContainer from '../../../stories/containers/SidebarContainer';
+
+import data from './secret.mock.json';
+import { SecretSidebar } from './SecretSidebar.tsx';
 
 // More on how to set up stories at: https://storybook.js.org/docs/writing-stories#default-export
 const meta = {
-  title: "Kubernetes/Sidebars/SecretSidebar",
+  title: 'Kubernetes/Sidebars/SecretSidebar',
   component: SecretSidebar,
   // This component will have an automatically generated Autodocs entry: https://storybook.js.org/docs/writing-docs/autodocs
-  tags: ["autodocs"],
+  tags: ['autodocs'],
 } satisfies Meta<typeof SecretSidebar>;
 
 export default meta;
@@ -30,7 +31,7 @@ Primary.decorators = [
       // @ts-expect-error - arbitrary json
       title={c.args.ctx.data.metadata.name}
       open
-      onClose={() => { }}
+      onClose={() => {}}
     >
       <Story />
     </ResourceDrawerContainer>

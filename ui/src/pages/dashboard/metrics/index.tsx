@@ -1,12 +1,16 @@
-import React, { useMemo } from 'react';
-import { useParams } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import { Stack } from '@omniviewdev/ui/layout';
-import { MetricsPanel } from '@omniviewdev/ui/charts';
-import type { TimeSeriesDef, ChartTimeRange, MetricFormat, ChartAnnotation } from '@omniviewdev/ui/charts';
 import { useResourceMetrics } from '@omniviewdev/runtime';
 import type { metric } from '@omniviewdev/runtime/models';
+import { MetricsPanel } from '@omniviewdev/ui/charts';
+import type {
+  TimeSeriesDef,
+  ChartTimeRange,
+  MetricFormat,
+  ChartAnnotation,
+} from '@omniviewdev/ui/charts';
+import { Stack } from '@omniviewdev/ui/layout';
+import React, { useMemo } from 'react';
 import {
   LuCpu,
   LuMemoryStick,
@@ -16,6 +20,7 @@ import {
   LuRotateCcw,
   LuTriangleAlert,
 } from 'react-icons/lu';
+import { useParams } from 'react-router-dom';
 
 import { useClusterPreferences } from '../../../hooks/useClusterPreferences';
 
@@ -243,7 +248,11 @@ const ClusterDashboardMetricsPage: React.FC = () => {
   const metricConfig = connectionOverrides[id]?.metricConfig;
 
   const resourceData = useMemo(() => {
-    if (!metricConfig?.prometheusService && !metricConfig?.prometheusNamespace && !metricConfig?.prometheusPort) {
+    if (
+      !metricConfig?.prometheusService &&
+      !metricConfig?.prometheusNamespace &&
+      !metricConfig?.prometheusPort
+    ) {
       return {};
     }
     return {
@@ -276,7 +285,11 @@ const ClusterDashboardMetricsPage: React.FC = () => {
   }, []);
 
   // Time-series data
-  const { data: tsData, providers, isLoading } = useResourceMetrics({
+  const {
+    data: tsData,
+    providers,
+    isLoading,
+  } = useResourceMetrics({
     pluginID: 'kubernetes',
     connectionID: id,
     resourceKey: 'cluster::metrics',

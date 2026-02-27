@@ -1,5 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
+
 import ScaleModal from './ScaleModal';
 
 // MUI Modal renders via portal — mock it to render children inline.

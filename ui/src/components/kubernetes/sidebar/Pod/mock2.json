@@ -828,11 +828,7 @@
       {
         "name": "grafana-plugins",
         "image": "grafana/grafana",
-        "command": [
-          "sh",
-          "-c",
-          "grafana cli plugins install grafana-oncall-app v1.3.92"
-        ],
+        "command": ["sh", "-c", "grafana cli plugins install grafana-oncall-app v1.3.92"],
         "env": [
           {
             "name": "AWS_STS_REGIONAL_ENDPOINTS",

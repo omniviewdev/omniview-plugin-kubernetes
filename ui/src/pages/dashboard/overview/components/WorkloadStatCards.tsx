@@ -1,3 +1,4 @@
+import { useResources } from '@omniviewdev/runtime';
 import React from 'react';
 import {
   LuBox,
@@ -7,14 +8,14 @@ import {
   LuListChecks,
   LuNetwork,
 } from 'react-icons/lu';
-import { useResources } from '@omniviewdev/runtime';
+
 import WorkloadSummaryCard from './WorkloadSummaryCard';
 
 type KubeResource = Record<string, any>;
 
 function filterByNamespace(resources: KubeResource[], namespaces: string[]): KubeResource[] {
   if (namespaces.length === 0) return resources;
-  return resources.filter(r => namespaces.includes(r.metadata?.namespace));
+  return resources.filter((r) => namespaces.includes(r.metadata?.namespace));
 }
 
 // --- Module-level icon constants ---
@@ -31,7 +32,11 @@ type CardProps = {
   onClick: () => void;
 };
 
-export const PodStatCard = React.memo(function PodStatCard({ connectionID, namespaces, onClick }: CardProps) {
+export const PodStatCard = React.memo(function PodStatCard({
+  connectionID,
+  namespaces,
+  onClick,
+}: CardProps) {
   const { resources: pods } = useResources({
     pluginID: 'kubernetes',
     connectionID,
@@ -64,7 +69,7 @@ export const PodStatCard = React.memo(function PodStatCard({ connectionID, names
 
   return (
     <WorkloadSummaryCard
-      title='Pods'
+      title="Pods"
       icon={ICON_POD}
       total={stats.total}
       statuses={stats.statuses}
@@ -74,7 +79,11 @@ export const PodStatCard = React.memo(function PodStatCard({ connectionID, names
   );
 });
 
-export const DeploymentStatCard = React.memo(function DeploymentStatCard({ connectionID, namespaces, onClick }: CardProps) {
+export const DeploymentStatCard = React.memo(function DeploymentStatCard({
+  connectionID,
+  namespaces,
+  onClick,
+}: CardProps) {
   const { resources: deployments } = useResources({
     pluginID: 'kubernetes',
     connectionID,
@@ -106,7 +115,7 @@ export const DeploymentStatCard = React.memo(function DeploymentStatCard({ conne
 
   return (
     <WorkloadSummaryCard
-      title='Deployments'
+      title="Deployments"
       icon={ICON_DEPLOY}
       total={stats.total}
       statuses={stats.statuses}
@@ -116,7 +125,11 @@ export const DeploymentStatCard = React.memo(function DeploymentStatCard({ conne
   );
 });
 
-export const StatefulSetStatCard = React.memo(function StatefulSetStatCard({ connectionID, namespaces, onClick }: CardProps) {
+export const StatefulSetStatCard = React.memo(function StatefulSetStatCard({
+  connectionID,
+  namespaces,
+  onClick,
+}: CardProps) {
   const { resources: statefulSets } = useResources({
     pluginID: 'kubernetes',
     connectionID,
@@ -148,7 +161,7 @@ export const StatefulSetStatCard = React.memo(function StatefulSetStatCard({ con
 
   return (
     <WorkloadSummaryCard
-      title='StatefulSets'
+      title="StatefulSets"
       icon={ICON_STS}
       total={stats.total}
       statuses={stats.statuses}
@@ -158,7 +171,11 @@ export const StatefulSetStatCard = React.memo(function StatefulSetStatCard({ con
   );
 });
 
-export const DaemonSetStatCard = React.memo(function DaemonSetStatCard({ connectionID, namespaces, onClick }: CardProps) {
+export const DaemonSetStatCard = React.memo(function DaemonSetStatCard({
+  connectionID,
+  namespaces,
+  onClick,
+}: CardProps) {
   const { resources: daemonSets } = useResources({
     pluginID: 'kubernetes',
     connectionID,
@@ -190,7 +207,7 @@ export const DaemonSetStatCard = React.memo(function DaemonSetStatCard({ connect
 
   return (
     <WorkloadSummaryCard
-      title='DaemonSets'
+      title="DaemonSets"
       icon={ICON_DS}
       total={stats.total}
       statuses={stats.statuses}
@@ -200,7 +217,11 @@ export const DaemonSetStatCard = React.memo(function DaemonSetStatCard({ connect
   );
 });
 
-export const JobStatCard = React.memo(function JobStatCard({ connectionID, namespaces, onClick }: CardProps) {
+export const JobStatCard = React.memo(function JobStatCard({
+  connectionID,
+  namespaces,
+  onClick,
+}: CardProps) {
   const { resources: jobs } = useResources({
     pluginID: 'kubernetes',
     connectionID,
@@ -237,7 +258,7 @@ export const JobStatCard = React.memo(function JobStatCard({ connectionID, names
 
   return (
     <WorkloadSummaryCard
-      title='Jobs'
+      title="Jobs"
       icon={ICON_JOB}
       total={stats.total}
       statuses={stats.statuses}
@@ -247,7 +268,11 @@ export const JobStatCard = React.memo(function JobStatCard({ connectionID, names
   );
 });
 
-export const CronJobStatCard = React.memo(function CronJobStatCard({ connectionID, namespaces, onClick }: CardProps) {
+export const CronJobStatCard = React.memo(function CronJobStatCard({
+  connectionID,
+  namespaces,
+  onClick,
+}: CardProps) {
   const { resources: cronJobs } = useResources({
     pluginID: 'kubernetes',
     connectionID,
@@ -277,7 +302,7 @@ export const CronJobStatCard = React.memo(function CronJobStatCard({ connectionI
 
   return (
     <WorkloadSummaryCard
-      title='CronJobs'
+      title="CronJobs"
       icon={ICON_CRONJOB}
       total={stats.total}
       statuses={stats.statuses}

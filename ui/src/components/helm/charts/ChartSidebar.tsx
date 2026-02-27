@@ -1,18 +1,17 @@
-import React from 'react';
-
 // material-ui
 import Box from '@mui/material/Box';
-import { Card } from '@omniviewdev/ui';
-import { Chip } from '@omniviewdev/ui';
 import Divider from '@mui/material/Divider';
+import { DrawerContext, useExecuteAction } from '@omniviewdev/runtime';
+import { Card, Chip } from '@omniviewdev/ui';
 import { Button, IconButton } from '@omniviewdev/ui/buttons';
+import { MarkdownPreview } from '@omniviewdev/ui/editors';
+import { Select } from '@omniviewdev/ui/inputs';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Tabs, TabPanel } from '@omniviewdev/ui/navigation';
 import { Text } from '@omniviewdev/ui/typography';
-import { Select } from '@omniviewdev/ui/inputs';
-import { MarkdownPreview } from '@omniviewdev/ui/editors';
 
 // icons
+import React from 'react';
 import {
   LuClipboardCopy,
   LuDownload,
@@ -22,10 +21,10 @@ import {
 } from 'react-icons/lu';
 
 // project-imports
-import { DrawerContext, useExecuteAction } from '@omniviewdev/runtime';
 import CodeEditor from '../../shared/CodeEditor';
-import InstallChartDialog from './InstallChartDialog';
 import NamedAvatar from '../../shared/NamedAvatar';
+
+import InstallChartDialog from './InstallChartDialog';
 
 // ── types ──
 type HelmChart = Record<string, any>;
@@ -48,8 +47,14 @@ interface Props {
 
 const MetaEntry: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
   <Stack direction="row" justifyContent="space-between" alignItems="center">
-    <Text sx={{ color: "neutral.400", flexShrink: 0 }} size="sm">{label}</Text>
-    <Text sx={{ fontWeight: 400, color: "neutral.100", textAlign: 'right' }} weight="semibold" size="sm">
+    <Text sx={{ color: 'neutral.400', flexShrink: 0 }} size="sm">
+      {label}
+    </Text>
+    <Text
+      sx={{ fontWeight: 400, color: 'neutral.100', textAlign: 'right' }}
+      weight="semibold"
+      size="sm"
+    >
       {value}
     </Text>
   </Stack>
@@ -112,31 +117,36 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
     void executeAction({
       actionID: 'get-versions',
       id: chartID,
-    }).then((result) => {
-      const versionList = (result.data?.versions ?? []) as ChartVersion[];
-      setVersions(versionList);
-      if (versionList.length > 0 && !selectedVersion) {
-        setSelectedVersion(versionList[0].version);
-      }
-    }).catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    })
+      .then((result) => {
+        const versionList = (result.data?.versions ?? []) as ChartVersion[];
+        setVersions(versionList);
+        if (versionList.length > 0 && !selectedVersion) {
+          setSelectedVersion(versionList[0].version);
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chartID, connectionID]);
 
   // Fetch tab-specific data lazily, cache by action+version
-  const fetchTabData = React.useCallback(async (actionID: string) => {
-    const cacheKey = `${actionID}::${selectedVersion}`;
-    if (tabData[cacheKey]) return;
-    try {
-      const result = await executeAction({
-        actionID,
-        id: chartID,
-        params: selectedVersion ? { version: selectedVersion } : undefined,
-      });
-      setTabData((prev) => ({ ...prev, [cacheKey]: result.data }));
-    } catch {
-      setTabData((prev) => ({ ...prev, [cacheKey]: null }));
-    }
-  }, [executeAction, chartID, selectedVersion, tabData]);
+  const fetchTabData = React.useCallback(
+    async (actionID: string) => {
+      const cacheKey = `${actionID}::${selectedVersion}`;
+      if (tabData[cacheKey]) return;
+      try {
+        const result = await executeAction({
+          actionID,
+          id: chartID,
+          params: selectedVersion ? { version: selectedVersion } : undefined,
+        });
+        setTabData((prev) => ({ ...prev, [cacheKey]: result.data }));
+      } catch {
+        setTabData((prev) => ({ ...prev, [cacheKey]: null }));
+      }
+    },
+    [executeAction, chartID, selectedVersion, tabData],
+  );
 
   // Fetch data when tab changes
   React.useEffect(() => {
@@ -180,7 +190,8 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
   const deprecated = data.deprecated ?? false;
   const icon = data.icon ?? '';
   const keywords = (data.keywords as string[]) ?? [];
-  const maintainers = (data.maintainers as Array<{ name: string; email?: string; url?: string }>) ?? [];
+  const maintainers =
+    (data.maintainers as Array<{ name: string; email?: string; url?: string }>) ?? [];
 
   // Use version-specific data from the selected version, falling back to chart data
   const currentVersionData = versions.find((v) => v.version === selectedVersion);
@@ -210,9 +221,13 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
               {icon && !iconFailed ? (
                 <Box
                   sx={{
-                    width: 40, height: 40, borderRadius: 'sm',
+                    width: 40,
+                    height: 40,
+                    borderRadius: 'sm',
                     bgcolor: 'rgba(255,255,255,0.08)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     flexShrink: 0,
                   }}
                 >
@@ -228,8 +243,12 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
                 <NamedAvatar value={chartName} />
               )}
               <Stack direction="column" spacing={0} sx={{ flex: 1 }}>
-                <Text weight="semibold" size="lg">{chartName}</Text>
-                <Text size="xs" sx={{ color: 'neutral.400' }}>{repoName}</Text>
+                <Text weight="semibold" size="lg">
+                  {chartName}
+                </Text>
+                <Text size="xs" sx={{ color: 'neutral.400' }}>
+                  {repoName}
+                </Text>
               </Stack>
               {deprecated && (
                 <Chip
@@ -243,7 +262,9 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
             </Stack>
 
             {description && (
-              <Text size="sm" sx={{ color: 'neutral.300' }}>{description}</Text>
+              <Text size="sm" sx={{ color: 'neutral.300' }}>
+                {description}
+              </Text>
             )}
 
             <Divider />
@@ -251,7 +272,9 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
             {/* Version dropdown + meta */}
             {versionOptions.length > 0 && (
               <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Text size="sm" sx={{ color: 'neutral.400', flexShrink: 0 }}>Version</Text>
+                <Text size="sm" sx={{ color: 'neutral.400', flexShrink: 0 }}>
+                  Version
+                </Text>
                 <Select
                   options={versionOptions}
                   value={selectedVersion}
@@ -269,8 +292,22 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
               <MetaEntry
                 label="Home"
                 value={
-                  <Box component="a" href={displayHome} target="_blank" rel="noopener noreferrer" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, textDecoration: 'none', color: 'primary.300' }}>
-                    <Text size="sm" sx={{ color: 'primary.300' }}>{displayHome}</Text>
+                  <Box
+                    component="a"
+                    href={displayHome}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 0.5,
+                      textDecoration: 'none',
+                      color: 'primary.300',
+                    }}
+                  >
+                    <Text size="sm" sx={{ color: 'primary.300' }}>
+                      {displayHome}
+                    </Text>
                     <LuExternalLink size={12} />
                   </Box>
                 }
@@ -315,13 +352,22 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
             {/* Maintainers */}
             {maintainers.length > 0 && (
               <Card sx={{ p: 1.25, borderRadius: 'sm' }} emphasis="outline">
-                <Text weight="semibold" size="sm" sx={{ mb: 0.5 }}>Maintainers</Text>
+                <Text weight="semibold" size="sm" sx={{ mb: 0.5 }}>
+                  Maintainers
+                </Text>
                 <Stack direction="column" spacing={0.5}>
                   {maintainers.map((m, i) => (
                     <Text key={i} size="xs" sx={{ color: 'neutral.300' }}>
-                      {m.name}{m.email ? ` <${m.email}>` : ''}
+                      {m.name}
+                      {m.email ? ` <${m.email}>` : ''}
                       {m.url && (
-                        <Box component="a" href={m.url} target="_blank" rel="noopener noreferrer" sx={{ ml: 0.5, color: 'primary.300', textDecoration: 'none' }}>
+                        <Box
+                          component="a"
+                          href={m.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          sx={{ ml: 0.5, color: 'primary.300', textDecoration: 'none' }}
+                        >
                           <LuExternalLink size={10} />
                         </Box>
                       )}
@@ -334,7 +380,9 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
             {/* Keywords */}
             {keywords.length > 0 && (
               <Card sx={{ p: 1.25, borderRadius: 'sm' }} emphasis="outline">
-                <Text weight="semibold" size="sm" sx={{ mb: 0.5 }}>Keywords</Text>
+                <Text weight="semibold" size="sm" sx={{ mb: 0.5 }}>
+                  Keywords
+                </Text>
                 <Stack direction="row" spacing={0.5} flexWrap="wrap">
                   {keywords.map((kw) => (
                     <Chip key={kw} size="sm" emphasis="soft" color="neutral" label={kw} />
@@ -346,14 +394,28 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
             {/* Dependencies from chart data */}
             {data.dependencies && (data.dependencies as any[]).length > 0 && (
               <Card sx={{ p: 1.25, borderRadius: 'sm' }} emphasis="outline">
-                <Text weight="semibold" size="sm" sx={{ mb: 0.5 }}>Dependencies</Text>
+                <Text weight="semibold" size="sm" sx={{ mb: 0.5 }}>
+                  Dependencies
+                </Text>
                 <Stack direction="column" spacing={0.5}>
-                  {(data.dependencies as Array<{ name: string; version?: string; repository?: string }>).map((dep, i) => (
+                  {(
+                    data.dependencies as Array<{
+                      name: string;
+                      version?: string;
+                      repository?: string;
+                    }>
+                  ).map((dep, i) => (
                     <Stack key={i} direction="row" spacing={1} alignItems="center">
-                      <Text size="xs" weight="semibold">{dep.name}</Text>
-                      {dep.version && <Chip size="sm" emphasis="soft" color="neutral" label={dep.version} />}
+                      <Text size="xs" weight="semibold">
+                        {dep.name}
+                      </Text>
+                      {dep.version && (
+                        <Chip size="sm" emphasis="soft" color="neutral" label={dep.version} />
+                      )}
                       {dep.repository && (
-                        <Text size="xs" sx={{ color: 'neutral.500' }}>{dep.repository}</Text>
+                        <Text size="xs" sx={{ color: 'neutral.500' }}>
+                          {dep.repository}
+                        </Text>
                       )}
                     </Stack>
                   ))}
@@ -366,33 +428,52 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
         {/* README tab */}
         <TabPanel value="readme" activeValue={activeTab}>
           {readmeContent ? (
-            <Box sx={{
-              '& img': { maxWidth: '100%' },
-              // Scale down all markdown content
-              '& .wmde-markdown': { fontSize: '0.8125rem', lineHeight: 1.5 },
-              '& .wmde-markdown h1': { fontSize: '1.25rem', mt: 1, mb: 0.5 },
-              '& .wmde-markdown h2': { fontSize: '1.1rem', mt: 1, mb: 0.5 },
-              '& .wmde-markdown h3': { fontSize: '0.95rem', mt: 0.75, mb: 0.25 },
-              '& .wmde-markdown h4, & .wmde-markdown h5, & .wmde-markdown h6': { fontSize: '0.875rem', mt: 0.5, mb: 0.25 },
-              '& .wmde-markdown p': { fontSize: '0.8125rem', mb: 0.75 },
-              '& .wmde-markdown li': { fontSize: '0.8125rem' },
-              '& .wmde-markdown code': { fontSize: '0.75rem' },
-              '& .wmde-markdown pre': { fontSize: '0.75rem' },
-              '& .wmde-markdown table': { fontSize: '0.8125rem' },
-              '& .wmde-markdown blockquote': { fontSize: '0.8125rem' },
-            }}>
+            <Box
+              sx={{
+                '& img': { maxWidth: '100%' },
+                // Scale down all markdown content
+                '& .wmde-markdown': { fontSize: '0.8125rem', lineHeight: 1.5 },
+                '& .wmde-markdown h1': { fontSize: '1.25rem', mt: 1, mb: 0.5 },
+                '& .wmde-markdown h2': { fontSize: '1.1rem', mt: 1, mb: 0.5 },
+                '& .wmde-markdown h3': { fontSize: '0.95rem', mt: 0.75, mb: 0.25 },
+                '& .wmde-markdown h4, & .wmde-markdown h5, & .wmde-markdown h6': {
+                  fontSize: '0.875rem',
+                  mt: 0.5,
+                  mb: 0.25,
+                },
+                '& .wmde-markdown p': { fontSize: '0.8125rem', mb: 0.75 },
+                '& .wmde-markdown li': { fontSize: '0.8125rem' },
+                '& .wmde-markdown code': { fontSize: '0.75rem' },
+                '& .wmde-markdown pre': { fontSize: '0.75rem' },
+                '& .wmde-markdown table': { fontSize: '0.8125rem' },
+                '& .wmde-markdown blockquote': { fontSize: '0.8125rem' },
+              }}
+            >
               <MarkdownPreview source={readmeContent} />
             </Box>
           ) : readmeContent === '' ? (
-            <Text size="sm" sx={{ color: 'neutral.400' }}>No README available for this chart.</Text>
+            <Text size="sm" sx={{ color: 'neutral.400' }}>
+              No README available for this chart.
+            </Text>
           ) : (
-            <Text size="sm" sx={{ color: 'neutral.400' }}>Loading README...</Text>
+            <Text size="sm" sx={{ color: 'neutral.400' }}>
+              Loading README...
+            </Text>
           )}
         </TabPanel>
 
         {/* Values tab */}
         <TabPanel value="values" activeValue={activeTab}>
-          <Box sx={{ position: 'relative', height: 500, border: '1px solid', borderColor: 'neutral.700', borderRadius: 'sm', overflow: 'hidden' }}>
+          <Box
+            sx={{
+              position: 'relative',
+              height: 500,
+              border: '1px solid',
+              borderColor: 'neutral.700',
+              borderRadius: 'sm',
+              overflow: 'hidden',
+            }}
+          >
             <CodeEditor
               filename="values.yaml"
               language="yaml"
@@ -450,8 +531,14 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
                       cursor: 'pointer',
                       borderBottom: i < versions.length - 1 ? '1px solid' : 'none',
                       borderColor: 'neutral.800',
-                      bgcolor: isSelected ? 'rgba(var(--mui-palette-primary-mainChannel) / 0.08)' : 'transparent',
-                      '&:hover': { bgcolor: isSelected ? 'rgba(var(--mui-palette-primary-mainChannel) / 0.12)' : 'action.hover' },
+                      bgcolor: isSelected
+                        ? 'rgba(var(--mui-palette-primary-mainChannel) / 0.08)'
+                        : 'transparent',
+                      '&:hover': {
+                        bgcolor: isSelected
+                          ? 'rgba(var(--mui-palette-primary-mainChannel) / 0.12)'
+                          : 'action.hover',
+                      },
                     }}
                   >
                     {/* Version */}
@@ -494,7 +581,9 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
               })}
             </Stack>
           ) : (
-            <Text size="sm" sx={{ color: 'neutral.400' }}>Loading versions...</Text>
+            <Text size="sm" sx={{ color: 'neutral.400' }}>
+              Loading versions...
+            </Text>
           )}
         </TabPanel>
       </Box>

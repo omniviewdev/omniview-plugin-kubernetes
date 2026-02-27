@@ -1,27 +1,43 @@
-import React from 'react';
-import { ColumnDef } from '@tanstack/react-table';
-import { useParams } from 'react-router-dom';
 import Box from '@mui/material/Box';
-import Modal from '@mui/material/Modal';
 import CircularProgress from '@mui/material/CircularProgress';
 import Divider from '@mui/material/Divider';
+import Modal from '@mui/material/Modal';
+import { DrawerComponent, useExecuteAction } from '@omniviewdev/runtime';
 import { Card, Chip } from '@omniviewdev/ui';
 import { Button, IconButton } from '@omniviewdev/ui/buttons';
 import { Switch, TextField } from '@omniviewdev/ui/inputs';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
-import ResourceTable from '../../shared/table/ResourceTable';
-import { DrawerComponent, useExecuteAction } from '@omniviewdev/runtime';
-import { LuPlus, LuCheck, LuX, LuPackage, LuChevronDown, LuChevronRight, LuLock } from 'react-icons/lu';
+import { ColumnDef } from '@tanstack/react-table';
+import React from 'react';
+import {
+  LuPlus,
+  LuCheck,
+  LuX,
+  LuPackage,
+  LuChevronDown,
+  LuChevronRight,
+  LuLock,
+} from 'react-icons/lu';
 import { SiHelm } from 'react-icons/si';
-import RepoSidebar from './RepoSidebar';
-import { createStandardViews } from '../../shared/sidebar/createDrawerViews';
+import { useParams } from 'react-router-dom';
+
 import { stringToColor } from '../../../utils/color';
+import { createStandardViews } from '../../shared/sidebar/createDrawerViews';
+import ResourceTable from '../../shared/table/ResourceTable';
+
+import RepoSidebar from './RepoSidebar';
 
 const resourceKey = 'helm::v1::Repository';
 
 type HelmRepo = Record<string, any>;
-type ChartEntry = { name: string; description: string; version: string; appVersion?: string; icon?: string };
+type ChartEntry = {
+  name: string;
+  description: string;
+  version: string;
+  appVersion?: string;
+  icon?: string;
+};
 
 const modalStyle = {
   position: 'absolute' as const,
@@ -51,11 +67,18 @@ const MiniChartIcon: React.FC<{ icon?: string; name: string }> = ({ icon, name }
   const [failed, setFailed] = React.useState(false);
   if (icon && !failed) {
     return (
-      <Box sx={{
-        width: 24, height: 24, borderRadius: '4px', flexShrink: 0,
-        bgcolor: 'rgba(255,255,255,0.08)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>
+      <Box
+        sx={{
+          width: 24,
+          height: 24,
+          borderRadius: '4px',
+          flexShrink: 0,
+          bgcolor: 'rgba(255,255,255,0.08)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
         <Box
           component="img"
           src={icon}
@@ -67,12 +90,22 @@ const MiniChartIcon: React.FC<{ icon?: string; name: string }> = ({ icon, name }
     );
   }
   return (
-    <Box sx={{
-      width: 24, height: 24, borderRadius: '4px', flexShrink: 0,
-      bgcolor: stringToColor(name, 1),
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: 9, fontWeight: 700, color: '#fff', lineHeight: 1,
-    }}>
+    <Box
+      sx={{
+        width: 24,
+        height: 24,
+        borderRadius: '4px',
+        flexShrink: 0,
+        bgcolor: stringToColor(name, 1),
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: 9,
+        fontWeight: 700,
+        color: '#fff',
+        lineHeight: 1,
+      }}
+    >
       {chartInitials(name)}
     </Box>
   );
@@ -92,7 +125,16 @@ const AuthSection: React.FC<{
   onPasswordChange: (v: string) => void;
   onInsecureChange: (v: boolean) => void;
   onPlainHTTPChange: (v: boolean) => void;
-}> = ({ username, password, insecureSkipTLS, plainHTTP, onUsernameChange, onPasswordChange, onInsecureChange, onPlainHTTPChange }) => {
+}> = ({
+  username,
+  password,
+  insecureSkipTLS,
+  plainHTTP,
+  onUsernameChange,
+  onPasswordChange,
+  onInsecureChange,
+  onPlainHTTPChange,
+}) => {
   const [expanded, setExpanded] = React.useState(false);
   const hasAuth = username || password || insecureSkipTLS || plainHTTP;
 
@@ -209,7 +251,9 @@ const AddRepoDialog: React.FC<{
       try {
         new URL(trimmedUrl);
       } catch {
-        setErrorMsg('Please enter a valid URL (e.g. https://charts.bitnami.com/bitnami or oci://ghcr.io/my-org)');
+        setErrorMsg(
+          'Please enter a valid URL (e.g. https://charts.bitnami.com/bitnami or oci://ghcr.io/my-org)',
+        );
         return;
       }
     }
@@ -249,12 +293,15 @@ const AddRepoDialog: React.FC<{
       }
       setStep('success');
     } catch (err: unknown) {
-      const raw = err instanceof Error ? err.message : typeof err === 'string' ? err : String(err ?? '');
+      const raw =
+        err instanceof Error ? err.message : typeof err === 'string' ? err : String(err ?? '');
       const msg = raw || 'Failed to add repository';
       if (msg.includes('already exists')) {
         setErrorMsg(`Repository "${trimmedName}" already exists`);
       } else if (msg.includes('download index')) {
-        setErrorMsg(`Could not reach the repository at ${trimmedUrl}. Please verify the URL is correct and accessible.`);
+        setErrorMsg(
+          `Could not reach the repository at ${trimmedUrl}. Please verify the URL is correct and accessible.`,
+        );
       } else if (msg.includes('authenticate')) {
         setErrorMsg(`Authentication failed for ${trimmedUrl}. Please check your credentials.`);
       } else {
@@ -277,7 +324,10 @@ const AddRepoDialog: React.FC<{
     <Stack direction="column" spacing={1.5}>
       <TextField
         value={name}
-        onChange={(v) => { setName(v); setErrorMsg(''); }}
+        onChange={(v) => {
+          setName(v);
+          setErrorMsg('');
+        }}
         placeholder="e.g. bitnami"
         label="Name"
         size="sm"
@@ -286,17 +336,20 @@ const AddRepoDialog: React.FC<{
       />
       <TextField
         value={url}
-        onChange={(v) => { setUrl(v); setErrorMsg(''); }}
+        onChange={(v) => {
+          setUrl(v);
+          setErrorMsg('');
+        }}
         placeholder="e.g. https://charts.bitnami.com/bitnami or oci://ghcr.io/my-org"
         label="URL"
         size="sm"
         fullWidth
         autoComplete="off"
-        onKeyDown={(e) => { if (e.key === 'Enter') void handleAdd(); }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') void handleAdd();
+        }}
       />
-      {isOCI && (
-        <Chip size="sm" emphasis="soft" color="info" label="OCI Registry" />
-      )}
+      {isOCI && <Chip size="sm" emphasis="soft" color="info" label="OCI Registry" />}
       <AuthSection
         username={username}
         password={password}
@@ -314,7 +367,12 @@ const AddRepoDialog: React.FC<{
     <Modal open={open} onClose={handleClose}>
       <Box sx={modalStyle}>
         {/* Header */}
-        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ px: 2.5, pt: 2, pb: 1.5 }}>
+        <Stack
+          direction="row"
+          justifyContent="space-between"
+          alignItems="center"
+          sx={{ px: 2.5, pt: 2, pb: 1.5 }}
+        >
           <Stack direction="row" alignItems="center" spacing={1}>
             <SiHelm size={16} />
             <Text weight="semibold" size="md">
@@ -339,7 +397,9 @@ const AddRepoDialog: React.FC<{
                   {isOCI ? 'Connecting to registry...' : 'Validating repository...'}
                 </Text>
                 <Text size="xs" sx={{ color: 'neutral.400' }}>
-                  {isOCI ? `Authenticating with ${url.trim().replace('oci://', '')}` : `Downloading index from ${url.trim()}`}
+                  {isOCI
+                    ? `Authenticating with ${url.trim().replace('oci://', '')}`
+                    : `Downloading index from ${url.trim()}`}
                 </Text>
               </Stack>
             </Stack>
@@ -348,8 +408,13 @@ const AddRepoDialog: React.FC<{
           {step === 'error' && (
             <Stack direction="column" spacing={2}>
               {renderFormFields()}
-              <Card sx={{ p: 1.25, borderRadius: 'sm', borderColor: 'error.main' }} emphasis="outline">
-                <Text size="xs" sx={{ color: 'error.light' }}>{errorMsg}</Text>
+              <Card
+                sx={{ p: 1.25, borderRadius: 'sm', borderColor: 'error.main' }}
+                emphasis="outline"
+              >
+                <Text size="xs" sx={{ color: 'error.light' }}>
+                  {errorMsg}
+                </Text>
               </Card>
             </Stack>
           )}
@@ -357,21 +422,34 @@ const AddRepoDialog: React.FC<{
           {step === 'success' && (
             <Stack direction="column" spacing={2}>
               {/* Success banner */}
-              <Card sx={{ p: 1.25, borderRadius: 'sm', borderColor: 'success.main' }} emphasis="outline">
+              <Card
+                sx={{ p: 1.25, borderRadius: 'sm', borderColor: 'success.main' }}
+                emphasis="outline"
+              >
                 <Stack direction="row" alignItems="center" spacing={1}>
-                  <Box sx={{
-                    width: 20, height: 20, borderRadius: '50%',
-                    bgcolor: 'success.main', display: 'flex',
-                    alignItems: 'center', justifyContent: 'center',
-                  }}>
+                  <Box
+                    sx={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: '50%',
+                      bgcolor: 'success.main',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
                     <LuCheck size={12} color="#fff" />
                   </Box>
                   <Stack direction="column" spacing={0}>
                     <Stack direction="row" alignItems="center" spacing={0.75}>
-                      <Text size="sm" weight="semibold">{name}</Text>
+                      <Text size="sm" weight="semibold">
+                        {name}
+                      </Text>
                       {isOCI && <Chip size="sm" emphasis="soft" color="info" label="OCI" />}
                     </Stack>
-                    <Text size="xs" sx={{ color: 'neutral.400' }}>{url}</Text>
+                    <Text size="xs" sx={{ color: 'neutral.400' }}>
+                      {url}
+                    </Text>
                   </Stack>
                 </Stack>
               </Card>
@@ -387,7 +465,12 @@ const AddRepoDialog: React.FC<{
                       </Text>
                     </Stack>
                     {charts.length > 8 && (
-                      <Chip size="sm" emphasis="soft" color="neutral" label={`${filteredCharts.length} shown`} />
+                      <Chip
+                        size="sm"
+                        emphasis="soft"
+                        color="neutral"
+                        label={`${filteredCharts.length} shown`}
+                      />
                     )}
                   </Stack>
 
@@ -429,15 +512,20 @@ const AddRepoDialog: React.FC<{
                       >
                         <MiniChartIcon icon={chart.icon} name={chart.name} />
                         <Stack direction="column" spacing={0} sx={{ flex: 1, minWidth: 0 }}>
-                          <Text size="xs" weight="semibold" sx={{ lineHeight: 1.3 }}>{chart.name}</Text>
+                          <Text size="xs" weight="semibold" sx={{ lineHeight: 1.3 }}>
+                            {chart.name}
+                          </Text>
                           {chart.description && (
-                            <Text size="xs" sx={{
-                              color: 'neutral.500',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                              lineHeight: 1.3,
-                            }}>
+                            <Text
+                              size="xs"
+                              sx={{
+                                color: 'neutral.500',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                lineHeight: 1.3,
+                              }}
+                            >
                               {chart.description}
                             </Text>
                           )}
@@ -468,7 +556,8 @@ const AddRepoDialog: React.FC<{
               {/* OCI success message */}
               {isOCI && (
                 <Text size="xs" sx={{ color: 'neutral.400' }}>
-                  OCI registry added. Charts from OCI registries are discovered when you reference them directly (e.g. oci://ghcr.io/org/chart-name).
+                  OCI registry added. Charts from OCI registries are discovered when you reference
+                  them directly (e.g. oci://ghcr.io/org/chart-name).
                 </Text>
               )}
             </Stack>
@@ -483,12 +572,7 @@ const AddRepoDialog: React.FC<{
               <Button size="xs" emphasis="ghost" color="neutral" onClick={handleClose}>
                 Cancel
               </Button>
-              <Button
-                size="xs"
-                emphasis="solid"
-                color="primary"
-                onClick={() => void handleAdd()}
-              >
+              <Button size="xs" emphasis="solid" color="primary" onClick={() => void handleAdd()}>
                 Add Repository
               </Button>
             </>
@@ -498,23 +582,13 @@ const AddRepoDialog: React.FC<{
               <Button size="xs" emphasis="ghost" color="neutral" onClick={handleClose}>
                 Cancel
               </Button>
-              <Button
-                size="xs"
-                emphasis="solid"
-                color="primary"
-                onClick={() => void handleAdd()}
-              >
+              <Button size="xs" emphasis="solid" color="primary" onClick={() => void handleAdd()}>
                 Retry
               </Button>
             </>
           )}
           {step === 'success' && (
-            <Button
-              size="xs"
-              emphasis="solid"
-              color="primary"
-              onClick={handleClose}
-            >
+            <Button size="xs" emphasis="solid" color="primary" onClick={handleClose}>
               Done
             </Button>
           )}
@@ -523,7 +597,6 @@ const AddRepoDialog: React.FC<{
     </Modal>
   );
 };
-
 
 const HelmRepoTable: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
@@ -565,12 +638,15 @@ const HelmRepoTable: React.FC = () => {
     [],
   );
 
-  const drawer: DrawerComponent<HelmRepo> = React.useMemo(() => ({
-    title: 'Repository',
-    icon: <SiHelm />,
-    views: createStandardViews({ SidebarComponent: RepoSidebar }),
-    actions: [],
-  }), []);
+  const drawer: DrawerComponent<HelmRepo> = React.useMemo(
+    () => ({
+      title: 'Repository',
+      icon: <SiHelm />,
+      views: createStandardViews({ SidebarComponent: RepoSidebar }),
+      actions: [],
+    }),
+    [],
+  );
 
   return (
     <>
@@ -595,11 +671,7 @@ const HelmRepoTable: React.FC = () => {
           </Button>
         }
       />
-      <AddRepoDialog
-        open={showAddRepo}
-        onClose={() => setShowAddRepo(false)}
-        connectionID={id}
-      />
+      <AddRepoDialog open={showAddRepo} onClose={() => setShowAddRepo(false)} connectionID={id} />
     </>
   );
 };

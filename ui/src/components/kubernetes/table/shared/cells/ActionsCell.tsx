@@ -1,13 +1,7 @@
-import React from 'react';
-import { ObjectMeta } from 'kubernetes-types/meta/v1';
-
 // UI components
-import { IconButton } from '@omniviewdev/ui/buttons';
-import { DropdownMenu, type ContextMenuItem } from '@omniviewdev/ui/menus';
 
 // Icons
 import { MoreHorizRounded } from '@mui/icons-material';
-import { LuTrash } from 'react-icons/lu';
 
 // Runtime
 import {
@@ -16,6 +10,11 @@ import {
   useConfirmationModal,
 } from '@omniviewdev/runtime';
 import { ResourceClient } from '@omniviewdev/runtime/api';
+import { IconButton } from '@omniviewdev/ui/buttons';
+import { DropdownMenu, type ContextMenuItem } from '@omniviewdev/ui/menus';
+import { ObjectMeta } from 'kubernetes-types/meta/v1';
+import React from 'react';
+import { LuTrash } from 'react-icons/lu';
 
 // Table context
 import { useTableDrawer } from '../../../../shared/table/TableDrawerContext';
@@ -61,11 +60,12 @@ function actionsToMenuItems(
   const otherActions: { action: DrawerComponentAction; disabled: boolean }[] = [];
 
   for (const action of actions) {
-    const isEnabled = action.enabled === undefined
-      ? true
-      : typeof action.enabled === 'function'
-        ? action.enabled(ctx)
-        : action.enabled;
+    const isEnabled =
+      action.enabled === undefined
+        ? true
+        : typeof action.enabled === 'function'
+          ? action.enabled(ctx)
+          : action.enabled;
 
     const label = typeof action.title === 'string' ? action.title : '';
     const entry = { action, disabled: !isEnabled };
@@ -90,9 +90,7 @@ function actionsToMenuItems(
     };
 
     if (!disabled && action.list) {
-      const listItems = typeof action.list === 'function'
-        ? action.list(ctx)
-        : action.list;
+      const listItems = typeof action.list === 'function' ? action.list(ctx) : action.list;
 
       item.children = listItems.map((listItem, j) => ({
         key: `${label}-${j}`,
@@ -127,13 +125,10 @@ const ActionsCell: React.FC<Props> = (props) => {
   const drawer = useTableDrawer();
   const { show } = useConfirmationModal();
 
-  const ctx = React.useMemo(() => buildDrawerContext(props), [
-    props.connectionID,
-    props.resourceKey,
-    props.resourceID,
-    props.data,
-    props.namespace,
-  ]);
+  const ctx = React.useMemo(
+    () => buildDrawerContext(props),
+    [props.connectionID, props.resourceKey, props.resourceID, props.data, props.namespace],
+  );
 
   const items = React.useMemo<ContextMenuItem[]>(() => {
     const drawerActions = drawer?.actions;
@@ -152,11 +147,7 @@ const ActionsCell: React.FC<Props> = (props) => {
       placement="bottom-end"
       items={items}
       trigger={
-        <IconButton
-          size="sm"
-          emphasis="ghost"
-          sx={{ flex: 'none', minHeight: 28, minWidth: 28 }}
-        >
+        <IconButton size="sm" emphasis="ghost" sx={{ flex: 'none', minHeight: 28, minWidth: 28 }}>
           <MoreHorizRounded />
         </IconButton>
       }
@@ -188,12 +179,12 @@ function buildFallbackDelete(
         confirmLabel: 'Delete',
         cancelLabel: 'Cancel',
         onConfirm: async () => {
-          await ResourceClient.Delete(
-            'kubernetes',
-            props.connectionID,
-            props.resourceKey,
-            { id: resourceName, namespace: props.namespace, input: {}, params: {} } as any,
-          );
+          await ResourceClient.Delete('kubernetes', props.connectionID, props.resourceKey, {
+            id: resourceName,
+            namespace: props.namespace,
+            input: {},
+            params: {},
+          } as any);
         },
       });
     },

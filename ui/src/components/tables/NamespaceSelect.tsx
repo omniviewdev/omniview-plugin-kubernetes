@@ -1,6 +1,6 @@
-import React from 'react';
-import { Select } from '@omniviewdev/ui/inputs';
 import { useResources } from '@omniviewdev/runtime';
+import { Select } from '@omniviewdev/ui/inputs';
+import React from 'react';
 
 type Props = {
   /** The active connection being used */
@@ -14,9 +14,9 @@ type Props = {
 };
 
 /**
-  * Renders a select for choosing namespaces.
-  * Uses useResources to subscribe to namespace informer events for live updates.
-  */
+ * Renders a select for choosing namespaces.
+ * Uses useResources to subscribe to namespace informer events for live updates.
+ */
 const NamespaceSelect: React.FC<Props> = ({ connectionID, selected, setNamespaces }) => {
   const { resources } = useResources({
     pluginID: 'kubernetes',
@@ -28,26 +28,24 @@ const NamespaceSelect: React.FC<Props> = ({ connectionID, selected, setNamespace
   const namespaceNames = React.useMemo(() => {
     const items: Record<string, any>[] = resources.data?.result ?? [];
     return items
-      .map(ns => ns.metadata?.name as string)
+      .map((ns) => ns.metadata?.name as string)
       .filter(Boolean)
       .sort();
   }, [resources.data]);
 
-  const handleChange = (
-    newValue: string | string[],
-  ) => {
+  const handleChange = (newValue: string | string[]) => {
     setNamespaces(Array.isArray(newValue) ? newValue : [newValue]);
   };
 
   return (
     <Select
-      size='xs'
+      size="xs"
       multiple
       searchable
       clearable
       value={selected}
       onChange={handleChange}
-      placeholder='All Namespaces'
+      placeholder="All Namespaces"
       sx={{
         minWidth: 160,
         maxWidth: 280,

@@ -1,5 +1,5 @@
-import { createContext, useContext } from 'react';
 import type { DrawerComponent } from '@omniviewdev/runtime';
+import { createContext, useContext } from 'react';
 
 /**
  * Provides the DrawerComponent (with its actions array) to table cells.

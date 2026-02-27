@@ -1,15 +1,17 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { JobSidebar } from ".";
-import data from "./mock.json";
+import type { Meta, StoryObj } from '@storybook/react-vite';
 
-import ResourceDrawerContainer from "../../../../stories/containers/SidebarContainer";
+import ResourceDrawerContainer from '../../../../stories/containers/SidebarContainer';
+
+import data from './mock.json';
+
+import { JobSidebar } from '.';
 
 // More on how to set up stories at: https://storybook.js.org/docs/writing-stories#default-export
 const meta = {
-  title: "Kubernetes/Sidebars/Job",
+  title: 'Kubernetes/Sidebars/Job',
   component: JobSidebar,
   // This component will have an automatically generated Autodocs entry: https://storybook.js.org/docs/writing-docs/autodocs
-  tags: ["autodocs"],
+  tags: ['autodocs'],
 } satisfies Meta<typeof JobSidebar>;
 
 export default meta;

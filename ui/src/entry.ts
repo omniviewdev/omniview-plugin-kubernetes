@@ -1,30 +1,31 @@
 /// <reference types="@welldone-software/why-did-you-render" />
-import React from 'react'
+import React from 'react';
 //@ts-ignore
-window.PluginReact = React
+window.PluginReact = React;
 
 /// <reference types="@welldone-software/why-did-you-render" />
-import { PluginWindow, type DrawerContext, type DrawerComponent, type DrawerFactory } from '@omniviewdev/runtime';
+import {
+  PluginWindow,
+  type DrawerContext,
+  type DrawerComponent,
+  type DrawerFactory,
+} from '@omniviewdev/runtime';
 import { RouteObject } from 'react-router-dom';
-import { createStandardViews } from './components/shared/sidebar/createDrawerViews';
 
-import ClustersPage from './pages/ClustersPage';
-import ClusterEditPage from './pages/ClusterEditPage';
-import ClusterResourcesPage from './pages/ClusterResourcesPage';
-import ClusterDashboardPage from './pages/dashboard'
-
+import ChartSidebar from './components/helm/charts/ChartSidebar';
+import HelmChartTable from './components/helm/charts/Table';
+import ReleaseSidebar from './components/helm/releases/ReleaseSidebar';
+import HelmReleaseTable from './components/helm/releases/Table';
+import HelmRepoTable from './components/helm/repos/Table';
 import DefaultTable from './components/kubernetes/table/default/Table';
 
 // helm tables
-import HelmReleaseTable from './components/helm/releases/Table';
-import HelmRepoTable from './components/helm/repos/Table';
-import HelmChartTable from './components/helm/charts/Table';
 
 // admissionregistration.v1
-import MutatingWebhookConfigurationTable from './components/kubernetes/table/admissionregistrationv1/MutatingWebhookConfiguration/Table'
-import ValidatingAdmissionPolicyTable from './components/kubernetes/table/admissionregistrationv1/ValidatingAdmissionPolicy/Table'
-import ValidatingAdmissionPolicyBindingTable from './components/kubernetes/table/admissionregistrationv1/ValidatingAdmissionPolicyBinding/Table'
-import ValidatingWebhookConfigurationTable from './components/kubernetes/table/admissionregistrationv1/ValidatingWebhookConfiguration/Table'
+import MutatingWebhookConfigurationTable from './components/kubernetes/table/admissionregistrationv1/MutatingWebhookConfiguration/Table';
+import ValidatingAdmissionPolicyTable from './components/kubernetes/table/admissionregistrationv1/ValidatingAdmissionPolicy/Table';
+import ValidatingAdmissionPolicyBindingTable from './components/kubernetes/table/admissionregistrationv1/ValidatingAdmissionPolicyBinding/Table';
+import ValidatingWebhookConfigurationTable from './components/kubernetes/table/admissionregistrationv1/ValidatingWebhookConfiguration/Table';
 
 // apps.v1
 import DaemonSetTable from './components/kubernetes/table/appsv1/DaemonSet/Table';
@@ -58,11 +59,14 @@ import ServiceAccountTable from './components/kubernetes/table/corev1/ServiceAcc
 import LeaseTable from './components/kubernetes/table/coordinationv1/Lease/Table';
 
 // flowcontrol.v1
-import PriorityLevelConfigurationTable from './components/kubernetes/table/flowcontrolv1/PriorityLevelConfiguration/Table';
+import EndpointSliceSidebar from './components/kubernetes/table/discoveryv1/EndpointSlice/Sidebar';
+import EndpointSliceTable from './components/kubernetes/table/discoveryv1/EndpointSlice/Table';
 import FlowSchemaTable from './components/kubernetes/table/flowcontrolv1/FlowSchema/Table';
+import PriorityLevelConfigurationTable from './components/kubernetes/table/flowcontrolv1/PriorityLevelConfiguration/Table';
 
 // networking.v1
 import IngressTable from './components/kubernetes/table/networkingv1/Ingress/Table';
+import IngressClassTable from './components/kubernetes/table/networkingv1/IngressClass/Table';
 import NetworkPolicyTable from './components/kubernetes/table/networkingv1/NetworkPolicy/Table';
 
 // policy.v1
@@ -86,8 +90,6 @@ import VolumeAttachmentTable from './components/kubernetes/table/storagev1/Volum
 import LimitRangeTable from './components/kubernetes/table/corev1/LimitRange/Table';
 import ResourceQuotaTable from './components/kubernetes/table/corev1/ResourceQuota/Table';
 import RuntimeClassTable from './components/kubernetes/table/nodev1/RuntimeClass/Table';
-import EndpointSliceTable from './components/kubernetes/table/discoveryv1/EndpointSlice/Table';
-import IngressClassTable from './components/kubernetes/table/networkingv1/IngressClass/Table';
 import ClusterDashboardOverviewPage from './pages/dashboard/overview';
 import ClusterDashboardBenchmarksPage from './pages/dashboard/benchmarks';
 import ClusterDashboardMetricsPage from './pages/dashboard/metrics';
@@ -139,7 +141,6 @@ import NetworkPolicySidebar from './components/kubernetes/table/networkingv1/Net
 import IngressClassSidebar from './components/kubernetes/table/networkingv1/IngressClass/Sidebar';
 
 // discovery.v1
-import EndpointSliceSidebar from './components/kubernetes/table/discoveryv1/EndpointSlice/Sidebar';
 
 // node.v1
 import RuntimeClassSidebar from './components/kubernetes/table/nodev1/RuntimeClass/Sidebar';
@@ -151,15 +152,18 @@ import StorageClassSidebar from './components/kubernetes/table/storagev1/Storage
 import VolumeAttachmentSidebar from './components/kubernetes/table/storagev1/VolumeAttachment/Sidebar';
 
 // helm.v1
-import ReleaseSidebar from './components/helm/releases/ReleaseSidebar';
 import RepoSidebar from './components/helm/repos/RepoSidebar';
-import ChartSidebar from './components/helm/charts/ChartSidebar';
 
 // admissionregistration.v1
 import MutatingWebhookConfigurationSidebar from './components/kubernetes/table/admissionregistrationv1/MutatingWebhookConfiguration/Sidebar';
 import ValidatingAdmissionPolicySidebar from './components/kubernetes/table/admissionregistrationv1/ValidatingAdmissionPolicy/Sidebar';
 import ValidatingAdmissionPolicyBindingSidebar from './components/kubernetes/table/admissionregistrationv1/ValidatingAdmissionPolicyBinding/Sidebar';
 import ValidatingWebhookConfigurationSidebar from './components/kubernetes/table/admissionregistrationv1/ValidatingWebhookConfiguration/Sidebar';
+import { createStandardViews } from './components/shared/sidebar/createDrawerViews';
+import ClusterEditPage from './pages/ClusterEditPage';
+import ClusterResourcesPage from './pages/ClusterResourcesPage';
+import ClustersPage from './pages/ClustersPage';
+import ClusterDashboardPage from './pages/dashboard';
 
 /**
  * Sidebar components keyed by resource key (group::version::Kind).
@@ -215,8 +219,10 @@ export const sidebars: Record<string, React.FC<{ ctx: DrawerContext }>> = {
   // admissionregistration.v1
   'admissionregistration::v1::MutatingWebhookConfiguration': MutatingWebhookConfigurationSidebar,
   'admissionregistration::v1::ValidatingAdmissionPolicy': ValidatingAdmissionPolicySidebar,
-  'admissionregistration::v1::ValidatingAdmissionPolicyBinding': ValidatingAdmissionPolicyBindingSidebar,
-  'admissionregistration::v1::ValidatingWebhookConfiguration': ValidatingWebhookConfigurationSidebar,
+  'admissionregistration::v1::ValidatingAdmissionPolicyBinding':
+    ValidatingAdmissionPolicyBindingSidebar,
+  'admissionregistration::v1::ValidatingWebhookConfiguration':
+    ValidatingWebhookConfigurationSidebar,
   // helm.v1
   'helm::v1::Release': ReleaseSidebar,
   'helm::v1::Repository': RepoSidebar,
@@ -279,13 +285,25 @@ const routes: Array<RouteObject> = [
               { path: '', index: true, Component: ClusterDashboardOverviewPage },
               { path: 'metrics', Component: ClusterDashboardMetricsPage },
               { path: 'benchmarks', Component: ClusterDashboardBenchmarksPage },
-            ]
+            ],
           },
           // admissionregistration.v1
-          { path: 'admissionregistration_v1_MutatingWebhookConfiguration', Component: MutatingWebhookConfigurationTable },
-          { path: 'admissionregistration_v1_ValidatingAdmissionPolicy', Component: ValidatingAdmissionPolicyTable },
-          { path: 'admissionregistration_v1_ValidatingAdmissionPolicyBinding', Component: ValidatingAdmissionPolicyBindingTable },
-          { path: 'admissionregistration_v1_ValidatingWebhookConfiguration', Component: ValidatingWebhookConfigurationTable },
+          {
+            path: 'admissionregistration_v1_MutatingWebhookConfiguration',
+            Component: MutatingWebhookConfigurationTable,
+          },
+          {
+            path: 'admissionregistration_v1_ValidatingAdmissionPolicy',
+            Component: ValidatingAdmissionPolicyTable,
+          },
+          {
+            path: 'admissionregistration_v1_ValidatingAdmissionPolicyBinding',
+            Component: ValidatingAdmissionPolicyBindingTable,
+          },
+          {
+            path: 'admissionregistration_v1_ValidatingWebhookConfiguration',
+            Component: ValidatingWebhookConfigurationTable,
+          },
 
           // apps.v1
           { path: 'apps_v1_DaemonSet', Component: DaemonSetTable },
@@ -294,10 +312,16 @@ const routes: Array<RouteObject> = [
           { path: 'apps_v1_StatefulSet', Component: StatefulSetTable },
 
           // autoscaling.v1
-          { path: 'autoscaling_v1_HorizontalPodAutoscaler', Component: HorizontalPodAutoscalerTable },
+          {
+            path: 'autoscaling_v1_HorizontalPodAutoscaler',
+            Component: HorizontalPodAutoscalerTable,
+          },
 
           // autoscaling.v2
-          { path: 'autoscaling_v2_HorizontalPodAutoscaler', Component: HorizontalPodAutoscalerTable },
+          {
+            path: 'autoscaling_v2_HorizontalPodAutoscaler',
+            Component: HorizontalPodAutoscalerTable,
+          },
 
           // batch.v1
           { path: 'batch_v1_CronJob', Component: CronJobTable },
@@ -327,7 +351,10 @@ const routes: Array<RouteObject> = [
           { path: 'discovery_v1_EndpointSlice', Component: EndpointSliceTable },
 
           // flowcontrol.v1
-          { path: 'flowcontrol_v1_PriorityLevelConfiguration', Component: PriorityLevelConfigurationTable },
+          {
+            path: 'flowcontrol_v1_PriorityLevelConfiguration',
+            Component: PriorityLevelConfigurationTable,
+          },
           { path: 'flowcontrol_v1_FlowSchema', Component: FlowSchemaTable },
 
           // networking.v1
@@ -363,13 +390,11 @@ const routes: Array<RouteObject> = [
           { path: 'helm_v1_Chart', Component: HelmChartTable },
 
           // Custom Resource Definitions / breaking api versions
-          { path: ':resourceKey', Component: DefaultTable }
-        ]
-      }
-    ]
-  }
-]
+          { path: ':resourceKey', Component: DefaultTable },
+        ],
+      },
+    ],
+  },
+];
 
-export const plugin = new PluginWindow()
-  .setRootPage(ClustersPage)
-  .withRoutes(routes)
+export const plugin = new PluginWindow().setRootPage(ClustersPage).withRoutes(routes);

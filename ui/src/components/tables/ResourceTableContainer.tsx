@@ -1,16 +1,13 @@
-import React, { useState } from 'react';
-
 // @omniviewdev/ui
+import { ArrowDropDown } from '@mui/icons-material';
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
 import LinearProgress from '@mui/material/LinearProgress';
 import Skeleton from '@mui/material/Skeleton';
+import { useResources, InformerResourceState } from '@omniviewdev/runtime';
 import { Alert } from '@omniviewdev/ui/feedback';
 import { Stack } from '@omniviewdev/ui/layout';
-import { Text } from '@omniviewdev/ui/typography';
-import { Heading } from '@omniviewdev/ui/typography';
-
-import { ArrowDropDown } from '@mui/icons-material';
+import { Text, Heading } from '@omniviewdev/ui/typography';
 
 // Tanstack/react-table
 import {
@@ -26,13 +23,14 @@ import {
   useReactTable,
   type RowSelectionState,
 } from '@tanstack/react-table';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import get from 'lodash.get';
 
 // Project imports
-import MemoizedRow from './MemoizedRow';
-import { useVirtualizer } from '@tanstack/react-virtual';
-import { useResources, InformerResourceState } from '@omniviewdev/runtime';
+import React, { useState } from 'react';
 import { LuCircleAlert } from 'react-icons/lu';
+
+import MemoizedRow from './MemoizedRow';
 
 export type Memoizer = string | string[] | ((data: any) => string);
 export type IdAccessor = string | ((data: any) => string);
@@ -69,7 +67,6 @@ export const namespaceFilter: FilterFn<any> = (row, columnId, value: string[]) =
   return value.includes(row.getValue(columnId));
 };
 
-
 const ResourceTableContainer: React.FC<Props> = ({
   columns,
   idAccessor,
@@ -82,12 +79,16 @@ const ResourceTableContainer: React.FC<Props> = ({
   search,
 }) => {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'name', desc: false }]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([{ id: 'namespace', value: [] }]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([
+    { id: 'namespace', value: [] },
+  ]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   React.useLayoutEffect(() => {
-    const storedColumnVisibility = window.localStorage.getItem(`${pluginID}-${connectionID}-${resourceKey}-column-visibility`);
+    const storedColumnVisibility = window.localStorage.getItem(
+      `${pluginID}-${connectionID}-${resourceKey}-column-visibility`,
+    );
     if (storedColumnVisibility && initialColumnVisibility) {
       const current = JSON.parse(storedColumnVisibility);
 
@@ -104,13 +105,20 @@ const ResourceTableContainer: React.FC<Props> = ({
   }, [initialColumnVisibility]);
 
   React.useEffect(() => {
-    let visibility = JSON.stringify(columnVisibility);
+    const visibility = JSON.stringify(columnVisibility);
     if (visibility !== '{}') {
-      window.localStorage.setItem(`${pluginID}-${connectionID}-${resourceKey}-column-visibility`, visibility);
+      window.localStorage.setItem(
+        `${pluginID}-${connectionID}-${resourceKey}-column-visibility`,
+        visibility,
+      );
     }
   }, [columnVisibility]);
 
-  const { resources, informerState, isSyncing } = useResources({ pluginID, connectionID, resourceKey });
+  const { resources, informerState, isSyncing } = useResources({
+    pluginID,
+    connectionID,
+    resourceKey,
+  });
 
   const table = useReactTable({
     data: resources.data?.result || [],
@@ -181,10 +189,20 @@ const ResourceTableContainer: React.FC<Props> = ({
           </thead>
           <tbody style={{ display: 'grid' }}>
             {Array.from({ length: 8 }).map((_, i) => (
-              <tr key={i} style={{ display: 'flex', width: '100%', height: 36, opacity: 1 - i * 0.08 }}>
+              <tr
+                key={i}
+                style={{ display: 'flex', width: '100%', height: 36, opacity: 1 - i * 0.08 }}
+              >
                 {columns.slice(0, 5).map((_, j) => (
-                  <td key={j} style={{ flex: 1, padding: '6px 12px', display: 'flex', alignItems: 'center' }}>
-                    <Skeleton variant="text" width={`${50 + Math.random() * 40}%`} sx={{ fontSize: '0.75rem' }} />
+                  <td
+                    key={j}
+                    style={{ flex: 1, padding: '6px 12px', display: 'flex', alignItems: 'center' }}
+                  >
+                    <Skeleton
+                      variant="text"
+                      width={`${50 + Math.random() * 40}%`}
+                      sx={{ fontSize: '0.75rem' }}
+                    />
                   </td>
                 ))}
               </tr>
@@ -245,7 +263,11 @@ const ResourceTableContainer: React.FC<Props> = ({
         'The API group may have been removed or is not installed',
         'You may not have permission to discover this API group',
       ];
-    } else if (errstring.includes('forbidden') || errstring.includes('Forbidden') || errstring.includes('403')) {
+    } else if (
+      errstring.includes('forbidden') ||
+      errstring.includes('Forbidden') ||
+      errstring.includes('403')
+    ) {
       title = 'Access denied';
       detail = 'You do not have permission to access this resource.';
       suggestions = [
@@ -253,7 +275,14 @@ const ResourceTableContainer: React.FC<Props> = ({
         'Contact your cluster administrator for access',
         'Verify your kubeconfig context is correct',
       ];
-    } else if (errstring.includes('connection refused') || errstring.includes('no such host') || errstring.includes('network') || errstring.includes('timeout') || errstring.includes('ETIMEDOUT') || errstring.includes('ECONNREFUSED')) {
+    } else if (
+      errstring.includes('connection refused') ||
+      errstring.includes('no such host') ||
+      errstring.includes('network') ||
+      errstring.includes('timeout') ||
+      errstring.includes('ETIMEDOUT') ||
+      errstring.includes('ECONNREFUSED')
+    ) {
       title = 'Connection error';
       detail = 'Unable to reach the cluster API server.';
       suggestions = [
@@ -261,7 +290,11 @@ const ResourceTableContainer: React.FC<Props> = ({
         'Verify your network connection',
         'Check if a VPN or proxy is required',
       ];
-    } else if (errstring.includes('certificate') || errstring.includes('x509') || errstring.includes('TLS')) {
+    } else if (
+      errstring.includes('certificate') ||
+      errstring.includes('x509') ||
+      errstring.includes('TLS')
+    ) {
       title = 'Certificate error';
       detail = 'There was a TLS/certificate issue connecting to the cluster.';
       suggestions = [
@@ -269,7 +302,11 @@ const ResourceTableContainer: React.FC<Props> = ({
         'Your kubeconfig may reference outdated certificates',
         'Check if the CA bundle is configured correctly',
       ];
-    } else if (errstring.includes('unauthorized') || errstring.includes('Unauthorized') || errstring.includes('401')) {
+    } else if (
+      errstring.includes('unauthorized') ||
+      errstring.includes('Unauthorized') ||
+      errstring.includes('401')
+    ) {
       title = 'Authentication failed';
       detail = 'Your credentials were rejected by the cluster.';
       suggestions = [
@@ -290,32 +327,35 @@ const ResourceTableContainer: React.FC<Props> = ({
           height: '100%',
           width: '100%',
           userSelect: 'none',
-        }}>
+        }}
+      >
         <Alert
-          emphasis='soft'
-          size='lg'
+          emphasis="soft"
+          size="lg"
           startAdornment={<LuCircleAlert size={20} />}
-          color='danger'
+          color="danger"
         >
-          <Heading level='h4' sx={{ color: 'danger.main' }}>
+          <Heading level="h4" sx={{ color: 'danger.main' }}>
             {title}
           </Heading>
         </Alert>
         <Stack direction="column" spacing={1} sx={{ maxWidth: 560, textAlign: 'center' }}>
-          <Text size='sm' sx={{ color: 'text.secondary' }}>
+          <Text size="sm" sx={{ color: 'text.secondary' }}>
             {detail}
           </Text>
           {suggestions.length > 0 && (
             <Box component="ul" sx={{ textAlign: 'left', pl: 2, m: 0 }}>
               {suggestions.map((s) => (
                 <Box component="li" key={s} sx={{ py: 0.25 }}>
-                  <Text size='xs' sx={{ color: 'text.secondary' }}>{s}</Text>
+                  <Text size="xs" sx={{ color: 'text.secondary' }}>
+                    {s}
+                  </Text>
                 </Box>
               ))}
             </Box>
           )}
           <Text
-            size='xs'
+            size="xs"
             sx={{
               color: 'text.disabled',
               fontFamily: 'monospace',
@@ -392,12 +432,9 @@ const ResourceTableContainer: React.FC<Props> = ({
             zIndex: 1,
           }}
         >
-          {table.getHeaderGroups().map(headerGroup => (
-            <tr
-              key={headerGroup.id}
-              style={{ display: 'flex', width: '100%', cursor: 'pointer' }}
-            >
-              {headerGroup.headers.map(header => (
+          {table.getHeaderGroups().map((headerGroup) => (
+            <tr key={headerGroup.id} style={{ display: 'flex', width: '100%', cursor: 'pointer' }}>
+              {headerGroup.headers.map((header) => (
                 <th
                   key={header.id}
                   style={{
@@ -405,14 +442,16 @@ const ResourceTableContainer: React.FC<Props> = ({
                     display: 'flex',
                     alignItems: 'center',
                     width: header.getSize() === Number.MAX_SAFE_INTEGER ? 'auto' : header.getSize(),
-                    minWidth: header.getSize() === Number.MAX_SAFE_INTEGER ? 'auto' : header.getSize(),
-                    maxWidth: header.getSize() === Number.MAX_SAFE_INTEGER ? 'auto' : header.getSize(),
+                    minWidth:
+                      header.getSize() === Number.MAX_SAFE_INTEGER ? 'auto' : header.getSize(),
+                    maxWidth:
+                      header.getSize() === Number.MAX_SAFE_INTEGER ? 'auto' : header.getSize(),
                     flex: 1,
                   }}
                 >
-                  {header.column.getCanSort()
-                    ? <Box
-                      component='button'
+                  {header.column.getCanSort() ? (
+                    <Box
+                      component="button"
                       onClick={header.column.getToggleSortingHandler()}
                       sx={{
                         display: 'flex',
@@ -426,15 +465,18 @@ const ResourceTableContainer: React.FC<Props> = ({
                         '& svg': {
                           transition: '0.2s',
                           transform:
-                            header.column.getIsSorted() as string === 'desc' ? 'rotate(180deg)' : 'rotate(0deg)',
+                            (header.column.getIsSorted() as string) === 'desc'
+                              ? 'rotate(180deg)'
+                              : 'rotate(0deg)',
                         },
                       }}
                     >
                       {flexRender(header.column.columnDef.header, header.getContext())}
                       {header.column.getIsSorted() && <ArrowDropDown />}
                     </Box>
-                    : flexRender(header.column.columnDef.header, header.getContext())
-                  }
+                  ) : (
+                    flexRender(header.column.columnDef.header, header.getContext())
+                  )}
                 </th>
               ))}
             </tr>
@@ -447,7 +489,7 @@ const ResourceTableContainer: React.FC<Props> = ({
             position: 'relative',
           }}
         >
-          {virtualizer.getVirtualItems().map(virtualRow => {
+          {virtualizer.getVirtualItems().map((virtualRow) => {
             const row = rows[virtualRow.index];
             return (
               <MemoizedRow

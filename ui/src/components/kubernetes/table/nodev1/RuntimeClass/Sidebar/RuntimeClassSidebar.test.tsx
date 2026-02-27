@@ -1,7 +1,7 @@
-import { render, screen } from '@testing-library/react';
-import { vi, describe, it, expect } from 'vitest';
-import type { RuntimeClass, Scheduling } from 'kubernetes-types/node/v1';
 import type { DrawerContext } from '@omniviewdev/runtime';
+import { render, screen } from '@testing-library/react';
+import type { RuntimeClass, Scheduling } from 'kubernetes-types/node/v1';
+import { vi, describe, it, expect } from 'vitest';
 
 // ---------------------------------------------------------------------------
 // Mocks — lightweight pass-through stubs for UI primitives
@@ -9,7 +9,9 @@ import type { DrawerContext } from '@omniviewdev/runtime';
 
 vi.mock('@omniviewdev/ui', () => ({
   Chip: ({ children, color, variant }: any) => (
-    <span data-testid="chip" data-color={color} data-variant={variant}>{children}</span>
+    <span data-testid="chip" data-color={color} data-variant={variant}>
+      {children}
+    </span>
   ),
   Card: ({ children }: any) => <div>{children}</div>,
 }));
@@ -26,16 +28,16 @@ vi.mock('../../../../../shared/KVCard', () => ({
   default: ({ title, kvs }: any) => (
     <div data-testid="kv-card" data-title={title}>
       {Object.entries(kvs).map(([k, v]) => (
-        <span key={k}>{k}={v as string}</span>
+        <span key={k}>
+          {k}={v as string}
+        </span>
       ))}
     </div>
   ),
 }));
 
 vi.mock('../../../../../shared/sidebar/pages/overview/sections/MetadataSection', () => ({
-  default: ({ data }: any) => (
-    <div data-testid="metadata-section" data-name={data?.name} />
-  ),
+  default: ({ data }: any) => <div data-testid="metadata-section" data-name={data?.name} />,
 }));
 
 // ---------------------------------------------------------------------------
@@ -44,6 +46,7 @@ vi.mock('../../../../../shared/sidebar/pages/overview/sections/MetadataSection',
 
 import RuntimeClassHandlerSection from './RuntimeClassHandlerSection';
 import RuntimeClassSchedulingSection from './RuntimeClassSchedulingSection';
+
 import RuntimeClassSidebar from './index';
 
 // ---------------------------------------------------------------------------
@@ -60,9 +63,7 @@ function makeRuntimeClass(overrides: Partial<RuntimeClass> = {}): RuntimeClass {
   };
 }
 
-function makeDrawerCtx(
-  data: RuntimeClass | undefined,
-): DrawerContext<RuntimeClass> {
+function makeDrawerCtx(data: RuntimeClass | undefined): DrawerContext<RuntimeClass> {
   return {
     data,
     resource: { connectionID: 'conn-1', id: 'gvisor' },
@@ -115,9 +116,7 @@ describe('RuntimeClassHandlerSection', () => {
 
 describe('RuntimeClassSchedulingSection', () => {
   it('returns null when no nodeSelector and no tolerations', () => {
-    const { container } = render(
-      <RuntimeClassSchedulingSection scheduling={{}} />,
-    );
+    const { container } = render(<RuntimeClassSchedulingSection scheduling={{}} />);
     expect(container.innerHTML).toBe('');
   });
 
@@ -167,7 +166,12 @@ describe('RuntimeClassSchedulingSection', () => {
   it('shows tolerationSeconds when present', () => {
     const scheduling: Scheduling = {
       tolerations: [
-        { key: 'node.kubernetes.io/unreachable', operator: 'Exists', effect: 'NoExecute', tolerationSeconds: 300 },
+        {
+          key: 'node.kubernetes.io/unreachable',
+          operator: 'Exists',
+          effect: 'NoExecute',
+          tolerationSeconds: 300,
+        },
       ],
     };
     render(<RuntimeClassSchedulingSection scheduling={scheduling} />);
@@ -189,9 +193,7 @@ describe('RuntimeClassSchedulingSection', () => {
   it('renders both nodeSelector and tolerations together', () => {
     const scheduling: Scheduling = {
       nodeSelector: { tier: 'sandbox' },
-      tolerations: [
-        { key: 'sandbox', operator: 'Equal', value: 'true', effect: 'NoSchedule' },
-      ],
+      tolerations: [{ key: 'sandbox', operator: 'Equal', value: 'true', effect: 'NoSchedule' }],
     };
     render(<RuntimeClassSchedulingSection scheduling={scheduling} />);
     expect(screen.getByTestId('kv-card')).toBeInTheDocument();
@@ -205,9 +207,7 @@ describe('RuntimeClassSchedulingSection', () => {
 
 describe('RuntimeClassSidebar', () => {
   it('returns null when ctx.data is undefined', () => {
-    const { container } = render(
-      <RuntimeClassSidebar ctx={makeDrawerCtx(undefined)} />,
-    );
+    const { container } = render(<RuntimeClassSidebar ctx={makeDrawerCtx(undefined)} />);
     expect(container.innerHTML).toBe('');
   });
 
@@ -229,9 +229,7 @@ describe('RuntimeClassSidebar', () => {
     const rc = makeRuntimeClass({
       scheduling: {
         nodeSelector: { runtime: 'gvisor' },
-        tolerations: [
-          { key: 'sandbox', operator: 'Exists', effect: 'NoSchedule' },
-        ],
+        tolerations: [{ key: 'sandbox', operator: 'Exists', effect: 'NoSchedule' }],
       },
     });
     render(<RuntimeClassSidebar ctx={makeDrawerCtx(rc)} />);
@@ -250,9 +248,7 @@ describe('RuntimeClassSidebar', () => {
     const rc = makeRuntimeClass({
       overhead: { podFixed: { cpu: '100m', memory: '64Mi' } },
       scheduling: {
-        tolerations: [
-          { key: 'runtime', operator: 'Equal', value: 'gvisor', effect: 'NoSchedule' },
-        ],
+        tolerations: [{ key: 'runtime', operator: 'Equal', value: 'gvisor', effect: 'NoSchedule' }],
       },
     });
     render(<RuntimeClassSidebar ctx={makeDrawerCtx(rc)} />);

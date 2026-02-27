@@ -1,7 +1,7 @@
-import React from 'react';
 import Box from '@mui/material/Box';
-import { StatCard } from '@omniviewdev/ui';
 import Skeleton from '@mui/material/Skeleton';
+import { StatCard } from '@omniviewdev/ui';
+import React from 'react';
 
 type StatusEntry = {
   label: string;
@@ -20,8 +20,8 @@ type Props = {
 
 /** Map status breakdown to a single accent color for the card value. */
 function deriveColor(statuses: StatusEntry[]): 'primary' | 'warning' | 'danger' {
-  const hasDanger = statuses.some(s => s.color === 'danger' && s.count > 0);
-  const hasWarning = statuses.some(s => s.color === 'warning' && s.count > 0);
+  const hasDanger = statuses.some((s) => s.color === 'danger' && s.count > 0);
+  const hasWarning = statuses.some((s) => s.color === 'warning' && s.count > 0);
   if (hasDanger) return 'danger';
   if (hasWarning) return 'warning';
   return 'primary';
@@ -29,12 +29,19 @@ function deriveColor(statuses: StatusEntry[]): 'primary' | 'warning' | 'danger' 
 
 /** Build a compact description from the visible statuses. */
 function deriveDescription(statuses: StatusEntry[]): string {
-  const visible = statuses.filter(s => s.count > 0);
+  const visible = statuses.filter((s) => s.count > 0);
   if (visible.length === 0) return 'No active workloads';
-  return visible.map(s => `${s.count} ${s.label}`).join(', ');
+  return visible.map((s) => `${s.count} ${s.label}`).join(', ');
 }
 
-const WorkloadSummaryCard: React.FC<Props> = ({ title, icon, total, statuses, loading, onClick }) => {
+const WorkloadSummaryCard: React.FC<Props> = ({
+  title,
+  icon,
+  total,
+  statuses,
+  loading,
+  onClick,
+}) => {
   if (loading) {
     return <Skeleton variant="rounded" sx={{ borderRadius: 1, height: '100%', minHeight: 88 }} />;
   }

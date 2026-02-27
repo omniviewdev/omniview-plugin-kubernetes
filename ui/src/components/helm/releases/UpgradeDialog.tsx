@@ -1,16 +1,16 @@
-import React from 'react';
-
 // material-ui
 import Box from '@mui/material/Box';
 import Modal from '@mui/material/Modal';
+import { useExecuteAction } from '@omniviewdev/runtime';
 import { Button } from '@omniviewdev/ui/buttons';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
 
 // project-imports
-import { useExecuteAction } from '@omniviewdev/runtime';
-import CodeEditor from '../../shared/CodeEditor';
+import React from 'react';
 import { stringify } from 'yaml';
+
+import CodeEditor from '../../shared/CodeEditor';
 
 interface Props {
   open: boolean;
@@ -36,7 +36,14 @@ const modalStyle = {
   overflow: 'auto',
 };
 
-const UpgradeDialog: React.FC<Props> = ({ open, onClose, releaseName, namespace, chartRef, connectionID }) => {
+const UpgradeDialog: React.FC<Props> = ({
+  open,
+  onClose,
+  releaseName,
+  namespace,
+  chartRef,
+  connectionID,
+}) => {
   const [values, setValues] = React.useState('');
   const [reuseValues, setReuseValues] = React.useState(true);
   const [dryRunManifest, setDryRunManifest] = React.useState<string | null>(null);
@@ -57,13 +64,15 @@ const UpgradeDialog: React.FC<Props> = ({ open, onClose, releaseName, namespace,
       id: releaseName,
       namespace,
       params: { all: true },
-    }).then((result) => {
-      setValues(result.data ? stringify(result.data) : '');
-      setValuesLoaded(true);
-    }).catch(() => {
-      setValuesLoaded(true);
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    })
+      .then((result) => {
+        setValues(result.data ? stringify(result.data) : '');
+        setValuesLoaded(true);
+      })
+      .catch(() => {
+        setValuesLoaded(true);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, releaseName]);
 
   const handleDryRun = async () => {
@@ -110,7 +119,9 @@ const UpgradeDialog: React.FC<Props> = ({ open, onClose, releaseName, namespace,
     <Modal open={open} onClose={handleClose}>
       <Box sx={modalStyle}>
         <Stack direction="column" spacing={2}>
-          <Text weight="semibold" size="lg">Upgrade {releaseName}</Text>
+          <Text weight="semibold" size="lg">
+            Upgrade {releaseName}
+          </Text>
 
           {/* Options */}
           <Stack direction="row" spacing={2} alignItems="center">
@@ -122,7 +133,9 @@ const UpgradeDialog: React.FC<Props> = ({ open, onClose, releaseName, namespace,
                 component="input"
                 type="checkbox"
                 checked={reuseValues}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setReuseValues(e.target.checked)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setReuseValues(e.target.checked)
+                }
               />
               <Text size="sm">Reuse existing values</Text>
             </Box>
@@ -130,8 +143,18 @@ const UpgradeDialog: React.FC<Props> = ({ open, onClose, releaseName, namespace,
 
           {/* Values editor */}
           <Stack direction="column" spacing={0.5}>
-            <Text size="sm" sx={{ color: 'neutral.400' }}>Values (YAML)</Text>
-            <Box sx={{ height: 250, border: '1px solid', borderColor: 'neutral.700', borderRadius: 'sm', overflow: 'hidden' }}>
+            <Text size="sm" sx={{ color: 'neutral.400' }}>
+              Values (YAML)
+            </Text>
+            <Box
+              sx={{
+                height: 250,
+                border: '1px solid',
+                borderColor: 'neutral.700',
+                borderRadius: 'sm',
+                overflow: 'hidden',
+              }}
+            >
               <CodeEditor
                 filename="values.yaml"
                 language="yaml"
@@ -145,8 +168,18 @@ const UpgradeDialog: React.FC<Props> = ({ open, onClose, releaseName, namespace,
           {/* Dry run preview */}
           {dryRunManifest !== null && (
             <Stack direction="column" spacing={0.5}>
-              <Text size="sm" sx={{ color: 'neutral.400' }}>Dry Run Preview</Text>
-              <Box sx={{ height: 200, border: '1px solid', borderColor: 'neutral.700', borderRadius: 'sm', overflow: 'hidden' }}>
+              <Text size="sm" sx={{ color: 'neutral.400' }}>
+                Dry Run Preview
+              </Text>
+              <Box
+                sx={{
+                  height: 200,
+                  border: '1px solid',
+                  borderColor: 'neutral.700',
+                  borderRadius: 'sm',
+                  overflow: 'hidden',
+                }}
+              >
                 <CodeEditor
                   filename="manifest.yaml"
                   language="yaml"

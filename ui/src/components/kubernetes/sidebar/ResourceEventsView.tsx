@@ -1,12 +1,12 @@
-import React, { useState, useMemo } from 'react';
 import Box from '@mui/material/Box';
+import type { DrawerContext } from '@omniviewdev/runtime';
 import { Chip } from '@omniviewdev/ui';
 import { IconButton } from '@omniviewdev/ui/buttons';
+import { EventsList, Timeline } from '@omniviewdev/ui/domain';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
-import { EventsList, Timeline } from '@omniviewdev/ui/domain';
+import React, { useState, useMemo } from 'react';
 import { LuList, LuGitCommitHorizontal } from 'react-icons/lu';
-import type { DrawerContext } from '@omniviewdev/runtime';
 
 import { useResourceEvents } from '../../../hooks/useResourceEvents';
 
@@ -109,7 +109,14 @@ const ResourceEventsView: React.FC<ResourceEventsViewProps> = ({ ctx }) => {
       </Stack>
 
       {/* Content */}
-      <Box sx={{ flex: 1, overflowY: 'auto', px: viewMode === 'timeline' ? 1.5 : 0, py: viewMode === 'timeline' ? 1 : 0 }}>
+      <Box
+        sx={{
+          flex: 1,
+          overflowY: 'auto',
+          px: viewMode === 'timeline' ? 1.5 : 0,
+          py: viewMode === 'timeline' ? 1 : 0,
+        }}
+      >
         {viewMode === 'list' ? (
           <EventsList events={filteredEvents} loading={isLoading} />
         ) : (

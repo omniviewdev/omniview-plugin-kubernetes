@@ -1,4 +1,4 @@
-import { FilterFn } from "@tanstack/react-table";
+import { FilterFn } from '@tanstack/react-table';
 
 /**
  * Used for filtering namespaces

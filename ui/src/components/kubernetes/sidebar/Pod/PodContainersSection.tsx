@@ -1,18 +1,14 @@
-import React from "react";
-import Box from "@mui/material/Box";
-import Divider from "@mui/material/Divider";
-import { Chip } from "@omniviewdev/ui";
-import { Stack } from "@omniviewdev/ui/layout";
-import { Text } from "@omniviewdev/ui/typography";
-import {
-  Container,
-  ContainerStatus,
-  Pod,
-  PodSpec,
-} from "kubernetes-types/core/v1";
-import ContainerSlice from "./ContainerSlice";
+import Box from '@mui/material/Box';
+import Divider from '@mui/material/Divider';
+import { Chip } from '@omniviewdev/ui';
+import { Stack } from '@omniviewdev/ui/layout';
+import { Text } from '@omniviewdev/ui/typography';
+import { Container, ContainerStatus, Pod, PodSpec } from 'kubernetes-types/core/v1';
+import React from 'react';
 
-type ContainerType = "container" | "init" | "ephemeral";
+import ContainerSlice from './ContainerSlice';
+
+type ContainerType = 'container' | 'init' | 'ephemeral';
 
 interface ParsedContainer {
   resourceID: string;
@@ -22,11 +18,7 @@ interface ParsedContainer {
   type: ContainerType;
 }
 
-function parseContainers(
-  pod: Pod,
-  resourceID: string,
-  connectionID: string,
-): ParsedContainer[] {
+function parseContainers(pod: Pod, resourceID: string, connectionID: string): ParsedContainer[] {
   const result: ParsedContainer[] = [];
 
   const containerStatusMap: Record<string, ContainerStatus> = {};
@@ -50,7 +42,7 @@ function parseContainers(
       connectionID,
       container,
       status: initStatusMap[container.name],
-      type: "init",
+      type: 'init',
     });
   });
 
@@ -60,7 +52,7 @@ function parseContainers(
       connectionID,
       container,
       status: containerStatusMap[container.name],
-      type: "container",
+      type: 'container',
     });
   });
 
@@ -70,7 +62,7 @@ function parseContainers(
       connectionID,
       container: ec as unknown as Container,
       status: ephemeralStatusMap[ec.name],
-      type: "ephemeral",
+      type: 'ephemeral',
     });
   });
 
@@ -78,18 +70,15 @@ function parseContainers(
 }
 
 // ── IDE-style section heading ──
-const SectionHeading: React.FC<{ label: string; count: number }> = ({
-  label,
-  count,
-}) => (
+const SectionHeading: React.FC<{ label: string; count: number }> = ({ label, count }) => (
   <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 0.75 }}>
     <Text
       size="xs"
       weight="semibold"
       sx={{
-        color: "text.secondary",
-        textTransform: "uppercase",
-        letterSpacing: "0.08em",
+        color: 'text.secondary',
+        textTransform: 'uppercase',
+        letterSpacing: '0.08em',
         fontSize: 11,
         flexShrink: 0,
       }}
@@ -103,7 +92,7 @@ const SectionHeading: React.FC<{ label: string; count: number }> = ({
       sx={{ borderRadius: 1, flexShrink: 0 }}
       label={String(count)}
     />
-    <Box sx={{ flex: 1, height: "1px", bgcolor: "divider" }} />
+    <Box sx={{ flex: 1, height: '1px', bgcolor: 'divider' }} />
   </Stack>
 );
 
@@ -114,9 +103,9 @@ const GroupHeader: React.FC<{ label: string }> = ({ label }) => (
       size="xs"
       weight="semibold"
       sx={{
-        color: "neutral.400",
+        color: 'neutral.400',
         fontSize: 10,
-        textTransform: "uppercase",
+        textTransform: 'uppercase',
         letterSpacing: 0.5,
       }}
     >
@@ -145,9 +134,9 @@ const PodContainersSection: React.FC<ContainersSectionProps> = ({
   const parsed = parseContainers(obj, resourceID, connectionID);
   if (parsed.length === 0) return null;
 
-  const initContainers = parsed.filter((c) => c.type === "init");
-  const regularContainers = parsed.filter((c) => c.type === "container");
-  const ephemeralContainers = parsed.filter((c) => c.type === "ephemeral");
+  const initContainers = parsed.filter((c) => c.type === 'init');
+  const regularContainers = parsed.filter((c) => c.type === 'container');
+  const ephemeralContainers = parsed.filter((c) => c.type === 'ephemeral');
 
   return (
     <Box>
@@ -155,10 +144,10 @@ const PodContainersSection: React.FC<ContainersSectionProps> = ({
       <Box
         sx={{
           borderRadius: 1,
-          border: "1px solid",
-          borderColor: "divider",
-          bgcolor: "background.level1",
-          overflow: "hidden",
+          border: '1px solid',
+          borderColor: 'divider',
+          bgcolor: 'background.level1',
+          overflow: 'hidden',
         }}
       >
         {initContainers.length > 0 && (
@@ -167,17 +156,28 @@ const PodContainersSection: React.FC<ContainersSectionProps> = ({
             {initContainers.map((c, i) => (
               <React.Fragment key={c.container.name}>
                 {i > 0 && <Divider />}
-                <ContainerSlice {...c} pod={obj} volumes={obj.spec?.volumes} podCpuUsage={podCpuUsage} podMemoryUsage={podMemoryUsage} />
+                <ContainerSlice
+                  {...c}
+                  pod={obj}
+                  volumes={obj.spec?.volumes}
+                  podCpuUsage={podCpuUsage}
+                  podMemoryUsage={podMemoryUsage}
+                />
               </React.Fragment>
             ))}
-            {(regularContainers.length > 0 ||
-              ephemeralContainers.length > 0) && <Divider />}
+            {(regularContainers.length > 0 || ephemeralContainers.length > 0) && <Divider />}
           </>
         )}
         {regularContainers.map((c, i) => (
           <React.Fragment key={c.container.name}>
             {i > 0 && <Divider />}
-            <ContainerSlice {...c} pod={obj} volumes={obj.spec?.volumes} podCpuUsage={podCpuUsage} podMemoryUsage={podMemoryUsage} />
+            <ContainerSlice
+              {...c}
+              pod={obj}
+              volumes={obj.spec?.volumes}
+              podCpuUsage={podCpuUsage}
+              podMemoryUsage={podMemoryUsage}
+            />
           </React.Fragment>
         ))}
         {ephemeralContainers.length > 0 && (
@@ -187,7 +187,13 @@ const PodContainersSection: React.FC<ContainersSectionProps> = ({
             {ephemeralContainers.map((c, i) => (
               <React.Fragment key={c.container.name}>
                 {i > 0 && <Divider />}
-                <ContainerSlice {...c} pod={obj} volumes={obj.spec?.volumes} podCpuUsage={podCpuUsage} podMemoryUsage={podMemoryUsage} />
+                <ContainerSlice
+                  {...c}
+                  pod={obj}
+                  volumes={obj.spec?.volumes}
+                  podCpuUsage={podCpuUsage}
+                  podMemoryUsage={podMemoryUsage}
+                />
               </React.Fragment>
             ))}
           </>
@@ -207,7 +213,7 @@ export const PodContainersSectionFromPodSpec: React.FC<{
   const containers: ParsedContainer[] = [];
 
   spec.initContainers?.forEach((container) => {
-    containers.push({ resourceID, connectionID, container, type: "init" });
+    containers.push({ resourceID, connectionID, container, type: 'init' });
   });
 
   spec.containers.forEach((container) => {
@@ -215,12 +221,12 @@ export const PodContainersSectionFromPodSpec: React.FC<{
       resourceID,
       connectionID,
       container,
-      type: "container",
+      type: 'container',
     });
   });
 
-  const initContainers = containers.filter((c) => c.type === "init");
-  const regularContainers = containers.filter((c) => c.type === "container");
+  const initContainers = containers.filter((c) => c.type === 'init');
+  const regularContainers = containers.filter((c) => c.type === 'container');
 
   return (
     <Box>
@@ -228,10 +234,10 @@ export const PodContainersSectionFromPodSpec: React.FC<{
       <Box
         sx={{
           borderRadius: 1,
-          border: "1px solid",
-          borderColor: "divider",
-          bgcolor: "background.level1",
-          overflow: "hidden",
+          border: '1px solid',
+          borderColor: 'divider',
+          bgcolor: 'background.level1',
+          overflow: 'hidden',
         }}
       >
         {initContainers.length > 0 && (

@@ -1,13 +1,12 @@
-import * as React from "react";
-
 import { ExpandableSections as UiExpandableSections } from '@omniviewdev/ui';
 import type { ExpandableSectionItem as UiExpandableSection } from '@omniviewdev/ui';
+import * as React from 'react';
 
 interface Props {
   sections: Array<ExpandableSection>;
   monospace?: boolean;
-  variant?: "bordered" | "plain" | "flush";
-  size?: "sm" | "md" | "lg";
+  variant?: 'bordered' | 'plain' | 'flush';
+  size?: 'sm' | 'md' | 'lg';
   exclusive?: boolean;
 }
 
@@ -23,8 +22,8 @@ export interface ExpandableSection {
 export default function ExpandableSections({
   sections,
   monospace = false,
-  variant = "bordered",
-  size = "sm",
+  variant = 'bordered',
+  size = 'sm',
   exclusive,
 }: Props): React.ReactElement {
   const mappedSections: UiExpandableSection[] = sections.map((section) => ({

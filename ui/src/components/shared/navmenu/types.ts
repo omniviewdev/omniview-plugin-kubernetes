@@ -1,4 +1,3 @@
-
 /**
  * Entry into the sidebar. Can be a top level item or a child item.
  */
@@ -14,14 +13,14 @@ export type SidebarItem = {
 
   /**
    * Icon to display. This can be either:
-  * - A string representing a React Icons name
-  *   - e.g. "FiHome"
-  *   - See: https://react-icons.github.io/react-icons/
-  * - A React Node of the icon component
-  *   - e.g. <ChevronRight />
-  * - A string representing the data URI of an image
-  *   - e.g. "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4="
-  *   - See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URIs
+   * - A string representing a React Icons name
+   *   - e.g. "FiHome"
+   *   - See: https://react-icons.github.io/react-icons/
+   * - A React Node of the icon component
+   *   - e.g. <ChevronRight />
+   * - A string representing the data URI of an image
+   *   - e.g. "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4="
+   *   - See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URIs
    */
   icon: string | React.ReactNode;
 

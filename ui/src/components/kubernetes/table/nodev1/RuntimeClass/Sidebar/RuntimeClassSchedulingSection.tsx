@@ -1,59 +1,55 @@
-import React from "react";
+import Box from '@mui/material/Box';
+import Divider from '@mui/material/Divider';
+import Grid from '@mui/material/Grid';
+import { Chip } from '@omniviewdev/ui';
+import { Stack } from '@omniviewdev/ui/layout';
+import { Text } from '@omniviewdev/ui/typography';
+import type { Toleration } from 'kubernetes-types/core/v1';
+import type { Scheduling } from 'kubernetes-types/node/v1';
+import React from 'react';
 
-import Box from "@mui/material/Box";
-import Divider from "@mui/material/Divider";
-import Grid from "@mui/material/Grid";
-import { Chip } from "@omniviewdev/ui";
-import { Stack } from "@omniviewdev/ui/layout";
-import { Text } from "@omniviewdev/ui/typography";
-
-import type { Scheduling } from "kubernetes-types/node/v1";
-import type { Toleration } from "kubernetes-types/core/v1";
-import KVCard from "../../../../../shared/KVCard";
+import KVCard from '../../../../../shared/KVCard';
 
 interface Props {
   scheduling: Scheduling;
 }
 
-const effectColors: Record<string, "primary" | "warning" | "danger" | "neutral"> = {
-  NoSchedule: "warning",
-  PreferNoSchedule: "primary",
-  NoExecute: "danger",
+const effectColors: Record<string, 'primary' | 'warning' | 'danger' | 'neutral'> = {
+  NoSchedule: 'warning',
+  PreferNoSchedule: 'primary',
+  NoExecute: 'danger',
 };
 
-const TolerationRow: React.FC<{ t: Toleration; index: number }> = ({
-  t,
-  index,
-}) => (
+const TolerationRow: React.FC<{ t: Toleration; index: number }> = ({ t, index }) => (
   <Box
     sx={{
       py: 0.5,
       px: 1,
-      bgcolor: index % 2 === 0 ? "background.level1" : "transparent",
+      bgcolor: index % 2 === 0 ? 'background.level1' : 'transparent',
     }}
   >
-    <Grid container spacing={0} sx={{ minHeight: 24, alignItems: "center" }}>
+    <Grid container spacing={0} sx={{ minHeight: 24, alignItems: 'center' }}>
       <Grid size={4}>
         <Text size="xs" sx={{ fontWeight: 600, fontSize: 12 }} noWrap>
-          {t.key || "*"}
+          {t.key || '*'}
         </Text>
       </Grid>
       <Grid size={4}>
         <Stack direction="row" gap={0.5} alignItems="center">
           <Chip size="sm" variant="outlined">
-            {t.operator === "Exists" ? "Exists" : `= ${t.value ?? ""}`}
+            {t.operator === 'Exists' ? 'Exists' : `= ${t.value ?? ''}`}
           </Chip>
         </Stack>
       </Grid>
       <Grid size={4}>
         <Stack direction="row" gap={0.5} alignItems="center">
           {t.effect && (
-            <Chip size="sm" color={effectColors[t.effect] ?? "neutral"}>
+            <Chip size="sm" color={effectColors[t.effect] ?? 'neutral'}>
               {t.effect}
             </Chip>
           )}
           {t.tolerationSeconds != null && (
-            <Text size="xs" sx={{ color: "neutral.300" }}>
+            <Text size="xs" sx={{ color: 'neutral.300' }}>
               {t.tolerationSeconds}s
             </Text>
           )}
@@ -67,8 +63,7 @@ const RuntimeClassSchedulingSection: React.FC<Props> = ({ scheduling }) => {
   const nodeSelector = scheduling.nodeSelector;
   const tolerations = scheduling.tolerations;
 
-  const hasNodeSelector =
-    nodeSelector && Object.keys(nodeSelector).length > 0;
+  const hasNodeSelector = nodeSelector && Object.keys(nodeSelector).length > 0;
   const hasTolerations = tolerations && tolerations.length > 0;
 
   if (!hasNodeSelector && !hasTolerations) return null;
@@ -76,20 +71,15 @@ const RuntimeClassSchedulingSection: React.FC<Props> = ({ scheduling }) => {
   return (
     <Stack direction="column" spacing={1.5}>
       {hasNodeSelector && (
-        <KVCard
-          title="Node Selector"
-          kvs={nodeSelector}
-          defaultExpanded
-          size="sm"
-        />
+        <KVCard title="Node Selector" kvs={nodeSelector} defaultExpanded size="sm" />
       )}
 
       {hasTolerations && (
         <Box
           sx={{
             borderRadius: 1,
-            border: "1px solid",
-            borderColor: "divider",
+            border: '1px solid',
+            borderColor: 'divider',
           }}
         >
           <Box sx={{ py: 0.5, px: 1 }}>

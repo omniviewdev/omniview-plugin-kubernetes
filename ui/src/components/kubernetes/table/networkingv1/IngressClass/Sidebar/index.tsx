@@ -1,14 +1,14 @@
-import React from "react";
+import { DrawerContext } from '@omniviewdev/runtime';
+import { Stack } from '@omniviewdev/ui/layout';
+import { IngressClass } from 'kubernetes-types/networking/v1';
+import React from 'react';
 
 // material-ui
-import { Stack } from "@omniviewdev/ui/layout";
 
 // types
-import { IngressClass } from "kubernetes-types/networking/v1";
-import { DrawerContext } from "@omniviewdev/runtime";
 
 // project-imports
-import ObjectMetaSection from "../../../../../shared/ObjectMetaSection";
+import ObjectMetaSection from '../../../../../shared/ObjectMetaSection';
 
 interface Props {
   ctx: DrawerContext<IngressClass>;
@@ -26,12 +26,12 @@ export const IngressClassSidebar: React.FC<Props> = ({ ctx }) => {
 
   // compose your component here
   return (
-    <Stack direction="column" width={"100%"} spacing={2}>
+    <Stack direction="column" width={'100%'} spacing={2}>
       <ObjectMetaSection data={data.metadata} />
       {/** TODO: fill this in with more data */}
     </Stack>
   );
 };
 
-IngressClassSidebar.displayName = "IngressClassSidebar";
+IngressClassSidebar.displayName = 'IngressClassSidebar';
 export default IngressClassSidebar;

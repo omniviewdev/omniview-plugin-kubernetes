@@ -1,8 +1,3 @@
-import React from 'react';
-import Box from '@mui/material/Box';
-import { Card } from '@omniviewdev/ui';
-import { Stack } from '@omniviewdev/ui/layout';
-import { Text } from '@omniviewdev/ui/typography';
 import {
   DndContext,
   closestCenter,
@@ -20,7 +15,13 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
+import Box from '@mui/material/Box';
+import { Card } from '@omniviewdev/ui';
+import { Stack } from '@omniviewdev/ui/layout';
+import { Text } from '@omniviewdev/ui/typography';
+import React from 'react';
 
+import { useHubSections, type HubSectionData } from '../../hooks/useHubSections';
 import type {
   EnrichedConnection,
   ConnectionAttribute,
@@ -28,11 +29,11 @@ import type {
   HubSectionConfig,
   HubSectionType,
 } from '../../types/clusters';
-import { useHubSections, type HubSectionData } from '../../hooks/useHubSections';
-import HubSection from './HubSection';
+
 import GroupBrowser from './GroupBrowser';
-import RowHandler from './RowHandler';
+import HubSection from './HubSection';
 import QuickConnectGrid from './QuickConnectGrid';
+import RowHandler from './RowHandler';
 
 type Props = {
   enrichedConnections: EnrichedConnection[];
@@ -92,12 +93,13 @@ const ClusterHub: React.FC<Props> = ({
   } | null>(null);
 
   const visibleSections = React.useMemo(
-    () => sections.filter(s => {
-      if (s.config.type === 'browse') return availableAttributes.length > 0;
-      // Always show group sections (folders) even if empty
-      if (s.config.type.startsWith('group:')) return true;
-      return s.data.length > 0;
-    }),
+    () =>
+      sections.filter((s) => {
+        if (s.config.type === 'browse') return availableAttributes.length > 0;
+        // Always show group sections (folders) even if empty
+        if (s.config.type.startsWith('group:')) return true;
+        return s.data.length > 0;
+      }),
     [sections, availableAttributes],
   );
 
@@ -116,57 +118,62 @@ const ClusterHub: React.FC<Props> = ({
     }
   }, []);
 
-  const handleDragEnd = React.useCallback((event: DragEndEvent) => {
-    const { active, over } = event;
-    setActiveDrag(null);
+  const handleDragEnd = React.useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      setActiveDrag(null);
 
-    const activeData = active.data.current;
+      const activeData = active.data.current;
 
-    // Connection drag
-    if (activeData?.type === 'connection') {
-      const connectionId = activeData.connectionId as string;
-      const sourceSectionId = activeData.sectionId as string | undefined;
-      const sourceGroupId = sourceSectionId?.startsWith('group:') ? sourceSectionId.slice(6) : undefined;
+      // Connection drag
+      if (activeData?.type === 'connection') {
+        const connectionId = activeData.connectionId as string;
+        const sourceSectionId = activeData.sectionId as string | undefined;
+        const sourceGroupId = sourceSectionId?.startsWith('group:')
+          ? sourceSectionId.slice(6)
+          : undefined;
 
-      // Determine target group (if any)
-      let targetGroupId: string | undefined;
-      if (over) {
-        const overData = over.data.current;
-        if (overData?.type === 'folder-drop') {
-          targetGroupId = overData.groupId as string;
-        } else if (String(over.id).startsWith('group:')) {
-          targetGroupId = String(over.id).slice(6);
+        // Determine target group (if any)
+        let targetGroupId: string | undefined;
+        if (over) {
+          const overData = over.data.current;
+          if (overData?.type === 'folder-drop') {
+            targetGroupId = overData.groupId as string;
+          } else if (String(over.id).startsWith('group:')) {
+            targetGroupId = String(over.id).slice(6);
+          }
         }
+
+        // Remove from source group if dragged out (to non-folder or different folder)
+        if (sourceGroupId && sourceGroupId !== targetGroupId) {
+          onRemoveFromGroup?.(sourceGroupId, connectionId);
+        }
+
+        // Assign to target group
+        if (targetGroupId && targetGroupId !== sourceGroupId) {
+          onAssignToGroup?.(targetGroupId, connectionId);
+        }
+        return;
       }
 
-      // Remove from source group if dragged out (to non-folder or different folder)
-      if (sourceGroupId && sourceGroupId !== targetGroupId) {
-        onRemoveFromGroup?.(sourceGroupId, connectionId);
+      // Section reorder
+      if (over && activeData?.type === 'section' && active.id !== over.id) {
+        const newConfigs = reorderSections(String(active.id), String(over.id));
+        onReorderSections(newConfigs);
       }
-
-      // Assign to target group
-      if (targetGroupId && targetGroupId !== sourceGroupId) {
-        onAssignToGroup?.(targetGroupId, connectionId);
-      }
-      return;
-    }
-
-    // Section reorder
-    if (over && activeData?.type === 'section' && active.id !== over.id) {
-      const newConfigs = reorderSections(String(active.id), String(over.id));
-      onReorderSections(newConfigs);
-    }
-  }, [reorderSections, onReorderSections, onAssignToGroup, onRemoveFromGroup]);
+    },
+    [reorderSections, onReorderSections, onAssignToGroup, onRemoveFromGroup],
+  );
 
   const visibleSectionIds = React.useMemo(
-    () => visibleSections.map(s => s.config.type),
+    () => visibleSections.map((s) => s.config.type),
     [visibleSections],
   );
 
   // Find dragged connection for overlay
   const draggedConnection = React.useMemo(() => {
     if (activeDrag?.type !== 'connection' || !activeDrag.connectionId) return null;
-    return enrichedConnections.find(c => c.connection.id === activeDrag.connectionId) ?? null;
+    return enrichedConnections.find((c) => c.connection.id === activeDrag.connectionId) ?? null;
   }, [activeDrag, enrichedConnections]);
 
   return (
@@ -189,7 +196,7 @@ const ClusterHub: React.FC<Props> = ({
         {visibleSections.length > 0 && (
           <SortableContext items={visibleSectionIds} strategy={verticalListSortingStrategy}>
             <Stack gap={0.5}>
-              {visibleSections.map(section => (
+              {visibleSections.map((section) => (
                 <DroppableSectionWrapper
                   key={section.config.type}
                   section={section}
@@ -214,7 +221,7 @@ const ClusterHub: React.FC<Props> = ({
       <DragOverlay dropAnimation={null}>
         {draggedConnection && (
           <Card
-            variant='outlined'
+            variant="outlined"
             sx={{
               p: 1,
               opacity: 0.8,
@@ -223,7 +230,7 @@ const ClusterHub: React.FC<Props> = ({
               pointerEvents: 'none',
             }}
           >
-            <Text size='sm' weight='semibold' noWrap>
+            <Text size="sm" weight="semibold" noWrap>
               {draggedConnection.displayName}
             </Text>
           </Card>
@@ -246,10 +253,7 @@ const DroppableSectionWrapper: React.FC<{
   if (!isGroup) return <>{children}</>;
 
   return (
-    <FolderDropZone
-      groupId={section.groupId!}
-      isDraggingConnection={isDraggingConnection}
-    >
+    <FolderDropZone groupId={section.groupId!} isDraggingConnection={isDraggingConnection}>
       {children}
     </FolderDropZone>
   );
@@ -292,7 +296,15 @@ const SectionRenderer: React.FC<{
   onRecordAccess: (connectionId: string) => void;
   onToggleFavorite: (connectionId: string) => void;
   onEditFolder?: (groupId: string) => void;
-}> = ({ section, availableAttributes, enrichedConnections, onToggleCollapse, onRecordAccess, onToggleFavorite, onEditFolder }) => {
+}> = ({
+  section,
+  availableAttributes,
+  enrichedConnections,
+  onToggleCollapse,
+  onRecordAccess,
+  onToggleFavorite,
+  onEditFolder,
+}) => {
   const { config, title, data, groupId, groupColor, groupIcon, emptyHint } = section;
   const isRecent = config.type === 'recent';
   const isBrowse = config.type === 'browse';
@@ -319,7 +331,7 @@ const SectionRenderer: React.FC<{
           onConnectionClick={onRecordAccess}
         />
       ) : (
-        data.map(enriched => (
+        data.map((enriched) => (
           <RowHandler
             key={enriched.connection.id}
             enriched={enriched}

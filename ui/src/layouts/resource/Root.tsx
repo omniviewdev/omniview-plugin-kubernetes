@@ -1,5 +1,5 @@
-import React from 'react';
 import Box, { type BoxProps } from '@mui/material/Box';
+import React from 'react';
 
 /**
  * The root component for the generic sidemenu layout

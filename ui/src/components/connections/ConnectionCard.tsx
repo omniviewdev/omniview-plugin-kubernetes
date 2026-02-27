@@ -1,14 +1,15 @@
-import React from 'react';
 import { Avatar, Card } from '@omniviewdev/ui';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
-import type { EnrichedConnection } from '../../types/clusters';
-import type { ConnectionGroup } from '../../types/clusters';
+import React from 'react';
+
+import type { EnrichedConnection, ConnectionGroup } from '../../types/clusters';
+import NamedAvatar from '../shared/NamedAvatar';
+
+import ConnectionContextMenu from './ConnectionContextMenu';
+import ConnectionStatusBadge from './ConnectionStatusBadge';
 import FavoriteButton from './FavoriteButton';
 import ProviderIcon from './ProviderIcon';
-import ConnectionStatusBadge from './ConnectionStatusBadge';
-import ConnectionContextMenu from './ConnectionContextMenu';
-import NamedAvatar from '../shared/NamedAvatar';
 
 type Props = {
   enriched: EnrichedConnection;
@@ -37,11 +38,12 @@ const ConnectionCard: React.FC<Props> = ({
   onCopyId,
   onDelete,
 }) => {
-  const { connection, provider, isFavorite, isConnected, displayName, displayDescription } = enriched;
+  const { connection, provider, isFavorite, isConnected, displayName, displayDescription } =
+    enriched;
 
   return (
     <Card
-      variant='outlined'
+      variant="outlined"
       sx={{
         cursor: 'pointer',
         '&:hover': { borderColor: 'primary.outlinedHoverBorder', boxShadow: 'sm' },
@@ -51,22 +53,29 @@ const ConnectionCard: React.FC<Props> = ({
     >
       <Stack gap={1.5}>
         {/* Header row */}
-        <Stack direction='row' alignItems='center' gap={1}>
+        <Stack direction="row" alignItems="center" gap={1}>
           <ConnectionStatusBadge isConnected={isConnected}>
             {enriched.avatar ? (
               <Avatar
-                size='sm'
+                size="sm"
                 src={enriched.avatar}
-                sx={{ borderRadius: 6, backgroundColor: 'transparent', maxHeight: 28, maxWidth: 28 }}
+                sx={{
+                  borderRadius: 6,
+                  backgroundColor: 'transparent',
+                  maxHeight: 28,
+                  maxWidth: 28,
+                }}
               />
             ) : (
               <NamedAvatar value={displayName} color={enriched.avatarColor} />
             )}
           </ConnectionStatusBadge>
           <Stack sx={{ flex: 1, minWidth: 0 }}>
-            <Text weight='semibold' size='sm' noWrap>{displayName}</Text>
+            <Text weight="semibold" size="sm" noWrap>
+              {displayName}
+            </Text>
             {displayDescription && (
-              <Text size='xs' noWrap sx={{ opacity: 0.7 }}>
+              <Text size="xs" noWrap sx={{ opacity: 0.7 }}>
                 {displayDescription}
               </Text>
             )}
@@ -76,24 +85,24 @@ const ConnectionCard: React.FC<Props> = ({
 
         {/* Details */}
         <Stack gap={0.5}>
-          <Stack direction='row' alignItems='center' gap={0.75}>
+          <Stack direction="row" alignItems="center" gap={0.75}>
             <ProviderIcon provider={provider} size={14} />
-            <Text size='xs'>{String(connection.labels?.cluster ?? '')}</Text>
+            <Text size="xs">{String(connection.labels?.cluster ?? '')}</Text>
           </Stack>
           {connection.labels?.kubeconfig && (
-            <Text size='xs' noWrap sx={{ opacity: 0.6 }}>
+            <Text size="xs" noWrap sx={{ opacity: 0.6 }}>
               {String(connection.labels.kubeconfig)}
             </Text>
           )}
           {connection.labels?.user && (
-            <Text size='xs' sx={{ opacity: 0.6 }}>
+            <Text size="xs" sx={{ opacity: 0.6 }}>
               {String(connection.labels.user)}
             </Text>
           )}
         </Stack>
 
         {/* Footer */}
-        <Stack direction='row' justifyContent='flex-end' onClick={e => e.stopPropagation()}>
+        <Stack direction="row" justifyContent="flex-end" onClick={(e) => e.stopPropagation()}>
           <ConnectionContextMenu
             connectionId={connection.id}
             connectionName={displayName}

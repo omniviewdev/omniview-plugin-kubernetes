@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import { MoreVert } from '@mui/icons-material';
 import Box from '@mui/material/Box';
+import Divider from '@mui/material/Divider';
+import { Link } from '@omniviewdev/runtime';
 import { IconButton } from '@omniviewdev/ui/buttons';
 import { Text } from '@omniviewdev/ui/typography';
-import Divider from '@mui/material/Divider';
-import { MoreVert } from '@mui/icons-material';
+import React, { useState } from 'react';
 import {
   LuPencil,
   LuTrash,
@@ -17,7 +18,7 @@ import {
   LuChevronDown,
   LuChevronRight,
 } from 'react-icons/lu';
-import { Link } from '@omniviewdev/runtime';
+
 import type { ConnectionGroup } from '../../types/clusters';
 import { getFolderIcon } from '../../utils/folderIcons';
 
@@ -69,17 +70,16 @@ const ConnectionContextMenu: React.FC<Props> = ({
   };
 
   // Truncate long names for the delete label
-  const deleteName = connectionName.length > 30
-    ? `${connectionName.slice(0, 30)}...`
-    : connectionName;
+  const deleteName =
+    connectionName.length > 30 ? `${connectionName.slice(0, 30)}...` : connectionName;
 
   return (
     <>
       <IconButton
-        aria-label='More'
-        size='sm'
-        emphasis='ghost'
-        color='neutral'
+        aria-label="More"
+        size="sm"
+        emphasis="ghost"
+        color="neutral"
         onClick={handleMenuClick}
       >
         <MoreVert sx={{ fontSize: 16 }} />
@@ -88,10 +88,7 @@ const ConnectionContextMenu: React.FC<Props> = ({
           may have a different API. Using basic Box-based menu as fallback. */}
       {open && (
         <>
-          <div
-            style={{ position: 'fixed', inset: 0, zIndex: 999 }}
-            onClick={handleClose}
-          />
+          <div style={{ position: 'fixed', inset: 0, zIndex: 999 }} onClick={handleClose} />
           <Box
             sx={{
               position: 'absolute',
@@ -109,16 +106,38 @@ const ConnectionContextMenu: React.FC<Props> = ({
           >
             {isConnected ? (
               <Box
-                onClick={() => { onDisconnect(); handleClose(); }}
-                sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 0.75, py: 0.25, cursor: 'pointer', '&:hover': { bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))' } }}
+                onClick={() => {
+                  onDisconnect();
+                  handleClose();
+                }}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.75,
+                  px: 0.75,
+                  py: 0.25,
+                  cursor: 'pointer',
+                  '&:hover': { bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))' },
+                }}
               >
                 <LuUnplug size={ICON_SIZE} />
                 Disconnect
               </Box>
             ) : (
               <Box
-                onClick={() => { onConnect(); handleClose(); }}
-                sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 0.75, py: 0.25, cursor: 'pointer', '&:hover': { bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))' } }}
+                onClick={() => {
+                  onConnect();
+                  handleClose();
+                }}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.75,
+                  px: 0.75,
+                  py: 0.25,
+                  cursor: 'pointer',
+                  '&:hover': { bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))' },
+                }}
               >
                 <LuPlug size={ICON_SIZE} />
                 Connect
@@ -127,10 +146,21 @@ const ConnectionContextMenu: React.FC<Props> = ({
 
             <Divider sx={{ my: 0.5 }} />
 
-            <Link to={`/cluster/${encodeURIComponent(connectionId)}/edit`} style={{ textDecoration: 'none', color: 'inherit' }}>
+            <Link
+              to={`/cluster/${encodeURIComponent(connectionId)}/edit`}
+              style={{ textDecoration: 'none', color: 'inherit' }}
+            >
               <Box
                 onClick={handleClose}
-                sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 0.75, py: 0.25, cursor: 'pointer', '&:hover': { bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))' } }}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.75,
+                  px: 0.75,
+                  py: 0.25,
+                  cursor: 'pointer',
+                  '&:hover': { bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))' },
+                }}
               >
                 <LuPencil size={ICON_SIZE} />
                 Edit
@@ -138,8 +168,19 @@ const ConnectionContextMenu: React.FC<Props> = ({
             </Link>
 
             <Box
-              onClick={() => { onToggleFavorite(); handleClose(); }}
-              sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 0.75, py: 0.25, cursor: 'pointer', '&:hover': { bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))' } }}
+              onClick={() => {
+                onToggleFavorite();
+                handleClose();
+              }}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.75,
+                px: 0.75,
+                py: 0.25,
+                cursor: 'pointer',
+                '&:hover': { bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))' },
+              }}
             >
               <LuStar size={ICON_SIZE} />
               {isFavorite ? 'Unfavorite' : 'Favorite'}
@@ -149,9 +190,9 @@ const ConnectionContextMenu: React.FC<Props> = ({
               <>
                 <Divider sx={{ my: 0.5 }} />
                 <Box
-                  role='menuitem'
+                  role="menuitem"
                   tabIndex={0}
-                  onClick={() => setFoldersExpanded(prev => !prev)}
+                  onClick={() => setFoldersExpanded((prev) => !prev)}
                   sx={{
                     display: 'flex',
                     alignItems: 'center',
@@ -164,14 +205,15 @@ const ConnectionContextMenu: React.FC<Props> = ({
                 >
                   <LuFolder size={ICON_SIZE} />
                   <Text sx={{ flex: 1, fontSize: 'inherit' }}>Folders</Text>
-                  {foldersExpanded
-                    ? <LuChevronDown size={ICON_SIZE} style={{ opacity: 0.5, marginLeft: 6 }} />
-                    : <LuChevronRight size={ICON_SIZE} style={{ opacity: 0.5, marginLeft: 6 }} />
-                  }
+                  {foldersExpanded ? (
+                    <LuChevronDown size={ICON_SIZE} style={{ opacity: 0.5, marginLeft: 6 }} />
+                  ) : (
+                    <LuChevronRight size={ICON_SIZE} style={{ opacity: 0.5, marginLeft: 6 }} />
+                  )}
                 </Box>
                 {foldersExpanded && (
                   <>
-                    {customGroups.map(group => {
+                    {customGroups.map((group) => {
                       const isInGroup = group.connectionIds.includes(connectionId);
                       const Icon = getFolderIcon(group.icon);
                       return (
@@ -185,7 +227,18 @@ const ConnectionContextMenu: React.FC<Props> = ({
                             }
                             handleClose();
                           }}
-                          sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: 3, pr: 0.75, py: 0.25, cursor: 'pointer', '&:hover': { bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))' } }}
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1,
+                            pl: 3,
+                            pr: 0.75,
+                            py: 0.25,
+                            cursor: 'pointer',
+                            '&:hover': {
+                              bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))',
+                            },
+                          }}
                         >
                           <Box sx={{ color: group.color }}>
                             {isInGroup ? <LuCheck size={ICON_SIZE} /> : <Icon size={ICON_SIZE} />}
@@ -196,8 +249,22 @@ const ConnectionContextMenu: React.FC<Props> = ({
                     })}
                     {onCreateFolder && (
                       <Box
-                        onClick={() => { onCreateFolder(connectionId); handleClose(); }}
-                        sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: 3, pr: 0.75, py: 0.25, cursor: 'pointer', '&:hover': { bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))' } }}
+                        onClick={() => {
+                          onCreateFolder(connectionId);
+                          handleClose();
+                        }}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 1,
+                          pl: 3,
+                          pr: 0.75,
+                          py: 0.25,
+                          cursor: 'pointer',
+                          '&:hover': {
+                            bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))',
+                          },
+                        }}
                       >
                         <LuFolderPlus size={ICON_SIZE} />
                         New Folder...
@@ -211,8 +278,19 @@ const ConnectionContextMenu: React.FC<Props> = ({
             <Divider sx={{ my: 0.5 }} />
 
             <Box
-              onClick={() => { onCopyId(); handleClose(); }}
-              sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 0.75, py: 0.25, cursor: 'pointer', '&:hover': { bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))' } }}
+              onClick={() => {
+                onCopyId();
+                handleClose();
+              }}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.75,
+                px: 0.75,
+                py: 0.25,
+                cursor: 'pointer',
+                '&:hover': { bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))' },
+              }}
             >
               <LuCopy size={ICON_SIZE} />
               Copy Connection ID
@@ -221,8 +299,20 @@ const ConnectionContextMenu: React.FC<Props> = ({
             <Divider sx={{ my: 0.5 }} />
 
             <Box
-              onClick={() => { onDelete(); handleClose(); }}
-              sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 0.75, py: 0.25, cursor: 'pointer', color: 'error.main', '&:hover': { bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))' } }}
+              onClick={() => {
+                onDelete();
+                handleClose();
+              }}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.75,
+                px: 0.75,
+                py: 0.25,
+                cursor: 'pointer',
+                color: 'error.main',
+                '&:hover': { bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))' },
+              }}
             >
               <LuTrash size={ICON_SIZE} />
               Delete '{deleteName}'

@@ -1,4 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react';
+
 import NamespaceSelect from './NamespaceSelect';
 
 // ---------------------------------------------------------------------------
@@ -21,27 +22,18 @@ vi.mock('@omniviewdev/runtime', () => ({
 // Helpers
 // ---------------------------------------------------------------------------
 
-function renderNs(
-  selected: string[] = [],
-  setNamespaces = vi.fn(),
-) {
+function renderNs(selected: string[] = [], setNamespaces = vi.fn()) {
   const utils = render(
-    <NamespaceSelect
-      connectionID="c1"
-      selected={selected}
-      setNamespaces={setNamespaces}
-    />,
+    <NamespaceSelect connectionID="c1" selected={selected} setNamespaces={setNamespaces} />,
   );
   return { ...utils, setNamespaces };
 }
 
 /** Query all MUI Chip delete icons in the document */
-const getDeleteIcons = () =>
-  document.querySelectorAll<HTMLElement>('.MuiChip-deleteIcon');
+const getDeleteIcons = () => document.querySelectorAll<HTMLElement>('.MuiChip-deleteIcon');
 
 /** Query the clear-all button via its aria-label */
-const getClearAllButton = () =>
-  screen.queryByLabelText('Clear all');
+const getClearAllButton = () => screen.queryByLabelText('Clear all');
 
 // ---------------------------------------------------------------------------
 // Tests

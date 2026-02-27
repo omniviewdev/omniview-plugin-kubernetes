@@ -6,9 +6,7 @@ import { useRef } from 'react';
  * unnecessary re-renders when upstream state objects are reconstructed
  * with identical content.
  */
-export function useStableObject<T extends Record<string, unknown> | undefined>(
-  value: T,
-): T {
+export function useStableObject<T extends Record<string, unknown> | undefined>(value: T): T {
   const ref = useRef(value);
 
   if (!shallowEqual(ref.current, value)) {
@@ -18,10 +16,7 @@ export function useStableObject<T extends Record<string, unknown> | undefined>(
   return ref.current;
 }
 
-function shallowEqual<T extends Record<string, unknown> | undefined>(
-  a: T,
-  b: T,
-): boolean {
+function shallowEqual<T extends Record<string, unknown> | undefined>(a: T, b: T): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
 

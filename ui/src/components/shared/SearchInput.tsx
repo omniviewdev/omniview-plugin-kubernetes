@@ -1,10 +1,10 @@
+import { SearchRounded, Clear } from '@mui/icons-material';
+import { TextField } from '@omniviewdev/ui/inputs';
 import React from 'react';
 
 // @omniviewdev/ui
-import { TextField } from '@omniviewdev/ui/inputs';
 
 // Icons
-import { SearchRounded, Clear } from '@mui/icons-material';
 
 type Props = {
   /** Placeholder for the search input. */
@@ -27,19 +27,22 @@ const SearchInput: React.FC<Props> = ({ placeholder, value, onChange, autoFocus 
 
   // Recompute only if the value changes
   const hasValue = React.useMemo(() => value !== '', [value]);
-  const endAdornment = React.useMemo(() => hasValue ? <Clear onClick={handleClear} sx={{ cursor: 'pointer' }} /> : null, [hasValue]);
+  const endAdornment = React.useMemo(
+    () => (hasValue ? <Clear onClick={handleClear} sx={{ cursor: 'pointer' }} /> : null),
+    [hasValue],
+  );
 
   return (
     <TextField
-      size='sm'
-      autoComplete='off'
-      type='text'
+      size="sm"
+      autoComplete="off"
+      type="text"
       placeholder={placeholder ?? 'Search'}
       autoFocus={autoFocus}
-      startAdornment={<SearchRounded color='primary' />}
+      startAdornment={<SearchRounded color="primary" />}
       endAdornment={endAdornment}
       value={value}
-      onChange={e => {
+      onChange={(e) => {
         onChange(e);
       }}
       sx={{
@@ -54,7 +57,6 @@ const SearchInput: React.FC<Props> = ({ placeholder, value, onChange, autoFocus 
         '--wails-draggable': 'no-drag',
       }}
     />
-
   );
 };
 

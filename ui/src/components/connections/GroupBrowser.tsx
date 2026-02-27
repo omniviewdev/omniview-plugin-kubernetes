@@ -1,12 +1,14 @@
-import React from 'react';
 import Box from '@mui/material/Box';
 import { Card, Chip } from '@omniviewdev/ui';
 import { Button } from '@omniviewdev/ui/buttons';
 import { Select } from '@omniviewdev/ui/inputs';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
+import React from 'react';
 import { LuArrowLeft } from 'react-icons/lu';
+
 import type { ConnectionAttribute, EnrichedConnection } from '../../types/clusters';
+
 import CompactClusterCard from './CompactClusterCard';
 
 type Props = {
@@ -20,7 +22,7 @@ const MIN_COVERAGE = 0.3;
 const GroupBrowser: React.FC<Props> = ({ connections, availableAttributes, onConnectionClick }) => {
   // Filter attributes to those with sufficient coverage
   const filteredAttributes = React.useMemo(
-    () => availableAttributes.filter(a => a.coverage >= MIN_COVERAGE),
+    () => availableAttributes.filter((a) => a.coverage >= MIN_COVERAGE),
     [availableAttributes],
   );
 
@@ -29,7 +31,7 @@ const GroupBrowser: React.FC<Props> = ({ connections, availableAttributes, onCon
     if (filteredAttributes.length === 0) return undefined;
     const preferred = ['region', 'account', 'project', 'subscription', 'kubeconfig'];
     for (const key of preferred) {
-      const attr = filteredAttributes.find(a => a.key === key);
+      const attr = filteredAttributes.find((a) => a.key === key);
       if (attr) return attr.key;
     }
     return filteredAttributes[0].key;
@@ -45,7 +47,7 @@ const GroupBrowser: React.FC<Props> = ({ connections, availableAttributes, onCon
 
   if (filteredAttributes.length === 0) return null;
 
-  const selectedAttr = filteredAttributes.find(a => a.key === browseBy);
+  const selectedAttr = filteredAttributes.find((a) => a.key === browseBy);
 
   // Build groups -- skip connections without a value for the attribute
   const groups = React.useMemo(() => {
@@ -63,8 +65,7 @@ const GroupBrowser: React.FC<Props> = ({ connections, availableAttributes, onCon
       }
     }
     // Sort by cluster count descending
-    return Array.from(map.entries())
-      .sort(([, a], [, b]) => b.length - a.length);
+    return Array.from(map.entries()).sort(([, a], [, b]) => b.length - a.length);
   }, [browseBy, connections]);
 
   // Drill-down view
@@ -72,20 +73,20 @@ const GroupBrowser: React.FC<Props> = ({ connections, availableAttributes, onCon
     const groupConns = groups.find(([key]) => key === drillDown)?.[1] ?? [];
     return (
       <Box>
-        <Stack direction='row' alignItems='center' gap={1} sx={{ mb: 1 }}>
+        <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 1 }}>
           <Button
-            size='sm'
-            emphasis='ghost'
-            color='neutral'
+            size="sm"
+            emphasis="ghost"
+            color="neutral"
             startAdornment={<LuArrowLeft size={14} />}
             onClick={() => setDrillDown(null)}
           >
             Back
           </Button>
-          <Text weight='semibold' size='sm'>
+          <Text weight="semibold" size="sm">
             {selectedAttr?.displayName}: {drillDown}
           </Text>
-          <Chip size='sm' emphasis='soft' color='neutral' label={String(groupConns.length)} />
+          <Chip size="sm" emphasis="soft" color="neutral" label={String(groupConns.length)} />
         </Stack>
         <Box
           sx={{
@@ -95,7 +96,7 @@ const GroupBrowser: React.FC<Props> = ({ connections, availableAttributes, onCon
             gap: 1.5,
           }}
         >
-          {groupConns.map(conn => (
+          {groupConns.map((conn) => (
             <CompactClusterCard
               key={conn.connection.id}
               enriched={conn}
@@ -109,14 +110,18 @@ const GroupBrowser: React.FC<Props> = ({ connections, availableAttributes, onCon
 
   return (
     <Box>
-      <Stack direction='row' alignItems='center' gap={1} sx={{ mb: 1 }}>
-        <Text weight='semibold' size='sm'>Browse by</Text>
+      <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 1 }}>
+        <Text weight="semibold" size="sm">
+          Browse by
+        </Text>
         <Select
-          size='sm'
+          size="sm"
           value={browseBy}
-          onChange={(val) => { if (val) setBrowseBy(val as string); }}
+          onChange={(val) => {
+            if (val) setBrowseBy(val as string);
+          }}
           sx={{ minWidth: 120 }}
-          options={filteredAttributes.map(attr => ({
+          options={filteredAttributes.map((attr) => ({
             value: attr.key,
             label: attr.displayName,
           }))}
@@ -132,7 +137,7 @@ const GroupBrowser: React.FC<Props> = ({ connections, availableAttributes, onCon
         {groups.map(([value, conns]) => (
           <Card
             key={value}
-            variant='outlined'
+            variant="outlined"
             onClick={() => setDrillDown(value)}
             sx={{
               cursor: 'pointer',
@@ -147,8 +152,10 @@ const GroupBrowser: React.FC<Props> = ({ connections, availableAttributes, onCon
               transition: 'border-color 0.15s, background-color 0.15s, box-shadow 0.15s',
             }}
           >
-            <Text weight='semibold' size='sm' noWrap>{value}</Text>
-            <Text size='xs' sx={{ opacity: 0.6 }}>
+            <Text weight="semibold" size="sm" noWrap>
+              {value}
+            </Text>
+            <Text size="xs" sx={{ opacity: 0.6 }}>
               {conns.length} cluster{conns.length !== 1 ? 's' : ''}
             </Text>
           </Card>

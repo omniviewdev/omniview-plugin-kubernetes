@@ -1,22 +1,33 @@
-import { useRightDrawer } from '@omniviewdev/runtime'
-import { RowSelectionState, Table } from '@tanstack/react-table'
-import { useVirtualizer } from '@tanstack/react-virtual'
-import { type Props as ResourceTableProps } from './ResourceTable'
-import React from 'react'
-import ResourceTableRow from './ResourceTableRow'
+import { useRightDrawer } from '@omniviewdev/runtime';
+import { RowSelectionState, Table } from '@tanstack/react-table';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import React from 'react';
+
+import { type Props as ResourceTableProps } from './ResourceTable';
+import ResourceTableRow from './ResourceTableRow';
 // import ResourceTableRow from './ResourceTableRowContainer'
 
 type Props = Omit<ResourceTableProps, 'columns' | 'idAccessor'> & {
-  table: Table<any>
-  tableContainerRef: React.RefObject<HTMLDivElement | null>
-  columnVisibility: string
-  resizedColumnIds: string
-  rowSelection: RowSelectionState
-}
+  table: Table<any>;
+  tableContainerRef: React.RefObject<HTMLDivElement | null>;
+  columnVisibility: string;
+  resizedColumnIds: string;
+  rowSelection: RowSelectionState;
+};
 
-const ResourceTableBody: React.FC<Props> = ({ table, tableContainerRef, drawer, resourceKey, connectionID, memoizer, columnVisibility, resizedColumnIds, rowSelection }) => {
+const ResourceTableBody: React.FC<Props> = ({
+  table,
+  tableContainerRef,
+  drawer,
+  resourceKey,
+  connectionID,
+  memoizer,
+  columnVisibility,
+  resizedColumnIds,
+  rowSelection,
+}) => {
   const { rows } = table.getRowModel();
-  const { openDrawer } = useRightDrawer()
+  const { openDrawer } = useRightDrawer();
 
   const virtualizer = useVirtualizer<HTMLDivElement, HTMLTableRowElement>({
     count: rows.length,
@@ -26,21 +37,24 @@ const ResourceTableBody: React.FC<Props> = ({ table, tableContainerRef, drawer, 
   });
 
   /** Row Clicking */
-  const onRowClick = React.useCallback((id: string, data: any) => {
-    if (drawer === undefined) {
-      return
-    }
-    openDrawer(drawer, {
-      data,
-      resource: {
-        id,
-        name: data?.metadata?.name ?? id,
-        key: resourceKey,
-        connectionID,
-        pluginID: 'kubernetes',
+  const onRowClick = React.useCallback(
+    (id: string, data: any) => {
+      if (drawer === undefined) {
+        return;
       }
-    })
-  }, [drawer])
+      openDrawer(drawer, {
+        data,
+        resource: {
+          id,
+          name: data?.metadata?.name ?? id,
+          key: resourceKey,
+          connectionID,
+          pluginID: 'kubernetes',
+        },
+      });
+    },
+    [drawer],
+  );
 
   return (
     <tbody
@@ -50,7 +64,7 @@ const ResourceTableBody: React.FC<Props> = ({ table, tableContainerRef, drawer, 
         position: 'relative', // Needed for absolute positioning of rows
       }}
     >
-      {virtualizer.getVirtualItems().map(virtualRow => {
+      {virtualizer.getVirtualItems().map((virtualRow) => {
         const row = rows[virtualRow.index];
         return (
           <ResourceTableRow
@@ -69,7 +83,7 @@ const ResourceTableBody: React.FC<Props> = ({ table, tableContainerRef, drawer, 
         );
       })}
     </tbody>
-  )
-}
+  );
+};
 
-export default ResourceTableBody
+export default ResourceTableBody;

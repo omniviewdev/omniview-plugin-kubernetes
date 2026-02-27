@@ -1,6 +1,6 @@
+import { Avatar } from '@omniviewdev/ui';
 import React from 'react';
 
-import { Avatar } from '@omniviewdev/ui';
 import { stringToColor } from '../../utils/color';
 
 type Props = {

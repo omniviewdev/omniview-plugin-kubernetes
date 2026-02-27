@@ -1,21 +1,19 @@
-import React from 'react';
-
 import Box from '@mui/material/Box';
-import Dialog from '@mui/material/Dialog';
-import DialogContent from '@mui/material/DialogContent';
-import DialogActions from '@mui/material/DialogActions';
 import CircularProgress from '@mui/material/CircularProgress';
-import LinearProgress from '@mui/material/LinearProgress';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
 import IconButton from '@mui/material/IconButton';
-
-import { Button } from '@omniviewdev/ui/buttons';
-import { Text } from '@omniviewdev/ui/typography';
-
-import { LuCircleCheck, LuCircleAlert, LuCircleSlash, LuX } from 'react-icons/lu';
+import LinearProgress from '@mui/material/LinearProgress';
 import { useInformerState, InformerResourceState } from '@omniviewdev/runtime';
 import { ResourceClient } from '@omniviewdev/runtime/api';
-import { parseResourceKey, formatGroup } from '../../utils/resourceKey';
+import { Button } from '@omniviewdev/ui/buttons';
+import { Text } from '@omniviewdev/ui/typography';
+import React from 'react';
+import { LuCircleCheck, LuCircleAlert, LuCircleSlash, LuX } from 'react-icons/lu';
+
 import { useStableObject } from '../../hooks/useStableRef';
+import { parseResourceKey, formatGroup } from '../../utils/resourceKey';
 
 interface SyncProgressDialogProps {
   open: boolean;
@@ -38,7 +36,9 @@ function StateIcon({ state }: { state: InformerResourceState }) {
     case InformerResourceState.Pending:
       return <CircularProgress size={14} thickness={5} sx={{ color: 'var(--ov-fg-faint)' }} />;
     case InformerResourceState.Syncing:
-      return <CircularProgress size={14} thickness={5} sx={{ color: 'var(--ov-accent-fg, #58a6ff)' }} />;
+      return (
+        <CircularProgress size={14} thickness={5} sx={{ color: 'var(--ov-accent-fg, #58a6ff)' }} />
+      );
     case InformerResourceState.Synced:
       return <LuCircleCheck size={14} color="#3fb950" />;
     case InformerResourceState.Error:
@@ -53,9 +53,9 @@ function StateIcon({ state }: { state: InformerResourceState }) {
 /** Per-group progress summary */
 const GroupProgress = React.memo(function GroupProgress({ items }: { items: ResourceItem[] }) {
   const total = items.length;
-  const done = items.filter(i => isTerminal(i.state)).length;
+  const done = items.filter((i) => isTerminal(i.state)).length;
   const allDone = done === total;
-  const hasError = items.some(i => i.state === InformerResourceState.Error);
+  const hasError = items.some((i) => i.state === InformerResourceState.Error);
   const percent = total > 0 ? Math.round((done / total) * 100) : 0;
 
   return (
@@ -74,7 +74,15 @@ const GroupProgress = React.memo(function GroupProgress({ items }: { items: Reso
           },
         }}
       />
-      <Text size="xs" sx={{ color: 'var(--ov-fg-faint)', minWidth: 28, textAlign: 'right', fontFamily: 'var(--ov-font-mono, monospace)' }}>
+      <Text
+        size="xs"
+        sx={{
+          color: 'var(--ov-fg-faint)',
+          minWidth: 28,
+          textAlign: 'right',
+          fontFamily: 'var(--ov-font-mono, monospace)',
+        }}
+      >
         {done}/{total}
       </Text>
     </Box>
@@ -143,13 +151,16 @@ function SyncProgressDialogInner({
 
   const percent = Math.round(syncProgress * 100);
 
-  const handleRetry = React.useCallback(async (resourceKey: string) => {
-    try {
-      await ResourceClient.EnsureInformerForResource(pluginID, connectionID, resourceKey);
-    } catch (err) {
-      console.error('Failed to retry informer:', err);
-    }
-  }, [pluginID, connectionID]);
+  const handleRetry = React.useCallback(
+    async (resourceKey: string) => {
+      try {
+        await ResourceClient.EnsureInformerForResource(pluginID, connectionID, resourceKey);
+      } catch (err) {
+        console.error('Failed to retry informer:', err);
+      }
+    },
+    [pluginID, connectionID],
+  );
 
   return (
     <Dialog
@@ -181,7 +192,13 @@ function SyncProgressDialogInner({
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {!isFullySynced && <CircularProgress size={16} thickness={5} sx={{ color: 'var(--ov-accent-fg, #58a6ff)' }} />}
+          {!isFullySynced && (
+            <CircularProgress
+              size={16}
+              thickness={5}
+              sx={{ color: 'var(--ov-accent-fg, #58a6ff)' }}
+            />
+          )}
           {isFullySynced && <LuCircleCheck size={16} color="#3fb950" />}
           <Text weight="semibold" size="sm">
             {isFullySynced ? `Synced "${clusterName}"` : `Syncing "${clusterName}"`}
@@ -231,7 +248,15 @@ function SyncProgressDialogInner({
                 borderBottom: '1px solid var(--ov-border-default, #30363d)',
               }}
             >
-              <Text size="xs" weight="semibold" sx={{ color: 'var(--ov-fg-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              <Text
+                size="xs"
+                weight="semibold"
+                sx={{
+                  color: 'var(--ov-fg-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                }}
+              >
                 {groupLabel}
               </Text>
               <GroupProgress items={items} />
@@ -251,14 +276,22 @@ function SyncProgressDialogInner({
                 }}
               >
                 <StateIcon state={state} />
-                <Text size="xs" sx={{ flex: 1 }}>{kind}</Text>
+                <Text size="xs" sx={{ flex: 1 }}>
+                  {kind}
+                </Text>
                 {state === InformerResourceState.Cancelled && (
                   <Text size="xs" sx={{ color: 'var(--ov-fg-faint)', fontStyle: 'italic' }}>
                     skipped
                   </Text>
                 )}
                 {state === InformerResourceState.Synced && count > 0 && (
-                  <Text size="xs" sx={{ color: 'var(--ov-fg-faint)', fontFamily: 'var(--ov-font-mono, monospace)' }}>
+                  <Text
+                    size="xs"
+                    sx={{
+                      color: 'var(--ov-fg-faint)',
+                      fontFamily: 'var(--ov-font-mono, monospace)',
+                    }}
+                  >
                     {count}
                   </Text>
                 )}

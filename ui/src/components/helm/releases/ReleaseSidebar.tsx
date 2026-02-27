@@ -1,27 +1,23 @@
-import React from 'react';
-
 // material-ui
 import Box from '@mui/material/Box';
-import { Card } from '@omniviewdev/ui';
-import { Chip } from '@omniviewdev/ui';
 import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Grid';
+import { DrawerContext, useExecuteAction, useRightDrawer } from '@omniviewdev/runtime';
+import { Card, Chip } from '@omniviewdev/ui';
 import { Button, IconButton } from '@omniviewdev/ui/buttons';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Tabs, TabPanel } from '@omniviewdev/ui/navigation';
 import { Text } from '@omniviewdev/ui/typography';
+import React from 'react';
+import { LuCircleArrowUp, LuUndo2, LuGitCompare } from 'react-icons/lu';
 import { stringify, parse } from 'yaml';
 
 // icons
-import {
-  LuCircleArrowUp,
-  LuUndo2,
-  LuGitCompare,
-} from 'react-icons/lu';
 
 // project-imports
-import { DrawerContext, useExecuteAction, useRightDrawer } from '@omniviewdev/runtime';
+
 import CodeEditor from '../../shared/CodeEditor';
+
 import UpgradeDialog from './UpgradeDialog';
 
 // ── types ──
@@ -45,10 +41,12 @@ const statusColorMap: Record<string, 'success' | 'danger' | 'warning' | 'neutral
 const MetaEntry: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
   <Grid container spacing={0}>
     <Grid size={4}>
-      <Text sx={{ color: "neutral.400" }} size="sm">{label}</Text>
+      <Text sx={{ color: 'neutral.400' }} size="sm">
+        {label}
+      </Text>
     </Grid>
     <Grid size={8}>
-      <Text sx={{ fontWeight: 400, color: "neutral.100" }} weight="semibold" size="sm">
+      <Text sx={{ fontWeight: 400, color: 'neutral.100' }} weight="semibold" size="sm">
         {value}
       </Text>
     </Grid>
@@ -58,7 +56,9 @@ const MetaEntry: React.FC<{ label: string; value: React.ReactNode }> = ({ label,
 /**
  * Parse a YAML manifest string into individual resource documents.
  */
-function parseManifestResources(manifest: string): Array<{ kind: string; name: string; namespace?: string }> {
+function parseManifestResources(
+  manifest: string,
+): Array<{ kind: string; name: string; namespace?: string }> {
   if (!manifest) return [];
   const docs = manifest.split(/^---$/m).filter((d) => d.trim());
   const resources: Array<{ kind: string; name: string; namespace?: string }> = [];
@@ -103,22 +103,32 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
   const { showResourceSidebar } = useRightDrawer();
 
   // Fetch tab data on tab change, caching results per action
-  const fetchTabData = React.useCallback(async (actionID: string) => {
-    if (tabData[actionID]) return; // Already cached
-    try {
-      const result = await executeAction({
-        actionID,
-        id: releaseName,
-        namespace,
-      });
-      setTabData((prev) => ({ ...prev, [actionID]: result.data }));
-    } catch {
-      setTabData((prev) => ({ ...prev, [actionID]: null }));
-    }
-  }, [executeAction, releaseName, namespace, tabData]);
+  const fetchTabData = React.useCallback(
+    async (actionID: string) => {
+      if (tabData[actionID]) return; // Already cached
+      try {
+        const result = await executeAction({
+          actionID,
+          id: releaseName,
+          namespace,
+        });
+        setTabData((prev) => ({ ...prev, [actionID]: result.data }));
+      } catch {
+        setTabData((prev) => ({ ...prev, [actionID]: null }));
+      }
+    },
+    [executeAction, releaseName, namespace, tabData],
+  );
 
   React.useEffect(() => {
-    const tabActions = ['get-values', 'get-manifest', 'get-notes', 'get-hooks', 'get-history', 'get-manifest'];
+    const tabActions = [
+      'get-values',
+      'get-manifest',
+      'get-notes',
+      'get-hooks',
+      'get-history',
+      'get-manifest',
+    ];
     const actionID = tabActions[Number(activeTab)];
     if (actionID && connectionID) {
       void fetchTabData(actionID);
@@ -168,23 +178,25 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
     <Stack direction="column" width="100%" spacing={2}>
       {/* Header card */}
       <Card sx={{ p: 1.5, borderRadius: 'sm' }} emphasis="outline">
-          <Stack direction="column" spacing={1}>
-            <Stack direction="row" justifyContent="space-between" alignItems="center">
-              <Text weight="semibold" size="lg">{releaseName}</Text>
-              <Chip
-                size="sm"
-                emphasis="soft"
-                color={statusColorMap[status] ?? 'neutral'}
-                label={status}
-              />
-            </Stack>
-            <Divider />
-            <MetaEntry label="Namespace" value={namespace} />
-            <MetaEntry label="Chart" value={`${chartName}-${chartVersion}`} />
-            <MetaEntry label="App Version" value={appVersion} />
-            <MetaEntry label="Revision" value={String(revision)} />
-            {lastDeployed && <MetaEntry label="Updated" value={lastDeployed} />}
+        <Stack direction="column" spacing={1}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Text weight="semibold" size="lg">
+              {releaseName}
+            </Text>
+            <Chip
+              size="sm"
+              emphasis="soft"
+              color={statusColorMap[status] ?? 'neutral'}
+              label={status}
+            />
           </Stack>
+          <Divider />
+          <MetaEntry label="Namespace" value={namespace} />
+          <MetaEntry label="Chart" value={`${chartName}-${chartVersion}`} />
+          <MetaEntry label="App Version" value={appVersion} />
+          <MetaEntry label="Revision" value={String(revision)} />
+          {lastDeployed && <MetaEntry label="Updated" value={lastDeployed} />}
+        </Stack>
       </Card>
 
       {/* Action buttons */}
@@ -205,12 +217,14 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
             emphasis="outline"
             color="warning"
             disabled={isExecuting}
-            onClick={() => void executeAction({
-              actionID: 'rollback',
-              id: releaseName,
-              namespace,
-              params: { revision: revision - 1 },
-            })}
+            onClick={() =>
+              void executeAction({
+                actionID: 'rollback',
+                id: releaseName,
+                namespace,
+                params: { revision: revision - 1 },
+              })
+            }
             title="Rollback Release"
           >
             <LuUndo2 />
@@ -234,8 +248,16 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
       />
 
       {/* Values - Monaco editor */}
-      <TabPanel value='0' activeValue={activeTab}>
-        <Box sx={{ height: 400, border: '1px solid', borderColor: 'neutral.700', borderRadius: 'sm', overflow: 'hidden' }}>
+      <TabPanel value="0" activeValue={activeTab}>
+        <Box
+          sx={{
+            height: 400,
+            border: '1px solid',
+            borderColor: 'neutral.700',
+            borderRadius: 'sm',
+            overflow: 'hidden',
+          }}
+        >
           <CodeEditor
             filename="values.yaml"
             language="yaml"
@@ -247,7 +269,7 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
       </TabPanel>
 
       {/* Manifest - Monaco with diff toggle */}
-      <TabPanel value='1' activeValue={activeTab}>
+      <TabPanel value="1" activeValue={activeTab}>
         {revision > 1 && (
           <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
             <Button
@@ -262,7 +284,15 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
             </Button>
           </Stack>
         )}
-        <Box sx={{ height: 400, border: '1px solid', borderColor: 'neutral.700', borderRadius: 'sm', overflow: 'hidden' }}>
+        <Box
+          sx={{
+            height: 400,
+            border: '1px solid',
+            borderColor: 'neutral.700',
+            borderRadius: 'sm',
+            overflow: 'hidden',
+          }}
+        >
           <CodeEditor
             filename="manifest.yaml"
             language="yaml"
@@ -276,7 +306,7 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
       </TabPanel>
 
       {/* Notes */}
-      <TabPanel value='2' activeValue={activeTab}>
+      <TabPanel value="2" activeValue={activeTab}>
         <Box
           component="pre"
           sx={{
@@ -296,76 +326,86 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
       </TabPanel>
 
       {/* Hooks */}
-      <TabPanel value='3' activeValue={activeTab}>
+      <TabPanel value="3" activeValue={activeTab}>
         {tabData['get-hooks']?.hooks?.length ? (
           <Stack spacing={1}>
             {(tabData['get-hooks'].hooks as any[]).map((hook: any, i: number) => (
               <Card key={i} emphasis="outline">
-                  <Text weight="semibold" size="sm">{hook.name}</Text>
-                  <Text size="xs" sx={{ color: "neutral.400" }}>
-                    Kind: {hook.kind} | Weight: {hook.weight}
-                  </Text>
-                  {hook.events && (
-                    <Stack direction="row" spacing={0.5} mt={0.5} flexWrap="wrap">
-                      {(hook.events as string[]).map((e: string) => (
-                        <Chip key={e} size="sm" emphasis="soft" label={e} />
-                      ))}
-                    </Stack>
-                  )}
+                <Text weight="semibold" size="sm">
+                  {hook.name}
+                </Text>
+                <Text size="xs" sx={{ color: 'neutral.400' }}>
+                  Kind: {hook.kind} | Weight: {hook.weight}
+                </Text>
+                {hook.events && (
+                  <Stack direction="row" spacing={0.5} mt={0.5} flexWrap="wrap">
+                    {(hook.events as string[]).map((e: string) => (
+                      <Chip key={e} size="sm" emphasis="soft" label={e} />
+                    ))}
+                  </Stack>
+                )}
               </Card>
             ))}
           </Stack>
         ) : (
-          <Text size="sm" sx={{ color: "neutral.400" }}>No hooks</Text>
+          <Text size="sm" sx={{ color: 'neutral.400' }}>
+            No hooks
+          </Text>
         )}
       </TabPanel>
 
       {/* History */}
-      <TabPanel value='4' activeValue={activeTab}>
+      <TabPanel value="4" activeValue={activeTab}>
         {tabData['get-history']?.revisions?.length ? (
           <Stack spacing={1}>
             {(tabData['get-history'].revisions as any[]).map((rev: any, i: number) => (
               <Card key={i} emphasis="outline">
-                  <Stack direction="row" justifyContent="space-between" alignItems="center">
-                    <Text weight="semibold" size="sm">Revision {rev.version}</Text>
-                    <Chip
-                      size="sm"
-                      emphasis="soft"
-                      color={statusColorMap[rev.info?.status] ?? 'neutral'}
-                      label={rev.info?.status}
-                    />
-                  </Stack>
-                  <Text size="xs" sx={{ color: "neutral.400" }}>
-                    {rev.info?.description ?? ''}
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <Text weight="semibold" size="sm">
+                    Revision {rev.version}
                   </Text>
-                  {rev.version !== revision && (
-                    <IconButton
-                      size="sm"
-                      emphasis="ghost"
-                      color="warning"
-                      disabled={isExecuting}
-                      onClick={() => void executeAction({
+                  <Chip
+                    size="sm"
+                    emphasis="soft"
+                    color={statusColorMap[rev.info?.status] ?? 'neutral'}
+                    label={rev.info?.status}
+                  />
+                </Stack>
+                <Text size="xs" sx={{ color: 'neutral.400' }}>
+                  {rev.info?.description ?? ''}
+                </Text>
+                {rev.version !== revision && (
+                  <IconButton
+                    size="sm"
+                    emphasis="ghost"
+                    color="warning"
+                    disabled={isExecuting}
+                    onClick={() =>
+                      void executeAction({
                         actionID: 'rollback',
                         id: releaseName,
                         namespace,
                         params: { revision: rev.version },
-                      })}
-                      title={`Rollback to revision ${rev.version}`}
-                      sx={{ mt: 0.5 }}
-                    >
-                      <LuUndo2 size={14} />
-                    </IconButton>
-                  )}
+                      })
+                    }
+                    title={`Rollback to revision ${rev.version}`}
+                    sx={{ mt: 0.5 }}
+                  >
+                    <LuUndo2 size={14} />
+                  </IconButton>
+                )}
               </Card>
             ))}
           </Stack>
         ) : (
-          <Text size="sm" sx={{ color: "neutral.400" }}>No history</Text>
+          <Text size="sm" sx={{ color: 'neutral.400' }}>
+            No history
+          </Text>
         )}
       </TabPanel>
 
       {/* Resources - parsed from manifest */}
-      <TabPanel value='5' activeValue={activeTab}>
+      <TabPanel value="5" activeValue={activeTab}>
         {manifestResources.length > 0 ? (
           <Stack spacing={0.5}>
             {manifestResources.map((res, i) => (
@@ -416,16 +456,20 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
               >
                 <Stack direction="row" spacing={1} alignItems="center">
                   <Chip size="sm" emphasis="soft" color="neutral" label={res.kind} />
-                  <Text size="sm" weight="semibold">{res.name}</Text>
+                  <Text size="sm" weight="semibold">
+                    {res.name}
+                  </Text>
                   {res.namespace && (
-                    <Text size="xs" sx={{ color: 'neutral.500' }}>{res.namespace}</Text>
+                    <Text size="xs" sx={{ color: 'neutral.500' }}>
+                      {res.namespace}
+                    </Text>
                   )}
                 </Stack>
               </Card>
             ))}
           </Stack>
         ) : (
-          <Text size="sm" sx={{ color: "neutral.400" }}>
+          <Text size="sm" sx={{ color: 'neutral.400' }}>
             {tabData['get-manifest'] ? 'No resources found in manifest' : 'Loading manifest...'}
           </Text>
         )}

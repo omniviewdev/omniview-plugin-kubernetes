@@ -1,9 +1,8 @@
-import React from 'react';
-
 // @omniviewdev/ui
 import Box from '@mui/material/Box';
 import { Chip } from '@omniviewdev/ui';
 import { Tooltip } from '@omniviewdev/ui/overlays';
+import React from 'react';
 
 type Props = {
   values: string[];
@@ -33,21 +32,13 @@ export const BadgesCell: React.FC<Props> = ({ align, values, colorMap, hoverMenu
   };
 
   return (
-    <Box
-      display='flex'
-      flex={1}
-      justifyContent={getAlignment()}
-      alignItems='center'
-    >
-      {values.map((value, idx) => (
+    <Box display="flex" flex={1} justifyContent={getAlignment()} alignItems="center">
+      {values.map((value, idx) =>
         hoverMenu ? (
-          <Tooltip
-            key={`badge-${idx}`}
-            content={hoverMenu(value)}
-          >
+          <Tooltip key={`badge-${idx}`} content={hoverMenu(value)}>
             <Chip
-              size='sm'
-              emphasis='solid'
+              size="sm"
+              emphasis="solid"
               color={getColor(value)}
               sx={{
                 borderRadius: 2,
@@ -58,14 +49,14 @@ export const BadgesCell: React.FC<Props> = ({ align, values, colorMap, hoverMenu
                 minWidth: 12,
                 minHeight: 12,
               }}
-              label=''
+              label=""
             />
           </Tooltip>
         ) : (
           <Chip
             key={`badge-${idx}`}
-            size='sm'
-            emphasis='solid'
+            size="sm"
+            emphasis="solid"
             color={getColor(value)}
             sx={{
               borderRadius: 2,
@@ -76,10 +67,10 @@ export const BadgesCell: React.FC<Props> = ({ align, values, colorMap, hoverMenu
               minWidth: 12,
               minHeight: 12,
             }}
-            label=''
+            label=""
           />
-        )
-      ))}
+        ),
+      )}
     </Box>
   );
 };

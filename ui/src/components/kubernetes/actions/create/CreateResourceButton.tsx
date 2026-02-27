@@ -1,11 +1,12 @@
-import React from 'react';
-import { Button } from '@omniviewdev/ui/buttons';
-import { LuPlus } from 'react-icons/lu';
 import { useResourceMutations } from '@omniviewdev/runtime';
+import { Button } from '@omniviewdev/ui/buttons';
+import React from 'react';
+import { LuPlus } from 'react-icons/lu';
 import { parse } from 'yaml';
 
-import CreateResourceModal from './CreateResourceModal';
 import { parseResourceKey } from '../../../../utils/resourceKey';
+
+import CreateResourceModal from './CreateResourceModal';
 
 interface Props {
   connectionID: string;

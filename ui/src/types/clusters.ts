@@ -2,7 +2,11 @@ import { type types } from '@omniviewdev/runtime/models';
 
 // Special grouping modes + dynamic label-based grouping via `label:${string}`
 export type GroupByMode =
-  | 'none' | 'provider' | 'status' | 'favorites' | 'custom'
+  | 'none'
+  | 'provider'
+  | 'status'
+  | 'favorites'
+  | 'custom'
   | 'tags'
   | 'recent'
   | `label:${string}`;
@@ -14,10 +18,7 @@ export const LEGACY_GROUP_ALIASES: Record<string, string> = {
   cluster: 'cluster',
 };
 
-export type SortByField =
-  | 'name' | 'provider' | 'status'
-  | 'recency'
-  | `label:${string}`;
+export type SortByField = 'name' | 'provider' | 'status' | 'recency' | `label:${string}`;
 
 // Legacy aliases that map to label-based sorting
 export const LEGACY_SORT_ALIASES: Record<string, string> = {

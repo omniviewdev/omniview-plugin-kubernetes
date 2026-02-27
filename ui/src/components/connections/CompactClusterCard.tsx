@@ -1,11 +1,13 @@
-import React from 'react';
 import Box from '@mui/material/Box';
 import { Avatar } from '@omniviewdev/ui';
+import React from 'react';
+
 import type { EnrichedConnection } from '../../types/clusters';
-import ProviderIcon from './ProviderIcon';
-import ConnectionStatusBadge from './ConnectionStatusBadge';
 import NamedAvatar from '../shared/NamedAvatar';
+
+import ConnectionStatusBadge from './ConnectionStatusBadge';
 import FavoriteButton from './FavoriteButton';
+import ProviderIcon from './ProviderIcon';
 
 type Props = {
   enriched: EnrichedConnection;
@@ -15,7 +17,13 @@ type Props = {
   onClick: () => void;
 };
 
-const CompactClusterCard: React.FC<Props> = ({ enriched, subtitle, showFavorite, onToggleFavorite, onClick }) => {
+const CompactClusterCard: React.FC<Props> = ({
+  enriched,
+  subtitle,
+  showFavorite,
+  onToggleFavorite,
+  onClick,
+}) => {
   const { provider, isConnected, displayName } = enriched;
 
   return (

@@ -6,9 +6,9 @@ import {
 } from 'date-fns';
 
 /**
-  * Formats the time difference between the given date and the current date
-  * @param date The date to calculate the difference from
-  */
+ * Formats the time difference between the given date and the current date
+ * @param date The date to calculate the difference from
+ */
 export function formatTimeDifference(date: Date) {
   const now = new Date();
   const sec = differenceInSeconds(now, date);

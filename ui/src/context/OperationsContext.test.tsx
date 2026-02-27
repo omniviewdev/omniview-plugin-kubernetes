@@ -1,12 +1,12 @@
-import React from 'react';
-import { render, act } from '@testing-library/react';
-import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   OperationsProvider,
   OperationsContext,
   type Operation,
   type OperationsContextType,
 } from '@omniviewdev/runtime';
+import { render, act } from '@testing-library/react';
+import React from 'react';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 // Helper to access the context value from within the provider.
 function renderWithOperations() {
@@ -98,7 +98,9 @@ describe('OperationsContext', () => {
     const { getContext } = renderWithOperations();
 
     act(() => {
-      getContext().addOperation(makeOperation({ id: 'op-done', status: 'completed', completedAt: Date.now() }));
+      getContext().addOperation(
+        makeOperation({ id: 'op-done', status: 'completed', completedAt: Date.now() }),
+      );
     });
 
     expect(getContext().operations).toHaveLength(1);
@@ -114,7 +116,9 @@ describe('OperationsContext', () => {
     const { getContext } = renderWithOperations();
 
     act(() => {
-      getContext().addOperation(makeOperation({ id: 'op-err', status: 'error', completedAt: Date.now() }));
+      getContext().addOperation(
+        makeOperation({ id: 'op-err', status: 'error', completedAt: Date.now() }),
+      );
     });
 
     expect(getContext().operations).toHaveLength(1);

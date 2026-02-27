@@ -1,10 +1,13 @@
-import React from 'react';
 import Box from '@mui/material/Box';
-import { Text } from '@omniviewdev/ui/typography';
-
-import { usePluginContext, useConnection, useSnackbar } from '@omniviewdev/runtime';
-import { usePluginRouter } from '@omniviewdev/runtime';
+import {
+  usePluginContext,
+  useConnection,
+  useSnackbar,
+  usePluginRouter,
+} from '@omniviewdev/runtime';
 import { types } from '@omniviewdev/runtime/models';
+import { Text } from '@omniviewdev/ui/typography';
+import React from 'react';
 
 import type {
   GroupedConnectionsResult,
@@ -13,10 +16,11 @@ import type {
   ConnectionGroup,
   EnrichedConnection,
 } from '../../types/clusters';
-import ConnectionTableItem from './ConnectionTableItem';
+
+import ColumnPicker from './ColumnPicker';
 import ConnectionCard from './ConnectionCard';
 import ConnectionGroupComp from './ConnectionGroup';
-import ColumnPicker from './ColumnPicker';
+import ConnectionTableItem from './ConnectionTableItem';
 
 type Props = {
   grouped: GroupedConnectionsResult;
@@ -68,7 +72,16 @@ const GridCardWrapper: React.FC<{
   onCreateFolder?: (connectionId: string) => void;
   onDelete: () => void;
   onRecordAccess: () => void;
-}> = ({ enriched, customGroups, onToggleFavorite, onAssignToGroup, onRemoveFromGroup, onCreateFolder, onDelete, onRecordAccess }) => {
+}> = ({
+  enriched,
+  customGroups,
+  onToggleFavorite,
+  onAssignToGroup,
+  onRemoveFromGroup,
+  onCreateFolder,
+  onDelete,
+  onRecordAccess,
+}) => {
   const { meta } = usePluginContext();
   const { navigate } = usePluginRouter();
   const { showSnackbar } = useSnackbar();
@@ -84,12 +97,12 @@ const GridCardWrapper: React.FC<{
       return;
     }
     startConnection()
-      .then(status => {
+      .then((status) => {
         if (status.status === types.ConnectionStatusCode.CONNECTED) {
           navigate(`/cluster/${encodeURIComponent(enriched.connection.id)}/resources`);
         }
       })
-      .catch(err => {
+      .catch((err) => {
         if (err instanceof Error) {
           showSnackbar({ status: 'error', message: err.message, icon: 'LuCircleAlert' });
         }
@@ -98,7 +111,7 @@ const GridCardWrapper: React.FC<{
 
   const handleConnect = () => {
     onRecordAccess();
-    startConnection().catch(err => {
+    startConnection().catch((err) => {
       if (err instanceof Error) {
         showSnackbar({ status: 'error', message: err.message, icon: 'LuCircleAlert' });
       }
@@ -106,7 +119,7 @@ const GridCardWrapper: React.FC<{
   };
 
   const handleDisconnect = () => {
-    stopConnection().catch(err => {
+    stopConnection().catch((err) => {
       if (err instanceof Error) {
         showSnackbar({ status: 'error', message: err.message, icon: 'LuCircleAlert' });
       }
@@ -161,13 +174,13 @@ const ConnectionTable: React.FC<Props> = ({
   onDeleteRequest,
   onRecordAccess,
 }) => {
-  const allConnections = grouped.groups.flatMap(g => g.connections);
+  const allConnections = grouped.groups.flatMap((g) => g.connections);
   const isFlat = groupBy === 'none';
 
   if (viewMode === 'grid') {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-        {grouped.groups.map(group => (
+        {grouped.groups.map((group) => (
           <ConnectionGroupComp
             key={group.key}
             groupKey={group.key}
@@ -186,14 +199,18 @@ const ConnectionTable: React.FC<Props> = ({
                 p: isFlat ? 0 : 1,
               }}
             >
-              {group.connections.map(enriched => (
+              {group.connections.map((enriched) => (
                 <GridCardWrapper
                   key={enriched.connection.id}
                   enriched={enriched}
                   customGroups={customGroups}
                   onToggleFavorite={() => onToggleFavorite(enriched.connection.id)}
                   onAssignToGroup={(gId) => onAssignToGroup(gId, enriched.connection.id)}
-                  onRemoveFromGroup={onRemoveFromGroup ? (gId) => onRemoveFromGroup(gId, enriched.connection.id) : undefined}
+                  onRemoveFromGroup={
+                    onRemoveFromGroup
+                      ? (gId) => onRemoveFromGroup(gId, enriched.connection.id)
+                      : undefined
+                  }
                   onCreateFolder={onCreateFolder}
                   onDelete={() => onDeleteRequest(enriched.connection.id, enriched.displayName)}
                   onRecordAccess={() => onRecordAccess(enriched.connection.id)}
@@ -207,13 +224,13 @@ const ConnectionTable: React.FC<Props> = ({
   }
 
   // List view - only render visible label columns
-  const sortedVisibleCols = visibleColumns.filter(c =>
-    allConnections.some(e => e.connection.labels?.[c] !== undefined),
-  ).sort();
+  const sortedVisibleCols = visibleColumns
+    .filter((c) => allConnections.some((e) => e.connection.labels?.[c] !== undefined))
+    .sort();
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-      {grouped.groups.map(group => (
+      {grouped.groups.map((group) => (
         <ConnectionGroupComp
           key={group.key}
           groupKey={group.key}
@@ -234,18 +251,28 @@ const ConnectionTable: React.FC<Props> = ({
             }}
           >
             <table
-              aria-label='connections table'
+              aria-label="connections table"
               style={{ width: '100%', borderCollapse: 'collapse' }}
             >
               <thead>
-                <tr style={{ backgroundColor: 'var(--ov-bg-surface-inset, rgba(255,255,255,0.02))' }}>
+                <tr
+                  style={{ backgroundColor: 'var(--ov-bg-surface-inset, rgba(255,255,255,0.02))' }}
+                >
                   <th style={{ ...thSx, width: 32, padding: '4px' }} />
                   <th style={{ ...thSx, width: '40%' }}>
-                    <Text size='xs' weight='semibold' sx={{ color: 'var(--ov-fg-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    <Text
+                      size="xs"
+                      weight="semibold"
+                      sx={{
+                        color: 'var(--ov-fg-muted)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                      }}
+                    >
                       Name
                     </Text>
                   </th>
-                  {sortedVisibleCols.map(col => (
+                  {sortedVisibleCols.map((col) => (
                     <th
                       key={col}
                       style={{
@@ -253,8 +280,16 @@ const ConnectionTable: React.FC<Props> = ({
                         width: getColumnWidth(allConnections, col) + 8,
                       }}
                     >
-                      <Text size='xs' weight='semibold' sx={{ color: 'var(--ov-fg-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                        {col.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                      <Text
+                        size="xs"
+                        weight="semibold"
+                        sx={{
+                          color: 'var(--ov-fg-muted)',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.04em',
+                        }}
+                      >
+                        {col.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
                       </Text>
                     </th>
                   ))}
@@ -270,7 +305,7 @@ const ConnectionTable: React.FC<Props> = ({
                 </tr>
               </thead>
               <tbody>
-                {group.connections.map(enriched => (
+                {group.connections.map((enriched) => (
                   <ConnectionTableItem
                     key={enriched.connection.id}
                     enriched={enriched}
@@ -278,7 +313,11 @@ const ConnectionTable: React.FC<Props> = ({
                     customGroups={customGroups}
                     onToggleFavorite={() => onToggleFavorite(enriched.connection.id)}
                     onAssignToGroup={(gId) => onAssignToGroup(gId, enriched.connection.id)}
-                    onRemoveFromGroup={onRemoveFromGroup ? (gId) => onRemoveFromGroup(gId, enriched.connection.id) : undefined}
+                    onRemoveFromGroup={
+                      onRemoveFromGroup
+                        ? (gId) => onRemoveFromGroup(gId, enriched.connection.id)
+                        : undefined
+                    }
                     onCreateFolder={onCreateFolder}
                     onDelete={() => onDeleteRequest(enriched.connection.id, enriched.displayName)}
                     onRecordAccess={() => onRecordAccess(enriched.connection.id)}

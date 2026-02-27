@@ -1,8 +1,9 @@
-import React from 'react';
 import { Chip } from '@omniviewdev/ui';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
+import React from 'react';
 import { LuChevronRight } from 'react-icons/lu';
+
 import ProviderIcon from './ProviderIcon';
 
 type Props = {
@@ -21,8 +22,8 @@ const ConnectionGroupHeader: React.FC<Props> = ({
   onToggle,
 }) => (
   <Stack
-    direction='row'
-    alignItems='center'
+    direction="row"
+    alignItems="center"
     gap={1}
     onClick={onToggle}
     sx={{
@@ -42,8 +43,10 @@ const ConnectionGroupHeader: React.FC<Props> = ({
       }}
     />
     {provider && <ProviderIcon provider={provider} size={16} />}
-    <Text weight='semibold' size='sm'>{label}</Text>
-    <Chip size='sm' emphasis='soft' color='neutral' label={String(count)} />
+    <Text weight="semibold" size="sm">
+      {label}
+    </Text>
+    <Chip size="sm" emphasis="soft" color="neutral" label={String(count)} />
   </Stack>
 );
 

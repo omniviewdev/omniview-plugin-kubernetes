@@ -1,8 +1,8 @@
-import { useState } from 'react';
 import Box from '@mui/material/Box';
 import { CopyButton } from '@omniviewdev/ui/buttons';
-import { LuFilter } from 'react-icons/lu';
 import type { CellContext } from '@tanstack/react-table';
+import { useState } from 'react';
+import { LuFilter } from 'react-icons/lu';
 
 /**
  * NamespaceCell renders the namespace value with hover actions:
@@ -27,7 +27,9 @@ export const NamespaceCell = <T,>({ getValue, table, column }: CellContext<T, un
     }
   };
 
-  const isFiltered = ((table.getColumn('namespace')?.getFilterValue() as string[]) ?? []).includes(val);
+  const isFiltered = ((table.getColumn('namespace')?.getFilterValue() as string[]) ?? []).includes(
+    val,
+  );
 
   return (
     <Box
@@ -62,7 +64,9 @@ export const NamespaceCell = <T,>({ getValue, table, column }: CellContext<T, un
             display: 'inline-flex',
             alignItems: 'center',
             cursor: 'pointer',
-            color: isFiltered ? 'var(--mui-palette-primary-main)' : 'var(--mui-palette-action-active)',
+            color: isFiltered
+              ? 'var(--mui-palette-primary-main)'
+              : 'var(--mui-palette-action-active)',
             lineHeight: 0,
           }}
         >

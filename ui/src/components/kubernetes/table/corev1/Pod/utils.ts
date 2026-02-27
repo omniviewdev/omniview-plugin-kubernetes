@@ -21,10 +21,7 @@ export const getStatus = (status: ContainerStatus): ContainerStatusInfo => {
       icon: 'LuTimer',
       color: 'warning',
     };
-  } else if (
-    status.state?.terminated &&
-    status.state.terminated.reason === 'Completed'
-  ) {
+  } else if (status.state?.terminated && status.state.terminated.reason === 'Completed') {
     return {
       text: 'Completed',
       icon: 'LuCheck',

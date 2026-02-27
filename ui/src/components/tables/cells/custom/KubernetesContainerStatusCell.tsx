@@ -1,11 +1,10 @@
-import React from 'react';
-
 // @omniviewdev/ui
 import { useTheme } from '@mui/material/styles';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Tooltip } from '@omniviewdev/ui/overlays';
-
 import { type ContainerStatus } from 'kubernetes-types/core/v1';
+import React from 'react';
+
 import ContainerStatusCard from './KubernetesContainerStatusCard';
 
 type Props = {
@@ -45,7 +44,13 @@ export const KubernetesContainerStatusCell: React.FC<Props> = ({ data }) => {
   };
 
   return (
-    <Stack direction="row" sx={{ width: '100%' }} alignItems='center' justifyContent='flex-start' gap={1}>
+    <Stack
+      direction="row"
+      sx={{ width: '100%' }}
+      alignItems="center"
+      justifyContent="flex-start"
+      gap={1}
+    >
       {obj.map((status) => (
         <Tooltip
           placement="top-end"

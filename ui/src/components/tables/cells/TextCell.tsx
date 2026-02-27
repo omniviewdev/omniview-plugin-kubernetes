@@ -1,13 +1,13 @@
+import Box from '@mui/material/Box';
+import { type types } from '@omniviewdev/runtime/models';
+import { Text } from '@omniviewdev/ui/typography';
 import React from 'react';
 
 // @omniviewdev/ui
-import Box from '@mui/material/Box';
-import { Text } from '@omniviewdev/ui/typography';
-import { type types } from '@omniviewdev/runtime/models';
 
+import { type ResourceMetadata } from '../../../hooks/useResourceDefinition';
 import { formatTimeDifference } from '../../../utils/time';
 import { convertByteUnits } from '../../../utils/units';
-import { type ResourceMetadata } from '../../../hooks/useResourceDefinition';
 
 import ResourceLinkCell from './ResourceLinkCell';
 
@@ -124,10 +124,19 @@ const AgeCell: React.FC<Props> = ({ value, ...rest }) => {
   return <CellBase value={time} {...rest} />;
 };
 
-const CellBase: React.FC<Props> = ({ align, value, color, colorMap, startDecorator, endDecorator, formatter, children }) => {
+const CellBase: React.FC<Props> = ({
+  align,
+  value,
+  color,
+  colorMap,
+  startDecorator,
+  endDecorator,
+  formatter,
+  children,
+}) => {
   const getColor = () => {
     if (colorMap) {
-      let val = colorMap[value] ?? colorMap['*'] ?? undefined;
+      const val = colorMap[value] ?? colorMap['*'] ?? undefined;
       switch (val) {
         case 'healthy':
         case 'good':
@@ -163,10 +172,10 @@ const CellBase: React.FC<Props> = ({ align, value, color, colorMap, startDecorat
 
   return (
     <Box
-      display='flex'
+      display="flex"
       flex={1}
       justifyContent={getAlignment()}
-      alignItems='center'
+      alignItems="center"
       sx={{
         overflowY: 'hidden',
         overflowX: 'scroll',
@@ -174,19 +183,15 @@ const CellBase: React.FC<Props> = ({ align, value, color, colorMap, startDecorat
         '&::-webkit-scrollbar': { display: 'none' },
       }}
     >
-      {children ??
+      {children ?? (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           {startDecorator}
-          <Text
-            size='xs'
-            sx={{ color: getColor() ? `${getColor()}.main` : undefined }}
-            noWrap
-          >
+          <Text size="xs" sx={{ color: getColor() ? `${getColor()}.main` : undefined }} noWrap>
             {formatter && formatters[formatter] ? formatters[formatter](value) : `${value}`}
           </Text>
           {endDecorator}
         </Box>
-      }
+      )}
     </Box>
   );
 };

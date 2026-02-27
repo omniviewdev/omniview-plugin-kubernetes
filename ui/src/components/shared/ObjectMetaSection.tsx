@@ -1,18 +1,17 @@
-import React from "react";
-
 // @omniviewdev/ui
-import Box from "@mui/material/Box";
-import Divider from "@mui/material/Divider";
-import Grid from "@mui/material/Grid";
+import Box from '@mui/material/Box';
+import Divider from '@mui/material/Divider';
+import Grid from '@mui/material/Grid';
 import { Card, ExpandableSections } from '@omniviewdev/ui';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
 
 // types
-import { ObjectMeta } from "kubernetes-types/meta/v1";
+import { formatRelative } from 'date-fns';
+import { ObjectMeta } from 'kubernetes-types/meta/v1';
 
 // third-party
-import { formatRelative } from "date-fns";
+import React from 'react';
 
 interface Props {
   data?: ObjectMeta;
@@ -23,13 +22,13 @@ const ObjectMetaEntry: React.FC<{
   value: string | undefined;
 }> = ({ title, value }) => (
   <Grid container spacing={0}>
-    <Grid size={3} sx={{ alignItems: "center" }}>
-      <Text sx={{ color: "neutral.400" }} size="sm">
+    <Grid size={3} sx={{ alignItems: 'center' }}>
+      <Text sx={{ color: 'neutral.400' }} size="sm">
         {title}
       </Text>
     </Grid>
-    <Grid size={9} sx={{ alignItems: "center" }}>
-      <Text weight="semibold" size="sm" sx={{ color: "neutral.100" }}>
+    <Grid size={9} sx={{ alignItems: 'center' }}>
+      <Text weight="semibold" size="sm" sx={{ color: 'neutral.100' }}>
         {value}
       </Text>
     </Grid>
@@ -49,12 +48,12 @@ const ObjectMetaSection: React.FC<Props> = ({ data }) => {
         <Grid container spacing={0.25}>
           {Object.entries(data.annotations || {}).map(([key, value]) => (
             <React.Fragment key={key}>
-              <Grid size={6} sx={{ alignItems: "center" }}>
+              <Grid size={6} sx={{ alignItems: 'center' }}>
                 <Text sx={{ fontSize: 13, fontWeight: 400 }} size="sm">
                   {key}
                 </Text>
               </Grid>
-              <Grid size={6} sx={{ alignItems: "center" }}>
+              <Grid size={6} sx={{ alignItems: 'center' }}>
                 <Text sx={{ fontSize: 13, fontWeight: 600 }} size="sm">
                   {value}
                 </Text>
@@ -71,12 +70,12 @@ const ObjectMetaSection: React.FC<Props> = ({ data }) => {
         <Grid container spacing={0.25}>
           {Object.entries(data.labels || {}).map(([key, value]) => (
             <React.Fragment key={key}>
-              <Grid size={6} sx={{ alignItems: "center" }}>
+              <Grid size={6} sx={{ alignItems: 'center' }}>
                 <Text sx={{ fontSize: 13, fontWeight: 400 }} size="sm">
                   {key}
                 </Text>
               </Grid>
-              <Grid size={6} sx={{ alignItems: "center" }}>
+              <Grid size={6} sx={{ alignItems: 'center' }}>
                 <Text sx={{ fontSize: 13, fontWeight: 600 }} size="sm">
                   {value}
                 </Text>
@@ -94,27 +93,27 @@ const ObjectMetaSection: React.FC<Props> = ({ data }) => {
         sx={{
           p: 0,
           gap: 0,
-          borderRadius: "sm",
+          borderRadius: 'sm',
         }}
         variant="outlined"
       >
         <Box sx={{ py: 1, px: 1.25 }}>
-          <Text weight="semibold" size="sm">Metadata</Text>
+          <Text weight="semibold" size="sm">
+            Metadata
+          </Text>
         </Box>
         <Divider />
         <Box
           sx={{
             p: 1,
             px: 1.5,
-            backgroundColor: "background.level1",
+            backgroundColor: 'background.level1',
             borderBottomRightRadius: 6,
             borderBottomLeftRadius: 6,
           }}
         >
           <ObjectMetaEntry title="Name" value={data.name} />
-          {data.namespace && (
-            <ObjectMetaEntry title="Namespace" value={data.namespace} />
-          )}
+          {data.namespace && <ObjectMetaEntry title="Namespace" value={data.namespace} />}
           <ObjectMetaEntry
             title="Created"
             value={

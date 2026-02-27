@@ -1,14 +1,13 @@
-import React from "react";
-
 // @omniviewdev/ui
 import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
 import { Card as UiCard, Avatar, Chip } from '@omniviewdev/ui';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
+import React from 'react';
 
 // project imports
-import Icon from "./Icon";
+import Icon from './Icon';
 
 export interface Props {
   title: string;
@@ -20,12 +19,7 @@ export interface Props {
 /**
  * Renders a card for showing a key-value pairs of details
  */
-export const Card: React.FC<Props> = ({
-  title,
-  titleDecorator,
-  icon,
-  children,
-}) => {
+export const Card: React.FC<Props> = ({ title, titleDecorator, icon, children }) => {
   return (
     <UiCard variant="outlined" sx={{ p: 0, gap: 0 }}>
       <Stack
@@ -37,8 +31,8 @@ export const Card: React.FC<Props> = ({
       >
         <Stack direction="row" alignItems="center" gap={1}>
           {icon &&
-            (typeof icon === "string" ? (
-              icon.startsWith("http") ? (
+            (typeof icon === 'string' ? (
+              icon.startsWith('http') ? (
                 <Avatar
                   src={icon}
                   size="sm"
@@ -50,13 +44,14 @@ export const Card: React.FC<Props> = ({
             ) : (
               icon
             ))}
-          <Text weight="semibold" size="sm">{title}</Text>
+          <Text weight="semibold" size="sm">
+            {title}
+          </Text>
         </Stack>
         {titleDecorator &&
-          (typeof titleDecorator === "string" ||
-            typeof titleDecorator === "number" ? (
+          (typeof titleDecorator === 'string' || typeof titleDecorator === 'number' ? (
             <Chip
-              sx={{ borderRadius: "4px" }}
+              sx={{ borderRadius: '4px' }}
               size="sm"
               color="primary"
               emphasis="outline"
@@ -72,6 +67,6 @@ export const Card: React.FC<Props> = ({
   );
 };
 
-Card.displayName = "Card";
+Card.displayName = 'Card';
 
 export default Card;

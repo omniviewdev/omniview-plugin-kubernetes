@@ -1,13 +1,15 @@
-import React from 'react';
+import { useRightDrawer } from '@omniviewdev/runtime';
+import { type types } from '@omniviewdev/runtime/models';
+import { Chip } from '@omniviewdev/ui';
 
 // material ui
-import { Chip } from '@omniviewdev/ui';
+import { Tooltip } from '@omniviewdev/ui/overlays';
 import type { SemanticColor } from '@omniviewdev/ui/types';
 import { Text } from '@omniviewdev/ui/typography';
-import { Tooltip } from '@omniviewdev/ui/overlays';
 
 // third party
 import get from 'lodash.get';
+import React from 'react';
 
 // icons
 import {
@@ -25,27 +27,26 @@ import {
 } from 'react-icons/lu';
 
 // types
-import { type types } from '@omniviewdev/runtime/models';
-import { useRightDrawer } from '@omniviewdev/runtime';
+
 import { type ResourceMetadata } from '../../../hooks/useResourceDefinition';
 
 type KindConfig = { color: SemanticColor; icon: React.ReactElement };
 
 const kindConfigMap: Record<string, KindConfig> = {
-  ReplicaSet:            { color: 'primary',   icon: <LuCopy size={10} /> },
-  ReplicationController: { color: 'primary',   icon: <LuCopy size={10} /> },
-  Deployment:            { color: 'primary',   icon: <LuCopy size={10} /> },
-  StatefulSet:           { color: 'info',      icon: <LuDatabase size={10} /> },
-  DaemonSet:             { color: 'warning',   icon: <LuLayers size={10} /> },
-  Job:                   { color: 'secondary', icon: <LuPlay size={10} /> },
-  CronJob:               { color: 'secondary', icon: <LuClock size={10} /> },
-  Node:                  { color: 'success',   icon: <LuServer size={10} /> },
-  ServiceAccount:        { color: 'neutral',   icon: <LuUser size={10} /> },
-  Service:               { color: 'info',      icon: <LuNetwork size={10} /> },
-  Ingress:               { color: 'info',      icon: <LuGlobe size={10} /> },
-  NetworkPolicy:         { color: 'warning',   icon: <LuShield size={10} /> },
-  PersistentVolume:      { color: 'neutral',   icon: <LuDatabase size={10} /> },
-  PersistentVolumeClaim: { color: 'neutral',   icon: <LuDatabase size={10} /> },
+  ReplicaSet: { color: 'primary', icon: <LuCopy size={10} /> },
+  ReplicationController: { color: 'primary', icon: <LuCopy size={10} /> },
+  Deployment: { color: 'primary', icon: <LuCopy size={10} /> },
+  StatefulSet: { color: 'info', icon: <LuDatabase size={10} /> },
+  DaemonSet: { color: 'warning', icon: <LuLayers size={10} /> },
+  Job: { color: 'secondary', icon: <LuPlay size={10} /> },
+  CronJob: { color: 'secondary', icon: <LuClock size={10} /> },
+  Node: { color: 'success', icon: <LuServer size={10} /> },
+  ServiceAccount: { color: 'neutral', icon: <LuUser size={10} /> },
+  Service: { color: 'info', icon: <LuNetwork size={10} /> },
+  Ingress: { color: 'info', icon: <LuGlobe size={10} /> },
+  NetworkPolicy: { color: 'warning', icon: <LuShield size={10} /> },
+  PersistentVolume: { color: 'neutral', icon: <LuDatabase size={10} /> },
+  PersistentVolumeClaim: { color: 'neutral', icon: <LuDatabase size={10} /> },
 };
 
 const defaultConfig: KindConfig = { color: 'neutral', icon: <LuBox size={10} /> };
@@ -92,7 +93,7 @@ const ResourceLinkCell: React.FC<Props> = ({
     return null;
   }
 
-  const resolvedKey = keyMap ? keyMap[resourceKey] ?? resourceKey : resourceKey;
+  const resolvedKey = keyMap ? (keyMap[resourceKey] ?? resourceKey) : resourceKey;
   const kind = kindFromKey(resolvedKey);
   const config = kindConfigMap[kind] ?? defaultConfig;
 
@@ -107,20 +108,22 @@ const ResourceLinkCell: React.FC<Props> = ({
     });
   };
 
-  const label = displayId
-    ? resourceID
-    : typeof value === 'string' ? value : resourceKey;
+  const label = displayId ? resourceID : typeof value === 'string' ? value : resourceKey;
 
   if (!displayId) {
     return (
       <Tooltip content={resourceID}>
         <Chip
-          size='xs'
-          emphasis='outline'
+          size="xs"
+          emphasis="outline"
           color={config.color}
           icon={config.icon}
           onClick={handleClick}
-          label={<Text size='xs' noWrap>{label}</Text>}
+          label={
+            <Text size="xs" noWrap>
+              {label}
+            </Text>
+          }
           sx={{ borderRadius: 1, maxWidth: '100%' }}
         />
       </Tooltip>
@@ -129,12 +132,16 @@ const ResourceLinkCell: React.FC<Props> = ({
 
   return (
     <Chip
-      size='xs'
-      emphasis='outline'
+      size="xs"
+      emphasis="outline"
       color={config.color}
       icon={config.icon}
       onClick={handleClick}
-      label={<Text size='xs' noWrap>{label}</Text>}
+      label={
+        <Text size="xs" noWrap>
+          {label}
+        </Text>
+      }
       sx={{ borderRadius: 1, maxWidth: '100%' }}
     />
   );

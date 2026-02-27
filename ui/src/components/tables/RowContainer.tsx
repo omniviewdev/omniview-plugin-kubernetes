@@ -1,14 +1,11 @@
+import { type Row, flexRender } from '@tanstack/react-table';
+import { type Virtualizer, type VirtualItem } from '@tanstack/react-virtual';
 import React from 'react';
 
 // Tanstack/react-table
-import {
-  type Row,
-  flexRender,
-} from '@tanstack/react-table';
 // import useRightDrawer from '@/hooks/useRightDrawer';
 
 import { type Memoizer } from './ResourceTableContainer';
-import { type Virtualizer, type VirtualItem } from '@tanstack/react-virtual';
 
 export type Props = {
   /** ID of the plugin */
@@ -36,8 +33,8 @@ export type Props = {
  * memoizing the cells based on the memoizer function provided.
  */
 export const RowContainer: React.FC<Props> = ({
-  // pluginID, 
-  // connectionID, 
+  // pluginID,
+  // connectionID,
   // resourceID,
   // resourceKey,
   // namespace = '',
@@ -49,16 +46,19 @@ export const RowContainer: React.FC<Props> = ({
   // const { showResourceSidebar } = useRightDrawer();
 
   // Use the provided ref callback to measure items
-  const ref = React.useCallback((node: HTMLTableRowElement) => {
-    virtualizer.measureElement(node);
-  }, [virtualizer, virtualRow.index]);
+  const ref = React.useCallback(
+    (node: HTMLTableRowElement) => {
+      virtualizer.measureElement(node);
+    },
+    [virtualizer, virtualRow.index],
+  );
 
   const handleRowClick = (column: string) => {
     if (column !== 'select' && column !== 'menu') {
-      // showResourceSidebar({ 
-      //   pluginID, 
-      //   connectionID, 
-      //   resourceKey, 
+      // showResourceSidebar({
+      //   pluginID,
+      //   connectionID,
+      //   resourceKey,
       //   resourceID,
       //   namespace,
       // });
@@ -81,16 +81,19 @@ export const RowContainer: React.FC<Props> = ({
         width: '100%',
       }}
     >
-      {row.getVisibleCells().map(cell => (
+      {row.getVisibleCells().map((cell) => (
         <td
           key={cell.id}
           onClick={() => {
             handleRowClick(cell.column.id);
           }}
           style={{
-            width: cell.column.getSize() === Number.MAX_SAFE_INTEGER ? 'auto' : cell.column.getSize(),
-            minWidth: cell.column.getSize() === Number.MAX_SAFE_INTEGER ? 'auto' : cell.column.getSize(),
-            maxWidth: cell.column.getSize() === Number.MAX_SAFE_INTEGER ? 'auto' : cell.column.getSize(),
+            width:
+              cell.column.getSize() === Number.MAX_SAFE_INTEGER ? 'auto' : cell.column.getSize(),
+            minWidth:
+              cell.column.getSize() === Number.MAX_SAFE_INTEGER ? 'auto' : cell.column.getSize(),
+            maxWidth:
+              cell.column.getSize() === Number.MAX_SAFE_INTEGER ? 'auto' : cell.column.getSize(),
             display: 'flex',
             flex: 1,
             textOverflow: 'ellipsis',
@@ -105,8 +108,6 @@ export const RowContainer: React.FC<Props> = ({
   );
 };
 
-
 RowContainer.displayName = 'RowContainer';
 // RowContainer.whyDidYouRender = true;
 export default RowContainer;
-

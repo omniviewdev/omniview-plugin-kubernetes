@@ -20,7 +20,7 @@ type Props = {
 
   /** The readable name of the resource (e.g. Node) */
   resourceName?: string;
-}
+};
 
 /**
  * Display the cell as a link to another resource with kind-appropriate icon and color.
