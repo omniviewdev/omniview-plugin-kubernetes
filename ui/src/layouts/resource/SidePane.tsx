@@ -18,6 +18,7 @@ const SidePane: React.FC<BoxProps> = (props) => (
           md: 'initial',
         },
       },
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- MUI SxProps internally uses `any`
       ...(Array.isArray(props.sx) ? props.sx : [props.sx]),
     ]}
   />

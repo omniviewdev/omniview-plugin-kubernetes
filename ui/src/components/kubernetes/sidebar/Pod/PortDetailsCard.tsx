@@ -311,7 +311,7 @@ const PortDetailsCard: React.FC<PortDetailsCardProps> = ({
     port: number,
     opts?: { localPort?: number; protocol?: 'TCP' | 'UDP'; openInBrowser?: boolean },
   ) => {
-    forward({
+    void forward({
       opts: {
         resourceId: resourceID,
         resourceKey: 'core::v1::Pod',
@@ -326,7 +326,7 @@ const PortDetailsCard: React.FC<PortDetailsCardProps> = ({
   };
 
   const handleStopPortForward = (sessionID: string) => {
-    close({ opts: { sessionID } });
+    void close({ opts: { sessionID } });
   };
 
   const handleOpenConfig = (e: React.MouseEvent<HTMLElement>, port: ContainerPort) => {

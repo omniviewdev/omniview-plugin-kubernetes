@@ -43,8 +43,8 @@ const ClusterRoleBindingTable: React.FC = () => {
             accessorKey: 'roleRef',
             cell: ({ getValue }) => {
               const ref = getValue() as RoleRef | undefined;
-              if (ref == undefined) {
-                return <></>;
+              if (ref == null) {
+                return null;
               }
               return (
                 <ResourceLinkCell
@@ -67,7 +67,7 @@ const ClusterRoleBindingTable: React.FC = () => {
             cell: ({ getValue }) => {
               const refs = getValue() as Subject[] | undefined;
               if (!refs || !refs?.length) {
-                return <></>;
+                return null;
               }
 
               return (
@@ -85,6 +85,7 @@ const ClusterRoleBindingTable: React.FC = () => {
                 >
                   {refs.map((v) => (
                     <ResourceLinkCell
+                      key={v.namespace ? `${v.kind}/${v.name}/${v.namespace}` : `${v.kind}/${v.name}`}
                       connectionId={id}
                       resourceId={v.namespace ? `${v.name}/${v.namespace}` : v.name}
                       resourceKey={ownerRefKeyMap[v.kind]}
@@ -141,7 +142,7 @@ const ClusterRoleBindingTable: React.FC = () => {
         },
       ],
     }),
-    [],
+    [id, closeDrawer, remove, show],
   );
 
   return (

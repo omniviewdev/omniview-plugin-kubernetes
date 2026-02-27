@@ -121,7 +121,7 @@ export function useResourceCommandPalette({
     (item: CommandItem) => {
       // Update recents: prepend, dedupe, cap
       const updated = [item.id, ...recentIDs.filter((id) => id !== item.id)].slice(0, MAX_RECENT);
-      setRecentIDs(updated);
+      void setRecentIDs(updated);
 
       onSelect(item.id);
       setOpen(false);

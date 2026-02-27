@@ -1,17 +1,11 @@
 import { useRightDrawer } from '@omniviewdev/runtime';
 import { type types } from '@omniviewdev/runtime/models';
 import { Chip } from '@omniviewdev/ui';
-
-// material ui
 import { Tooltip } from '@omniviewdev/ui/overlays';
 import type { SemanticColor } from '@omniviewdev/ui/types';
 import { Text } from '@omniviewdev/ui/typography';
-
-// third party
 import get from 'lodash.get';
 import React from 'react';
-
-// icons
 import {
   LuCopy,
   LuLayers,
@@ -25,8 +19,6 @@ import {
   LuShield,
   LuBox,
 } from 'react-icons/lu';
-
-// types
 
 import { type ResourceMetadata } from '../../../hooks/useResourceDefinition';
 
@@ -58,7 +50,7 @@ function kindFromKey(key: string): string {
 }
 
 type Props = types.ResourceLink & {
-  value: any;
+  value: string | Record<string, unknown>;
   metadata?: ResourceMetadata;
 };
 
@@ -79,7 +71,7 @@ const ResourceLinkCell: React.FC<Props> = ({
   const { showResourceSidebar } = useRightDrawer();
 
   if (resourceKey === '') {
-    resourceKey = get(value, keyAccessor, '');
+    resourceKey = get(value, keyAccessor, '') as string;
   }
 
   let namespace = '';
@@ -87,7 +79,7 @@ const ResourceLinkCell: React.FC<Props> = ({
     namespace = get(value, namespaceAccessor, metadata?.namespace ?? '');
   }
 
-  const resourceID = typeof value === 'string' ? value : get(value, idAccessor, '');
+  const resourceID: string = typeof value === 'string' ? value : (get(value, idAccessor, '') as string);
 
   if (typeof value !== 'string' && !resourceKey) {
     return null;

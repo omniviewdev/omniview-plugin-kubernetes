@@ -75,8 +75,8 @@ const ReplicaSetTable: React.FC = () => {
             accessorKey: 'metadata.ownerReferences',
             cell: ({ getValue }) => {
               const refs = getValue() as Array<OwnerReference> | undefined;
-              if (refs == undefined || refs.length === 0) {
-                return <></>;
+              if (refs == null || refs.length === 0) {
+                return null;
               }
               return (
                 <ResourceLinkCell
@@ -126,8 +126,8 @@ const ReplicaSetTable: React.FC = () => {
         {
           title: 'Delete',
           icon: <LuTrash />,
-          action: (ctx) =>
-            show({
+          action: (ctx) => {
+            void show({
               title: (
                 <span>
                   Delete <strong>{ctx.data?.metadata?.name}</strong>?
@@ -154,7 +154,8 @@ const ReplicaSetTable: React.FC = () => {
                 });
                 closeDrawer();
               },
-            }),
+            });
+          },
         },
         {
           title: 'Logs',
@@ -167,33 +168,35 @@ const ReplicaSetTable: React.FC = () => {
 
             list.push({
               title: 'All Containers',
-              action: () =>
-                createLogSession({
+              action: () => {
+                void createLogSession({
                   connectionID: id,
                   resourceKey,
                   resourceID: ctx.data?.metadata?.name as string,
-                  resourceData: ctx.data as Record<string, any>,
+                  resourceData: ctx.data as Record<string, never>,
                   target: '',
                   label: `ReplicaSet ${ctx.data?.metadata?.name}`,
                   icon: 'LuLogs',
                   params: filterParams,
-                }).then(() => closeDrawer()),
+                }).then(() => closeDrawer());
+              },
             });
 
             containers.forEach((container) => {
               list.push({
                 title: container.name,
-                action: () =>
-                  createLogSession({
+                action: () => {
+                  void createLogSession({
                     connectionID: id,
                     resourceKey,
                     resourceID: ctx.data?.metadata?.name as string,
-                    resourceData: ctx.data as Record<string, any>,
+                    resourceData: ctx.data as Record<string, never>,
                     target: container.name,
                     label: `ReplicaSet ${ctx.data?.metadata?.name}`,
                     icon: 'LuLogs',
                     params: filterParams,
-                  }).then(() => closeDrawer()),
+                  }).then(() => closeDrawer());
+                },
               });
             });
 
@@ -202,7 +205,7 @@ const ReplicaSetTable: React.FC = () => {
         },
       ],
     }),
-    [],
+    [id, closeDrawer, createLogSession, remove, show],
   );
 
   return (

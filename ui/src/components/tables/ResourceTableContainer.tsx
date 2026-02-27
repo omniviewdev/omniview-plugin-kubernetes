@@ -1,4 +1,3 @@
-// @omniviewdev/ui
 import { ArrowDropDown } from '@mui/icons-material';
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -8,8 +7,6 @@ import { useResources, InformerResourceState } from '@omniviewdev/runtime';
 import { Alert } from '@omniviewdev/ui/feedback';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text, Heading } from '@omniviewdev/ui/typography';
-
-// Tanstack/react-table
 import {
   type ColumnDef,
   type ColumnFiltersState,
@@ -25,18 +22,16 @@ import {
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import get from 'lodash.get';
-
-// Project imports
 import React, { useState } from 'react';
 import { LuCircleAlert } from 'react-icons/lu';
 
 import MemoizedRow from './MemoizedRow';
 
-export type Memoizer = string | string[] | ((data: any) => string);
-export type IdAccessor = string | ((data: any) => string);
+export type Memoizer = string | string[] | ((data: Record<string, unknown>) => string);
+export type IdAccessor = string | ((data: Record<string, unknown>) => string);
 
 export type Props = {
-  columns: Array<ColumnDef<any>>;
+  columns: Array<ColumnDef<Record<string, unknown>>>;
   namespaces?: string[];
   initialColumnVisibility?: VisibilityState;
   idAccessor: IdAccessor;
@@ -48,18 +43,19 @@ export type Props = {
   search?: string;
 };
 
-const idAccessorResolver = (data: any, accessor: IdAccessor): string => {
+const idAccessorResolver = (data: Record<string, unknown>, accessor: IdAccessor): string => {
   switch (typeof accessor) {
     case 'function':
       return accessor(data);
     case 'string':
-      return get(data, accessor);
+      return get(data, accessor) as string;
     default:
       throw new Error('Invalid ID accessor');
   }
 };
 
-export const namespaceFilter: FilterFn<any> = (row, columnId, value: string[]) => {
+// eslint-disable-next-line react-refresh/only-export-components
+export const namespaceFilter: FilterFn<Record<string, unknown>> = (row, columnId, value: string[]) => {
   if (!value?.length) {
     return true;
   }
@@ -90,10 +86,10 @@ const ResourceTableContainer: React.FC<Props> = ({
       `${pluginID}-${connectionID}-${resourceKey}-column-visibility`,
     );
     if (storedColumnVisibility && initialColumnVisibility) {
-      const current = JSON.parse(storedColumnVisibility);
+      const current = JSON.parse(storedColumnVisibility) as VisibilityState;
 
       Object.entries(initialColumnVisibility).forEach(([key, value]) => {
-        if (!current.hasOwnProperty(key)) {
+        if (!Object.hasOwn(current, key)) {
           current[key] = value;
         }
       });
@@ -102,7 +98,7 @@ const ResourceTableContainer: React.FC<Props> = ({
     } else if (initialColumnVisibility) {
       setColumnVisibility(initialColumnVisibility);
     }
-  }, [initialColumnVisibility]);
+  }, [initialColumnVisibility, connectionID, pluginID, resourceKey]);
 
   React.useEffect(() => {
     const visibility = JSON.stringify(columnVisibility);
@@ -112,7 +108,7 @@ const ResourceTableContainer: React.FC<Props> = ({
         visibility,
       );
     }
-  }, [columnVisibility]);
+  }, [columnVisibility, connectionID, pluginID, resourceKey]);
 
   const { resources, informerState, isSyncing } = useResources({
     pluginID,
@@ -130,7 +126,7 @@ const ResourceTableContainer: React.FC<Props> = ({
     getFilteredRowModel: getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
-    getRowId: (row) => idAccessorResolver(row, idAccessor),
+    getRowId: (row) => idAccessorResolver(row as Record<string, unknown>, idAccessor),
     state: {
       sorting,
       columnFilters,
@@ -180,22 +176,22 @@ const ResourceTableContainer: React.FC<Props> = ({
         <table style={{ display: 'grid', width: '100%', borderCollapse: 'collapse' }}>
           <thead style={{ display: 'grid', position: 'sticky', top: 0, zIndex: 1 }}>
             <tr style={{ display: 'flex', width: '100%' }}>
-              {columns.slice(0, 5).map((_, i) => (
-                <th key={i} style={{ flex: 1, padding: '8px 12px' }}>
+              {columns.slice(0, 5).map((col) => (
+                <th key={col.id ?? col.header?.toString()} style={{ flex: 1, padding: '8px 12px' }}>
                   <Skeleton variant="text" width="60%" sx={{ fontSize: '0.75rem' }} />
                 </th>
               ))}
             </tr>
           </thead>
           <tbody style={{ display: 'grid' }}>
-            {Array.from({ length: 8 }).map((_, i) => (
+            {Array.from({ length: 8 }, (_, i) => `skeleton-row-${i}`).map((rowKey, i) => (
               <tr
-                key={i}
+                key={rowKey}
                 style={{ display: 'flex', width: '100%', height: 36, opacity: 1 - i * 0.08 }}
               >
-                {columns.slice(0, 5).map((_, j) => (
+                {columns.slice(0, 5).map((col) => (
                   <td
-                    key={j}
+                    key={col.id ?? col.header?.toString()}
                     style={{ flex: 1, padding: '6px 12px', display: 'flex', alignItems: 'center' }}
                   >
                     <Skeleton
@@ -498,7 +494,7 @@ const ResourceTableContainer: React.FC<Props> = ({
                 connectionID={connectionID}
                 resourceID={row.id}
                 resourceKey={resourceKey}
-                namespace={namespaceAccessor ? get(row.original, namespaceAccessor) : undefined}
+                namespace={namespaceAccessor ? (get(row.original, namespaceAccessor) as string | undefined) : undefined}
                 row={row}
                 memoizer={memoizer}
                 virtualizer={virtualizer}

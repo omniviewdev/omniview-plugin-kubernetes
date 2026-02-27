@@ -1,11 +1,8 @@
-// @omniviewdev/ui
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
 import { Chip } from '@omniviewdev/ui';
 import { Tooltip } from '@omniviewdev/ui/overlays';
 import { Text } from '@omniviewdev/ui/typography';
-
-// project imports
 import { formatRelative } from 'date-fns';
 import {
   type ContainerStateTerminated,
@@ -18,10 +15,6 @@ import Icon from '../../../shared/Icon';
 
 import ContainerStatusCard from './KubernetesContainerStatusCard';
 import { getStatus } from './utils';
-
-// types
-
-// third party
 
 const KeyValuePairs = ({ message }: { message: string }) => {
   const regex = /(\w+)=(?:"([^"]*)"|(\S*))/g;
@@ -37,8 +30,8 @@ const KeyValuePairs = ({ message }: { message: string }) => {
   return (
     <Box sx={{ p: 1, borderRadius: 'sm', bgcolor: 'background.level1' }}>
       <Grid container>
-        {pairs.map((pair, index) => (
-          <React.Fragment key={index}>
+        {pairs.map((pair) => (
+          <React.Fragment key={pair.key}>
             <Grid size={2}>
               <Text size="xs">{pair.key}</Text>
             </Grid>

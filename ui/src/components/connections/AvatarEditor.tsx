@@ -48,7 +48,7 @@ const AvatarEditor: React.FC<AvatarEditorProps> = ({
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) handleFile(file);
+    if (file) void handleFile(file);
     // Reset so the same file can be re-selected
     e.target.value = '';
   };
@@ -57,7 +57,7 @@ const AvatarEditor: React.FC<AvatarEditorProps> = ({
     e.preventDefault();
     setDragOver(false);
     const file = e.dataTransfer.files[0];
-    if (file?.type.startsWith('image/')) handleFile(file);
+    if (file?.type.startsWith('image/')) void handleFile(file);
   };
 
   const handleColorPick = (color: string) => {

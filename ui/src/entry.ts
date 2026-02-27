@@ -1,169 +1,142 @@
 /// <reference types="@welldone-software/why-did-you-render" />
-import React from 'react';
-//@ts-ignore
-window.PluginReact = React;
-
-/// <reference types="@welldone-software/why-did-you-render" />
 import {
   PluginWindow,
   type DrawerContext,
   type DrawerComponent,
   type DrawerFactory,
 } from '@omniviewdev/runtime';
+import React from 'react';
 import { RouteObject } from 'react-router-dom';
 
 import ChartSidebar from './components/helm/charts/ChartSidebar';
 import HelmChartTable from './components/helm/charts/Table';
 import ReleaseSidebar from './components/helm/releases/ReleaseSidebar';
 import HelmReleaseTable from './components/helm/releases/Table';
+import RepoSidebar from './components/helm/repos/RepoSidebar';
 import HelmRepoTable from './components/helm/repos/Table';
-import DefaultTable from './components/kubernetes/table/default/Table';
-
-// helm tables
-
-// admissionregistration.v1
+import NodeSidebar from './components/kubernetes/sidebar/NodeSidebar';
+import PodSidebar from './components/kubernetes/sidebar/Pod';
+import SecretSidebar from './components/kubernetes/sidebar/SecretSidebar';
+import MutatingWebhookConfigurationSidebar from './components/kubernetes/table/admissionregistrationv1/MutatingWebhookConfiguration/Sidebar';
 import MutatingWebhookConfigurationTable from './components/kubernetes/table/admissionregistrationv1/MutatingWebhookConfiguration/Table';
+import ValidatingAdmissionPolicySidebar from './components/kubernetes/table/admissionregistrationv1/ValidatingAdmissionPolicy/Sidebar';
 import ValidatingAdmissionPolicyTable from './components/kubernetes/table/admissionregistrationv1/ValidatingAdmissionPolicy/Table';
+import ValidatingAdmissionPolicyBindingSidebar from './components/kubernetes/table/admissionregistrationv1/ValidatingAdmissionPolicyBinding/Sidebar';
 import ValidatingAdmissionPolicyBindingTable from './components/kubernetes/table/admissionregistrationv1/ValidatingAdmissionPolicyBinding/Table';
+import ValidatingWebhookConfigurationSidebar from './components/kubernetes/table/admissionregistrationv1/ValidatingWebhookConfiguration/Sidebar';
 import ValidatingWebhookConfigurationTable from './components/kubernetes/table/admissionregistrationv1/ValidatingWebhookConfiguration/Table';
-
-// apps.v1
+import DaemonSetSidebar from './components/kubernetes/table/appsv1/DaemonSet/Sidebar';
 import DaemonSetTable from './components/kubernetes/table/appsv1/DaemonSet/Table';
+import DeploymentSidebar from './components/kubernetes/table/appsv1/Deployment/Sidebar';
 import DeploymentTable from './components/kubernetes/table/appsv1/Deployment/Table';
+import ReplicaSetSidebar from './components/kubernetes/table/appsv1/ReplicaSet/Sidebar';
 import ReplicaSetTable from './components/kubernetes/table/appsv1/ReplicaSet/Table';
+import StatefulSetSidebar from './components/kubernetes/table/appsv1/StatefulSet/Sidebar';
 import StatefulSetTable from './components/kubernetes/table/appsv1/StatefulSet/Table';
-
-// autoscaling.v1
+import HorizontalPodAutoscalerSidebar from './components/kubernetes/table/autoscalingv1/HorizontalPodAutoscaler/Sidebar';
 import HorizontalPodAutoscalerTable from './components/kubernetes/table/autoscalingv1/HorizontalPodAutoscaler/Table';
-
-// batch.v1
+import CronJobSidebar from './components/kubernetes/table/batchv1/CronJob/Sidebar';
 import CronJobTable from './components/kubernetes/table/batchv1/CronJob/Table';
+import JobSidebar from './components/kubernetes/table/batchv1/Job/Sidebar';
 import JobTable from './components/kubernetes/table/batchv1/Job/Table';
-
-// core.v1
+import LeaseTable from './components/kubernetes/table/coordinationv1/Lease/Table';
 import ComponentStatusTable from './components/kubernetes/table/corev1/ComponentStatus/Table';
+import ConfigMapSidebar from './components/kubernetes/table/corev1/ConfigMap/Sidebar';
 import ConfigMapTable from './components/kubernetes/table/corev1/ConfigMap/Table';
+import EndpointsSidebar from './components/kubernetes/table/corev1/Endpoints/Sidebar';
 import EndpointsTable from './components/kubernetes/table/corev1/Endpoints/Table';
 import EventTable from './components/kubernetes/table/corev1/Event/Table';
+import LimitRangeSidebar from './components/kubernetes/table/corev1/LimitRange/Sidebar';
+import LimitRangeTable from './components/kubernetes/table/corev1/LimitRange/Table';
+import NamespaceSidebar from './components/kubernetes/table/corev1/Namespace/Sidebar';
 import NamespaceTable from './components/kubernetes/table/corev1/Namespace/Table';
 import NodeTable from './components/kubernetes/table/corev1/Node/Table';
+import PersistentVolumeSidebar from './components/kubernetes/table/corev1/PersistentVolume/Sidebar';
 import PersistentVolumeTable from './components/kubernetes/table/corev1/PersistentVolume/Table';
+import PersistentVolumeClaimSidebar from './components/kubernetes/table/corev1/PersistentVolumeClaim/Sidebar';
 import PersistentVolumeClaimTable from './components/kubernetes/table/corev1/PersistentVolumeClaim/Table';
 import PodTable from './components/kubernetes/table/corev1/Pod/Table';
+import ReplicationControllerSidebar from './components/kubernetes/table/corev1/ReplicationController/Sidebar';
 import ReplicationControllerTable from './components/kubernetes/table/corev1/ReplicationController/Table';
+import ResourceQuotaSidebar from './components/kubernetes/table/corev1/ResourceQuota/Sidebar';
+import ResourceQuotaTable from './components/kubernetes/table/corev1/ResourceQuota/Table';
 import SecretTable from './components/kubernetes/table/corev1/Secret/Table';
+import ServiceSidebar from './components/kubernetes/table/corev1/Service/Sidebar';
 import ServiceTable from './components/kubernetes/table/corev1/Service/Table';
+import ServiceAccountSidebar from './components/kubernetes/table/corev1/ServiceAccount/Sidebar';
 import ServiceAccountTable from './components/kubernetes/table/corev1/ServiceAccount/Table';
-
-// coordination.v1
-import LeaseTable from './components/kubernetes/table/coordinationv1/Lease/Table';
-
-// flowcontrol.v1
+import DefaultTable from './components/kubernetes/table/default/Table';
 import EndpointSliceSidebar from './components/kubernetes/table/discoveryv1/EndpointSlice/Sidebar';
 import EndpointSliceTable from './components/kubernetes/table/discoveryv1/EndpointSlice/Table';
+import FlowSchemaSidebar from './components/kubernetes/table/flowcontrolv1/FlowSchema/Sidebar';
 import FlowSchemaTable from './components/kubernetes/table/flowcontrolv1/FlowSchema/Table';
 import PriorityLevelConfigurationTable from './components/kubernetes/table/flowcontrolv1/PriorityLevelConfiguration/Table';
-
-// networking.v1
 import IngressTable from './components/kubernetes/table/networkingv1/Ingress/Table';
+import IngressClassSidebar from './components/kubernetes/table/networkingv1/IngressClass/Sidebar';
 import IngressClassTable from './components/kubernetes/table/networkingv1/IngressClass/Table';
+import NetworkPolicySidebar from './components/kubernetes/table/networkingv1/NetworkPolicy/Sidebar';
 import NetworkPolicyTable from './components/kubernetes/table/networkingv1/NetworkPolicy/Table';
-
-// policy.v1
+import RuntimeClassSidebar from './components/kubernetes/table/nodev1/RuntimeClass/Sidebar';
+import RuntimeClassTable from './components/kubernetes/table/nodev1/RuntimeClass/Table';
+import PodDisruptionBudgetSidebar from './components/kubernetes/table/policyv1/PodDisruptionBudget/Sidebar';
 import PodDisruptionBudgetTable from './components/kubernetes/table/policyv1/PodDisruptionBudget/Table';
-
-// rbac.v1
+import ClusterRoleSidebar from './components/kubernetes/table/rbacv1/ClusterRole/Sidebar';
 import ClusterRoleTable from './components/kubernetes/table/rbacv1/ClusterRole/Table';
+import ClusterRoleBindingSidebar from './components/kubernetes/table/rbacv1/ClusterRoleBinding/Sidebar';
 import ClusterRoleBindingTable from './components/kubernetes/table/rbacv1/ClusterRoleBinding/Table';
+import RoleSidebar from './components/kubernetes/table/rbacv1/Role/Sidebar';
 import RoleTable from './components/kubernetes/table/rbacv1/Role/Table';
+import RoleBindingSidebar from './components/kubernetes/table/rbacv1/RoleBinding/Sidebar';
 import RoleBindingTable from './components/kubernetes/table/rbacv1/RoleBinding/Table';
-
-// scheduling.v1
 import PriorityClassTable from './components/kubernetes/table/schedulingv1/PriorityClass/Table';
-
-// storage.v1
+import CSIDriverSidebar from './components/kubernetes/table/storagev1/CSIDriver/Sidebar';
 import CSIDriverTable from './components/kubernetes/table/storagev1/CSIDriver/Table';
+import CSINodeSidebar from './components/kubernetes/table/storagev1/CSINode/Sidebar';
 import CSINodeTable from './components/kubernetes/table/storagev1/CSINode/Table';
 import CSIStorageCapacityTable from './components/kubernetes/table/storagev1/CSIStorageCapacity/Table';
-import StorageClassTable from './components/kubernetes/table/storagev1/StorageClass/Table';
-import VolumeAttachmentTable from './components/kubernetes/table/storagev1/VolumeAttachment/Table';
-import LimitRangeTable from './components/kubernetes/table/corev1/LimitRange/Table';
-import ResourceQuotaTable from './components/kubernetes/table/corev1/ResourceQuota/Table';
-import RuntimeClassTable from './components/kubernetes/table/nodev1/RuntimeClass/Table';
-import ClusterDashboardOverviewPage from './pages/dashboard/overview';
-import ClusterDashboardBenchmarksPage from './pages/dashboard/benchmarks';
-import ClusterDashboardMetricsPage from './pages/dashboard/metrics';
-
-// ── Sidebar components ──────────────────────────────────────────────
-
-// core.v1
-import PodSidebar from './components/kubernetes/sidebar/Pod';
-import NodeSidebar from './components/kubernetes/sidebar/NodeSidebar';
-import SecretSidebar from './components/kubernetes/sidebar/SecretSidebar';
-import ConfigMapSidebar from './components/kubernetes/table/corev1/ConfigMap/Sidebar';
-import NamespaceSidebar from './components/kubernetes/table/corev1/Namespace/Sidebar';
-import ServiceSidebar from './components/kubernetes/table/corev1/Service/Sidebar';
-import ServiceAccountSidebar from './components/kubernetes/table/corev1/ServiceAccount/Sidebar';
-import EndpointsSidebar from './components/kubernetes/table/corev1/Endpoints/Sidebar';
-import ReplicationControllerSidebar from './components/kubernetes/table/corev1/ReplicationController/Sidebar';
-import PersistentVolumeSidebar from './components/kubernetes/table/corev1/PersistentVolume/Sidebar';
-import PersistentVolumeClaimSidebar from './components/kubernetes/table/corev1/PersistentVolumeClaim/Sidebar';
-import LimitRangeSidebar from './components/kubernetes/table/corev1/LimitRange/Sidebar';
-import ResourceQuotaSidebar from './components/kubernetes/table/corev1/ResourceQuota/Sidebar';
-
-// apps.v1
-import ReplicaSetSidebar from './components/kubernetes/table/appsv1/ReplicaSet/Sidebar';
-import DaemonSetSidebar from './components/kubernetes/table/appsv1/DaemonSet/Sidebar';
-import DeploymentSidebar from './components/kubernetes/table/appsv1/Deployment/Sidebar';
-import StatefulSetSidebar from './components/kubernetes/table/appsv1/StatefulSet/Sidebar';
-
-// batch.v1
-import JobSidebar from './components/kubernetes/table/batchv1/Job/Sidebar';
-import CronJobSidebar from './components/kubernetes/table/batchv1/CronJob/Sidebar';
-
-// autoscaling.v1
-import HorizontalPodAutoscalerSidebar from './components/kubernetes/table/autoscalingv1/HorizontalPodAutoscaler/Sidebar';
-
-// policy.v1
-import PodDisruptionBudgetSidebar from './components/kubernetes/table/policyv1/PodDisruptionBudget/Sidebar';
-
-// flowcontrol.v1
-import FlowSchemaSidebar from './components/kubernetes/table/flowcontrolv1/FlowSchema/Sidebar';
-
-// rbac.v1
-import ClusterRoleSidebar from './components/kubernetes/table/rbacv1/ClusterRole/Sidebar';
-import ClusterRoleBindingSidebar from './components/kubernetes/table/rbacv1/ClusterRoleBinding/Sidebar';
-import RoleSidebar from './components/kubernetes/table/rbacv1/Role/Sidebar';
-import RoleBindingSidebar from './components/kubernetes/table/rbacv1/RoleBinding/Sidebar';
-
-// networking.v1
-import NetworkPolicySidebar from './components/kubernetes/table/networkingv1/NetworkPolicy/Sidebar';
-import IngressClassSidebar from './components/kubernetes/table/networkingv1/IngressClass/Sidebar';
-
-// discovery.v1
-
-// node.v1
-import RuntimeClassSidebar from './components/kubernetes/table/nodev1/RuntimeClass/Sidebar';
-
-// storage.v1
-import CSIDriverSidebar from './components/kubernetes/table/storagev1/CSIDriver/Sidebar';
-import CSINodeSidebar from './components/kubernetes/table/storagev1/CSINode/Sidebar';
 import StorageClassSidebar from './components/kubernetes/table/storagev1/StorageClass/Sidebar';
+import StorageClassTable from './components/kubernetes/table/storagev1/StorageClass/Table';
 import VolumeAttachmentSidebar from './components/kubernetes/table/storagev1/VolumeAttachment/Sidebar';
-
-// helm.v1
-import RepoSidebar from './components/helm/repos/RepoSidebar';
-
-// admissionregistration.v1
-import MutatingWebhookConfigurationSidebar from './components/kubernetes/table/admissionregistrationv1/MutatingWebhookConfiguration/Sidebar';
-import ValidatingAdmissionPolicySidebar from './components/kubernetes/table/admissionregistrationv1/ValidatingAdmissionPolicy/Sidebar';
-import ValidatingAdmissionPolicyBindingSidebar from './components/kubernetes/table/admissionregistrationv1/ValidatingAdmissionPolicyBinding/Sidebar';
-import ValidatingWebhookConfigurationSidebar from './components/kubernetes/table/admissionregistrationv1/ValidatingWebhookConfiguration/Sidebar';
+import VolumeAttachmentTable from './components/kubernetes/table/storagev1/VolumeAttachment/Table';
 import { createStandardViews } from './components/shared/sidebar/createDrawerViews';
 import ClusterEditPage from './pages/ClusterEditPage';
 import ClusterResourcesPage from './pages/ClusterResourcesPage';
 import ClustersPage from './pages/ClustersPage';
 import ClusterDashboardPage from './pages/dashboard';
+import ClusterDashboardBenchmarksPage from './pages/dashboard/benchmarks';
+import ClusterDashboardMetricsPage from './pages/dashboard/metrics';
+import ClusterDashboardOverviewPage from './pages/dashboard/overview';
+
+// @ts-expect-error Expose React to the plugin host window
+window.PluginReact = React;
+
+// ── Sidebar components ──────────────────────────────────────────────
+
+// core.v1
+
+// apps.v1
+
+// batch.v1
+
+// autoscaling.v1
+
+// policy.v1
+
+// flowcontrol.v1
+
+// rbac.v1
+
+// networking.v1
+
+// discovery.v1
+
+// node.v1
+
+// storage.v1
+
+// helm.v1
+
+// admissionregistration.v1
 
 /**
  * Sidebar components keyed by resource key (group::version::Kind).

@@ -115,7 +115,7 @@ const EndpointsTable: React.FC = () => {
         },
       ],
     }),
-    [],
+    [id, closeDrawer, remove, show],
   );
 
   return (

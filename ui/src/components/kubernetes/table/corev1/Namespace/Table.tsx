@@ -39,7 +39,7 @@ const NamespaceTable: React.FC = () => {
             accessorKey: 'spec.finalizers',
             cell: ({ getValue }) =>
               (getValue() as string[] | undefined)?.map((f) => (
-                <Chip size="sm" sx={{ borderRadius: '2px' }} color={'primary'} label={f} />
+                <Chip key={f} size="sm" sx={{ borderRadius: '2px' }} color={'primary'} label={f} />
               )) ?? '',
             size: 250,
             meta: {
@@ -113,7 +113,7 @@ const NamespaceTable: React.FC = () => {
         },
       ],
     }),
-    [],
+    [id, closeDrawer, remove, show],
   );
 
   return (

@@ -15,8 +15,8 @@ interface Props {
 
 export const BaseOverviewPage: React.FC<Props> = ({ data, children }) => {
   if (!data) {
-    console.log('did not get any data');
-    return <React.Fragment />;
+    console.warn('BaseOverviewPage: no data provided');
+    return null;
   }
 
   // compose your component here

@@ -62,13 +62,13 @@ const CreateResourceModal: React.FC<Props> = ({
     setError(null);
 
     // Parse YAML
-    let parsed: Record<string, any>;
+    let parsed: Record<string, unknown>;
     try {
       // Dynamic import to keep bundle lean — yaml is already installed
       const { parse } = await import('yaml');
-      parsed = parse(value);
-    } catch (err: any) {
-      setError(`YAML syntax error: ${err?.message ?? 'Invalid YAML'}`);
+      parsed = parse(value) as Record<string, unknown>;
+    } catch (err: unknown) {
+      setError(`YAML syntax error: ${err instanceof Error ? err.message : 'Invalid YAML'}`);
       return;
     }
 
@@ -78,18 +78,19 @@ const CreateResourceModal: React.FC<Props> = ({
     }
 
     // Validate required fields
-    if (!parsed.metadata?.name) {
+    const metadata = parsed.metadata as Record<string, unknown> | undefined;
+    if (!metadata?.name) {
       setError('metadata.name is required');
       return;
     }
 
-    const namespace = parsed.metadata?.namespace ?? '';
+    const namespace = (metadata.namespace as string | undefined) ?? '';
 
     try {
       await onCreate(value, namespace);
       onClose();
-    } catch (err: any) {
-      setError(err?.message ?? 'Failed to create resource');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to create resource');
     }
   };
 

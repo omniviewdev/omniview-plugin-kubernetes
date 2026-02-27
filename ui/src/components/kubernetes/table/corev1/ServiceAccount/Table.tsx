@@ -39,7 +39,7 @@ const ServiceAccountTable: React.FC = () => {
             cell: ({ getValue }) => {
               const refs = getValue() as ObjectReference[] | undefined;
               if (!refs || !refs?.length) {
-                return <></>;
+                return null;
               }
 
               return (
@@ -57,6 +57,7 @@ const ServiceAccountTable: React.FC = () => {
                 >
                   {refs.map((v) => (
                     <ResourceLinkCell
+                      key={v.name || ''}
                       connectionId={id}
                       resourceId={v.name || ''}
                       resourceKey={'core::v1::Secret'}
@@ -72,7 +73,7 @@ const ServiceAccountTable: React.FC = () => {
             id: 'automountToken',
             header: 'Automount Token',
             accessorFn: (row) => !!row.automountServiceAccountToken,
-            cell: ({ getValue }) => ((getValue() as boolean) ? <LuCircleCheck /> : <></>),
+            cell: ({ getValue }) => ((getValue() as boolean) ? <LuCircleCheck /> : null),
             size: 150,
           },
           {
@@ -83,7 +84,7 @@ const ServiceAccountTable: React.FC = () => {
             cell: ({ getValue, row }) => {
               const refs = getValue() as LocalObjectReference[] | undefined;
               if (!refs || !refs?.length) {
-                return <></>;
+                return null;
               }
 
               return (
@@ -101,6 +102,7 @@ const ServiceAccountTable: React.FC = () => {
                 >
                   {refs.map((v) => (
                     <ResourceLinkCell
+                      key={v.name || ''}
                       connectionId={id}
                       resourceId={v.name || ''}
                       resourceKey={'core::v1::Secret'}
@@ -158,7 +160,7 @@ const ServiceAccountTable: React.FC = () => {
         },
       ],
     }),
-    [],
+    [id, closeDrawer, remove, show],
   );
 
   return (

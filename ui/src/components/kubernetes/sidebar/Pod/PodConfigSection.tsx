@@ -1,19 +1,14 @@
-// @omniviewdev/ui
 import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Grid';
 import { Chip } from '@omniviewdev/ui';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
-
-// project imports
 import type { Pod, Toleration } from 'kubernetes-types/core/v1';
 import React from 'react';
 
 import KVCard from '../../../shared/KVCard';
 import ResourceLinkChip from '../../../shared/ResourceLinkChip';
-
-// types
 
 interface Props {
   pod: Pod;
@@ -284,7 +279,7 @@ const PodConfigSection: React.FC<Props> = ({ pod, connectionID }) => {
           <Box sx={{ bgcolor: 'background.level1' }}>
             {tolerations.map((t, i) => (
               <TolerationRow
-                key={`${t.key}-${t.effect}-${i}`}
+                key={`${t.key}-${t.operator}-${t.value}-${t.effect}`}
                 toleration={t}
                 isLast={i === tolerations.length - 1}
               />

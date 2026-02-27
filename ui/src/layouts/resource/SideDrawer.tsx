@@ -18,6 +18,7 @@ const SideDrawer: React.FC<Props> = ({ onClose, ...props }) => (
         width: '100%',
         height: '100%',
       },
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- MUI SxProps internally uses `any`
       ...(Array.isArray(props.sx) ? props.sx : [props.sx]),
     ]}
   >

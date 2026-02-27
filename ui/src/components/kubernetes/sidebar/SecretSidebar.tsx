@@ -1,28 +1,8 @@
-// material-ui
 import FormControl from '@mui/material/FormControl';
 import FormHelperText from '@mui/material/FormHelperText';
 import Grid from '@mui/material/Grid';
 import TextField from '@mui/material/TextField';
-// import List from "@mui/material/List";
-// import ListItem from "@mui/material/ListItem";
-// import ListItemButton from "@mui/material/ListItemButton";
-import Textarea from '@mui/material/TextField';
-
-// types
-// import { DaemonSet, Deployment, StatefulSet } from "kubernetes-types/apps/v1";
-// import {
-//   ResourceSearchResult,
-// } from "../../../types/resource";
-
-// project-imports
-import { useSnackbar } from '@omniviewdev/runtime';
-// import { deplomentUsesSecret } from "../../../utils/filters/appsv1/deployment";
-// import { statefulSetUsesSecret } from "../../../utils/filters/appsv1/statefulset";
-// import { daemonSetUsesSecret } from "../../../utils/filters/appsv1/daemonset";
-// import Card from "../../shared/Card";
-
-// icons
-import { DrawerContext } from '@omniviewdev/runtime';
+import { useSnackbar, DrawerContext  } from '@omniviewdev/runtime';
 import { Button, IconButton } from '@omniviewdev/ui/buttons';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
@@ -66,12 +46,9 @@ interface Props {
  * Renders a sidebar for a Secret resource
  */
 export const SecretSidebar: React.FC<Props> = ({ ctx }) => {
-  if (!ctx.data) {
-    return null;
-  }
-
   const secret = ctx.data;
 
+  // eslint-disable-next-line @typescript-eslint/unbound-method
   const { showSnackbar } = useSnackbar();
   const [shown, setShown] = React.useState<Record<string, boolean>>({});
   const [copied, setCopied] = React.useState<string | undefined>(undefined);
@@ -82,8 +59,12 @@ export const SecretSidebar: React.FC<Props> = ({ ctx }) => {
   const [edited, setEdited] = React.useState<boolean>(false);
   const [newErrors, setNewErrors] = React.useState<Record<number, string>>({});
 
+  if (!secret) {
+    return null;
+  }
+
   // assert this is in fact a secret
-  if (secret?.kind !== 'Secret') {
+  if (secret.kind !== 'Secret') {
     throw new Error('Invalid resource kind');
   }
 
@@ -190,7 +171,7 @@ export const SecretSidebar: React.FC<Props> = ({ ctx }) => {
   };
 
   const handleCopyToClipboard = (key: string, value: string) => {
-    navigator.clipboard.writeText(atob(value));
+    void navigator.clipboard.writeText(atob(value));
     setCopied(key);
     showSnackbar({
       message: 'Copied value to clipboard',
@@ -228,7 +209,7 @@ export const SecretSidebar: React.FC<Props> = ({ ctx }) => {
                 </Grid>
                 <Grid size={8}>
                   {shown[key] && isMultiLine(value) ? (
-                    <Textarea
+                    <TextField
                       multiline
                       InputProps={{
                         startAdornment: (
@@ -280,7 +261,9 @@ export const SecretSidebar: React.FC<Props> = ({ ctx }) => {
             ))}
           </Grid>
         )}
+        {/* Index keys are correct here: entries are user-editable form inputs with mutable keys */}
         {newValues.map((entry, index) => (
+          // eslint-disable-next-line react/no-array-index-key
           <Grid container spacing={0.5} key={index}>
             <Grid size={4}>
               <FormControl error={!!newErrors[index]}>
@@ -332,7 +315,7 @@ export const SecretSidebar: React.FC<Props> = ({ ctx }) => {
               emphasis="soft"
               startAdornment={<LuRotate3D />}
               size="sm"
-              onClick={() => console.log('trigerred reload save')}
+              onClick={() => { /* TODO: implement reload save */ }}
               disabled={Object.keys(newErrors).length > 0}
             >
               Save & Reload Resources

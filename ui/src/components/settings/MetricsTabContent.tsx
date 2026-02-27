@@ -3,6 +3,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Grid from '@mui/material/Grid';
 import { useMetricProvidersForResource } from '@omniviewdev/runtime';
 import { MetricClient } from '@omniviewdev/runtime/api';
+import type { metric } from '@omniviewdev/runtime/models';
 import { Card, Chip } from '@omniviewdev/ui';
 import { Button, IconButton } from '@omniviewdev/ui/buttons';
 import { FormField, TextField } from '@omniviewdev/ui/inputs';
@@ -41,7 +42,10 @@ type TestState = 'idle' | 'testing' | 'success' | 'failure';
 const MetricsTabContent: React.FC<Props> = ({ pluginID, connectionID, connected }) => {
   const queryClient = useQueryClient();
   const { connectionOverrides, updateOverride } = useClusterPreferences(pluginID);
-  const existing = connectionOverrides[connectionID] ?? {};
+  const existing = React.useMemo(
+    () => connectionOverrides[connectionID] ?? {},
+    [connectionOverrides, connectionID],
+  );
   const metricConfig = existing.metricConfig ?? {};
 
   const { data: providers, isLoading: providersLoading } =
@@ -49,7 +53,7 @@ const MetricsTabContent: React.FC<Props> = ({ pluginID, connectionID, connected 
 
   // Invalidate provider cache on mount so we don't show stale 0-provider results
   React.useEffect(() => {
-    queryClient.invalidateQueries({ queryKey: ['metric', 'providers'] });
+    void queryClient.invalidateQueries({ queryKey: ['metric', 'providers'] });
   }, [queryClient]);
 
   const [service, setService] = React.useState(metricConfig.prometheusService ?? '');
@@ -118,12 +122,13 @@ const MetricsTabContent: React.FC<Props> = ({ pluginID, connectionID, connected 
       // Call QueryAll via the MetricClient binding — bypasses the
       // useResourceMetrics hook's provider-count guard so we get a real
       // backend round-trip even when the provider cache is stale.
+      // QueryAll requires Record<string, any> per the Wails binding signature
       const results = await MetricClient.QueryAll(
         connectionID,
         'cluster::metrics',
         '_test',
         '',
-        resourceData as Record<string, any>,
+        resourceData as Record<string, string | number | Record<string, string | number>>,
         ['prom_cluster_node_count'],
         0, // ShapeCurrent
         new Date(0),
@@ -137,7 +142,7 @@ const MetricsTabContent: React.FC<Props> = ({ pluginID, connectionID, connected 
       const hasResults =
         results &&
         Object.values(results).some(
-          (resp: any) => resp?.success && resp?.results && resp.results.length > 0,
+          (resp: metric.QueryResponse) => resp?.success && resp?.results && resp.results.length > 0,
         );
 
       if (hasResults) {
@@ -150,10 +155,10 @@ const MetricsTabContent: React.FC<Props> = ({ pluginID, connectionID, connected 
             'Check that the service name, namespace, and port are correct.',
         );
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (abortRef.current) return;
       setTestState('failure');
-      setTestError(err?.message || 'Connection test failed');
+      setTestError(err instanceof Error ? err.message : 'Connection test failed');
     }
   }, [saveConfig, providers, connectionID, service, namespace, port]);
 
@@ -164,7 +169,7 @@ const MetricsTabContent: React.FC<Props> = ({ pluginID, connectionID, connected 
   };
 
   const handleRefreshProviders = () => {
-    queryClient.invalidateQueries({ queryKey: ['metric', 'providers'] });
+    void queryClient.invalidateQueries({ queryKey: ['metric', 'providers'] });
   };
 
   // Auto-dismiss test result after 8s
@@ -236,7 +241,7 @@ const MetricsTabContent: React.FC<Props> = ({ pluginID, connectionID, connected 
             >
               <Text size="xs" sx={{ lineHeight: 1.4 }}>
                 No metric providers found. This usually means the plugin binary needs to be rebuilt
-                with metric support, or the plugin hasn't fully initialized yet. Try reconnecting
+                with metric support, or the plugin hasn&apos;t fully initialized yet. Try reconnecting
                 the cluster or restarting the app.
               </Text>
             </Box>
@@ -310,7 +315,7 @@ const MetricsTabContent: React.FC<Props> = ({ pluginID, connectionID, connected 
                     <LuPlugZap size={14} />
                   )
                 }
-                onClick={handleTest}
+                onClick={() => { void handleTest(); }}
               >
                 {testState === 'testing'
                   ? 'Testing...'

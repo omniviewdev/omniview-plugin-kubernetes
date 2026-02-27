@@ -2,12 +2,12 @@ import { type Row, flexRender } from '@tanstack/react-table';
 import { type VirtualItem } from '@tanstack/react-virtual';
 import React from 'react';
 
-// Tanstack/react-table
+import type { KubernetesResourceObject } from '../../../types/resource';
 
 import { type Memoizer } from './types';
 import { getCommonPinningStyles } from './utils';
 
-export type Props<T = any> = {
+export type Props<T = KubernetesResourceObject> = {
   memoizer?: Memoizer;
   resourceKey: string;
   resourceID: string;
@@ -16,7 +16,7 @@ export type Props<T = any> = {
   resizedColumnIds: string;
   virtualRow: VirtualItem;
   isSelected: boolean;
-  onRowClick: (id: string, data: any) => void;
+  onRowClick: (id: string, data: KubernetesResourceObject) => void;
   /** The row data */
   row: Row<T>;
 };

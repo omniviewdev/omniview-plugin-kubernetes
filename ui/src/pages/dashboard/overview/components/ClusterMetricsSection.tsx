@@ -99,7 +99,7 @@ function toTimeSeriesDef(
     id: ts.metric_id,
     label,
     data: (ts.data_points ?? []).map((dp) => ({
-      timestamp: new Date(String(dp.timestamp)).getTime(),
+      timestamp: new Date(dp.timestamp as unknown as string).getTime(),
       value: dp.value,
     })),
     color,

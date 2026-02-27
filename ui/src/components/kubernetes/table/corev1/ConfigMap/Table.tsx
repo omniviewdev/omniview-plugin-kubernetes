@@ -55,6 +55,7 @@ const ConfigMapTable: React.FC = () => {
                 >
                   {(getValue() as string[]).map((value) => (
                     <Chip
+                      key={value}
                       size={'sm'}
                       sx={{ borderRadius: '2px' }}
                       emphasis="outline"
@@ -72,7 +73,7 @@ const ConfigMapTable: React.FC = () => {
         ],
         { connectionID: id, resourceKey },
       ),
-    [],
+    [id],
   );
 
   const drawer: DrawerComponent<ConfigMap> = React.useMemo(

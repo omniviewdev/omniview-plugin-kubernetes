@@ -1,11 +1,8 @@
-// @omniviewdev/ui
 import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
 import { Card, Chip } from '@omniviewdev/ui';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
-
-// project imports
 import { formatRelative } from 'date-fns';
 import { type ContainerStatus } from 'kubernetes-types/core/v1';
 import * as React from 'react';
@@ -17,10 +14,6 @@ import {
   ContainerWaitingStatusInfo,
 } from './KubernetesContainerStatuses';
 import { getStatus } from './utils';
-
-// types
-
-// third-party
 
 type Props = {
   status: ContainerStatus;

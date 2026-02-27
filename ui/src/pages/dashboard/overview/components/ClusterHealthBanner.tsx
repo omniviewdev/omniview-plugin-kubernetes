@@ -1,22 +1,21 @@
 import Box from '@mui/material/Box';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
+import type { Node as K8sNode, Event as K8sEvent, Pod, NodeCondition  } from 'kubernetes-types/core/v1';
 import React from 'react';
 import { LuCircleCheck, LuTriangleAlert, LuCircleX } from 'react-icons/lu';
 
-type KubeResource = Record<string, any>;
-
 type Props = {
-  nodes: KubeResource[];
-  pods: KubeResource[];
-  events: KubeResource[];
+  nodes: K8sNode[];
+  pods: Pod[];
+  events: K8sEvent[];
 };
 
 const ClusterHealthBanner: React.FC<Props> = ({ nodes, pods, events }) => {
   const health = React.useMemo(() => {
     const unhealthyNodes = nodes.filter((n) => {
-      const conditions = n.status?.conditions ?? [];
-      const ready = conditions.find((c: any) => c.type === 'Ready');
+      const conditions: NodeCondition[] = n.status?.conditions ?? [];
+      const ready = conditions.find((c) => c.type === 'Ready');
       return !ready || ready.status !== 'True';
     });
 
@@ -80,8 +79,8 @@ const ClusterHealthBanner: React.FC<Props> = ({ nodes, pods, events }) => {
     >
       <Icon size={14} />
       <Stack direction="row" gap={2} sx={{ flexWrap: 'wrap' }}>
-        {health.issues.map((issue, i) => (
-          <Text key={i} size="xs">
+        {health.issues.map((issue) => (
+          <Text key={issue} size="xs">
             {issue}
           </Text>
         ))}

@@ -24,7 +24,7 @@ export type Props = {
   virtualRow: VirtualItem;
   isSelected: boolean;
   /** The row data */
-  row: Row<any>;
+  row: Row<Record<string, unknown>>;
   columnVisibility: string;
 };
 
@@ -50,7 +50,7 @@ export const RowContainer: React.FC<Props> = ({
     (node: HTMLTableRowElement) => {
       virtualizer.measureElement(node);
     },
-    [virtualizer, virtualRow.index],
+    [virtualizer],
   );
 
   const handleRowClick = (column: string) => {

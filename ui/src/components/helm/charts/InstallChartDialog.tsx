@@ -3,16 +3,12 @@ import Divider from '@mui/material/Divider';
 import Modal from '@mui/material/Modal';
 import { useExecuteAction } from '@omniviewdev/runtime';
 import { Button, IconButton } from '@omniviewdev/ui/buttons';
-
-// material-ui
 import { TextField, Select } from '@omniviewdev/ui/inputs';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
 import React from 'react';
 import { LuX } from 'react-icons/lu';
 import { SiHelm } from 'react-icons/si';
-
-// project-imports
 
 import CodeEditor from '../../shared/CodeEditor';
 import NamespaceSelect from '../../shared/NamespaceSelect';
@@ -24,6 +20,21 @@ interface Props {
   chartName: string;
   connectionID: string;
   initialVersion?: string;
+}
+
+/** Data returned by the `get-values` chart action. */
+interface ChartValuesData {
+  values?: string;
+}
+
+/** Data returned by the `get-versions` chart action. */
+interface ChartVersionsData {
+  versions?: Array<{ version: string; appVersion: string }>;
+}
+
+/** Data returned by the `dry-run-install` release action. */
+interface DryRunInstallData {
+  manifest?: string;
 }
 
 const modalStyle = {
@@ -92,7 +103,8 @@ const InstallChartDialog: React.FC<Props> = ({
       params: initialVersion ? { version: initialVersion } : undefined,
     })
       .then((result) => {
-        setValues(result.data?.values ?? '');
+        const valuesData = result.data as ChartValuesData | undefined;
+        setValues(valuesData?.values ?? '');
       })
       .catch(() => {});
 
@@ -102,10 +114,8 @@ const InstallChartDialog: React.FC<Props> = ({
       id: chartID,
     })
       .then((result) => {
-        const versionList = (result.data?.versions ?? []) as Array<{
-          version: string;
-          appVersion: string;
-        }>;
+        const versionsData = result.data as ChartVersionsData | undefined;
+        const versionList = versionsData?.versions ?? [];
         setVersions(versionList);
         if (versionList.length > 0 && !version && !initialVersion) {
           setVersion(versionList[0].version);
@@ -132,9 +142,11 @@ const InstallChartDialog: React.FC<Props> = ({
           version,
         },
       });
-      setDryRunManifest(result.data?.manifest ?? 'No manifest generated');
-    } catch (err: any) {
-      setDryRunManifest(`Error: ${err?.message ?? 'Dry run failed'}`);
+      const dryRunData = result.data as DryRunInstallData | undefined;
+      setDryRunManifest(dryRunData?.manifest ?? 'No manifest generated');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Dry run failed';
+      setDryRunManifest(`Error: ${message}`);
     }
   };
 

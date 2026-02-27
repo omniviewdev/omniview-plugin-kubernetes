@@ -1,4 +1,3 @@
-// material-ui
 import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
 import { DrawerContext, useExecuteAction } from '@omniviewdev/runtime';
@@ -9,8 +8,6 @@ import { Select } from '@omniviewdev/ui/inputs';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Tabs, TabPanel } from '@omniviewdev/ui/navigation';
 import { Text } from '@omniviewdev/ui/typography';
-
-// icons
 import React from 'react';
 import {
   LuClipboardCopy,
@@ -20,15 +17,31 @@ import {
   LuCheck,
 } from 'react-icons/lu';
 
-// project-imports
 import CodeEditor from '../../shared/CodeEditor';
 import NamedAvatar from '../../shared/NamedAvatar';
 
 import InstallChartDialog from './InstallChartDialog';
 
 // ── types ──
-type HelmChart = Record<string, any>;
 
+/** Shape of a Helm chart as returned by the backend list/get APIs. */
+interface HelmChart {
+  id?: string;
+  name?: string;
+  repository?: string;
+  description?: string;
+  deprecated?: boolean;
+  icon?: string;
+  keywords?: string[];
+  maintainers?: Array<{ name: string; email?: string; url?: string }>;
+  appVersion?: string;
+  kubeVersion?: string;
+  type?: string;
+  home?: string;
+  dependencies?: Array<{ name: string; version?: string; repository?: string }>;
+}
+
+/** A single chart version entry. */
 interface ChartVersion {
   version: string;
   appVersion: string;
@@ -40,6 +53,24 @@ interface ChartVersion {
   icon?: string;
   type?: string;
 }
+
+/** Data returned by `get-versions` action. */
+interface VersionsActionData {
+  versions?: ChartVersion[];
+}
+
+/** Data returned by `get-readme` action. */
+interface ReadmeActionData {
+  readme?: string;
+}
+
+/** Data returned by `get-values` action. */
+interface ValuesActionData {
+  values?: string;
+}
+
+/** Union of possible cached tab data entries. */
+type TabDataEntry = ReadmeActionData | ValuesActionData | null;
 
 interface Props {
   ctx: DrawerContext<HelmChart>;
@@ -97,7 +128,7 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
   const [activeTab, setActiveTab] = React.useState('overview');
   const [selectedVersion, setSelectedVersion] = React.useState('');
   const [versions, setVersions] = React.useState<ChartVersion[]>([]);
-  const [tabData, setTabData] = React.useState<Record<string, any>>({});
+  const [tabData, setTabData] = React.useState<Record<string, TabDataEntry>>({});
   const [showInstall, setShowInstall] = React.useState(false);
   const [iconFailed, setIconFailed] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
@@ -119,7 +150,8 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
       id: chartID,
     })
       .then((result) => {
-        const versionList = (result.data?.versions ?? []) as ChartVersion[];
+        const versionsData = result.data as VersionsActionData | undefined;
+        const versionList = versionsData?.versions ?? [];
         setVersions(versionList);
         if (versionList.length > 0 && !selectedVersion) {
           setSelectedVersion(versionList[0].version);
@@ -140,7 +172,7 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
           id: chartID,
           params: selectedVersion ? { version: selectedVersion } : undefined,
         });
-        setTabData((prev) => ({ ...prev, [cacheKey]: result.data }));
+        setTabData((prev) => ({ ...prev, [cacheKey]: result.data as TabDataEntry }));
       } catch {
         setTabData((prev) => ({ ...prev, [cacheKey]: null }));
       }
@@ -170,7 +202,8 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
 
   const handleCopyValues = React.useCallback(() => {
     const cacheKey = `get-values::${selectedVersion}`;
-    const valuesData = tabData[cacheKey]?.values;
+    const entry = tabData[cacheKey] as ValuesActionData | null | undefined;
+    const valuesData = entry?.values;
     if (valuesData) {
       void navigator.clipboard.writeText(valuesData).then(() => {
         setCopied(true);
@@ -189,9 +222,8 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
   const description = data.description ?? '';
   const deprecated = data.deprecated ?? false;
   const icon = data.icon ?? '';
-  const keywords = (data.keywords as string[]) ?? [];
-  const maintainers =
-    (data.maintainers as Array<{ name: string; email?: string; url?: string }>) ?? [];
+  const keywords = data.keywords ?? [];
+  const maintainers = data.maintainers ?? [];
 
   // Use version-specific data from the selected version, falling back to chart data
   const currentVersionData = versions.find((v) => v.version === selectedVersion);
@@ -207,8 +239,10 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
 
   const readmeCacheKey = `get-readme::${selectedVersion}`;
   const valuesCacheKey = `get-values::${selectedVersion}`;
-  const readmeContent = tabData[readmeCacheKey]?.readme;
-  const valuesContent = tabData[valuesCacheKey]?.values;
+  const readmeEntry = tabData[readmeCacheKey] as ReadmeActionData | null | undefined;
+  const valuesEntry = tabData[valuesCacheKey] as ValuesActionData | null | undefined;
+  const readmeContent = readmeEntry?.readme;
+  const valuesContent = valuesEntry?.values;
 
   return (
     <Stack direction="column" width="100%" sx={{ height: '100%', minHeight: 0 }}>
@@ -356,8 +390,8 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
                   Maintainers
                 </Text>
                 <Stack direction="column" spacing={0.5}>
-                  {maintainers.map((m, i) => (
-                    <Text key={i} size="xs" sx={{ color: 'neutral.300' }}>
+                  {maintainers.map((m) => (
+                    <Text key={m.name} size="xs" sx={{ color: 'neutral.300' }}>
                       {m.name}
                       {m.email ? ` <${m.email}>` : ''}
                       {m.url && (
@@ -392,20 +426,14 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
             )}
 
             {/* Dependencies from chart data */}
-            {data.dependencies && (data.dependencies as any[]).length > 0 && (
+            {data.dependencies && data.dependencies.length > 0 && (
               <Card sx={{ p: 1.25, borderRadius: 'sm' }} emphasis="outline">
                 <Text weight="semibold" size="sm" sx={{ mb: 0.5 }}>
                   Dependencies
                 </Text>
                 <Stack direction="column" spacing={0.5}>
-                  {(
-                    data.dependencies as Array<{
-                      name: string;
-                      version?: string;
-                      repository?: string;
-                    }>
-                  ).map((dep, i) => (
-                    <Stack key={i} direction="row" spacing={1} alignItems="center">
+                  {data.dependencies.map((dep) => (
+                    <Stack key={dep.name} direction="row" spacing={1} alignItems="center">
                       <Text size="xs" weight="semibold">
                         {dep.name}
                       </Text>

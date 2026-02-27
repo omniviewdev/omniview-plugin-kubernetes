@@ -30,7 +30,15 @@ import RepoSidebar from './RepoSidebar';
 
 const resourceKey = 'helm::v1::Repository';
 
-type HelmRepo = Record<string, any>;
+/** Shape of a Helm repository row. */
+interface HelmRepo {
+  name?: string;
+  url?: string;
+  type?: string;
+  username?: string;
+  insecure_skip_tls_verify?: boolean;
+}
+
 type ChartEntry = {
   name: string;
   description: string;
@@ -38,6 +46,11 @@ type ChartEntry = {
   appVersion?: string;
   icon?: string;
 };
+
+/** Data returned by `list-charts` action. */
+interface ListChartsData {
+  charts?: ChartEntry[];
+}
 
 const modalStyle = {
   position: 'absolute' as const,
@@ -285,7 +298,8 @@ const AddRepoDialog: React.FC<{
             actionID: 'list-charts',
             id: trimmedName,
           });
-          const loaded = (listResult.data?.charts ?? []) as ChartEntry[];
+          const chartsData = listResult.data as ListChartsData | undefined;
+          const loaded = chartsData?.charts ?? [];
           setCharts(loaded);
         } catch {
           setCharts([]);
@@ -294,7 +308,7 @@ const AddRepoDialog: React.FC<{
       setStep('success');
     } catch (err: unknown) {
       const raw =
-        err instanceof Error ? err.message : typeof err === 'string' ? err : String(err ?? '');
+        err instanceof Error ? err.message : typeof err === 'string' ? err : '';
       const msg = raw || 'Failed to add repository';
       if (msg.includes('already exists')) {
         setErrorMsg(`Repository "${trimmedName}" already exists`);

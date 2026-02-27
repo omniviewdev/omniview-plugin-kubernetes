@@ -40,7 +40,7 @@ export function DebouncedInput({
     return () => {
       clearTimeout(timeout);
     };
-  }, [value]);
+  }, [value, debounce, onChange]);
 
   return (
     <Box
@@ -62,6 +62,7 @@ export function DebouncedInput({
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder={placeholder}
+        // eslint-disable-next-line jsx-a11y/no-autofocus
         autoFocus={autoFocus}
         autoComplete="off"
         sx={{

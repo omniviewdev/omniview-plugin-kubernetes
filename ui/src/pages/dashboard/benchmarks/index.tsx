@@ -11,6 +11,20 @@ import CodeEditor from '../../../components/shared/editor/Editor';
 import ClusterOverviewCard from './components/ClusterOverviewCard';
 import ScorecardChart from './components/ScorecardChart';
 
+/** Shape of the summary counts inside a benchmark result. */
+interface BenchmarkSummary {
+  success: number;
+  warning: number;
+  danger: number;
+}
+
+/** Shape of a single cluster benchmark result from the extras API. */
+interface ClusterBenchmarkResult {
+  summary?: BenchmarkSummary;
+  summary_by_category?: Record<string, BenchmarkSummary>;
+  score?: number;
+}
+
 const ClusterDashboardBenchmarksPage: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
 
@@ -35,28 +49,33 @@ const ClusterDashboardBenchmarksPage: React.FC = () => {
     );
   }
 
+  // runtime ListResult.result is typed as any[]; cast to the known benchmark shape
+  const results = (resources.data?.result ?? []) as ClusterBenchmarkResult[];
+  const firstResult: ClusterBenchmarkResult | undefined = results[0];
+
   return (
     <Grid container>
       <Grid size={12}>
         <ClusterOverviewCard
           cluster={id}
           icon={'SiKubernetes'}
-          passing={resources.data?.result[0].summary?.success}
-          warning={resources.data?.result[0].summary?.warning}
-          failing={resources.data?.result[0].summary?.danger}
-          score={resources.data?.result[0].score}
+          passing={firstResult?.summary?.success ?? 0}
+          warning={firstResult?.summary?.warning ?? 0}
+          failing={firstResult?.summary?.danger ?? 0}
+          score={firstResult?.score ?? 0}
         />
       </Grid>
       {/** A bit ugly and space innefficient, clean up later */}
       <Grid size={12}>
         <Stack direction="row" gap={1}>
-          {Object.entries(resources.data?.result[0].summary_by_category || {}).map(
-            ([category, summary]: [string, any]) => (
+          {Object.entries(firstResult?.summary_by_category ?? {}).map(
+            ([category, summary]) => (
               <ScorecardChart
+                key={category}
                 label={category}
-                success={summary.success as number}
-                warning={summary.warning as number}
-                failure={summary.danger as number}
+                success={summary.success}
+                warning={summary.warning}
+                failure={summary.danger}
               />
             ),
           )}
@@ -64,8 +83,8 @@ const ClusterDashboardBenchmarksPage: React.FC = () => {
       </Grid>
       <Grid size={12}>
         <CodeEditor
-          original={JSON.stringify(resources?.data?.result[0] || {}, null, '\t')}
-          value={JSON.stringify(resources?.data?.result[0] || {}, null, '\t')}
+          original={JSON.stringify(firstResult ?? {}, null, '\t')}
+          value={JSON.stringify(firstResult ?? {}, null, '\t')}
           language="yaml"
           filename={'report.json'}
           height={'100%'}

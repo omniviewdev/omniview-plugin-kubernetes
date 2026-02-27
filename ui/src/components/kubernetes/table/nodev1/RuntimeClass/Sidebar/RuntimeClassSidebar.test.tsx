@@ -1,6 +1,7 @@
 import type { DrawerContext } from '@omniviewdev/runtime';
 import { render, screen } from '@testing-library/react';
 import type { RuntimeClass, Scheduling } from 'kubernetes-types/node/v1';
+import type React from 'react';
 import { vi, describe, it, expect } from 'vitest';
 
 // ---------------------------------------------------------------------------
@@ -8,24 +9,31 @@ import { vi, describe, it, expect } from 'vitest';
 // ---------------------------------------------------------------------------
 
 vi.mock('@omniviewdev/ui', () => ({
-  Chip: ({ children, color, variant }: any) => (
+  Chip: ({ children, color, variant }: {
+    children: React.ReactNode;
+    color?: string;
+    variant?: string;
+  }) => (
     <span data-testid="chip" data-color={color} data-variant={variant}>
       {children}
     </span>
   ),
-  Card: ({ children }: any) => <div>{children}</div>,
+  Card: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
 vi.mock('@omniviewdev/ui/layout', () => ({
-  Stack: ({ children }: any) => <div>{children}</div>,
+  Stack: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
 vi.mock('@omniviewdev/ui/typography', () => ({
-  Text: ({ children }: any) => <span>{children}</span>,
+  Text: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
 }));
 
 vi.mock('../../../../../shared/KVCard', () => ({
-  default: ({ title, kvs }: any) => (
+  default: ({ title, kvs }: {
+    title: string;
+    kvs: Record<string, string>;
+  }) => (
     <div data-testid="kv-card" data-title={title}>
       {Object.entries(kvs).map(([k, v]) => (
         <span key={k}>
@@ -37,7 +45,7 @@ vi.mock('../../../../../shared/KVCard', () => ({
 }));
 
 vi.mock('../../../../../shared/sidebar/pages/overview/sections/MetadataSection', () => ({
-  default: ({ data }: any) => <div data-testid="metadata-section" data-name={data?.name} />,
+  default: ({ data }: { data?: { name?: string } }) => <div data-testid="metadata-section" data-name={data?.name} />,
 }));
 
 // ---------------------------------------------------------------------------
@@ -82,7 +90,7 @@ describe('RuntimeClassHandlerSection', () => {
   });
 
   it('shows dash when handler is undefined', () => {
-    render(<RuntimeClassHandlerSection data={makeRuntimeClass({ handler: undefined as any })} />);
+    render(<RuntimeClassHandlerSection data={makeRuntimeClass({ handler: undefined as unknown as string })} />);
     expect(screen.getByText('—')).toBeInTheDocument();
   });
 

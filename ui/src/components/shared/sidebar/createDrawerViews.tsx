@@ -2,6 +2,7 @@ import type { DrawerComponentView, DrawerContext } from '@omniviewdev/runtime';
 import React from 'react';
 import { LuCode, LuSquareChartGantt, LuZap } from 'react-icons/lu';
 
+import type { KubernetesResourceObject } from '../../../types/resource';
 import ResourceEventsView from '../../kubernetes/sidebar/ResourceEventsView';
 
 import BaseEditorPage from './pages/editor/BaseEditorPage';
@@ -15,9 +16,9 @@ import { createMetricsView } from './pages/metrics/ResourceMetricsPage';
  * and the drawer factory in `entry.ts` uses it so linked-resource clicks get the
  * same view set.
  */
-export function createStandardViews<T = any>(opts: {
+export function createStandardViews<T = KubernetesResourceObject>(opts: {
   SidebarComponent: React.FC<{ ctx: DrawerContext<T> }>;
-  onEditorSubmit?: (ctx: DrawerContext<T>, value: Record<string, any>) => void;
+  onEditorSubmit?: (ctx: DrawerContext<T>, value: Record<string, unknown>) => void;
 }): Array<DrawerComponentView<T>> {
   const { SidebarComponent, onEditorSubmit } = opts;
 
@@ -27,7 +28,7 @@ export function createStandardViews<T = any>(opts: {
       icon: <LuSquareChartGantt />,
       component: (ctx) => <SidebarComponent ctx={ctx} />,
     },
-    createMetricsView(),
+    createMetricsView() as unknown as DrawerComponentView<T>,
     {
       title: 'Events',
       icon: <LuZap />,
@@ -39,12 +40,12 @@ export function createStandardViews<T = any>(opts: {
       component: onEditorSubmit
         ? (ctx) => (
             <BaseEditorPage
-              data={ctx.data as any}
+              data={ctx.data as KubernetesResourceObject}
               resourceKey={ctx.resource?.key}
               onSubmit={(val) => onEditorSubmit(ctx, val)}
             />
           )
-        : (ctx) => <BaseEditorPage data={ctx.data as any} resourceKey={ctx.resource?.key} />,
+        : (ctx) => <BaseEditorPage data={ctx.data as KubernetesResourceObject} resourceKey={ctx.resource?.key} />,
     },
   ];
 }

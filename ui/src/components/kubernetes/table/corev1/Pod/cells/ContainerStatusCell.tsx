@@ -13,7 +13,7 @@ export const ContainerStatusCell: React.FC<Props> = ({ data }) => {
   const theme = useTheme();
 
   if (!data || !Array.isArray(data)) {
-    return <React.Fragment />;
+    return null;
   }
 
   const obj = data as Array<ContainerStatus>;
@@ -53,9 +53,9 @@ export const ContainerStatusCell: React.FC<Props> = ({ data }) => {
       justifyContent={'flex-start'}
       spacing={1}
     >
-      {obj.map((status, idx) => (
+      {obj.map((status) => (
         <div
-          key={idx}
+          key={status.name}
           color={getColor(status)}
           style={{
             backgroundColor: getColor(status),

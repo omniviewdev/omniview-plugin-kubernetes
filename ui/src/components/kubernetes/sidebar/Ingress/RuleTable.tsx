@@ -1,9 +1,6 @@
-// material-ui
 import Box from '@mui/material/Box';
 import Table from '@mui/material/Table';
 import { Chip } from '@omniviewdev/ui';
-
-// types
 import { Text } from '@omniviewdev/ui/typography';
 import { IngressBackend, IngressRule } from 'kubernetes-types/networking/v1';
 import React from 'react';
@@ -40,6 +37,7 @@ export const RuleTable: React.FC<Props> = ({ rule }) => {
       <tbody>
         {rule.http?.paths.map((path) => (
           <tr
+            key={`${path.path ?? '/'}-${path.pathType}`}
             style={{
               padding: '0.5rem',
             }}

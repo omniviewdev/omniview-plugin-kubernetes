@@ -29,7 +29,7 @@ const ConditionsCell: React.FC<Props> = ({
   defaultUnhealthyColor,
 }) => {
   if (!conditions) {
-    return <></>;
+    return null;
   }
 
   return (

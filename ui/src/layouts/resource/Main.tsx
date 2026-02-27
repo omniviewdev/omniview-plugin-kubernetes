@@ -11,6 +11,7 @@ const Main: React.FC<BoxProps> = (props) => (
     {...props}
     sx={[
       { width: '100%', overflow: 'hidden', flex: 1 },
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- MUI SxProps internally uses `any`
       ...(Array.isArray(props.sx) ? props.sx : [props.sx]),
     ]}
   />

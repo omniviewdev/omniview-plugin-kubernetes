@@ -156,7 +156,7 @@ Note: Audience in each TokenRequest should be different and at most one token is
         },
       ],
     }),
-    [],
+    [id, closeDrawer, remove, show],
   );
 
   return (

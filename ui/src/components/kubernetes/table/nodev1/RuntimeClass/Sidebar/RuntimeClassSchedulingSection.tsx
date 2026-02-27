@@ -94,7 +94,7 @@ const RuntimeClassSchedulingSection: React.FC<Props> = ({ scheduling }) => {
           </Box>
           <Divider />
           {tolerations.map((t, i) => (
-            <TolerationRow key={`${t.key}-${t.effect}-${i}`} t={t} index={i} />
+            <TolerationRow key={`${t.key}-${t.operator}-${t.value}-${t.effect}`} t={t} index={i} />
           ))}
         </Box>
       )}

@@ -1,12 +1,9 @@
-// third party
 import { ResourceClient, ExecClient } from '@omniviewdev/runtime/api';
 import { type types } from '@omniviewdev/runtime/models';
 import { useQuery } from '@tanstack/react-query';
 import { type ColumnDef } from '@tanstack/react-table';
 import jsonpath from 'jsonpath';
 import get from 'lodash.get';
-
-// project imports
 import React from 'react';
 
 import ActionMenu from '../components/tables/actions/ActionMenu';
@@ -63,6 +60,7 @@ export type ResourceMetadata = {
 /**
  * Render one of the custom cells. Should likely restructure out of the backend-focused one
  */
+// eslint-disable-next-line react-refresh/only-export-components
 const CustomTableCell: React.FC<{ name: string; data?: unknown }> = ({ name, data }) => {
   switch (name) {
     case 'ContainerStatusCell':
@@ -90,7 +88,7 @@ const parseColumnDef = ({
     };
   }
 
-  const defs: Array<ColumnDef<any>> = [
+  const defs: Array<ColumnDef<Record<string, unknown>>> = [
     {
       id: 'select',
       header: SelectBoxHeader,
@@ -102,18 +100,18 @@ const parseColumnDef = ({
   ];
 
   columnDefs.forEach((def) => {
-    const column: ColumnDef<any> = {
+    const column: ColumnDef<Record<string, unknown>> = {
       id: def.id,
       header: def.header,
-      accessorFn: (data) => {
+      accessorFn: (data: Record<string, unknown>) => {
         const val = def.accessor
           .split(',')
           .map((accessor) => {
             if (accessor.startsWith('$.')) {
-              return jsonpath.value(data, accessor) ?? '';
+              return (jsonpath.value(data, accessor) as string | undefined) ?? '';
             }
 
-            return get(data, accessor, '');
+            return get(data, accessor, '') as string;
           })
           .filter((v) => v !== undefined && v !== '');
 
@@ -132,9 +130,8 @@ const parseColumnDef = ({
         if (def.valueMap) {
           // process the prioritized value through the value map, each key being the regex to match
           // and the value being the replacement
-          Object.entries(def.valueMap).forEach(([key, val]) => {
-            console.log('replacing', key, val);
-            prioritized = prioritized.replace(new RegExp(key), val);
+          Object.entries(def.valueMap).forEach(([key, replacement]) => {
+            prioritized = prioritized.replace(new RegExp(key), replacement);
           });
         }
 
@@ -161,7 +158,7 @@ const parseColumnDef = ({
               connectionID,
               resourceKey,
               resourceID: row.id,
-              namespace: namespaceAccessor ? get(row.original, namespaceAccessor, '') : '',
+              namespace: namespaceAccessor ? (get(row.original, namespaceAccessor, '') as string) : '',
             }}
           />
         ),
@@ -185,7 +182,7 @@ const parseColumnDef = ({
           resource={resourceKey}
           data={row.original}
           id={row.id}
-          namespace={namespaceAccessor ? get(row.original, namespaceAccessor, '') : ''}
+          namespace={namespaceAccessor ? (get(row.original, namespaceAccessor, '') as string) : ''}
         />
       ),
       size: 50,
@@ -244,7 +241,7 @@ export const useResourceDefinition = ({
         resourceKey,
         namespaceAccessor: definition.data?.namespace_accessor,
       }),
-    [pluginID, connectionID, resourceKey],
+    [pluginID, connectionID, resourceKey, actions.data, definition.data?.columnDefs, definition.data?.namespace_accessor],
   );
 
   return {

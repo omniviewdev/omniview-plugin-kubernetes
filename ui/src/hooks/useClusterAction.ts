@@ -18,6 +18,7 @@ export function useClusterAction(
 ) {
   const { meta } = usePluginContext();
   const { navigate } = usePluginRouter();
+  // eslint-disable-next-line @typescript-eslint/unbound-method
   const { showSnackbar } = useSnackbar();
   const { startConnection } = useConnection({
     pluginID: meta.id,

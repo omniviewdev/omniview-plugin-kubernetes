@@ -2,16 +2,10 @@ import { KeyboardArrowDownRounded } from '@mui/icons-material';
 import Box from '@mui/material/Box';
 import { usePluginRouter } from '@omniviewdev/runtime';
 import { Avatar, Chip, List, ListItem, ListSubheader } from '@omniviewdev/ui';
-
-// @omniviewdev/ui
 import { IconButton } from '@omniviewdev/ui/buttons';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
 import React from 'react';
-
-// Icons import
-
-// Custom
 import { useParams } from 'react-router-dom';
 
 import { IsImage } from '../../../utils/url';
@@ -52,8 +46,6 @@ const getInitialOpenState = (
     });
   });
 
-  console.log('got open state: ', state);
-
   return state;
 };
 
@@ -70,7 +62,7 @@ const NavMenu: React.FC<SidebarProps> = ({ header, size, items, sections }) => {
     (resourceID: string) => {
       navigate(`/cluster/${id}/resources/${resourceID}`);
     },
-    [navigate],
+    [navigate, id],
   );
 
   if (items == null && sections == null) {
@@ -202,7 +194,7 @@ const SidebarListItem: React.FC<SidebarListItemProps> = ({
         onSelect(id);
       }
     },
-    [onToggleOpen, onSelect, item.children],
+    [onToggleOpen, onSelect, item.children, id],
   );
 
   const MemoizedIcon = React.useMemo(
@@ -264,9 +256,9 @@ const SidebarListItem: React.FC<SidebarListItemProps> = ({
         )}
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Text
-            weight={level == 0 || item.children?.length ? 'semibold' : undefined}
-            size={level == 0 || item.children?.length ? 'sm' : 'xs'}
-            sx={{ fontWeight: selected == id ? 600 : 500 }}
+            weight={level === 0 || item.children?.length ? 'semibold' : undefined}
+            size={level === 0 || item.children?.length ? 'sm' : 'xs'}
+            sx={{ fontWeight: selected === id ? 600 : 500 }}
           >
             {item.label}
           </Text>

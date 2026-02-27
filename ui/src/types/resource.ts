@@ -25,7 +25,6 @@ export interface ResourceSearchResult {
   namespaces: string[];
   isLoading: boolean;
   isError: boolean;
-  // eslint-disable-next-line @typescript-eslint/ban-types
   error: Error | null;
   data: unknown[];
 }

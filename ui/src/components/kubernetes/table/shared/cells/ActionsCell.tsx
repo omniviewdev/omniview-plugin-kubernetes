@@ -1,22 +1,17 @@
-// UI components
-
-// Icons
 import { MoreHorizRounded } from '@mui/icons-material';
-
-// Runtime
 import {
   type DrawerComponentAction,
   type DrawerContext,
   useConfirmationModal,
 } from '@omniviewdev/runtime';
 import { ResourceClient } from '@omniviewdev/runtime/api';
+import { type types } from '@omniviewdev/runtime/models';
 import { IconButton } from '@omniviewdev/ui/buttons';
 import { DropdownMenu, type ContextMenuItem } from '@omniviewdev/ui/menus';
 import { ObjectMeta } from 'kubernetes-types/meta/v1';
 import React from 'react';
 import { LuTrash } from 'react-icons/lu';
 
-// Table context
 import { useTableDrawer } from '../../../../shared/table/TableDrawerContext';
 
 type Props = {
@@ -121,13 +116,18 @@ function actionsToMenuItems(
   return items;
 }
 
-const ActionsCell: React.FC<Props> = (props) => {
+const ActionsCell: React.FC<Props> = ({ connectionID, resourceKey, resourceID, data, namespace }) => {
   const drawer = useTableDrawer();
   const { show } = useConfirmationModal();
 
+  const propsObj = React.useMemo<Props>(
+    () => ({ connectionID, resourceKey, resourceID, data, namespace }),
+    [connectionID, resourceKey, resourceID, data, namespace],
+  );
+
   const ctx = React.useMemo(
-    () => buildDrawerContext(props),
-    [props.connectionID, props.resourceKey, props.resourceID, props.data, props.namespace],
+    () => buildDrawerContext(propsObj),
+    [propsObj],
   );
 
   const items = React.useMemo<ContextMenuItem[]>(() => {
@@ -137,8 +137,8 @@ const ActionsCell: React.FC<Props> = (props) => {
     }
 
     // Fallback: no drawer actions — provide a built-in Delete
-    return [buildFallbackDelete(props, ctx, show)];
-  }, [drawer?.actions, ctx, show, props.connectionID, props.resourceKey, props.namespace]);
+    return [buildFallbackDelete(propsObj, ctx, show)];
+  }, [drawer?.actions, ctx, show, propsObj]);
 
   if (items.length === 0) return null;
 
@@ -184,7 +184,7 @@ function buildFallbackDelete(
             namespace: props.namespace,
             input: {},
             params: {},
-          } as any);
+          } as unknown as types.DeleteInput);
         },
       });
     },

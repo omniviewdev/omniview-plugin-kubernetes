@@ -3,24 +3,24 @@ import React from 'react';
 
 import { RowContainer } from './ResourceTableRowContainer';
 
-type Memoizer = string | string[] | ((data: any) => string);
+type Memoizer = string | string[] | ((data: object) => string);
 
 /**
  * Calculate the memo key based on the memoizer function provided, fallback to default if not provided.
  */
-const calcMemoKey = (data: any, memoizer?: Memoizer) => {
+const calcMemoKey = (data: object, memoizer?: Memoizer) => {
   if (typeof memoizer === 'function') {
     return memoizer(data);
   }
 
   if (Array.isArray(memoizer)) {
-    return memoizer.map((key) => get(data, key)).join('-');
+    return memoizer.map((key) => get(data, key) as string).join('-');
   }
 
   if (typeof memoizer === 'string') {
     return memoizer
       .split(',')
-      .map((key) => get(data, key))
+      .map((key) => get(data, key) as string)
       .join('-');
   }
 

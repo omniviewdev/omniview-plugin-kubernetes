@@ -33,7 +33,7 @@ const TagInput: React.FC<Props> = ({ tags, availableTags, onChange }) => {
               color="warning"
               label={tag}
               {...tagProps}
-              onDelete={() => onDelete({} as any)}
+              onDelete={() => onDelete({} as unknown as React.SyntheticEvent)}
               key={tag}
             />
           );

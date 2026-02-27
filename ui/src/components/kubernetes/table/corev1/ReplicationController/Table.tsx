@@ -118,7 +118,7 @@ const ReplicationControllerTable: React.FC = () => {
         },
       ],
     }),
-    [],
+    [id, closeDrawer, remove, show],
   );
 
   return (

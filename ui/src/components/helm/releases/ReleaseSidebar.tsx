@@ -21,7 +21,76 @@ import CodeEditor from '../../shared/CodeEditor';
 import UpgradeDialog from './UpgradeDialog';
 
 // ── types ──
-type HelmRelease = Record<string, any>;
+
+/** Shape of a Helm release as returned by the backend list/get APIs. */
+interface HelmRelease {
+  name?: string;
+  namespace?: string;
+  version?: number;
+  info?: {
+    status?: string;
+    last_deployed?: string;
+    description?: string;
+  };
+  chart?: {
+    metadata?: {
+      name?: string;
+      version?: string;
+      appVersion?: string;
+    };
+  };
+}
+
+/** Data returned by `get-values` action. */
+interface ValuesActionData {
+  [key: string]: unknown;
+}
+
+/** Data returned by `get-manifest` action. */
+interface ManifestActionData {
+  manifest?: string;
+}
+
+/** Data returned by `get-notes` action. */
+interface NotesActionData {
+  notes?: string;
+}
+
+/** A single Helm hook. */
+interface HelmHook {
+  name: string;
+  kind: string;
+  weight: string | number;
+  events?: string[];
+}
+
+/** Data returned by `get-hooks` action. */
+interface HooksActionData {
+  hooks?: HelmHook[];
+}
+
+/** A single history revision. */
+interface HelmRevision {
+  version: number;
+  info?: {
+    status?: string;
+    description?: string;
+  };
+}
+
+/** Data returned by `get-history` action. */
+interface HistoryActionData {
+  revisions?: HelmRevision[];
+}
+
+/** Union of all possible per-tab cached data shapes. */
+type TabDataEntry =
+  | ValuesActionData
+  | ManifestActionData
+  | NotesActionData
+  | HooksActionData
+  | HistoryActionData
+  | null;
 
 interface Props {
   ctx: DrawerContext<HelmRelease>;
@@ -53,6 +122,15 @@ const MetaEntry: React.FC<{ label: string; value: React.ReactNode }> = ({ label,
   </Grid>
 );
 
+/** Shape of a parsed YAML Kubernetes resource document. */
+interface ParsedK8sResource {
+  kind?: string;
+  metadata?: {
+    name?: string;
+    namespace?: string;
+  };
+}
+
 /**
  * Parse a YAML manifest string into individual resource documents.
  */
@@ -64,8 +142,9 @@ function parseManifestResources(
   const resources: Array<{ kind: string; name: string; namespace?: string }> = [];
   for (const doc of docs) {
     try {
-      const parsed = parse(doc);
-      if (parsed?.kind && parsed?.metadata?.name) {
+      // yaml.parse returns `any` by design; cast to the expected K8s resource shape
+      const parsed = parse(doc) as ParsedK8sResource | null;
+      if (parsed?.kind && parsed.metadata?.name) {
         resources.push({
           kind: parsed.kind,
           name: parsed.metadata.name,
@@ -84,7 +163,7 @@ function parseManifestResources(
  */
 export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
   // Per-action cached tab data
-  const [tabData, setTabData] = React.useState<Record<string, any>>({});
+  const [tabData, setTabData] = React.useState<Record<string, TabDataEntry>>({});
   const [activeTab, setActiveTab] = React.useState('0');
   const [showManifestDiff, setShowManifestDiff] = React.useState(false);
   const [prevManifest, setPrevManifest] = React.useState<string | null>(null);
@@ -112,7 +191,7 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
           id: releaseName,
           namespace,
         });
-        setTabData((prev) => ({ ...prev, [actionID]: result.data }));
+        setTabData((prev) => ({ ...prev, [actionID]: result.data as TabDataEntry }));
       } catch {
         setTabData((prev) => ({ ...prev, [actionID]: null }));
       }
@@ -146,7 +225,8 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
         namespace,
         params: { revision: revision - 1 },
       });
-      setPrevManifest(result.data?.manifest ?? '');
+      const manifestData = result.data as ManifestActionData | undefined;
+      setPrevManifest(manifestData?.manifest ?? '');
     } catch {
       setPrevManifest('# Failed to load previous revision manifest');
     }
@@ -171,8 +251,14 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
   const revision = data.version ?? 0;
   const lastDeployed = data.info?.last_deployed ?? '';
 
-  const currentManifest = tabData['get-manifest']?.manifest ?? '';
+  const manifestEntry = tabData['get-manifest'] as ManifestActionData | null | undefined;
+  const currentManifest = manifestEntry?.manifest ?? '';
   const manifestResources = parseManifestResources(currentManifest);
+
+  const valuesEntry = tabData['get-values'] as ValuesActionData | null | undefined;
+  const notesEntry = tabData['get-notes'] as NotesActionData | null | undefined;
+  const hooksEntry = tabData['get-hooks'] as HooksActionData | null | undefined;
+  const historyEntry = tabData['get-history'] as HistoryActionData | null | undefined;
 
   return (
     <Stack direction="column" width="100%" spacing={2}>
@@ -261,7 +347,7 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
           <CodeEditor
             filename="values.yaml"
             language="yaml"
-            value={tabData['get-values'] ? stringify(tabData['get-values']) : '# Loading...'}
+            value={valuesEntry ? stringify(valuesEntry) : '# Loading...'}
             readOnly
             height={400}
           />
@@ -321,25 +407,25 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
             wordBreak: 'break-word',
           }}
         >
-          {tabData['get-notes']?.notes ?? 'No release notes'}
+          {notesEntry?.notes ?? 'No release notes'}
         </Box>
       </TabPanel>
 
       {/* Hooks */}
       <TabPanel value="3" activeValue={activeTab}>
-        {tabData['get-hooks']?.hooks?.length ? (
+        {hooksEntry?.hooks?.length ? (
           <Stack spacing={1}>
-            {(tabData['get-hooks'].hooks as any[]).map((hook: any, i: number) => (
-              <Card key={i} emphasis="outline">
+            {hooksEntry.hooks.map((hook) => (
+              <Card key={hook.name} emphasis="outline">
                 <Text weight="semibold" size="sm">
                   {hook.name}
                 </Text>
                 <Text size="xs" sx={{ color: 'neutral.400' }}>
-                  Kind: {hook.kind} | Weight: {hook.weight}
+                  Kind: {hook.kind} | Weight: {String(hook.weight)}
                 </Text>
                 {hook.events && (
                   <Stack direction="row" spacing={0.5} mt={0.5} flexWrap="wrap">
-                    {(hook.events as string[]).map((e: string) => (
+                    {hook.events.map((e) => (
                       <Chip key={e} size="sm" emphasis="soft" label={e} />
                     ))}
                   </Stack>
@@ -356,10 +442,10 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
 
       {/* History */}
       <TabPanel value="4" activeValue={activeTab}>
-        {tabData['get-history']?.revisions?.length ? (
+        {historyEntry?.revisions?.length ? (
           <Stack spacing={1}>
-            {(tabData['get-history'].revisions as any[]).map((rev: any, i: number) => (
-              <Card key={i} emphasis="outline">
+            {historyEntry.revisions.map((rev) => (
+              <Card key={rev.version} emphasis="outline">
                 <Stack direction="row" justifyContent="space-between" alignItems="center">
                   <Text weight="semibold" size="sm">
                     Revision {rev.version}
@@ -367,8 +453,8 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
                   <Chip
                     size="sm"
                     emphasis="soft"
-                    color={statusColorMap[rev.info?.status] ?? 'neutral'}
-                    label={rev.info?.status}
+                    color={statusColorMap[rev.info?.status ?? ''] ?? 'neutral'}
+                    label={rev.info?.status ?? ''}
                   />
                 </Stack>
                 <Text size="xs" sx={{ color: 'neutral.400' }}>
@@ -408,9 +494,9 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
       <TabPanel value="5" activeValue={activeTab}>
         {manifestResources.length > 0 ? (
           <Stack spacing={0.5}>
-            {manifestResources.map((res, i) => (
+            {manifestResources.map((res) => (
               <Card
-                key={i}
+                key={`${res.kind}/${res.name}`}
                 sx={{
                   p: 1,
                   borderRadius: 'sm',
@@ -470,7 +556,7 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
           </Stack>
         ) : (
           <Text size="sm" sx={{ color: 'neutral.400' }}>
-            {tabData['get-manifest'] ? 'No resources found in manifest' : 'Loading manifest...'}
+            {manifestEntry ? 'No resources found in manifest' : 'Loading manifest...'}
           </Text>
         )}
       </TabPanel>

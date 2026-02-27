@@ -2,7 +2,7 @@ import Box from '@mui/material/Box';
 import { Checkbox } from '@omniviewdev/ui/inputs';
 import { type Table } from '@tanstack/react-table';
 
-export const SelectBoxHeader = ({ table }: { table: Table<any> }) => (
+export const SelectBoxHeader = ({ table }: { table: Table<Record<string, unknown>> }) => (
   <Box
     sx={{
       display: 'flex',

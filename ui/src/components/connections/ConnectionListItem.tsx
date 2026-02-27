@@ -1,7 +1,5 @@
 import { MoreVert } from '@mui/icons-material';
 import Box from '@mui/material/Box';
-
-// @omniviewdev/ui
 import CircularProgress from '@mui/material/CircularProgress';
 import {
   Link,
@@ -35,6 +33,7 @@ const ConnectionListItem: React.FC<Props> = ({
 }) => {
   const { meta } = usePluginContext();
   const { navigate } = usePluginRouter();
+  // eslint-disable-next-line @typescript-eslint/unbound-method
   const { showSnackbar } = useSnackbar();
 
   const { startConnection } = useConnection({ pluginID: meta.id, connectionID: id });
@@ -102,7 +101,7 @@ const ConnectionListItem: React.FC<Props> = ({
     const refreshTime = new Date(last_refresh as unknown as string);
     // if we have no valid refresh time, we can't determine if the connection is connected, so assume we are
     if (refreshTime.toString() === 'Invalid Date') {
-      console.log('Invalid Date for refresh time', last_refresh);
+      console.warn('Invalid Date for refresh time', last_refresh);
       return true;
     }
 
@@ -202,6 +201,7 @@ const ConnectionListItem: React.FC<Props> = ({
         </IconButton>
         {menuOpen && (
           <>
+            {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
             <div
               style={{ position: 'fixed', inset: 0, zIndex: 999 }}
               onClick={() => setMenuOpen(false)}
@@ -235,7 +235,7 @@ const ConnectionListItem: React.FC<Props> = ({
                   onClick={() => setMenuOpen(false)}
                 >
                   <LuPencil size={14} />
-                  <Text size="sm">Edit '{name}'</Text>
+                  <Text size="sm">Edit &apos;{name}&apos;</Text>
                 </Box>
               </Link>
               <Box
@@ -251,7 +251,7 @@ const ConnectionListItem: React.FC<Props> = ({
                 onClick={() => setMenuOpen(false)}
               >
                 <LuTrash size={14} />
-                <Text size="sm">Delete '{name}'</Text>
+                <Text size="sm">Delete &apos;{name}&apos;</Text>
               </Box>
             </Box>
           </>

@@ -60,6 +60,7 @@ const SecretTable: React.FC = () => {
                 >
                   {(getValue() as string[]).map((value) => (
                     <Chip
+                      key={value}
                       size={'sm'}
                       sx={{ borderRadius: '2px' }}
                       emphasis="outline"
@@ -77,7 +78,7 @@ const SecretTable: React.FC = () => {
         ],
         { connectionID: id, resourceKey },
       ),
-    [],
+    [id],
   );
 
   const drawer: DrawerComponent<Secret> = React.useMemo(

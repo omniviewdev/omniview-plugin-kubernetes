@@ -44,7 +44,7 @@ const ValidatingAdmissionPolicyTable: React.FC = () => {
         ],
         { connectionID: id, resourceKey },
       ),
-    [],
+    [id],
   );
 
   const drawer: DrawerComponent<ValidatingAdmissionPolicy> = React.useMemo(

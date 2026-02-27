@@ -33,9 +33,9 @@ export const BadgesCell: React.FC<Props> = ({ align, values, colorMap, hoverMenu
 
   return (
     <Box display="flex" flex={1} justifyContent={getAlignment()} alignItems="center">
-      {values.map((value, idx) =>
+      {values.map((value) =>
         hoverMenu ? (
-          <Tooltip key={`badge-${idx}`} content={hoverMenu(value)}>
+          <Tooltip key={value} content={hoverMenu(value)}>
             <Chip
               size="sm"
               emphasis="solid"
@@ -54,7 +54,7 @@ export const BadgesCell: React.FC<Props> = ({ align, values, colorMap, hoverMenu
           </Tooltip>
         ) : (
           <Chip
-            key={`badge-${idx}`}
+            key={value}
             size="sm"
             emphasis="solid"
             color={getColor(value)}

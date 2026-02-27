@@ -148,7 +148,7 @@ const NodeTable: React.FC = () => {
         ],
         { connectionID: id, resourceKey },
       ),
-    [],
+    [id],
   );
 
   const drawer: DrawerComponent<Node> = React.useMemo(
@@ -161,8 +161,8 @@ const NodeTable: React.FC = () => {
           title: 'Cordon',
           icon: <LuShieldBan />,
           enabled: (ctx: DrawerContext<Node>) => !ctx.data?.spec?.unschedulable,
-          action: (ctx: DrawerContext<Node>) =>
-            show({
+          action: (ctx: DrawerContext<Node>) => {
+            void show({
               title: (
                 <span>
                   Cordon <strong>{ctx.data?.metadata?.name}</strong>?
@@ -181,14 +181,15 @@ const NodeTable: React.FC = () => {
                   id: ctx.data?.metadata?.name,
                 });
               },
-            }),
+            });
+          },
         },
         {
           title: 'Uncordon',
           icon: <LuShieldCheck />,
           enabled: (ctx: DrawerContext<Node>) => !!ctx.data?.spec?.unschedulable,
-          action: (ctx: DrawerContext<Node>) =>
-            show({
+          action: (ctx: DrawerContext<Node>) => {
+            void show({
               title: (
                 <span>
                   Uncordon <strong>{ctx.data?.metadata?.name}</strong>?
@@ -203,13 +204,14 @@ const NodeTable: React.FC = () => {
                   id: ctx.data?.metadata?.name,
                 });
               },
-            }),
+            });
+          },
         },
         {
           title: 'Drain',
           icon: <LuArrowDownToLine />,
-          action: (ctx: DrawerContext<Node>) =>
-            show({
+          action: (ctx: DrawerContext<Node>) => {
+            void show({
               title: (
                 <span>
                   Drain <strong>{ctx.data?.metadata?.name}</strong>?
@@ -235,13 +237,14 @@ const NodeTable: React.FC = () => {
                   },
                 });
               },
-            }),
+            });
+          },
         },
         {
           title: 'Shell',
           icon: <LuTerminal />,
-          action: (ctx: DrawerContext<Node>) =>
-            createSession({
+          action: (ctx: DrawerContext<Node>) => {
+            void createSession({
               connectionID: id,
               label: `node/${ctx.data?.metadata?.name}`,
               icon: 'LuTerminal',
@@ -256,13 +259,14 @@ const NodeTable: React.FC = () => {
                     : {}),
                 },
               },
-            }).then(() => closeDrawer()),
+            }).then(() => closeDrawer());
+          },
         },
         {
           title: 'Delete',
           icon: <LuTrash />,
-          action: (ctx: DrawerContext<Node>) =>
-            show({
+          action: (ctx: DrawerContext<Node>) => {
+            void show({
               title: (
                 <span>
                   Delete <strong>{ctx.data?.metadata?.name}</strong>?
@@ -288,11 +292,12 @@ const NodeTable: React.FC = () => {
                 });
                 closeDrawer();
               },
-            }),
+            });
+          },
         },
       ],
     }),
-    [id, nodeShellConfig],
+    [id, nodeShellConfig, closeDrawer, createSession, executeAction, remove, show],
   );
 
   return (

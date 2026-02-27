@@ -47,7 +47,9 @@ const getColumnWidth = (connections: EnrichedConnection[], col: string) => {
 
   for (const { connection } of connections) {
     if (!connection.labels) continue;
-    const val = connection.labels[col];
+    // connection.labels is Record<string, any> from the runtime SDK
+    const labels = connection.labels as Record<string, string | undefined>;
+    const val = labels[col];
     if (val) {
       const calcedWidth = String(val).length * px;
       if (calcedWidth > width) {
@@ -84,6 +86,7 @@ const GridCardWrapper: React.FC<{
 }) => {
   const { meta } = usePluginContext();
   const { navigate } = usePluginRouter();
+  // eslint-disable-next-line @typescript-eslint/unbound-method
   const { showSnackbar } = useSnackbar();
   const { startConnection, stopConnection } = useConnection({
     pluginID: meta.id,
@@ -127,7 +130,7 @@ const GridCardWrapper: React.FC<{
   };
 
   const handleCopyId = () => {
-    navigator.clipboard.writeText(enriched.connection.id);
+    void navigator.clipboard.writeText(enriched.connection.id);
     showSnackbar({ status: 'success', message: 'Connection ID copied' });
   };
 
@@ -225,7 +228,11 @@ const ConnectionTable: React.FC<Props> = ({
 
   // List view - only render visible label columns
   const sortedVisibleCols = visibleColumns
-    .filter((c) => allConnections.some((e) => e.connection.labels?.[c] !== undefined))
+    .filter((c) => allConnections.some((e) => {
+      // connection.labels is Record<string, any> from the runtime SDK
+      const labels = e.connection.labels as Record<string, string | undefined> | undefined;
+      return labels?.[c] !== undefined;
+    }))
     .sort();
 
   return (

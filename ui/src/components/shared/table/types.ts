@@ -1,6 +1,6 @@
-export type Memoizer = string | string[] | ((data: any) => string);
+export type Memoizer = string | string[] | ((data: object) => string);
 
-export type IdAccessor = string | ((data: any) => string);
+export type IdAccessor = string | ((data: object) => string);
 
 export type ColumnMeta = {
   meta?: {

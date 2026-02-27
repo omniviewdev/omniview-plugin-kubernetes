@@ -3,17 +3,8 @@ import { exec } from '@omniviewdev/runtime/models';
 import { Text } from '@omniviewdev/ui/typography';
 import jsonpath from 'jsonpath';
 import React from 'react';
-
-// @omniviewdev/ui
-
-// third party
-
-// icons
 import { LuSquareTerminal } from 'react-icons/lu';
 
-// types
-
-// project imports
 import ActionMenuListItem from './ActionMenuListItem';
 
 /** Command to detect the shell */
@@ -75,7 +66,7 @@ const ExecAction: React.FC<Props> = ({
   handleLeaveMenu,
   action,
   plugin,
-  connection,
+  connection: _connection,
   resource,
   data,
   itemProps,
@@ -83,8 +74,9 @@ const ExecAction: React.FC<Props> = ({
 }) => {
   const targets = calcTargets(action, data);
 
-  const handlePerformExec = (label: string, params: Record<string, string>) => {
-    const opts = exec.SessionOptions.createFrom({
+  const handlePerformExec = (_label: string, params: Record<string, string>) => {
+    // TODO: use the created session options to launch exec
+    void exec.SessionOptions.createFrom({
       params,
       resource_plugin: plugin,
       resource_key: resource,
@@ -92,8 +84,6 @@ const ExecAction: React.FC<Props> = ({
       command: DefaultShellCmd,
       tty: true,
     });
-
-    console.log({ opts, label, connection });
   };
 
   return (
@@ -134,7 +124,7 @@ const ExecAction: React.FC<Props> = ({
                   handlePerformExec(target.label, target.params);
                   handleDeselect();
                   if (typeof itemProps.onClick === 'function') {
-                    itemProps.onClick();
+                    (itemProps.onClick as () => void)();
                   }
                   handleDismiss();
                 }}

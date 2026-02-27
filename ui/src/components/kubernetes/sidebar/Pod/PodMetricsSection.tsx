@@ -123,7 +123,7 @@ function toTimeSeriesDef(ts: metric.TimeSeries, label: string, color?: string): 
     label,
     // dp.timestamp is a Wails-serialized time.Time (ISO string at runtime)
     data: (ts.data_points ?? []).map((dp) => ({
-      timestamp: new Date(String(dp.timestamp)).getTime(),
+      timestamp: new Date(dp.timestamp as unknown as string).getTime(),
       value: dp.value,
     })),
     color,

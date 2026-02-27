@@ -88,7 +88,7 @@ const IngressTable: React.FC = () => {
             cell: ({ getValue }) => {
               const val = getValue() as string[] | undefined;
               if (!val) {
-                return <></>;
+                return null;
               }
 
               return (
@@ -106,6 +106,7 @@ const IngressTable: React.FC = () => {
                 >
                   {val.map((v) => (
                     <ResourceLinkCell
+                      key={v}
                       connectionId={id}
                       resourceId={v}
                       resourceKey={'core::v1::Secret'}
@@ -163,7 +164,7 @@ const IngressTable: React.FC = () => {
         },
       ],
     }),
-    [],
+    [id, closeDrawer, remove, show],
   );
 
   return (

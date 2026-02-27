@@ -135,8 +135,8 @@ const DaemonSetTable: React.FC = () => {
         {
           title: 'Restart',
           icon: <LuRefreshCw />,
-          action: (ctx) =>
-            show({
+          action: (ctx) => {
+            void show({
               title: (
                 <span>
                   Restart <strong>{ctx.data?.metadata?.name}</strong>?
@@ -160,13 +160,14 @@ const DaemonSetTable: React.FC = () => {
                 });
                 closeDrawer();
               },
-            }),
+            });
+          },
         },
         {
           title: 'Delete',
           icon: <LuTrash />,
-          action: (ctx) =>
-            show({
+          action: (ctx) => {
+            void show({
               title: (
                 <span>
                   Delete <strong>{ctx.data?.metadata?.name}</strong>?
@@ -193,7 +194,8 @@ const DaemonSetTable: React.FC = () => {
                 });
                 closeDrawer();
               },
-            }),
+            });
+          },
         },
         {
           title: 'Logs',
@@ -206,33 +208,35 @@ const DaemonSetTable: React.FC = () => {
 
             list.push({
               title: 'All Containers',
-              action: () =>
-                createLogSession({
+              action: () => {
+                void createLogSession({
                   connectionID: id,
                   resourceKey,
                   resourceID: ctx.data?.metadata?.name as string,
-                  resourceData: ctx.data as Record<string, any>,
+                  resourceData: ctx.data as Record<string, never>,
                   target: '',
                   label: `DaemonSet ${ctx.data?.metadata?.name}`,
                   icon: 'LuLogs',
                   params: filterParams,
-                }).then(() => closeDrawer()),
+                }).then(() => closeDrawer());
+              },
             });
 
             containers.forEach((container) => {
               list.push({
                 title: container.name,
-                action: () =>
-                  createLogSession({
+                action: () => {
+                  void createLogSession({
                     connectionID: id,
                     resourceKey,
                     resourceID: ctx.data?.metadata?.name as string,
-                    resourceData: ctx.data as Record<string, any>,
+                    resourceData: ctx.data as Record<string, never>,
                     target: container.name,
                     label: `DaemonSet ${ctx.data?.metadata?.name}`,
                     icon: 'LuLogs',
                     params: filterParams,
-                  }).then(() => closeDrawer()),
+                  }).then(() => closeDrawer());
+                },
               });
             });
 
@@ -241,7 +245,7 @@ const DaemonSetTable: React.FC = () => {
         },
       ],
     }),
-    [],
+    [id, closeDrawer, createLogSession, remove, show, startStreamAction],
   );
 
   return (

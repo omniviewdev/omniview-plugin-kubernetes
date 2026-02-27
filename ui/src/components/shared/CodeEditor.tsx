@@ -42,35 +42,35 @@ const CodeEditor: FC<Props> = ({
 
     async function detectLanguage() {
       try {
-        /* @ts-expect-error - global helper on the window object */
-        const detected = await window.detectLanguage({
+        const detectLangFn = (window as unknown as { detectLanguage?: (opts: { filename: string; contents: string }) => Promise<string | undefined> }).detectLanguage;
+        if (!detectLangFn) return;
+        const detected: string | undefined = await detectLangFn({
           filename,
           contents: value,
         });
         if (detected) {
-          console.log('Detected language', detected);
           setLang(detected);
         }
-      } catch (err) {
+      } catch (err: unknown) {
         console.error('Failed to detect language', err);
       }
     }
 
     if (!lang) {
-      detectLanguage().catch(console.error);
+      detectLanguage().catch((err: unknown) => { console.error(err); });
     }
   }, [monaco, filename, value, lang]);
 
   /**
    * If we are using controlled, we need to handle the change event
    */
-  const handleChange = (value: string) => {
+  const handleChange = (val: string) => {
     if (onChange) {
-      onChange(value);
+      onChange(val);
       return;
     }
 
-    setControlledValue(value);
+    setControlledValue(val);
   };
 
   if (diff && original && lang) {
@@ -94,11 +94,11 @@ const CodeEditor: FC<Props> = ({
         value={
           lang === 'json'
             ? // pretty print it
-              JSON.stringify(JSON.parse(value), null, 2)
+              JSON.stringify(JSON.parse(value) as unknown, null, 2)
             : value || controlledValue
         }
-        onChange={(value) => {
-          handleChange(value || '');
+        onChange={(v) => {
+          handleChange(v || '');
         }}
         height={height ?? '100%'}
         path={path}
@@ -106,6 +106,8 @@ const CodeEditor: FC<Props> = ({
       />
     );
   }
+
+  return null;
 };
 
 export default CodeEditor;

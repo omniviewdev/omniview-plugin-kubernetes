@@ -13,7 +13,7 @@ const EventTable: React.FC = () => {
 
   const columns = React.useMemo<Array<ColumnDef<Event>>>(
     () => withNamespacedResourceColumns([], { connectionID: id, resourceKey }),
-    [],
+    [id],
   );
 
   return (

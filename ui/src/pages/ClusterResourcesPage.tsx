@@ -1,26 +1,17 @@
-// @omniviewdev/ui
 import Box from '@mui/material/Box';
-import { Link, useInformerState } from '@omniviewdev/runtime';
-
-// Hooks
-import {
+import { Link, useInformerState,
   useConnection,
   useResourceTypes,
   useResourceGroups,
   useSnackbar,
   usePluginRouter,
-  useEditorSchemas,
-} from '@omniviewdev/runtime';
+  useEditorSchemas } from '@omniviewdev/runtime';
 import { Avatar } from '@omniviewdev/ui';
 import { IconButton } from '@omniviewdev/ui/buttons';
 import { Stack } from '@omniviewdev/ui/layout';
 import { NavMenu } from '@omniviewdev/ui/sidebars';
 import { Text } from '@omniviewdev/ui/typography';
 import React from 'react';
-
-// Layout
-
-// Icons
 import { LuCog } from 'react-icons/lu';
 import { Outlet, useParams } from 'react-router-dom';
 
@@ -57,7 +48,15 @@ export default function ClusterResourcesPage(): React.ReactElement {
   // Fetch and register OpenAPI schemas with the host's Monaco schema registry
   const { schemas: editorSchemas } = useEditorSchemas({ pluginID: 'kubernetes', connectionID: id });
   React.useEffect(() => {
-    const registry = (window as any).__monacoSchemaRegistry;
+    // The Monaco schema registry is attached to window by the host app at runtime.
+    // It exposes register/unregister methods for managing JSON schemas.
+    const win = window as Window & {
+      __monacoSchemaRegistry?: {
+        register: (plugin: string, connId: string, schemas: typeof editorSchemas) => void;
+        unregister: (plugin: string, connId: string) => void;
+      };
+    };
+    const registry = win.__monacoSchemaRegistry;
     if (!registry || !editorSchemas?.length || !id) return;
 
     registry.register('kubernetes', id, editorSchemas);
@@ -67,6 +66,7 @@ export default function ClusterResourcesPage(): React.ReactElement {
     };
   }, [editorSchemas, id]);
 
+  // eslint-disable-next-line @typescript-eslint/unbound-method
   const { showSnackbar } = useSnackbar();
 
   // Sync modal — open only when we know the connection is actively syncing,
@@ -104,7 +104,7 @@ export default function ClusterResourcesPage(): React.ReactElement {
   // Listen for footer click to re-open sync modal
   React.useEffect(() => {
     const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
+      const detail = (e as CustomEvent<{ connectionID?: string }>).detail;
       if (detail?.connectionID === id) {
         manualOpenRef.current = true;
         setSyncModalOpen(true);

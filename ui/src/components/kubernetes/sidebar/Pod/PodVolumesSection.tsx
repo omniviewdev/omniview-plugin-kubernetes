@@ -1,18 +1,13 @@
-// @omniviewdev/ui
 import Box from '@mui/material/Box';
 import { Chip } from '@omniviewdev/ui';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
-
-// project imports
 import type { Pod, Volume } from 'kubernetes-types/core/v1';
 import React from 'react';
 
 import DetailsCard, { DetailsCardEntry } from '../../../shared/DetailsCard';
 import ExpandableSections from '../../../shared/ExpandableSections';
 import ResourceLinkChip from '../../../shared/ResourceLinkChip';
-
-// types
 
 interface Props {
   pod: Pod;

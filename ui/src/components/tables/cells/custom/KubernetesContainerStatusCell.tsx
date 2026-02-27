@@ -15,7 +15,7 @@ export const KubernetesContainerStatusCell: React.FC<Props> = ({ data }) => {
   const theme = useTheme();
 
   if (!data || !Array.isArray(data)) {
-    return <React.Fragment />;
+    return null;
   }
 
   const obj = data as ContainerStatus[];
@@ -53,6 +53,7 @@ export const KubernetesContainerStatusCell: React.FC<Props> = ({ data }) => {
     >
       {obj.map((status) => (
         <Tooltip
+          key={status.name}
           placement="top-end"
           content={<ContainerStatusCard status={status} showStartedAt={false} />}
         >

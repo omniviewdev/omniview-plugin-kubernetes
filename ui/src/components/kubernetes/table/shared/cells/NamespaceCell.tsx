@@ -45,6 +45,7 @@ export const NamespaceCell = <T,>({ getValue, table, column }: CellContext<T, un
       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {val}
       </span>
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
       <span
         onClick={(e) => e.stopPropagation()}
         style={{
@@ -58,7 +59,9 @@ export const NamespaceCell = <T,>({ getValue, table, column }: CellContext<T, un
         <CopyButton value={val} size="xs" />
         <span
           role="button"
+          tabIndex={0}
           onClick={handleFilter}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleFilter(e as unknown as React.MouseEvent); } }}
           title={isFiltered ? 'Remove namespace filter' : 'Filter by this namespace'}
           style={{
             display: 'inline-flex',

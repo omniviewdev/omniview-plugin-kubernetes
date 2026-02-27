@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
 import {
@@ -433,6 +434,8 @@ export const useSidebarLayout = ({ connectionID }: Opts) => {
   // event when the actual values haven't changed.
   const informerStates = useStableObject(summary.data?.resources);
 
+  const layoutSetting = settings['kubernetes.layout'] as string | undefined;
+
   const [layout, setLayout] = React.useState<Array<NavSection>>([]);
   const [isLoading, setIsLoading] = React.useState<boolean>(true);
 
@@ -451,7 +454,7 @@ export const useSidebarLayout = ({ connectionID }: Opts) => {
 
     const compute = () => {
       setIsLoading(true);
-      switch (settings['kubernetes.layout']) {
+      switch (layoutSetting) {
         case 'modern':
           setLayout(calculateModernLayout(groups.data, informerStates));
           break;
@@ -475,7 +478,7 @@ export const useSidebarLayout = ({ connectionID }: Opts) => {
     // Debounce during active sync to avoid hundreds of recalculations
     const timer = setTimeout(compute, 500);
     return () => clearTimeout(timer);
-  }, [groups.data, settings['kubernetes.layout'], informerStates, isFullySynced]);
+  }, [groups.data, layoutSetting, informerStates, isFullySynced]);
 
   return {
     layout,

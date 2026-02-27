@@ -1,16 +1,11 @@
 import Grid from '@mui/material/Grid';
 import { DrawerContext } from '@omniviewdev/runtime';
 import { Chip } from '@omniviewdev/ui';
-
-// material-ui
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
-
-// types
 import { Ingress } from 'kubernetes-types/networking/v1';
 import React from 'react';
 
-// project-imports
 import { BrowserOpenURL } from '../../../../utils/ide';
 import { containsKeyWithPrefix } from '../../../../utils/objects';
 import Card from '../../../shared/Card';
@@ -84,7 +79,7 @@ const RuleInfo: React.FC<InfoSectionProps> = ({ obj }) => {
   return (
     <Card title="Rules" icon="LuNetwork">
       {obj.spec?.rules?.map((rule) => (
-        <Stack direction="column" spacing={1} p={1}>
+        <Stack key={rule.host ?? '*'} direction="column" spacing={1} p={1}>
           <Chip
             sx={{ px: 1, borderRadius: 'sm' }}
             emphasis="outline"

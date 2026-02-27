@@ -13,7 +13,7 @@ const CSIStorageCapacityTable: React.FC = () => {
 
   const columns = React.useMemo<Array<ColumnDef<CSIStorageCapacity>>>(
     () => withClusterResourceColumns([], { connectionID: id, resourceKey }),
-    [],
+    [id],
   );
 
   return (

@@ -15,7 +15,7 @@ type Props = {
   annotations: Record<string, boolean>;
   setAnnotations: (vals: Record<string, boolean>) => void;
   anchorEl: HTMLElement | undefined;
-  columns: Array<Column<any>>;
+  columns: Array<Column<Record<string, unknown>>>;
   onClose: () => void;
   onClick: React.MouseEventHandler<HTMLButtonElement>;
 };

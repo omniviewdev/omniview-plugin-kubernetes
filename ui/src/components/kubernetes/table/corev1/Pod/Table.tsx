@@ -8,7 +8,7 @@ import {
   useResourceMutations,
   useRightDrawer,
 } from '@omniviewdev/runtime';
-import { ColumnDef } from '@tanstack/react-table';
+import { type ColumnDef } from '@tanstack/react-table';
 import { ContainerStatus, Pod } from 'kubernetes-types/core/v1';
 import { Condition, OwnerReference } from 'kubernetes-types/meta/v1';
 import React from 'react';
@@ -21,12 +21,12 @@ import ResourceTable from '../../../../shared/table/ResourceTable';
 import PodSidebar from '../../../sidebar/Pod';
 import ConditionsCell from '../../shared/cells/ConditionsCell';
 import { CopyableCell } from '../../shared/cells/CopyableCell';
-
 import { withNamespacedResourceColumns } from '../../shared/columns';
+
 import ContainerPhaseCell from './cells/ContainerPhaseCell';
-import ResourceLinkCell from './cells/ResourceLinkCell';
 import ContainerStatusCell from './cells/ContainerStatusCell';
 import MetricUsageCell, { PodMetricsContext } from './cells/MetricUsageCell';
+import ResourceLinkCell from './cells/ResourceLinkCell';
 
 const resourceKey = 'core::v1::Pod';
 
@@ -53,21 +53,24 @@ const PodTable: React.FC = () => {
   /**
    * Handler to go ahead and submit a resource change
    */
-  const onEditorSubmit = (ctx: DrawerContext<Pod>, value: Record<string, any>) => {
-    update({
-      opts: {
-        connectionID: id,
-        resourceKey,
-        resourceID: ctx.data?.metadata?.name as string,
-        namespace: ctx.data?.metadata?.namespace as string,
-      },
-      input: {
-        input: value,
-      },
-    }).then(() => {
-      closeDrawer();
-    });
-  };
+  const onEditorSubmit = React.useCallback(
+    (ctx: DrawerContext<Pod>, value: Record<string, unknown>) => {
+      void update({
+        opts: {
+          connectionID: id,
+          resourceKey,
+          resourceID: ctx.data?.metadata?.name as string,
+          namespace: ctx.data?.metadata?.namespace as string,
+        },
+        input: {
+          input: value,
+        },
+      }).then(() => {
+        closeDrawer();
+      });
+    },
+    [id, update, closeDrawer],
+  );
 
   const columns = React.useMemo<Array<ColumnDef<Pod>>>(
     () =>
@@ -104,8 +107,8 @@ const PodTable: React.FC = () => {
             accessorKey: 'metadata.ownerReferences',
             cell: ({ getValue, row }) => {
               const refs = getValue() as Array<OwnerReference> | undefined;
-              if (refs == undefined || refs.length === 0) {
-                return <></>;
+              if (refs == null || refs.length === 0) {
+                return null;
               }
               const ownerKind = refs[0].kind;
               const ownerKey = ownerRefKeyMap[ownerKind];
@@ -297,8 +300,8 @@ const PodTable: React.FC = () => {
         {
           title: 'Delete',
           icon: <LuTrash />,
-          action: (ctx) =>
-            show({
+          action: (ctx) => {
+            void show({
               title: (
                 <span>
                   Delete <strong>{ctx.data?.metadata?.name}</strong>?
@@ -324,7 +327,8 @@ const PodTable: React.FC = () => {
                 });
                 closeDrawer();
               },
-            }),
+            });
+          },
         },
         {
           title: 'Exec',
@@ -336,8 +340,8 @@ const PodTable: React.FC = () => {
             ctx.data?.spec?.containers?.forEach((container) => {
               list.push({
                 title: container.name,
-                action: () =>
-                  createSession({
+                action: () => {
+                  void createSession({
                     connectionID: id,
                     label: `${ctx.data?.metadata?.name}/${container.name}`,
                     icon: 'LuContainer',
@@ -347,14 +351,15 @@ const PodTable: React.FC = () => {
                       resource_key: ctx.resource?.key,
                       params: { container: container.name },
                     },
-                  }).then(() => closeDrawer()),
+                  }).then(() => closeDrawer());
+                },
               });
             });
             ctx.data?.spec?.ephemeralContainers?.forEach((container) => {
               list.push({
                 title: container.name,
-                action: () =>
-                  createSession({
+                action: () => {
+                  void createSession({
                     connectionID: id,
                     label: `${ctx.data?.metadata?.name}/${container.name}`,
                     icon: 'LuContainer',
@@ -364,7 +369,8 @@ const PodTable: React.FC = () => {
                       resource_key: ctx.resource?.key,
                       params: { container: container.name },
                     },
-                  }).then(() => closeDrawer()),
+                  }).then(() => closeDrawer());
+                },
               });
             });
 
@@ -386,66 +392,70 @@ const PodTable: React.FC = () => {
             if (allContainers.length > 1) {
               list.push({
                 title: 'All Containers',
-                action: () =>
-                  createLogSession({
+                action: () => {
+                  void createLogSession({
                     connectionID: id,
                     resourceKey,
                     resourceID: ctx.data?.metadata?.name as string,
-                    resourceData: ctx.data as Record<string, any>,
+                    resourceData: ctx.data as Record<string, unknown>,
                     target: '',
                     label: `Pod ${ctx.data?.metadata?.name}`,
                     icon: 'LuLogs',
                     params: filterParams,
-                  }).then(() => closeDrawer()),
+                  }).then(() => closeDrawer());
+                },
               });
             }
 
             containers.forEach((container) => {
               list.push({
                 title: container.name,
-                action: () =>
-                  createLogSession({
+                action: () => {
+                  void createLogSession({
                     connectionID: id,
                     resourceKey,
                     resourceID: ctx.data?.metadata?.name as string,
-                    resourceData: ctx.data as Record<string, any>,
+                    resourceData: ctx.data as Record<string, unknown>,
                     target: container.name,
                     label: `Pod ${ctx.data?.metadata?.name}`,
                     icon: 'LuLogs',
                     params: filterParams,
-                  }).then(() => closeDrawer()),
+                  }).then(() => closeDrawer());
+                },
               });
             });
             initContainers.forEach((container) => {
               list.push({
                 title: `${container.name} (init)`,
-                action: () =>
-                  createLogSession({
+                action: () => {
+                  void createLogSession({
                     connectionID: id,
                     resourceKey,
                     resourceID: ctx.data?.metadata?.name as string,
-                    resourceData: ctx.data as Record<string, any>,
+                    resourceData: ctx.data as Record<string, unknown>,
                     target: container.name,
                     label: `Pod ${ctx.data?.metadata?.name}`,
                     icon: 'LuLogs',
                     params: filterParams,
-                  }).then(() => closeDrawer()),
+                  }).then(() => closeDrawer());
+                },
               });
             });
             ephemeralContainers.forEach((container) => {
               list.push({
                 title: `${container.name} (ephemeral)`,
-                action: () =>
-                  createLogSession({
+                action: () => {
+                  void createLogSession({
                     connectionID: id,
                     resourceKey,
                     resourceID: ctx.data?.metadata?.name as string,
-                    resourceData: ctx.data as Record<string, any>,
+                    resourceData: ctx.data as Record<string, unknown>,
                     target: container.name,
                     label: `Pod ${ctx.data?.metadata?.name}`,
                     icon: 'LuLogs',
                     params: filterParams,
-                  }).then(() => closeDrawer()),
+                  }).then(() => closeDrawer());
+                },
               });
             });
 
@@ -456,17 +466,17 @@ const PodTable: React.FC = () => {
           title: 'Add Debug Container',
           icon: <LuBugPlay />,
           enabled: false,
-          action: (_) => console.log('adding debug container'),
+          action: () => { /* TODO: implement add debug container */ },
         },
         {
           title: 'Resize',
           icon: <LuScaling />,
           enabled: false,
-          action: (_) => console.log('resize'),
+          action: () => { /* TODO: implement resize */ },
         },
       ],
     }),
-    [],
+    [id, closeDrawer, createLogSession, createSession, onEditorSubmit, remove, show],
   );
 
   return (

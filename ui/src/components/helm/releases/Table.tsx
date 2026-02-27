@@ -12,7 +12,24 @@ import ReleaseSidebar from './ReleaseSidebar';
 
 const resourceKey = 'helm::v1::Release';
 
-type HelmRelease = Record<string, any>;
+/** Shape of a Helm release row as rendered in the table. */
+interface HelmRelease {
+  name?: string;
+  namespace?: string;
+  version?: number;
+  info?: {
+    status?: string;
+    last_deployed?: string;
+    description?: string;
+  };
+  chart?: {
+    metadata?: {
+      name?: string;
+      version?: string;
+      appVersion?: string;
+    };
+  };
+}
 
 const statusColorMap: Record<string, 'success' | 'danger' | 'warning' | 'neutral'> = {
   deployed: 'success',

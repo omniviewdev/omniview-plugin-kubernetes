@@ -1,12 +1,9 @@
-// @omniviewdev/ui
 import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Grid';
 import { Chip, ClipboardText } from '@omniviewdev/ui';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
-
-// project imports
 import { formatRelative } from 'date-fns';
 import type { Pod } from 'kubernetes-types/core/v1';
 import { Condition } from 'kubernetes-types/meta/v1';
@@ -14,10 +11,6 @@ import React from 'react';
 
 import ConditionChip from '../../../shared/ConditionChip';
 import ResourceLinkChip from '../../../shared/ResourceLinkChip';
-
-// types
-
-// third-party
 
 interface Props {
   pod: Pod;

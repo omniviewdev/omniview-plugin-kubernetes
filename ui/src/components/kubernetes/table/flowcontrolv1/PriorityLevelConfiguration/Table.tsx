@@ -54,7 +54,7 @@ const IngressTable: React.FC = () => {
                 row?.spec?.type === 'Limited'
                   ? row.spec?.limited?.lendablePercent
                   : row.spec?.exempt?.lendablePercent;
-              return val != undefined ? `${val}%` : undefined;
+              return val != null ? `${val}%` : undefined;
             },
             meta: {
               defaultHidden: false,
@@ -66,7 +66,7 @@ const IngressTable: React.FC = () => {
             accessorKey: 'spec.limited.borrowingLimitPercent',
             accessorFn: (row) => {
               const val = row.spec?.limited?.borrowingLimitPercent;
-              return val != undefined ? `${val}%` : undefined;
+              return val != null ? `${val}%` : undefined;
             },
             meta: {
               defaultHidden: false,
@@ -83,7 +83,7 @@ const IngressTable: React.FC = () => {
         ],
         { connectionID: id, resourceKey },
       ),
-    [],
+    [id],
   );
 
   const drawer: DrawerComponent<PriorityLevelConfiguration> = React.useMemo(

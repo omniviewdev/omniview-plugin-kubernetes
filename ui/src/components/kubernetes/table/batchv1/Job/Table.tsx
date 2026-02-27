@@ -170,7 +170,7 @@ This field is beta-level. It can be used when the \`JobPodFailurePolicy\` featur
             size: 150,
             cell: ({ getValue }) => {
               const refs = getValue() as Array<OwnerReference> | undefined;
-              if (!refs || refs.length === 0) return <></>;
+              if (!refs || refs.length === 0) return null;
               const ref = refs[0];
               return (
                 <ResourceLinkCell
@@ -216,8 +216,8 @@ This field is beta-level. It can be used when the \`JobPodFailurePolicy\` featur
         {
           title: 'Delete',
           icon: <LuTrash />,
-          action: (ctx) =>
-            show({
+          action: (ctx) => {
+            void show({
               title: (
                 <span>
                   Delete <strong>{ctx.data?.metadata?.name}</strong>?
@@ -243,7 +243,8 @@ This field is beta-level. It can be used when the \`JobPodFailurePolicy\` featur
                 });
                 closeDrawer();
               },
-            }),
+            });
+          },
         },
         {
           title: 'Logs',
@@ -256,33 +257,35 @@ This field is beta-level. It can be used when the \`JobPodFailurePolicy\` featur
 
             list.push({
               title: 'All Containers',
-              action: () =>
-                createLogSession({
+              action: () => {
+                void createLogSession({
                   connectionID: id,
                   resourceKey,
                   resourceID: ctx.data?.metadata?.name as string,
-                  resourceData: ctx.data as Record<string, any>,
+                  resourceData: ctx.data as Record<string, never>,
                   target: '',
                   label: `Job ${ctx.data?.metadata?.name}`,
                   icon: 'LuLogs',
                   params: filterParams,
-                }).then(() => closeDrawer()),
+                }).then(() => closeDrawer());
+              },
             });
 
             containers.forEach((container) => {
               list.push({
                 title: container.name,
-                action: () =>
-                  createLogSession({
+                action: () => {
+                  void createLogSession({
                     connectionID: id,
                     resourceKey,
                     resourceID: ctx.data?.metadata?.name as string,
-                    resourceData: ctx.data as Record<string, any>,
+                    resourceData: ctx.data as Record<string, never>,
                     target: container.name,
                     label: `Job ${ctx.data?.metadata?.name}`,
                     icon: 'LuLogs',
                     params: filterParams,
-                  }).then(() => closeDrawer()),
+                  }).then(() => closeDrawer());
+                },
               });
             });
 
@@ -291,7 +294,7 @@ This field is beta-level. It can be used when the \`JobPodFailurePolicy\` featur
         },
       ],
     }),
-    [],
+    [id, closeDrawer, createLogSession, remove, show],
   );
 
   return (

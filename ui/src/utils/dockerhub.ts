@@ -80,7 +80,7 @@ async function performFetch<T>(url: string): Promise<T | undefined> {
     return undefined;
   }
 
-  const data: JSONResponse<T> = await response.json();
+  const data = (await response.json()) as JSONResponse<T>;
   return data.data;
 }
 
@@ -114,10 +114,10 @@ export const getDockerHubImageInfo = async (image: string) => {
       registeredAt: repo?.date_registered || '',
       logoSources: [
         `https://hub.docker.com/api/media/repos_logo/v1/${user}%2F${name}`,
-        org?.gravatar_url,
+        ...(org?.gravatar_url ? [org.gravatar_url] : []),
       ],
-      categories: repo?.categories.map((c) => c.name) || [],
-    } as ImageRepositoryInfo;
+      categories: repo?.categories.map((c) => c.name) ?? [],
+    } satisfies ImageRepositoryInfo;
   } catch (error) {
     console.error(error);
     return null;

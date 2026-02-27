@@ -1,7 +1,7 @@
 import { Column } from '@tanstack/react-table';
 import { CSSProperties } from 'react';
 
-export const getCommonPinningStyles = <T = any,>(
+export const getCommonPinningStyles = <T = Record<string, unknown>,>(
   column: Column<T>,
   header: boolean,
 ): CSSProperties => {

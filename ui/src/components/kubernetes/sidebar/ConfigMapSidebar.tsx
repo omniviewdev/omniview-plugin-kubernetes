@@ -1,14 +1,8 @@
 import { DrawerContext } from '@omniviewdev/runtime';
 import { Chip } from '@omniviewdev/ui';
-
-// material-ui
 import { Stack } from '@omniviewdev/ui/layout';
-
-// types
 import { ConfigMap } from 'kubernetes-types/core/v1';
 import React from 'react';
-
-// project-imports
 import { LuCode } from 'react-icons/lu';
 
 import CodeEditor from '../../shared/CodeEditor';

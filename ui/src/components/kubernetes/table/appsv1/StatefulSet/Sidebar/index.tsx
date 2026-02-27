@@ -20,7 +20,7 @@ interface Props {
  */
 export const StatefulSetSidebar: React.FC<Props> = ({ ctx }) => {
   if (!ctx.data) {
-    return <></>;
+    return null;
   }
 
   // compose your component here

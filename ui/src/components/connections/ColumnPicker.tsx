@@ -40,6 +40,7 @@ const ColumnPicker: React.FC<Props> = ({ allColumns, visibleColumns, onToggleCol
       {open && (
         <>
           {/* Backdrop */}
+          {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
           <div
             style={{ position: 'fixed', inset: 0, zIndex: 999 }}
             onClick={() => setOpen(false)}

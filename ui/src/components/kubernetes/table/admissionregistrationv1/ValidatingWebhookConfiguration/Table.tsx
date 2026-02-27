@@ -51,7 +51,7 @@ const LeaseTable: React.FC = () => {
         ],
         { connectionID: id, resourceKey },
       ),
-    [],
+    [id],
   );
 
   const drawer: DrawerComponent<ValidatingWebhookConfiguration> = React.useMemo(

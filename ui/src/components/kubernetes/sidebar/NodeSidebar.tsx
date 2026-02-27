@@ -21,10 +21,6 @@ interface Props {
 }
 
 export const NodeSidebar: React.FC<Props> = ({ ctx }) => {
-  if (!ctx.data) {
-    return null;
-  }
-
   const node = ctx.data;
   const connectionID = ctx.resource?.connectionID || '';
   const resourceID = ctx.resource?.id || '';
@@ -73,6 +69,10 @@ export const NodeSidebar: React.FC<Props> = ({ ctx }) => {
         else if (MEM_CAP_IDS.has(mid) && memoryCapacity == null) memoryCapacity = val;
       }
     }
+  }
+
+  if (!node) {
+    return null;
   }
 
   return (

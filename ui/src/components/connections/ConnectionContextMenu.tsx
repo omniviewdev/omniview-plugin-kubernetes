@@ -88,6 +88,7 @@ const ConnectionContextMenu: React.FC<Props> = ({
           may have a different API. Using basic Box-based menu as fallback. */}
       {open && (
         <>
+          {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
           <div style={{ position: 'fixed', inset: 0, zIndex: 999 }} onClick={handleClose} />
           <Box
             sx={{
@@ -315,7 +316,7 @@ const ConnectionContextMenu: React.FC<Props> = ({
               }}
             >
               <LuTrash size={ICON_SIZE} />
-              Delete '{deleteName}'
+              Delete &apos;{deleteName}&apos;
             </Box>
           </Box>
         </>

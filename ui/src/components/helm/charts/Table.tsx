@@ -15,7 +15,23 @@ import ChartSidebar from './ChartSidebar';
 const resourceKey = 'helm::v1::Chart';
 const ICON_SIZE = 20;
 
-type HelmChart = Record<string, any>;
+/** Shape of a Helm chart row as rendered in the table. */
+interface HelmChart {
+  id?: string;
+  name?: string;
+  description?: string;
+  version?: string;
+  appVersion?: string;
+  repository?: string;
+  icon?: string;
+  deprecated?: boolean;
+  keywords?: string[];
+  maintainers?: Array<{ name: string; email?: string; url?: string }>;
+  kubeVersion?: string;
+  type?: string;
+  home?: string;
+  dependencies?: Array<{ name: string; version?: string; repository?: string }>;
+}
 
 function chartInitials(name: string): string {
   if (!name) return '?';

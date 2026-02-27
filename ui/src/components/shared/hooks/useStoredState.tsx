@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-export function useStoredState<T = any>(
+export function useStoredState<T = unknown>(
   key: string,
   defaultValue: T | (() => T),
 ): [T, React.Dispatch<React.SetStateAction<T>>] {

@@ -151,7 +151,7 @@ const ResourceQuotaTable: React.FC = () => {
         },
       ],
     }),
-    [],
+    [id, closeDrawer, remove, show],
   );
 
   return (

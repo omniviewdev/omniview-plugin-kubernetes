@@ -1,19 +1,13 @@
-// @omniviewdev/ui
 import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Grid';
 import { Card, Chip, ClipboardText } from '@omniviewdev/ui';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
-
-// types
 import { formatRelative } from 'date-fns';
 import { ObjectMeta } from 'kubernetes-types/meta/v1';
-
-// third-party
 import React from 'react';
 
-// custom components
 import KVCard from '../../../../KVCard';
 import ResourceLinkChip, { ownerRefToResourceKey } from '../../../../ResourceLinkChip';
 

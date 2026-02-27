@@ -1,7 +1,5 @@
 import { WarningRounded } from '@mui/icons-material';
 import Alert from '@mui/material/Alert';
-
-// material ui
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
 import DialogActions from '@mui/material/DialogActions';
@@ -15,7 +13,6 @@ import { ListItem } from '@omniviewdev/ui';
 import { Button } from '@omniviewdev/ui/buttons';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
-// icons
 import * as React from 'react';
 import { LuCircleAlert, LuTrash } from 'react-icons/lu';
 
@@ -108,7 +105,7 @@ export const DeleteAction: React.FC<Props> = ({
           </DialogTitle>
           <Divider />
           <DialogContent sx={{ gap: 2 }}>
-            <Text size="sm">Are you sure you want to delete '{resourceID}'?</Text>
+            <Text size="sm">Are you sure you want to delete &apos;{resourceID}&apos;?</Text>
             {alert && (
               <Box sx={{ display: 'flex', gap: 2, width: '100%', flexDirection: 'column' }}>
                 <Alert sx={{ alignItems: 'flex-start' }} icon={<LuCircleAlert />} severity="error">

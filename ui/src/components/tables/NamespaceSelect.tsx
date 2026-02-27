@@ -1,5 +1,6 @@
 import { useResources } from '@omniviewdev/runtime';
 import { Select } from '@omniviewdev/ui/inputs';
+import type { Namespace } from 'kubernetes-types/core/v1';
 import React from 'react';
 
 type Props = {
@@ -26,10 +27,10 @@ const NamespaceSelect: React.FC<Props> = ({ connectionID, selected, setNamespace
   });
 
   const namespaceNames = React.useMemo(() => {
-    const items: Record<string, any>[] = resources.data?.result ?? [];
+    const items = (resources.data?.result ?? []) as Namespace[];
     return items
-      .map((ns) => ns.metadata?.name as string)
-      .filter(Boolean)
+      .map((ns) => ns.metadata?.name)
+      .filter((name): name is string => Boolean(name))
       .sort();
   }, [resources.data]);
 

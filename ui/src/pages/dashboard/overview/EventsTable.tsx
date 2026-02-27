@@ -1,5 +1,6 @@
 import Box from '@mui/material/Box';
 import InputAdornment from '@mui/material/InputAdornment';
+import type { SxProps, Theme } from '@mui/material/styles';
 import TextField from '@mui/material/TextField';
 import { useRightDrawer } from '@omniviewdev/runtime';
 import { Chip, CircularProgress } from '@omniviewdev/ui';
@@ -326,6 +327,7 @@ const EventsTable: React.FC<Props> = ({ events, loading, connectionID }) => {
         <TextField
           size="small"
           placeholder="Search events..."
+          // eslint-disable-next-line jsx-a11y/no-autofocus
           autoFocus
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -339,6 +341,8 @@ const EventsTable: React.FC<Props> = ({ events, loading, connectionID }) => {
             },
           }}
           sx={
+            // Custom CSS variable --ov-input-height requires SxProps cast since
+            // TypeScript CSSProperties doesn't include custom properties
             {
               width: 180,
               '--ov-input-height': '24px',
@@ -350,7 +354,7 @@ const EventsTable: React.FC<Props> = ({ events, loading, connectionID }) => {
                 py: 0,
                 px: 0.5,
               },
-            } as any
+            } as SxProps<Theme>
           }
         />
       </Stack>
@@ -364,9 +368,9 @@ const EventsTable: React.FC<Props> = ({ events, loading, connectionID }) => {
             </Text>
           </Box>
         ) : (
-          filtered.map((event, i) => (
+          filtered.map((event) => (
             <EventRow
-              key={`${event.kind}/${event.namespace}/${event.name}::${event.reason}::${i}`}
+              key={`${event.kind}/${event.namespace}/${event.name}::${event.reason}`}
               event={event}
               onObjectClick={handleObjectClick}
             />

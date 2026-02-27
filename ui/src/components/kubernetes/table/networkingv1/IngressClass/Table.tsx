@@ -45,9 +45,7 @@ const IngressClassTable: React.FC = () => {
               row.metadata?.annotations?.['ingressclass.kubernetes.io/is-default-class'] ===
               'true' ? (
                 <LuCircleCheck />
-              ) : (
-                <></>
-              ),
+              ) : null,
             size: 80,
           },
           {
@@ -109,7 +107,7 @@ const IngressClassTable: React.FC = () => {
         },
       ],
     }),
-    [],
+    [id, closeDrawer, remove, show],
   );
 
   return (

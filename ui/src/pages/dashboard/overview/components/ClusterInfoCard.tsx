@@ -3,6 +3,7 @@ import Divider from '@mui/material/Divider';
 import { Chip, CircularProgress } from '@omniviewdev/ui';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
+import type { NodeCondition, Node as K8sNode, Event as K8sEvent, Pod  } from 'kubernetes-types/core/v1';
 import React from 'react';
 import {
   LuCircleCheck,
@@ -25,14 +26,12 @@ type ConnectionData = {
   last_checked?: string;
 };
 
-type KubeResource = Record<string, any>;
-
 type Props = {
   data: ConnectionData | undefined;
   loading?: boolean;
-  nodes: KubeResource[];
-  pods: KubeResource[];
-  events: KubeResource[];
+  nodes: K8sNode[];
+  pods: Pod[];
+  events: K8sEvent[];
 };
 
 function formatLastChecked(timestamp: string | undefined): string {
@@ -71,11 +70,11 @@ function StatItem({ icon, label, value }: { icon: React.ReactNode; label: string
   );
 }
 
-function useHealthStatus(nodes: KubeResource[], pods: KubeResource[], events: KubeResource[]) {
+function useHealthStatus(nodes: K8sNode[], pods: Pod[], events: K8sEvent[]) {
   return React.useMemo(() => {
     const unhealthyNodes = nodes.filter((n) => {
-      const conditions = n.status?.conditions ?? [];
-      const ready = conditions.find((c: any) => c.type === 'Ready');
+      const conditions: NodeCondition[] = n.status?.conditions ?? [];
+      const ready = conditions.find((c) => c.type === 'Ready');
       return !ready || ready.status !== 'True';
     });
     const failedPods = pods.filter((p) => p.status?.phase === 'Failed');

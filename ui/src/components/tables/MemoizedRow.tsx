@@ -1,26 +1,25 @@
 import get from 'lodash.get';
 import React from 'react';
 
+import { type Memoizer } from './ResourceTableContainer';
 import { RowContainer } from './RowContainer';
-
-type Memoizer = string | string[] | ((data: any) => string);
 
 /**
  * Calculate the memo key based on the memoizer function provided, fallback to default if not provided.
  */
-const calcMemoKey = (data: any, memoizer?: Memoizer) => {
+const calcMemoKey = (data: Record<string, unknown>, memoizer?: Memoizer) => {
   if (typeof memoizer === 'function') {
     return memoizer(data);
   }
 
   if (Array.isArray(memoizer)) {
-    return memoizer.map((key) => get(data, key)).join('-');
+    return memoizer.map((key) => get(data, key) as string).join('-');
   }
 
   if (typeof memoizer === 'string') {
     return memoizer
       .split(',')
-      .map((key) => get(data, key))
+      .map((key) => get(data, key) as string)
       .join('-');
   }
 
@@ -31,12 +30,6 @@ const calcMemoKey = (data: any, memoizer?: Memoizer) => {
 const MemoizedRow = React.memo(RowContainer, (prev, next) => {
   const prevMemoKey = calcMemoKey(prev.row.original, prev.memoizer);
   const nextMemoKey = calcMemoKey(next.row.original, next.memoizer);
-  if (prevMemoKey !== nextMemoKey) {
-    console.log(`recalculated ${prev.row.id}`, {
-      prevMemoKey,
-      nextMemoKey,
-    });
-  }
 
   return (
     prevMemoKey === nextMemoKey &&

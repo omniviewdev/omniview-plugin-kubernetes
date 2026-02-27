@@ -2,7 +2,6 @@ import { useMemo, useCallback } from 'react';
 
 import type {
   EnrichedConnection,
-  ConnectionAttribute,
   ConnectionGroup,
   HubSectionConfig,
   HubSectionType,
@@ -23,7 +22,6 @@ interface UseHubSectionsParams {
   enrichedConnections: EnrichedConnection[];
   hubSectionConfigs: HubSectionConfig[];
   customGroups: ConnectionGroup[];
-  availableAttributes: ConnectionAttribute[];
 }
 
 /**
@@ -34,7 +32,6 @@ export function useHubSections({
   enrichedConnections,
   hubSectionConfigs,
   customGroups,
-  availableAttributes,
 }: UseHubSectionsParams) {
   // Merge custom group sections that exist but aren't in config
   const mergedConfigs = useMemo(() => {
@@ -145,7 +142,7 @@ export function useHubSections({
         }
       }
     });
-  }, [mergedConfigs, enrichedConnections, customGroups, availableAttributes]);
+  }, [mergedConfigs, enrichedConnections, customGroups]);
 
   const reorderSections = useCallback(
     (activeId: string, overId: string): HubSectionConfig[] => {

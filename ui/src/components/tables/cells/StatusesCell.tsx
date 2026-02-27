@@ -24,8 +24,8 @@ export const ContainerStatusCell: React.FC<Props> = ({
 }) => {
   const theme = useTheme();
 
-  const getColor = (data: any) => {
-    const value = jsonpath.query(data, statusAccessor)[0];
+  const getColor = (data: string) => {
+    const value = String((jsonpath.query(data, statusAccessor) as string[])[0] ?? '');
     const status = statusMap[value] ?? 'neutral';
 
     switch (status) {
@@ -49,7 +49,7 @@ export const ContainerStatusCell: React.FC<Props> = ({
       gap={1}
     >
       {values.map((status) => (
-        <Tooltip placement="top-end" content={hoverMenuComponent}>
+        <Tooltip key={status} placement="top-end" content={hoverMenuComponent}>
           <div
             color={getColor(status)}
             style={{

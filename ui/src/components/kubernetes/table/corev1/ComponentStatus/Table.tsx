@@ -18,7 +18,7 @@ const ComponentStatusTable: React.FC = () => {
 
   const columns = React.useMemo<Array<ColumnDef<ComponentStatus>>>(
     () => withClusterResourceColumns([], { connectionID: id, resourceKey }),
-    [],
+    [id],
   );
 
   const drawer: DrawerComponent<ComponentStatus> = React.useMemo(

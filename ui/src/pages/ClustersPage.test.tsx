@@ -4,10 +4,19 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import ClustersPage from './ClustersPage';
 
 // ---------------------------------------------------------------------------
+// Mock connection shape — minimal fields used by ClustersPage
+// ---------------------------------------------------------------------------
+
+interface MockConnection {
+  id: string;
+  name: string;
+}
+
+// ---------------------------------------------------------------------------
 // Module-level mock state (reset in beforeEach)
 // ---------------------------------------------------------------------------
 
-let mockConnectionsData: any[] | undefined = undefined;
+let mockConnectionsData: MockConnection[] | undefined = undefined;
 let mockIsLoading = false;
 
 // ---------------------------------------------------------------------------
@@ -29,7 +38,7 @@ vi.mock('@omniviewdev/runtime', () => ({
 }));
 
 vi.mock('../components/shared/hooks/useStoredState', () => ({
-  useStoredState: (_key: string, defaultValue: any) => {
+  useStoredState: <T,>(_key: string, defaultValue: T) => {
     const state = vi.fn();
     return [defaultValue, state];
   },
@@ -57,12 +66,12 @@ vi.mock('../hooks/useClusterPreferences', () => ({
 }));
 
 vi.mock('../hooks/useConnectionGrouping', () => ({
-  useConnectionGrouping: (opts: any) => ({
+  useConnectionGrouping: (opts: { connections: MockConnection[] }) => ({
     groups: [
       {
         key: 'all',
         label: 'All',
-        connections: (opts.connections ?? []).map((c: any) => ({
+        connections: (opts.connections ?? []).map((c: MockConnection) => ({
           ...c,
           isFavorite: false,
           groupIds: [],

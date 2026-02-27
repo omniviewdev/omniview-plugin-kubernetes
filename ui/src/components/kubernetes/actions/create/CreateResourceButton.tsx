@@ -23,12 +23,13 @@ const CreateResourceButton: React.FC<Props> = ({ connectionID, resourceKey }) =>
   const handleCreate = async (yaml: string, namespace: string) => {
     setIsCreating(true);
     try {
-      const parsed = parse(yaml);
+      const parsed = parse(yaml) as Record<string, unknown>;
+      const metadata = parsed.metadata as Record<string, unknown> | undefined;
       await create({
         opts: {
           connectionID,
           resourceKey,
-          resourceID: parsed.metadata?.name ?? '',
+          resourceID: (metadata?.name as string) ?? '',
           namespace,
         },
         input: {

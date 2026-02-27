@@ -1,16 +1,32 @@
 import { render, screen, fireEvent, act } from '@testing-library/react';
+import type React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 
+import type { ConnectionOverride } from '../types/clusters';
+
 import ClusterEditPage from './ClusterEditPage';
+
+// ---------------------------------------------------------------------------
+// Mock connection shape — mirrors the fields accessed by ClusterEditPage
+// ---------------------------------------------------------------------------
+
+interface MockConnectionData {
+  id: string;
+  name?: string;
+  last_refresh: string;
+  expiry_time: number;
+  labels: Record<string, string>;
+  data: Record<string, string | number>;
+}
 
 // ---------------------------------------------------------------------------
 // Module-level mock state (reset in beforeEach)
 // ---------------------------------------------------------------------------
 
 const mockNavigate = vi.fn();
-let mockConnectionData: any = null;
-let mockConnectionOverrides: Record<string, any> = {};
+let mockConnectionData: MockConnectionData | null = null;
+let mockConnectionOverrides: Record<string, ConnectionOverride> = {};
 let mockAvailableTags: string[] = [];
 const mockUpdateOverride = vi.fn().mockResolvedValue(undefined);
 
@@ -42,7 +58,11 @@ vi.mock('../hooks/useClusterPreferences', () => ({
 
 // Stub child components as lightweight divs with interactive buttons
 vi.mock('../components/connections/AvatarEditor', () => ({
-  default: ({ name, onAvatarUrlChange, onAvatarColorChange }: any) => (
+  default: ({ name, onAvatarUrlChange, onAvatarColorChange }: {
+    name: string;
+    onAvatarUrlChange: (url: string) => void;
+    onAvatarColorChange: (color: string) => void;
+  }) => (
     <div data-testid="avatar-editor" data-name={name}>
       <button
         data-testid="avatar-change-url"
@@ -58,7 +78,11 @@ vi.mock('../components/connections/AvatarEditor', () => ({
 }));
 
 vi.mock('../components/connections/TagInput', () => ({
-  default: ({ tags, availableTags, onChange }: any) => (
+  default: ({ tags, availableTags, onChange }: {
+    tags: string[];
+    availableTags: string[];
+    onChange: (tags: string[]) => void;
+  }) => (
     <div
       data-testid="tag-input"
       data-tags={JSON.stringify(tags)}
@@ -72,7 +96,11 @@ vi.mock('../components/connections/TagInput', () => ({
 }));
 
 vi.mock('../components/settings/MetricsTabContent', () => ({
-  default: ({ pluginID, connectionID, connected }: any) => (
+  default: ({ pluginID, connectionID, connected }: {
+    pluginID: string;
+    connectionID: string;
+    connected: boolean;
+  }) => (
     <div
       data-testid="metrics-content"
       data-plugin-id={pluginID}
@@ -83,7 +111,10 @@ vi.mock('../components/settings/MetricsTabContent', () => ({
 }));
 
 vi.mock('../components/settings/NodeShellTabContent', () => ({
-  default: ({ pluginID, connectionID }: any) => (
+  default: ({ pluginID, connectionID }: {
+    pluginID: string;
+    connectionID: string;
+  }) => (
     <div
       data-testid="node-shell-content"
       data-plugin-id={pluginID}
@@ -95,14 +126,14 @@ vi.mock('../components/settings/NodeShellTabContent', () => ({
 // Stub the layout components as pass-through containers
 vi.mock('../layouts/resource', () => ({
   default: {
-    Root: ({ children }: any) => <div data-testid="layout-root">{children}</div>,
-    SideNav: ({ children }: any) => <div data-testid="layout-sidenav">{children}</div>,
-    Main: ({ children }: any) => <div data-testid="layout-main">{children}</div>,
+    Root: ({ children }: { children: React.ReactNode }) => <div data-testid="layout-root">{children}</div>,
+    SideNav: ({ children }: { children: React.ReactNode }) => <div data-testid="layout-sidenav">{children}</div>,
+    Main: ({ children }: { children: React.ReactNode }) => <div data-testid="layout-main">{children}</div>,
   },
 }));
 
 vi.mock('@omniviewdev/ui/overlays', () => ({
-  Tooltip: ({ title, children }: any) => <span data-tooltip={title}>{children}</span>,
+  Tooltip: ({ title, children }: { title: string; children: React.ReactNode }) => <span data-tooltip={title}>{children}</span>,
 }));
 
 vi.mock('../utils/color', () => ({
@@ -122,7 +153,7 @@ function renderPage(section?: string) {
   );
 }
 
-function makeConnection(overrides: Record<string, any> = {}) {
+function makeConnection(overrides: Partial<MockConnectionData> = {}): MockConnectionData {
   return {
     id: 'test-cluster',
     name: 'my-cluster',

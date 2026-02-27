@@ -1,10 +1,7 @@
-// material ui
 import Grid from '@mui/material/Grid';
 import { Chip } from '@omniviewdev/ui';
 import { Tooltip } from '@omniviewdev/ui/overlays';
 import { Text } from '@omniviewdev/ui/typography';
-
-// project imports
 import { formatRelative } from 'date-fns';
 import {
   ContainerStateTerminated,
@@ -17,10 +14,6 @@ import Icon from '../../../shared/Icon';
 
 import ContainerStatusCard from './ContainerStatusCard';
 import { getStatus } from './utils';
-
-// types
-
-// third party
 
 /**
  * Details on a why a container was terminated

@@ -9,6 +9,7 @@ import {
 import type { ChartTimeRange } from '@omniviewdev/ui/charts';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
+import type { Pod, Node as K8sNode, Event as K8sEvent } from 'kubernetes-types/core/v1';
 import React from 'react';
 import { useParams } from 'react-router-dom';
 
@@ -28,11 +29,26 @@ import {
 } from './components/WorkloadStatCards';
 import EventsTable from './EventsTable';
 
-type KubeResource = Record<string, any>;
+/** Shape of the connection metadata returned by the runtime for Kubernetes clusters. */
+type ConnectionData = {
+  server_url?: string;
+  k8s_version?: string;
+  k8s_platform?: string;
+  node_count?: number;
+  api_groups?: number;
+  last_checked?: string;
+};
 
-function filterByNamespace(resources: KubeResource[], namespaces: string[]): KubeResource[] {
+/**
+ * Generic filter for namespaced K8s resources.
+ * Accepts any object with an optional metadata?.namespace field.
+ */
+function filterByNamespace<T extends { metadata?: { namespace?: string } }>(
+  resources: T[],
+  namespaces: string[],
+): T[] {
   if (namespaces.length === 0) return resources;
-  return resources.filter((r) => namespaces.includes(r.metadata?.namespace));
+  return resources.filter((r) => namespaces.includes(r.metadata?.namespace ?? ''));
 }
 
 const ClusterDashboardOverviewPage: React.FC = () => {
@@ -98,13 +114,14 @@ const ClusterDashboardOverviewPage: React.FC = () => {
   const widgets = widgetEP?.list() ?? [];
 
   // --- Filtered data for health banner and events ---
+  // runtime ListResult.result is typed as any[]; cast to the known K8s types
   const allPods = React.useMemo(
-    () => filterByNamespace(pods.data?.result ?? [], namespaces),
+    () => filterByNamespace((pods.data?.result ?? []) as Pod[], namespaces),
     [pods.data, namespaces],
   );
-  const allNodes = React.useMemo(() => nodes.data?.result ?? [], [nodes.data]);
+  const allNodes = React.useMemo(() => (nodes.data?.result ?? []) as K8sNode[], [nodes.data]);
   const allEvents = React.useMemo(
-    () => filterByNamespace(events.data?.result ?? [], namespaces),
+    () => filterByNamespace((events.data?.result ?? []) as K8sEvent[], namespaces),
     [events.data, namespaces],
   );
 
@@ -123,7 +140,8 @@ const ClusterDashboardOverviewPage: React.FC = () => {
       <Stack gap={1.5}>
         {/* Cluster info + health status */}
         <ClusterInfoCard
-          data={connection.data?.data}
+          // Connection.data is Record<string, any> from the runtime; cast to the expected shape
+          data={connection.data?.data as ConnectionData | undefined}
           loading={connection.isLoading}
           nodes={allNodes}
           pods={allPods}

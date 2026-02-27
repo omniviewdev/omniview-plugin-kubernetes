@@ -18,7 +18,7 @@ type Props = {
 
 const ContainerPhaseCell: React.FC<Props> = ({ value }) => {
   if (!value || !colorMap[value]) {
-    return <></>;
+    return null;
   }
   return <Text color={colorMap[value]}>{value}</Text>;
 };

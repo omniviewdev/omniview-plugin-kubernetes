@@ -27,7 +27,7 @@ interface JSONObject {
   [x: string]: JSONValue;
 }
 
-interface JSONArray extends Array<JSONValue> {}
+type JSONArray = Array<JSONValue>;
 
 const ResourceDrawerDecorator: FC<{
   icon: string | React.ReactNode;

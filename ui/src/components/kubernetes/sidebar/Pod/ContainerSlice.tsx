@@ -86,17 +86,21 @@ const typeChipColor = (type: ContainerType): 'warning' | 'primary' | undefined =
 function resolveFieldRef(pod: Pod, fieldPath: string): string | undefined {
   try {
     const parts = fieldPath.split('.');
-    let current: any = pod;
+    let current: unknown = pod;
     for (const part of parts) {
+      if (current == null || typeof current !== 'object') return undefined;
+      const obj = current as Record<string, unknown>;
       const bracketMatch = part.match(/^(\w+)\['(.+)'\]$/);
       if (bracketMatch) {
-        current = current?.[bracketMatch[1]]?.[bracketMatch[2]];
+        const nested = obj[bracketMatch[1]];
+        if (nested == null || typeof nested !== 'object') return undefined;
+        current = (nested as Record<string, unknown>)[bracketMatch[2]];
       } else {
-        current = current?.[part];
+        current = obj[part];
       }
       if (current == null) return undefined;
     }
-    return typeof current === 'object' ? JSON.stringify(current) : String(current);
+    return typeof current === 'object' ? JSON.stringify(current) : String(current as string | number | boolean);
   } catch {
     return undefined;
   }

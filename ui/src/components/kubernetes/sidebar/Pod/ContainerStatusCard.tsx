@@ -1,10 +1,7 @@
-// material-ui
 import Divider from '@mui/material/Divider';
 import { Card, Chip } from '@omniviewdev/ui';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
-
-// project imports
 import { formatRelative } from 'date-fns';
 import { ContainerStatus } from 'kubernetes-types/core/v1';
 import * as React from 'react';
@@ -13,10 +10,6 @@ import Icon from '../../../shared/Icon';
 
 import { ContainerTerminatedStatusInfo, ContainerWaitingStatusInfo } from './ContainerStatuses';
 import { getStatus } from './utils';
-
-// types
-
-// third-party
 
 interface Props {
   status: ContainerStatus;

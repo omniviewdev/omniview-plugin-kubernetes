@@ -1,7 +1,5 @@
 import { WarningRounded } from '@mui/icons-material';
 import Box from '@mui/material/Box';
-
-// @omniviewdev/ui
 import CircularProgress from '@mui/material/CircularProgress';
 import Divider from '@mui/material/Divider';
 import { useResource } from '@omniviewdev/runtime';
@@ -10,8 +8,6 @@ import { Alert } from '@omniviewdev/ui/feedback';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Modal } from '@omniviewdev/ui/overlays';
 import { Text } from '@omniviewdev/ui/typography';
-
-// icons
 import * as React from 'react';
 import { LuCircleAlert, LuTrash } from 'react-icons/lu';
 
@@ -99,7 +95,7 @@ export const DeleteAction: React.FC<Props> = ({
           <Divider />
           <Box sx={{ py: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
             <Text size="sm">
-              Are you sure you want to delete {resource} '{id}'?
+              Are you sure you want to delete {resource} &apos;{id}&apos;?
             </Text>
             {alert && (
               <Box sx={{ display: 'flex', gap: 2, width: '100%', flexDirection: 'column' }}>

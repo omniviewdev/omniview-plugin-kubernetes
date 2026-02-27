@@ -167,7 +167,7 @@ function toTimeSeriesDef(
     id: ts.metric_id,
     label,
     data: (ts.data_points ?? []).map((dp) => ({
-      timestamp: new Date(String(dp.timestamp)).getTime(),
+      timestamp: new Date(dp.timestamp as unknown as string).getTime(),
       value: dp.value,
     })),
     color,
@@ -373,20 +373,21 @@ function buildTileGroups(
 // ---------------------------------------------------------------------------
 
 interface Props {
-  ctx: DrawerContext<any>;
+  ctx: DrawerContext<Record<string, unknown>>;
 }
 
 const ResourceMetricsPage: React.FC<Props> = ({ ctx }) => {
   const resourceKey = ctx.resource?.key || '';
   const connectionID = ctx.resource?.connectionID || '';
   const resourceID = ctx.resource?.id || '';
-  const resourceNamespace = (ctx.data as Record<string, any>)?.metadata?.namespace ?? '';
+  const metadata = (ctx.data)?.metadata as Record<string, unknown> | undefined;
+  const resourceNamespace = (metadata?.namespace as string) ?? '';
 
   const { connectionOverrides } = useClusterPreferences('kubernetes');
   const metricConfig = connectionOverrides[connectionID]?.metricConfig;
 
   const enrichedData = useMemo(() => {
-    const base = (ctx.data ?? {}) as Record<string, unknown>;
+    const base = (ctx.data ?? {});
     if (
       !metricConfig?.prometheusService &&
       !metricConfig?.prometheusNamespace &&
@@ -627,7 +628,8 @@ const ResourceMetricsPage: React.FC<Props> = ({ ctx }) => {
 // Factory
 // ---------------------------------------------------------------------------
 
-export function createMetricsView(): DrawerComponentView<any> {
+// eslint-disable-next-line react-refresh/only-export-components
+export function createMetricsView(): DrawerComponentView<Record<string, unknown>> {
   return {
     title: 'Metrics',
     icon: <LuActivity />,

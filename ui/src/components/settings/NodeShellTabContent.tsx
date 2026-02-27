@@ -19,7 +19,10 @@ const DEFAULT_COMMAND = 'nsenter -t 1 -m -u -i -n -p -- /bin/bash';
 
 const NodeShellTabContent: React.FC<Props> = ({ pluginID, connectionID }) => {
   const { connectionOverrides, updateOverride } = useClusterPreferences(pluginID);
-  const existing = connectionOverrides[connectionID] ?? {};
+  const existing = React.useMemo(
+    () => connectionOverrides[connectionID] ?? {},
+    [connectionOverrides, connectionID],
+  );
   const shellConfig = existing.nodeShellConfig ?? {};
 
   const [image, setImage] = React.useState(shellConfig.image ?? '');

@@ -1,4 +1,3 @@
-// material-ui
 import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Grid';
@@ -13,17 +12,32 @@ import { IconButton } from '@omniviewdev/ui/buttons';
 import { TextField } from '@omniviewdev/ui/inputs';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
-
-// icons
 import React from 'react';
 import { LuRefreshCw, LuLink, LuShieldCheck, LuShieldOff } from 'react-icons/lu';
-
-// project-imports
 
 import NamedAvatar from '../../shared/NamedAvatar';
 
 // ── types ──
-type HelmRepo = Record<string, any>;
+
+/** Shape of a Helm repository as returned by the backend. */
+interface HelmRepo {
+  name?: string;
+  url?: string;
+  type?: string;
+  username?: string;
+  insecure_skip_tls_verify?: boolean;
+}
+
+/** Shape of a chart entry in the chart resource list. */
+interface ChartListEntry {
+  id?: string;
+  name?: string;
+  description?: string;
+  version?: string;
+  appVersion?: string;
+  icon?: string;
+  repository?: string;
+}
 
 interface Props {
   ctx: DrawerContext<HelmRepo>;
@@ -107,13 +121,14 @@ export const RepoSidebar: React.FC<Props> = ({ ctx }) => {
   const data = ctx.data;
 
   // Filter charts by this repository
-  const allCharts = (chartsQuery.data?.result ?? []) as Array<Record<string, any>>;
+  // chartsQuery.data?.result is typed as unknown[] from the runtime; cast to expected shape
+  const allCharts = (chartsQuery.data?.result ?? []) as ChartListEntry[];
   const repoCharts = allCharts.filter((c) => c.repository === repoName);
 
   const filteredCharts = chartFilter
     ? repoCharts.filter((c) => {
-        const name = ((c.name as string) ?? '').toLowerCase();
-        const desc = ((c.description as string) ?? '').toLowerCase();
+        const name = (c.name ?? '').toLowerCase();
+        const desc = (c.description ?? '').toLowerCase();
         return name.includes(chartFilter.toLowerCase()) || desc.includes(chartFilter.toLowerCase());
       })
     : repoCharts;
@@ -210,7 +225,7 @@ export const RepoSidebar: React.FC<Props> = ({ ctx }) => {
         <Stack direction="column" spacing={0.5} sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
           {filteredCharts.map((chart) => (
             <Card
-              key={chart.id as string}
+              key={chart.id ?? chart.name ?? ''}
               sx={{
                 p: 1,
                 overflow: 'visible',
@@ -225,17 +240,17 @@ export const RepoSidebar: React.FC<Props> = ({ ctx }) => {
                   pluginID: 'kubernetes',
                   connectionID,
                   resourceKey: 'helm::v1::Chart',
-                  resourceID: chart.id as string,
+                  resourceID: chart.id ?? '',
                 })
               }
             >
               <Stack direction="row" spacing={1.5} alignItems="flex-start">
-                <ChartIcon icon={chart.icon as string} name={chart.name as string} />
+                <ChartIcon icon={chart.icon} name={chart.name ?? ''} />
                 <Stack direction="column" spacing={0} sx={{ flex: 1, minWidth: 0 }}>
                   <Text weight="semibold" size="sm">
-                    {chart.name as string}
+                    {chart.name ?? ''}
                   </Text>
-                  {(chart.description as string) && (
+                  {chart.description && (
                     <Text
                       size="xs"
                       sx={{
@@ -245,12 +260,12 @@ export const RepoSidebar: React.FC<Props> = ({ ctx }) => {
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      {chart.description as string}
+                      {chart.description}
                     </Text>
                   )}
                   <Text size="xs" sx={{ color: 'neutral.500', mt: 0.25 }}>
-                    v{chart.version as string}
-                    {chart.appVersion && ` · App: ${chart.appVersion as string}`}
+                    v{chart.version ?? ''}
+                    {chart.appVersion ? ` · App: ${chart.appVersion}` : ''}
                   </Text>
                 </Stack>
               </Stack>

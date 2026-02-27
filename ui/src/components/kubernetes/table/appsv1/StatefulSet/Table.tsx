@@ -162,8 +162,8 @@ const StatefulSetTable: React.FC = () => {
         {
           title: 'Restart',
           icon: <LuRefreshCw />,
-          action: (ctx) =>
-            show({
+          action: (ctx) => {
+            void show({
               title: (
                 <span>
                   Restart <strong>{ctx.data?.metadata?.name}</strong>?
@@ -187,7 +187,8 @@ const StatefulSetTable: React.FC = () => {
                 });
                 closeDrawer();
               },
-            }),
+            });
+          },
         },
         {
           title: 'Scale',
@@ -203,8 +204,8 @@ const StatefulSetTable: React.FC = () => {
         {
           title: 'Delete',
           icon: <LuTrash />,
-          action: (ctx) =>
-            show({
+          action: (ctx) => {
+            void show({
               title: (
                 <span>
                   Delete <strong>{ctx.data?.metadata?.name}</strong>?
@@ -231,7 +232,8 @@ const StatefulSetTable: React.FC = () => {
                 });
                 closeDrawer();
               },
-            }),
+            });
+          },
         },
         {
           title: 'Logs',
@@ -244,33 +246,35 @@ const StatefulSetTable: React.FC = () => {
 
             list.push({
               title: 'All Containers',
-              action: () =>
-                createLogSession({
+              action: () => {
+                void createLogSession({
                   connectionID: id,
                   resourceKey,
                   resourceID: ctx.data?.metadata?.name as string,
-                  resourceData: ctx.data as Record<string, any>,
+                  resourceData: ctx.data as Record<string, never>,
                   target: '',
                   label: `StatefulSet ${ctx.data?.metadata?.name}`,
                   icon: 'LuLogs',
                   params: filterParams,
-                }).then(() => closeDrawer()),
+                }).then(() => closeDrawer());
+              },
             });
 
             containers.forEach((container) => {
               list.push({
                 title: container.name,
-                action: () =>
-                  createLogSession({
+                action: () => {
+                  void createLogSession({
                     connectionID: id,
                     resourceKey,
                     resourceID: ctx.data?.metadata?.name as string,
-                    resourceData: ctx.data as Record<string, any>,
+                    resourceData: ctx.data as Record<string, never>,
                     target: container.name,
                     label: `StatefulSet ${ctx.data?.metadata?.name}`,
                     icon: 'LuLogs',
                     params: filterParams,
-                  }).then(() => closeDrawer()),
+                  }).then(() => closeDrawer());
+                },
               });
             });
 
@@ -279,7 +283,7 @@ const StatefulSetTable: React.FC = () => {
         },
       ],
     }),
-    [],
+    [id, closeDrawer, createLogSession, remove, show, startStreamAction],
   );
 
   return (
@@ -296,15 +300,16 @@ const StatefulSetTable: React.FC = () => {
         <ScaleModal
           open={!!scaleTarget}
           onClose={() => setScaleTarget(null)}
-          onConfirm={async (replicas) => {
-            await executeAction({
+          onConfirm={(replicas) => {
+            void executeAction({
               actionID: 'scale',
               id: scaleTarget.name,
               namespace: scaleTarget.namespace,
               params: { replicas },
+            }).then(() => {
+              setScaleTarget(null);
+              closeDrawer();
             });
-            setScaleTarget(null);
-            closeDrawer();
           }}
           resourceType="StatefulSet"
           resourceName={scaleTarget.name}

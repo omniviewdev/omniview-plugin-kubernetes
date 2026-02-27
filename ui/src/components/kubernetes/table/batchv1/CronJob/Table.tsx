@@ -114,8 +114,8 @@ const CronJobTable: React.FC = () => {
         {
           title: 'Delete',
           icon: <LuTrash />,
-          action: (ctx) =>
-            show({
+          action: (ctx) => {
+            void show({
               title: (
                 <span>
                   Delete <strong>{ctx.data?.metadata?.name}</strong>?
@@ -142,7 +142,8 @@ const CronJobTable: React.FC = () => {
                 });
                 closeDrawer();
               },
-            }),
+            });
+          },
         },
         {
           title: 'Logs',
@@ -155,33 +156,35 @@ const CronJobTable: React.FC = () => {
 
             list.push({
               title: 'All Containers',
-              action: () =>
-                createLogSession({
+              action: () => {
+                void createLogSession({
                   connectionID: id,
                   resourceKey,
                   resourceID: ctx.data?.metadata?.name as string,
-                  resourceData: ctx.data as Record<string, any>,
+                  resourceData: ctx.data as Record<string, never>,
                   target: '',
                   label: `CronJob ${ctx.data?.metadata?.name}`,
                   icon: 'LuLogs',
                   params: filterParams,
-                }).then(() => closeDrawer()),
+                }).then(() => closeDrawer());
+              },
             });
 
             containers.forEach((container) => {
               list.push({
                 title: container.name,
-                action: () =>
-                  createLogSession({
+                action: () => {
+                  void createLogSession({
                     connectionID: id,
                     resourceKey,
                     resourceID: ctx.data?.metadata?.name as string,
-                    resourceData: ctx.data as Record<string, any>,
+                    resourceData: ctx.data as Record<string, never>,
                     target: container.name,
                     label: `CronJob ${ctx.data?.metadata?.name}`,
                     icon: 'LuLogs',
                     params: filterParams,
-                  }).then(() => closeDrawer()),
+                  }).then(() => closeDrawer());
+                },
               });
             });
 
@@ -190,7 +193,7 @@ const CronJobTable: React.FC = () => {
         },
       ],
     }),
-    [],
+    [id, closeDrawer, createLogSession, remove, show],
   );
 
   return (

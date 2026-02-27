@@ -1,5 +1,4 @@
 import { MetricClient } from '@omniviewdev/runtime/api';
-
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 
 export type PodMetricEntry = {

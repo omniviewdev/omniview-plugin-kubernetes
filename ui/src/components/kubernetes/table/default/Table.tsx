@@ -16,7 +16,7 @@ const DefaultTable: React.FC = () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const columns = React.useMemo<Array<ColumnDef<any>>>(
     () => withNamespacedResourceColumns([], { connectionID: id, resourceKey }),
-    [],
+    [id, resourceKey],
   );
 
   const drawer: DrawerComponent<KubernetesResourceObject> = React.useMemo(
@@ -34,7 +34,7 @@ const DefaultTable: React.FC = () => {
       ],
       actions: [],
     }),
-    [],
+    [key],
   );
 
   return (

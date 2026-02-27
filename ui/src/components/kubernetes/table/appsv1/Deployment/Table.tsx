@@ -55,21 +55,24 @@ const DeploymentTable: React.FC = () => {
   /**
    * Handler to go ahead and submit a resource change
    */
-  const onEditorSubmit = (ctx: DrawerContext<Deployment>, value: Record<string, any>) => {
-    update({
-      opts: {
-        connectionID: id,
-        resourceKey,
-        resourceID: ctx.data?.metadata?.name as string,
-        namespace: ctx.data?.metadata?.namespace as string,
-      },
-      input: {
-        input: value,
-      },
-    }).then(() => {
-      closeDrawer();
-    });
-  };
+  const onEditorSubmit = React.useCallback(
+    (ctx: DrawerContext<Deployment>, value: Record<string, unknown>) => {
+      void update({
+        opts: {
+          connectionID: id,
+          resourceKey,
+          resourceID: ctx.data?.metadata?.name as string,
+          namespace: ctx.data?.metadata?.namespace as string,
+        },
+        input: {
+          input: value as Record<string, never>,
+        },
+      }).then(() => {
+        closeDrawer();
+      });
+    },
+    [id, update, closeDrawer],
+  );
 
   const columns = React.useMemo<Array<ColumnDef<Deployment>>>(
     () =>
@@ -178,8 +181,8 @@ const DeploymentTable: React.FC = () => {
         {
           title: 'Restart',
           icon: <LuRefreshCw />,
-          action: (ctx) =>
-            show({
+          action: (ctx) => {
+            void show({
               title: (
                 <span>
                   Restart <strong>{ctx.data?.metadata?.name}</strong>?
@@ -203,7 +206,8 @@ const DeploymentTable: React.FC = () => {
                 });
                 closeDrawer();
               },
-            }),
+            });
+          },
         },
         {
           title: 'Scale',
@@ -220,8 +224,8 @@ const DeploymentTable: React.FC = () => {
           title: 'Pause Rollout',
           icon: <LuPause />,
           enabled: (ctx) => !ctx.data?.spec?.paused,
-          action: (ctx) =>
-            show({
+          action: (ctx) => {
+            void show({
               title: (
                 <span>
                   Pause rollout for <strong>{ctx.data?.metadata?.name}</strong>?
@@ -238,14 +242,15 @@ const DeploymentTable: React.FC = () => {
                 });
                 closeDrawer();
               },
-            }),
+            });
+          },
         },
         {
           title: 'Resume Rollout',
           icon: <LuPlay />,
           enabled: (ctx) => ctx.data?.spec?.paused === true,
-          action: (ctx) =>
-            show({
+          action: (ctx) => {
+            void show({
               title: (
                 <span>
                   Resume rollout for <strong>{ctx.data?.metadata?.name}</strong>?
@@ -262,13 +267,14 @@ const DeploymentTable: React.FC = () => {
                 });
                 closeDrawer();
               },
-            }),
+            });
+          },
         },
         {
           title: 'Delete',
           icon: <LuTrash />,
-          action: (ctx) =>
-            show({
+          action: (ctx) => {
+            void show({
               title: (
                 <span>
                   Delete <strong>{ctx.data?.metadata?.name}</strong>?
@@ -295,7 +301,8 @@ const DeploymentTable: React.FC = () => {
                 });
                 closeDrawer();
               },
-            }),
+            });
+          },
         },
         {
           title: 'Logs',
@@ -308,33 +315,35 @@ const DeploymentTable: React.FC = () => {
 
             list.push({
               title: 'All Containers',
-              action: () =>
-                createLogSession({
+              action: () => {
+                void createLogSession({
                   connectionID: id,
                   resourceKey,
                   resourceID: ctx.data?.metadata?.name as string,
-                  resourceData: ctx.data as Record<string, any>,
+                  resourceData: ctx.data as Record<string, never>,
                   target: '',
                   label: `Deployment ${ctx.data?.metadata?.name}`,
                   icon: 'LuLogs',
                   params: filterParams,
-                }).then(() => closeDrawer()),
+                }).then(() => closeDrawer());
+              },
             });
 
             containers.forEach((container) => {
               list.push({
                 title: container.name,
-                action: () =>
-                  createLogSession({
+                action: () => {
+                  void createLogSession({
                     connectionID: id,
                     resourceKey,
                     resourceID: ctx.data?.metadata?.name as string,
-                    resourceData: ctx.data as Record<string, any>,
+                    resourceData: ctx.data as Record<string, never>,
                     target: container.name,
                     label: `Deployment ${ctx.data?.metadata?.name}`,
                     icon: 'LuLogs',
                     params: filterParams,
-                  }).then(() => closeDrawer()),
+                  }).then(() => closeDrawer());
+                },
               });
             });
 
@@ -343,7 +352,7 @@ const DeploymentTable: React.FC = () => {
         },
       ],
     }),
-    [],
+    [id, closeDrawer, createLogSession, executeAction, onEditorSubmit, remove, show, startStreamAction],
   );
 
   return (
@@ -360,15 +369,16 @@ const DeploymentTable: React.FC = () => {
         <ScaleModal
           open={!!scaleTarget}
           onClose={() => setScaleTarget(null)}
-          onConfirm={async (replicas) => {
-            await executeAction({
+          onConfirm={(replicas) => {
+            void executeAction({
               actionID: 'scale',
               id: scaleTarget.name,
               namespace: scaleTarget.namespace,
               params: { replicas },
+            }).then(() => {
+              setScaleTarget(null);
+              closeDrawer();
             });
-            setScaleTarget(null);
-            closeDrawer();
           }}
           resourceType="Deployment"
           resourceName={scaleTarget.name}

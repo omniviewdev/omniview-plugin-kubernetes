@@ -56,6 +56,7 @@ const ConnectionTableItem: React.FC<Props> = ({
 
   const { meta } = usePluginContext();
   const { navigate } = usePluginRouter();
+  // eslint-disable-next-line @typescript-eslint/unbound-method
   const { showSnackbar } = useSnackbar();
   const { startConnection, stopConnection } = useConnection({
     pluginID: meta.id,
@@ -134,7 +135,7 @@ const ConnectionTableItem: React.FC<Props> = ({
   };
 
   const handleCopyId = () => {
-    navigator.clipboard.writeText(id);
+    void navigator.clipboard.writeText(id);
     showSnackbar({ status: 'success', message: 'Connection ID copied' });
   };
 
@@ -146,7 +147,14 @@ const ConnectionTableItem: React.FC<Props> = ({
         (e.currentTarget as HTMLElement).style.backgroundColor =
           'var(--ov-bg-surface-hover, rgba(255,255,255,0.04))';
       }}
+      onFocus={(e) => {
+        (e.currentTarget as HTMLElement).style.backgroundColor =
+          'var(--ov-bg-surface-hover, rgba(255,255,255,0.04))';
+      }}
       onMouseOut={(e) => {
+        (e.currentTarget as HTMLElement).style.backgroundColor = '';
+      }}
+      onBlur={(e) => {
         (e.currentTarget as HTMLElement).style.backgroundColor = '';
       }}
     >

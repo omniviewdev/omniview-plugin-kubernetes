@@ -31,6 +31,7 @@ function kindFromKey(resourceKey: string): string {
 }
 
 /** Build a resourceKey from an OwnerReference (e.g. "apps/v1" + "DaemonSet" → "apps::v1::DaemonSet") */
+// eslint-disable-next-line react-refresh/only-export-components
 export function ownerRefToResourceKey(ref: OwnerReference): string {
   return `${ref.apiVersion?.replace('/', '::')}::${ref.kind}`;
 }

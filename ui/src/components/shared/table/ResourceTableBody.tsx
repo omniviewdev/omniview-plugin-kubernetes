@@ -1,14 +1,16 @@
 import { useRightDrawer } from '@omniviewdev/runtime';
-import { RowSelectionState, Table } from '@tanstack/react-table';
+import { type RowSelectionState, type Table } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import React from 'react';
+
+import type { KubernetesResourceObject } from '../../../types/resource';
 
 import { type Props as ResourceTableProps } from './ResourceTable';
 import ResourceTableRow from './ResourceTableRow';
 // import ResourceTableRow from './ResourceTableRowContainer'
 
 type Props = Omit<ResourceTableProps, 'columns' | 'idAccessor'> & {
-  table: Table<any>;
+  table: Table<KubernetesResourceObject>;
   tableContainerRef: React.RefObject<HTMLDivElement | null>;
   columnVisibility: string;
   resizedColumnIds: string;
@@ -38,7 +40,7 @@ const ResourceTableBody: React.FC<Props> = ({
 
   /** Row Clicking */
   const onRowClick = React.useCallback(
-    (id: string, data: any) => {
+    (id: string, data: KubernetesResourceObject) => {
       if (drawer === undefined) {
         return;
       }
@@ -53,7 +55,7 @@ const ResourceTableBody: React.FC<Props> = ({
         },
       });
     },
-    [drawer],
+    [drawer, connectionID, openDrawer, resourceKey],
   );
 
   return (

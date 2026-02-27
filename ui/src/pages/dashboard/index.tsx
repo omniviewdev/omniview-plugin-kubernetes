@@ -55,7 +55,7 @@ export const DashboardLayout: React.FC = () => {
         {extensionTabs.map((ext) => (
           <MuiTab
             key={ext.id}
-            value={(ext as any).path}
+            value={(ext.meta as { path?: string } | undefined)?.path ?? ext.id}
             label={ext.label}
             sx={{ minHeight: 32, py: 0.5, textTransform: 'none' }}
           />

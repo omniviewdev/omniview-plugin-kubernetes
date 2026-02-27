@@ -43,9 +43,7 @@ const GroupBrowser: React.FC<Props> = ({ connections, availableAttributes, onCon
   // Update browseBy if default changes
   React.useEffect(() => {
     if (defaultAttr && !browseBy) setBrowseBy(defaultAttr);
-  }, [defaultAttr]);
-
-  if (filteredAttributes.length === 0) return null;
+  }, [defaultAttr, browseBy]);
 
   const selectedAttr = filteredAttributes.find((a) => a.key === browseBy);
 
@@ -54,7 +52,7 @@ const GroupBrowser: React.FC<Props> = ({ connections, availableAttributes, onCon
     if (!browseBy) return [];
     const map = new Map<string, EnrichedConnection[]>();
     for (const conn of connections) {
-      const raw = conn.connection.labels?.[browseBy];
+      const raw = (conn.connection.labels as Record<string, string> | undefined)?.[browseBy];
       if (raw === undefined || raw === null || raw === '') continue;
       const val = String(raw);
       const existing = map.get(val);
@@ -67,6 +65,8 @@ const GroupBrowser: React.FC<Props> = ({ connections, availableAttributes, onCon
     // Sort by cluster count descending
     return Array.from(map.entries()).sort(([, a], [, b]) => b.length - a.length);
   }, [browseBy, connections]);
+
+  if (filteredAttributes.length === 0) return null;
 
   // Drill-down view
   if (drillDown !== null) {

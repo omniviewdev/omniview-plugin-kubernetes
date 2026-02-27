@@ -1,12 +1,8 @@
-// @omniviewdev/ui
 import { DrawerContext, useResourceMetrics } from '@omniviewdev/runtime';
 import { Stack } from '@omniviewdev/ui/layout';
-
-// types
 import { Pod } from 'kubernetes-types/core/v1';
 import React from 'react';
 
-// sections
 import MetadataSection from '../../../shared/sidebar/pages/overview/sections/MetadataSection';
 
 import PodConfigSection from './PodConfigSection';
@@ -19,10 +15,6 @@ interface Props {
 }
 
 export const PodSidebar: React.FC<Props> = ({ ctx }) => {
-  if (!ctx.data) {
-    return null;
-  }
-
   const pod = ctx.data;
   const connectionID = ctx.resource?.connectionID || '';
   const resourceID = ctx.resource?.id || '';
@@ -34,7 +26,7 @@ export const PodSidebar: React.FC<Props> = ({ ctx }) => {
     connectionID,
     resourceKey: 'core::v1::Pod',
     resourceID,
-    resourceNamespace: pod.metadata?.namespace,
+    resourceNamespace: pod?.metadata?.namespace,
     metricIDs: [
       'cpu_usage',
       'memory_usage', // metrics-server
@@ -69,6 +61,10 @@ export const PodSidebar: React.FC<Props> = ({ ctx }) => {
       }
       if (podCpuUsage != null && podMemoryUsage != null) break;
     }
+  }
+
+  if (!pod) {
+    return null;
   }
 
   return (

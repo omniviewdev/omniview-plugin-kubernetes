@@ -2,6 +2,7 @@ import MuiAvatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
 import { usePluginContext, useConnection } from '@omniviewdev/runtime';
+import { type types } from '@omniviewdev/runtime/models';
 import { Avatar, Chip } from '@omniviewdev/ui';
 import { IconButton } from '@omniviewdev/ui/buttons';
 import { FormField, TextField, TextArea } from '@omniviewdev/ui/inputs';
@@ -96,10 +97,10 @@ const ClusterEditPage: React.FC = () => {
     override.avatarColor = avatarColor || undefined;
     override.tags = tags.length > 0 ? tags : undefined;
     await updateOverride(connectionId, override);
-    rrNavigate(-1);
+    void rrNavigate(-1);
   };
 
-  const handleBack = () => rrNavigate(-1);
+  const handleBack = React.useCallback(() => { void rrNavigate(-1); }, [rrNavigate]);
 
   const handleCancel = () => {
     const o = connectionOverrides[connectionId] ?? {};
@@ -117,7 +118,7 @@ const ClusterEditPage: React.FC = () => {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [handleBack]);
 
   const connected = React.useMemo(() => {
     if (!conn) return false;
@@ -126,7 +127,7 @@ const ClusterEditPage: React.FC = () => {
     return refreshTime.getTime() + conn.expiry_time > Date.now();
   }, [conn]);
 
-  const formatTime = (timestamp: any): string => {
+  const formatTime = (timestamp: string | number | Date | null | undefined): string => {
     if (!timestamp) return 'Never';
     const date = new Date(timestamp);
     if (date.toString() === 'Invalid Date') return 'Never';
@@ -174,7 +175,7 @@ const ClusterEditPage: React.FC = () => {
                   </IconButton>
                 </Tooltip>
                 <Tooltip title="Save changes" placement="bottom">
-                  <IconButton size="sm" emphasis="ghost" color="primary" onClick={handleSave}>
+                  <IconButton size="sm" emphasis="ghost" color="primary" onClick={() => { void handleSave(); }}>
                     <LuSave size={16} />
                   </IconButton>
                 </Tooltip>
@@ -466,7 +467,10 @@ function TagsSection({
 // Cluster Info section
 // ---------------------------------------------------------------------------
 
-function ClusterInfoSection({ conn, formatTime }: { conn: any; formatTime: (t: any) => string }) {
+function ClusterInfoSection({ conn, formatTime }: { conn: types.Connection; formatTime: (t: string | number | null | undefined) => string }) {
+  // conn.data and conn.labels are Record<string, any> from the runtime SDK; narrow to known shapes
+  const connData = conn.data as Record<string, string | number | undefined>;
+  const connLabels = conn.labels as Record<string, string | undefined>;
   return (
     <SectionWrapper
       title="Cluster Info"
@@ -475,21 +479,21 @@ function ClusterInfoSection({ conn, formatTime }: { conn: any; formatTime: (t: a
       <Stack direction="column" gap={0}>
         <InfoRow
           label="Server"
-          value={String(conn.data?.server_url ?? conn.labels?.server ?? '-')}
+          value={String(connData?.server_url ?? connLabels?.server ?? '-')}
         />
-        <InfoRow label="Kubernetes Version" value={String(conn.data?.k8s_version ?? '-')} />
-        <InfoRow label="Platform" value={String(conn.data?.k8s_platform ?? '-')} />
+        <InfoRow label="Kubernetes Version" value={String(connData?.k8s_version ?? '-')} />
+        <InfoRow label="Platform" value={String(connData?.k8s_platform ?? '-')} />
         <InfoRow
           label="Nodes"
-          value={conn.data?.node_count != null ? String(conn.data.node_count) : '-'}
+          value={connData?.node_count != null ? String(connData.node_count) : '-'}
         />
         <InfoRow
           label="API Groups"
-          value={conn.data?.api_groups != null ? String(conn.data.api_groups) : '-'}
+          value={connData?.api_groups != null ? String(connData.api_groups) : '-'}
         />
         <InfoRow
           label="Last Checked"
-          value={conn.data?.last_checked ? formatTime(conn.data.last_checked) : '-'}
+          value={connData?.last_checked ? formatTime(connData.last_checked) : '-'}
         />
       </Stack>
     </SectionWrapper>
@@ -500,23 +504,26 @@ function ClusterInfoSection({ conn, formatTime }: { conn: any; formatTime: (t: a
 // Connection section
 // ---------------------------------------------------------------------------
 
-function ConnectionSection({ conn, formatTime }: { conn: any; formatTime: (t: any) => string }) {
+function ConnectionSection({ conn, formatTime }: { conn: types.Connection; formatTime: (t: string | number | null | undefined) => string }) {
+  // conn.data and conn.labels are Record<string, any> from the runtime SDK; narrow to known shapes
+  const connData = conn.data as Record<string, string | number | undefined>;
+  const connLabels = conn.labels as Record<string, string | undefined>;
   return (
     <SectionWrapper title="Connection" description="Kubeconfig context details for this cluster.">
       <Stack direction="column" gap={0}>
         <InfoRow label="Context" value={conn.id} />
         <InfoRow
           label="Cluster"
-          value={String(conn.labels?.cluster ?? conn.data?.cluster ?? '-')}
+          value={String(connLabels?.cluster ?? connData?.cluster ?? '-')}
         />
         <InfoRow
           label="Kubeconfig"
-          value={String(conn.labels?.kubeconfig ?? conn.data?.kubeconfig ?? '-')}
+          value={String(connLabels?.kubeconfig ?? connData?.kubeconfig ?? '-')}
         />
-        <InfoRow label="User" value={String(conn.labels?.user ?? conn.data?.user ?? '-')} />
-        <InfoRow label="Auth Method" value={String(conn.labels?.auth_method ?? '-')} />
-        <InfoRow label="Namespace" value={String(conn.data?.namespace ?? '(default)')} />
-        <InfoRow label="Last Refresh" value={formatTime(conn.last_refresh)} />
+        <InfoRow label="User" value={String(connLabels?.user ?? connData?.user ?? '-')} />
+        <InfoRow label="Auth Method" value={String(connLabels?.auth_method ?? '-')} />
+        <InfoRow label="Namespace" value={String(connData?.namespace ?? '(default)')} />
+        <InfoRow label="Last Refresh" value={formatTime(conn.last_refresh as unknown as string)} />
       </Stack>
     </SectionWrapper>
   );

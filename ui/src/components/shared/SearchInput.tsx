@@ -21,15 +21,15 @@ type Props = {
  * Search input component.
  */
 const SearchInput: React.FC<Props> = ({ placeholder, value, onChange, autoFocus }) => {
-  const handleClear = () => {
+  const handleClear = React.useCallback(() => {
     onChange('');
-  };
+  }, [onChange]);
 
   // Recompute only if the value changes
   const hasValue = React.useMemo(() => value !== '', [value]);
   const endAdornment = React.useMemo(
     () => (hasValue ? <Clear onClick={handleClear} sx={{ cursor: 'pointer' }} /> : null),
-    [hasValue],
+    [hasValue, handleClear],
   );
 
   return (
@@ -38,6 +38,7 @@ const SearchInput: React.FC<Props> = ({ placeholder, value, onChange, autoFocus 
       autoComplete="off"
       type="text"
       placeholder={placeholder ?? 'Search'}
+      // eslint-disable-next-line jsx-a11y/no-autofocus
       autoFocus={autoFocus}
       startAdornment={<SearchRounded color="primary" />}
       endAdornment={endAdornment}

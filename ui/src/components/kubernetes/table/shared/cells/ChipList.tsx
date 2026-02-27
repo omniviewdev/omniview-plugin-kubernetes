@@ -8,7 +8,7 @@ type Props = {
 export const ChipListCell = ({ getValue }: { getValue: () => unknown }) => {
   const val = getValue() as string[] | undefined;
   if (!val) {
-    return <></>;
+    return null;
   }
 
   return <ChipList values={val} />;
@@ -29,7 +29,7 @@ const ChipList: React.FC<Props> = ({ values }) => {
       }}
     >
       {values.map((value) => (
-        <Chip size={'sm'} sx={{ borderRadius: '2px' }} emphasis="outline" label={value} />
+        <Chip key={value} size={'sm'} sx={{ borderRadius: '2px' }} emphasis="outline" label={value} />
       ))}
     </Stack>
   );

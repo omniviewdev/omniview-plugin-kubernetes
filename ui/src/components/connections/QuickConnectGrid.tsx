@@ -68,13 +68,14 @@ const QuickConnectGrid: React.FC<Props> = ({
           startAdornment={<LuSearch size={14} />}
           value={search}
           onChange={(e) => setSearch(e)}
+          // eslint-disable-next-line jsx-a11y/no-autofocus
           autoFocus
           sx={{ maxWidth: 240 }}
         />
       </Stack>
       {filtered.length === 0 ? (
         <Text size="sm" sx={{ textAlign: 'center', py: 3, opacity: 0.5 }}>
-          No clusters match '{search}'
+          No clusters match &apos;{search}&apos;
         </Text>
       ) : (
         <Box

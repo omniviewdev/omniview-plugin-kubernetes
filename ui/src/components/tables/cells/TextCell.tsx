@@ -11,8 +11,10 @@ import { convertByteUnits } from '../../../utils/units';
 
 import ResourceLinkCell from './ResourceLinkCell';
 
+type CellValue = string | number | string[] | number[];
+
 type Props = {
-  value: any;
+  value: CellValue;
   color?: 'success' | 'warning' | 'danger' | 'primary' | 'neutral';
   colorMap?: Record<string, string>;
   startDecorator?: React.ReactNode;
@@ -24,10 +26,10 @@ type Props = {
   children?: React.ReactNode;
 };
 
-type FormattingFunction = (value: any) => string;
+type FormattingFunction = (value: CellValue) => string;
 
 const formatters: Record<string, FormattingFunction> = {
-  bytes: (value: string) => convertByteUnits({ from: value }),
+  bytes: (value: CellValue) => convertByteUnits({ from: String(value) }),
   sum: (value: string[] | number[] | string | number) => {
     let summed = 0;
     if (Array.isArray(value)) {
@@ -98,7 +100,7 @@ const formatters: Record<string, FormattingFunction> = {
 
 const AgeCell: React.FC<Props> = ({ value, ...rest }) => {
   const initialAge = React.useMemo(() => {
-    const date = new Date(value);
+    const date = new Date(value as string | number);
     if (!value || isNaN(date.getTime())) {
       return '0s';
     }
@@ -108,7 +110,7 @@ const AgeCell: React.FC<Props> = ({ value, ...rest }) => {
   const [time, setTime] = React.useState(initialAge);
 
   React.useEffect(() => {
-    const date = new Date(value);
+    const date = new Date(value as string | number);
     if (isNaN(date.getTime())) {
       return;
     }
@@ -136,7 +138,7 @@ const CellBase: React.FC<Props> = ({
 }) => {
   const getColor = () => {
     if (colorMap) {
-      const val = colorMap[value] ?? colorMap['*'] ?? undefined;
+      const val = colorMap[String(value)] ?? colorMap['*'] ?? undefined;
       switch (val) {
         case 'healthy':
         case 'good':
@@ -187,7 +189,7 @@ const CellBase: React.FC<Props> = ({
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           {startDecorator}
           <Text size="xs" sx={{ color: getColor() ? `${getColor()}.main` : undefined }} noWrap>
-            {formatter && formatters[formatter] ? formatters[formatter](value) : `${value}`}
+            {formatter && formatters[formatter] ? formatters[formatter](value) : String(value)}
           </Text>
           {endDecorator}
         </Box>
@@ -200,7 +202,7 @@ const TextCell: React.FC<Props> = ({ formatter, ...props }) => {
   if (props.resourceLink) {
     return (
       <CellBase {...props}>
-        <ResourceLinkCell value={props.value} metadata={props.metadata} {...props.resourceLink} />
+        <ResourceLinkCell value={String(props.value)} metadata={props.metadata} {...props.resourceLink} />
       </CellBase>
     );
   }

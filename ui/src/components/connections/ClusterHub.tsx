@@ -35,6 +35,26 @@ import HubSection from './HubSection';
 import QuickConnectGrid from './QuickConnectGrid';
 import RowHandler from './RowHandler';
 
+/** Shape of the drag data attached to connection items in dnd-kit */
+interface ConnectionDragData {
+  type: 'connection';
+  connectionId: string;
+  sectionId?: string;
+}
+
+/** Shape of the drag data attached to section items in dnd-kit */
+interface SectionDragData {
+  type: 'section';
+}
+
+/** Shape of the drag data for folder drop zones */
+interface FolderDropData {
+  type: 'folder-drop';
+  groupId: string;
+}
+
+type DragData = ConnectionDragData | SectionDragData | FolderDropData;
+
 type Props = {
   enrichedConnections: EnrichedConnection[];
   availableAttributes: ConnectionAttribute[];
@@ -82,7 +102,6 @@ const ClusterHub: React.FC<Props> = ({
     enrichedConnections,
     hubSectionConfigs,
     customGroups,
-    availableAttributes,
   });
 
   // Track active drag for overlay
@@ -110,7 +129,8 @@ const ClusterHub: React.FC<Props> = ({
 
   const handleDragStart = React.useCallback((event: DragStartEvent) => {
     const { active } = event;
-    const data = active.data.current;
+    // dnd-kit types data.current as Record<string, any> | undefined; cast to our known shape
+    const data = active.data.current as DragData | undefined;
     if (data?.type === 'connection') {
       setActiveDrag({ type: 'connection', id: String(active.id), connectionId: data.connectionId });
     } else {
@@ -123,12 +143,13 @@ const ClusterHub: React.FC<Props> = ({
       const { active, over } = event;
       setActiveDrag(null);
 
-      const activeData = active.data.current;
+      // dnd-kit types data.current as Record<string, any> | undefined; cast to our known shape
+      const activeData = active.data.current as DragData | undefined;
 
       // Connection drag
       if (activeData?.type === 'connection') {
-        const connectionId = activeData.connectionId as string;
-        const sourceSectionId = activeData.sectionId as string | undefined;
+        const connectionId = activeData.connectionId;
+        const sourceSectionId = activeData.sectionId;
         const sourceGroupId = sourceSectionId?.startsWith('group:')
           ? sourceSectionId.slice(6)
           : undefined;
@@ -136,9 +157,9 @@ const ClusterHub: React.FC<Props> = ({
         // Determine target group (if any)
         let targetGroupId: string | undefined;
         if (over) {
-          const overData = over.data.current;
+          const overData = over.data.current as DragData | undefined;
           if (overData?.type === 'folder-drop') {
-            targetGroupId = overData.groupId as string;
+            targetGroupId = overData.groupId;
           } else if (String(over.id).startsWith('group:')) {
             targetGroupId = String(over.id).slice(6);
           }

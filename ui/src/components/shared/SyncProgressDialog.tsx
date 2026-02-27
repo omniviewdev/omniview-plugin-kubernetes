@@ -300,7 +300,7 @@ function SyncProgressDialogInner({
                     emphasis="soft"
                     size="sm"
                     color="danger"
-                    onClick={() => handleRetry(key)}
+                    onClick={() => { void handleRetry(key); }}
                     sx={{ minWidth: 0, fontSize: '0.625rem', px: 1, py: 0.25 }}
                   >
                     Retry

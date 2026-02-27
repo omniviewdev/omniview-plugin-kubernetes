@@ -1,20 +1,13 @@
 import { MoreHorizRounded } from '@mui/icons-material';
 import Box from '@mui/material/Box';
-
-// @omniviewdev/ui
 import ClickAwayListener from '@mui/material/ClickAwayListener';
 import Popper from '@mui/material/Popper';
 import { styled } from '@mui/material/styles';
 import { IconButton } from '@omniviewdev/ui/buttons';
 import React from 'react';
 
-// project imports
 import DeleteAction from './DeleteAction';
 import ExecAction from './ExecAction';
-
-// icons
-
-// types
 import { type Actions } from './types';
 
 type Props = {

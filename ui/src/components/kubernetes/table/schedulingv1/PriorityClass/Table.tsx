@@ -50,7 +50,7 @@ const PriorityClassTable: React.FC = () => {
         ],
         { connectionID: id, resourceKey },
       ),
-    [],
+    [id],
   );
 
   const drawer: DrawerComponent<PriorityClass> = React.useMemo(

@@ -75,6 +75,7 @@ const FolderDialog: React.FC<Props> = ({
               error={isDuplicate ? 'A folder with this name already exists' : undefined}
             >
               <TextField
+                // eslint-disable-next-line jsx-a11y/no-autofocus
                 autoFocus
                 size="sm"
                 placeholder="e.g. Production Suite"

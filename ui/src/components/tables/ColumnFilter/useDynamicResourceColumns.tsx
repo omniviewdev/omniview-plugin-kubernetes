@@ -1,10 +1,10 @@
 import { useResources } from '@omniviewdev/runtime';
 import { Chip } from '@omniviewdev/ui';
-import { ColumnDef } from '@tanstack/react-table';
+import { type ColumnDef } from '@tanstack/react-table';
 import React from 'react';
 import { LuTag, LuStickyNote } from 'react-icons/lu';
 
-import { KubernetesResourceObject } from '../../../types/resource';
+import { type KubernetesResourceObject } from '../../../types/resource';
 import { useStoredState } from '../../shared/hooks/useStoredState';
 
 type Args = {
@@ -84,7 +84,7 @@ export const useDynamicResourceColumns = <T extends KubernetesResourceObject>({
       ...discoveredAnnotations,
       ...prev,
     }));
-  }, [resources.data?.result]);
+  }, [resources.data?.result, setAnnotations, setLabels]);
 
   // Extract only the enabled keys
   const selectedLabelKeys = React.useMemo(
@@ -110,8 +110,8 @@ export const useDynamicResourceColumns = <T extends KubernetesResourceObject>({
    * we keep a stable reference if the actual TRUE selections do not change. Don't want to keep rerendering
    * column definitions if they end up being the same.
    */
-  const columnDefs = React.useMemo<Array<ColumnDef<any>>>(() => {
-    const labelCols: Array<ColumnDef<any>> = selectedLabelKeys.map((key) => ({
+  const columnDefs = React.useMemo<Array<ColumnDef<KubernetesResourceObject>>>(() => {
+    const labelCols: Array<ColumnDef<KubernetesResourceObject>> = selectedLabelKeys.map((key) => ({
       id: `label-${key}`,
       header: () => (
         <Chip
@@ -123,7 +123,7 @@ export const useDynamicResourceColumns = <T extends KubernetesResourceObject>({
           label={key}
         />
       ),
-      accessorFn: (row) => row.metadata?.labels?.[key] ?? '',
+      accessorFn: (row: KubernetesResourceObject) => row.metadata?.labels?.[key] ?? '',
       size: Math.max(100, key.length * 7 + 50),
       enableHiding: false,
       meta: {
@@ -131,7 +131,7 @@ export const useDynamicResourceColumns = <T extends KubernetesResourceObject>({
       },
     }));
 
-    const annotationCols: Array<ColumnDef<any>> = selectedAnnotationKeys.map((key) => ({
+    const annotationCols: Array<ColumnDef<KubernetesResourceObject>> = selectedAnnotationKeys.map((key) => ({
       id: `annotation-${key}`,
       header: () => (
         <Chip
@@ -143,7 +143,7 @@ export const useDynamicResourceColumns = <T extends KubernetesResourceObject>({
           label={key}
         />
       ),
-      accessorFn: (row) => row.metadata?.annotations?.[key] ?? '',
+      accessorFn: (row: KubernetesResourceObject) => row.metadata?.annotations?.[key] ?? '',
       size: Math.max(100, key.length * 7 + 50),
       enableHiding: false,
       meta: {
@@ -152,7 +152,7 @@ export const useDynamicResourceColumns = <T extends KubernetesResourceObject>({
     }));
 
     return [...labelCols, ...annotationCols];
-  }, [selectedLabelKeys.join(','), selectedAnnotationKeys.join(',')]);
+  }, [selectedLabelKeys, selectedAnnotationKeys]);
 
   return {
     columnDefs,

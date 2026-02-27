@@ -1,4 +1,7 @@
 import { useResources } from '@omniviewdev/runtime';
+import type { Deployment, StatefulSet, DaemonSet } from 'kubernetes-types/apps/v1';
+import type { Job, JobCondition, CronJob } from 'kubernetes-types/batch/v1';
+import type { Pod } from 'kubernetes-types/core/v1';
 import React from 'react';
 import {
   LuBox,
@@ -11,11 +14,16 @@ import {
 
 import WorkloadSummaryCard from './WorkloadSummaryCard';
 
-type KubeResource = Record<string, any>;
-
-function filterByNamespace(resources: KubeResource[], namespaces: string[]): KubeResource[] {
+/**
+ * Generic filter for namespaced K8s resources.
+ * Accepts any object with an optional metadata?.namespace field.
+ */
+function filterByNamespace<T extends { metadata?: { namespace?: string } }>(
+  resources: T[],
+  namespaces: string[],
+): T[] {
   if (namespaces.length === 0) return resources;
-  return resources.filter((r) => namespaces.includes(r.metadata?.namespace));
+  return resources.filter((r) => namespaces.includes(r.metadata?.namespace ?? ''));
 }
 
 // --- Module-level icon constants ---
@@ -45,7 +53,8 @@ export const PodStatCard = React.memo(function PodStatCard({
   });
 
   const stats = React.useMemo(() => {
-    const all = filterByNamespace(pods.data?.result ?? [], namespaces);
+    // runtime ListResult.result is typed as any[]; cast to the known K8s type
+    const all = filterByNamespace((pods.data?.result ?? []) as Pod[], namespaces);
     const counts = { Running: 0, Pending: 0, Failed: 0, Succeeded: 0, Unknown: 0 };
     for (const p of all) {
       const phase = p.status?.phase ?? 'Unknown';
@@ -92,7 +101,7 @@ export const DeploymentStatCard = React.memo(function DeploymentStatCard({
   });
 
   const stats = React.useMemo(() => {
-    const all = filterByNamespace(deployments.data?.result ?? [], namespaces);
+    const all = filterByNamespace((deployments.data?.result ?? []) as Deployment[], namespaces);
     let ready = 0;
     let unavailable = 0;
     for (const d of all) {
@@ -138,7 +147,7 @@ export const StatefulSetStatCard = React.memo(function StatefulSetStatCard({
   });
 
   const stats = React.useMemo(() => {
-    const all = filterByNamespace(statefulSets.data?.result ?? [], namespaces);
+    const all = filterByNamespace((statefulSets.data?.result ?? []) as StatefulSet[], namespaces);
     let ready = 0;
     let notReady = 0;
     for (const s of all) {
@@ -184,7 +193,7 @@ export const DaemonSetStatCard = React.memo(function DaemonSetStatCard({
   });
 
   const stats = React.useMemo(() => {
-    const all = filterByNamespace(daemonSets.data?.result ?? [], namespaces);
+    const all = filterByNamespace((daemonSets.data?.result ?? []) as DaemonSet[], namespaces);
     let ready = 0;
     let notReady = 0;
     for (const d of all) {
@@ -230,14 +239,14 @@ export const JobStatCard = React.memo(function JobStatCard({
   });
 
   const stats = React.useMemo(() => {
-    const all = filterByNamespace(jobs.data?.result ?? [], namespaces);
+    const all = filterByNamespace((jobs.data?.result ?? []) as Job[], namespaces);
     let complete = 0;
     let active = 0;
     let failed = 0;
     for (const j of all) {
-      const conditions = j.status?.conditions ?? [];
-      const isComplete = conditions.some((c: any) => c.type === 'Complete' && c.status === 'True');
-      const isFailed = conditions.some((c: any) => c.type === 'Failed' && c.status === 'True');
+      const conditions: JobCondition[] = j.status?.conditions ?? [];
+      const isComplete = conditions.some((c) => c.type === 'Complete' && c.status === 'True');
+      const isFailed = conditions.some((c) => c.type === 'Failed' && c.status === 'True');
       if (isComplete) {
         complete++;
       } else if (isFailed) {
@@ -281,7 +290,7 @@ export const CronJobStatCard = React.memo(function CronJobStatCard({
   });
 
   const stats = React.useMemo(() => {
-    const all = filterByNamespace(cronJobs.data?.result ?? [], namespaces);
+    const all = filterByNamespace((cronJobs.data?.result ?? []) as CronJob[], namespaces);
     let activeCount = 0;
     let suspended = 0;
     for (const cj of all) {

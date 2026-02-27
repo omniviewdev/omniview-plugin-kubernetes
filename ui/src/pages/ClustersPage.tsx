@@ -30,6 +30,7 @@ const DEFAULT_VISIBLE_COLUMNS = ['cluster', 'kubeconfig', 'user'];
 export default function ClustersPage(): React.ReactElement {
   const { meta } = usePluginContext();
   const { connections } = useConnections({ plugin: meta.id });
+  // eslint-disable-next-line @typescript-eslint/unbound-method
   const { showSnackbar } = useSnackbar();
 
   // Tab state
@@ -252,7 +253,7 @@ export default function ClustersPage(): React.ReactElement {
       >
         <MuiTabs
           value={activeTab}
-          onChange={(_e, val) => setActiveTab(val as 'hub' | 'all')}
+          onChange={(_e: React.SyntheticEvent, val: string) => setActiveTab(val as 'hub' | 'all')}
           sx={{
             px: 1,
             pt: 0.5,
@@ -289,12 +290,12 @@ export default function ClustersPage(): React.ReactElement {
               availableAttributes={hubGrouped.availableAttributes}
               customGroups={preferences.customGroups}
               hubSections={preferences.hubSections}
-              onReorderSections={preferences.setHubSections}
-              onToggleCollapse={preferences.updateHubSectionCollapsed}
-              onRecordAccess={preferences.recordAccess}
-              onToggleFavorite={preferences.toggleFavorite}
-              onAssignToGroup={preferences.assignToGroup}
-              onRemoveFromGroup={preferences.removeFromGroup}
+              onReorderSections={(sections) => { void preferences.setHubSections(sections); }}
+              onToggleCollapse={(sectionType, collapsed) => { void preferences.updateHubSectionCollapsed(sectionType, collapsed); }}
+              onRecordAccess={(connectionId) => { void preferences.recordAccess(connectionId); }}
+              onToggleFavorite={(connectionId) => { void preferences.toggleFavorite(connectionId); }}
+              onAssignToGroup={(groupId, connectionId) => { void preferences.assignToGroup(groupId, connectionId); }}
+              onRemoveFromGroup={(groupId, connectionId) => { void preferences.removeFromGroup(groupId, connectionId); }}
               onCreateFolder={handleCreateFolder}
               onEditFolder={handleEditFolder}
             />
@@ -362,12 +363,12 @@ export default function ClustersPage(): React.ReactElement {
               allLabelKeys={allLabelKeys}
               onToggleColumn={handleToggleColumn}
               onToggleCollapse={handleToggleCollapse}
-              onToggleFavorite={preferences.toggleFavorite}
-              onAssignToGroup={preferences.assignToGroup}
-              onRemoveFromGroup={preferences.removeFromGroup}
+              onToggleFavorite={(connectionId) => { void preferences.toggleFavorite(connectionId); }}
+              onAssignToGroup={(groupId, connectionId) => { void preferences.assignToGroup(groupId, connectionId); }}
+              onRemoveFromGroup={(groupId, connectionId) => { void preferences.removeFromGroup(groupId, connectionId); }}
               onCreateFolder={handleCreateFolder}
               onDeleteRequest={handleDeleteRequest}
-              onRecordAccess={preferences.recordAccess}
+              onRecordAccess={(connectionId) => { void preferences.recordAccess(connectionId); }}
             />
           )}
         </Box>
@@ -388,8 +389,8 @@ export default function ClustersPage(): React.ReactElement {
           mode={folderDialog.mode}
           initial={folderDialog.initial}
           existingNames={preferences.customGroups.map((g) => g.name)}
-          onSubmit={handleFolderSubmit}
-          onDelete={folderDialog.mode === 'edit' ? handleFolderDelete : undefined}
+          onSubmit={(values) => { void handleFolderSubmit(values); }}
+          onDelete={folderDialog.mode === 'edit' ? () => { void handleFolderDelete(); } : undefined}
           onClose={() => setFolderDialog(null)}
         />
       )}
@@ -400,7 +401,7 @@ export default function ClustersPage(): React.ReactElement {
 function ConnectionsLoadingSkeleton() {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, p: 1 }}>
-      {[...Array(4)].map((_, i) => (
+      {Array.from({ length: 4 }, (_, i) => (
         <Skeleton key={i} variant="rounded" height={48} sx={{ borderRadius: 1 }} />
       ))}
     </Box>

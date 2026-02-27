@@ -1,12 +1,9 @@
-// material-ui
 import Box from '@mui/material/Box';
 import Modal from '@mui/material/Modal';
 import { useExecuteAction } from '@omniviewdev/runtime';
 import { Button } from '@omniviewdev/ui/buttons';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
-
-// project-imports
 import React from 'react';
 import { stringify } from 'yaml';
 
@@ -19,6 +16,11 @@ interface Props {
   namespace: string;
   chartRef: string;
   connectionID: string;
+}
+
+/** Data returned by the `dry-run-upgrade` action. */
+interface DryRunUpgradeData {
+  manifest?: string;
 }
 
 const modalStyle = {
@@ -66,7 +68,8 @@ const UpgradeDialog: React.FC<Props> = ({
       params: { all: true },
     })
       .then((result) => {
-        setValues(result.data ? stringify(result.data) : '');
+        // result.data is Record<string, any> (the values object); stringify it for the editor
+        setValues(result.data ? stringify(result.data as Record<string, unknown>) : '');
         setValuesLoaded(true);
       })
       .catch(() => {
@@ -86,9 +89,11 @@ const UpgradeDialog: React.FC<Props> = ({
           reuse_values: reuseValues,
         },
       });
-      setDryRunManifest(result.data?.manifest ?? 'No manifest generated');
-    } catch (err: any) {
-      setDryRunManifest(`Error: ${err?.message ?? 'Dry run failed'}`);
+      const dryRunData = result.data as DryRunUpgradeData | undefined;
+      setDryRunManifest(dryRunData?.manifest ?? 'No manifest generated');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Dry run failed';
+      setDryRunManifest(`Error: ${message}`);
     }
   };
 

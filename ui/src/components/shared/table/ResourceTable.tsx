@@ -1,4 +1,3 @@
-// @omniviewdev/ui
 import Box from '@mui/material/Box';
 import LinearProgress from '@mui/material/LinearProgress';
 import { styled } from '@mui/material/styles';
@@ -9,8 +8,6 @@ import { IconButton } from '@omniviewdev/ui/buttons';
 import { Alert, Skeleton } from '@omniviewdev/ui/feedback';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text, Heading } from '@omniviewdev/ui/typography';
-
-// Tanstack/react-table
 import {
   type ColumnDef,
   type ColumnFiltersState,
@@ -25,31 +22,29 @@ import {
   type RowSelectionState,
 } from '@tanstack/react-table';
 import get from 'lodash.get';
-
-// Project imports
 import React, { useMemo, useState } from 'react';
 import { LuCircleAlert, LuColumns3 } from 'react-icons/lu';
 
+import type { KubernetesResourceObject } from '../../../types/resource';
 import { plural } from '../../../utils/language';
+import { CreateResourceButton } from '../../kubernetes/actions/create';
 import ColumnFilter from '../../tables/ColumnFilter';
+import { useDynamicResourceColumns } from '../../tables/ColumnFilter/useDynamicResourceColumns';
+import { DebouncedInput } from '../../tables/DebouncedInput';
 import NamespaceSelect from '../../tables/NamespaceSelect';
-
+import { useConnectionNamespaces } from '../hooks/useConnectionNamespaces';
 import { useStoredState } from '../hooks/useStoredState';
-import ResourceTableBody from './ResourceTableBody';
 
+import ResourceTableBody from './ResourceTableBody';
 import { TableDrawerContext } from './TableDrawerContext';
 import { ColumnMeta } from './types';
 import { useColumnSizeVars } from './useColumnSizeVars';
 import { getCommonPinningStyles } from './utils';
 
-import { useDynamicResourceColumns } from '../../tables/ColumnFilter/useDynamicResourceColumns';
-import { useConnectionNamespaces } from '../hooks/useConnectionNamespaces';
-import { CreateResourceButton } from '../../kubernetes/actions/create';
-import { DebouncedInput } from '../../tables/DebouncedInput';
 
-export type Memoizer = string | string[] | ((data: any) => string);
+export type Memoizer = string | string[] | ((data: KubernetesResourceObject) => string);
 
-const visibilityFromColumnDefs = (defs: Array<ColumnDef<any>>): VisibilityState => {
+const visibilityFromColumnDefs = <T,>(defs: Array<ColumnDef<T>>): VisibilityState => {
   const visibility: VisibilityState = {};
   defs.forEach((def) => {
     let meta = (def?.meta as { defaultHidden?: boolean }) || undefined;
@@ -117,6 +112,7 @@ const StyledTable = styled('table')`
   }
 `;
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Generic component that accepts multiple row data types (Pod, HelmChart, etc.)
 export type Props<T = any> = {
   connectionID: string;
   resourceKey: string;
@@ -132,6 +128,7 @@ export type Props<T = any> = {
   createEnabled?: boolean;
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Empty array used as fallback for resources.data?.result which is any[]
 const defaultData: any[] = [];
 
 const ResourceTableContainer: React.FC<Props> = ({
@@ -238,7 +235,7 @@ const ResourceTableContainer: React.FC<Props> = ({
     getFilteredRowModel: getFilteredRowModel(),
     onRowSelectionChange: setRowSelection,
     onColumnVisibilityChange: setColumnVisibility,
-    getRowId: (row) => get(row, 'metadata.uid'),
+    getRowId: (row) => get(row, 'metadata.uid') as string,
     defaultColumn: {
       minSize: 40,
       maxSize: 800,
@@ -551,6 +548,7 @@ const ResourceTableContainer: React.FC<Props> = ({
                             flexRender(header.column.columnDef.header, header.getContext())
                           )}
                           {header.column.getCanResize() && (
+                            // eslint-disable-next-line jsx-a11y/no-static-element-interactions
                             <div
                               onMouseDown={header.getResizeHandler()}
                               onTouchStart={header.getResizeHandler()}
@@ -566,8 +564,8 @@ const ResourceTableContainer: React.FC<Props> = ({
               </thead>
               {resources.isLoading ? (
                 <tbody style={{ display: 'grid' }}>
-                  {Array.from({ length: 8 }).map((_, i) => (
-                    <tr key={`skel-${i}`} style={{ display: 'flex', width: '100%', height: 30 }}>
+                  {Array.from({ length: 8 }, (_, i) => `skel-${i}`).map((rowKey) => (
+                    <tr key={rowKey} style={{ display: 'flex', width: '100%', height: 30 }}>
                       {table.getVisibleLeafColumns().map((col) => {
                         const flexMeta = (col.columnDef.meta as { flex?: number | undefined })
                           ?.flex;

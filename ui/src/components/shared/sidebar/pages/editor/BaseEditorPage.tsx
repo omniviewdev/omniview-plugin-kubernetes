@@ -1,8 +1,6 @@
 import { Button } from '@omniviewdev/ui/buttons';
 import { Stack } from '@omniviewdev/ui/layout';
 import React from 'react';
-
-// project-imports
 import { LuFileCode, LuSave, LuX } from 'react-icons/lu';
 import { stringify, parse } from 'yaml';
 
@@ -14,7 +12,7 @@ interface Props {
   resourceKey?: string;
   data?: KubernetesResourceObject;
   children?: React.ReactNode;
-  onSubmit?: (value: Record<string, any>) => void;
+  onSubmit?: (value: Record<string, unknown>) => void;
 }
 
 /**
@@ -41,7 +39,7 @@ export const BaseEditorPage: React.FC<Props> = ({ data, kind, resourceKey, onSub
 
   const handleSubmit = () => {
     if (onSubmit) {
-      const val = parse(value);
+      const val = parse(value) as Record<string, unknown>;
       onSubmit(val);
     }
   };
@@ -61,8 +59,8 @@ export const BaseEditorPage: React.FC<Props> = ({ data, kind, resourceKey, onSub
   };
 
   if (!data) {
-    console.log('did not get any data');
-    return <React.Fragment />;
+    console.warn('BaseEditorPage: no data provided');
+    return null;
   }
 
   // compose your component here

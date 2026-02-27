@@ -2,7 +2,7 @@ import Box from '@mui/material/Box';
 import { Checkbox } from '@omniviewdev/ui/inputs';
 import { type Row } from '@tanstack/react-table';
 
-export const SelectBoxRow = ({ row }: { row: Row<any> }) => (
+export const SelectBoxRow = ({ row }: { row: Row<Record<string, unknown>> }) => (
   <Box
     sx={{
       display: 'flex',
