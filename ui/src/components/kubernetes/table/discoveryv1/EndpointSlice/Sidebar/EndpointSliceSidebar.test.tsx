@@ -185,6 +185,19 @@ describe('SliceEndpointsSection', () => {
     expect(screen.getByText('Terminating')).toBeInTheDocument();
   });
 
+  it('does not render ResourceLinkChip when targetRef exists but name is undefined', () => {
+    const endpoints: Endpoint[] = [
+      {
+        addresses: ['10.244.0.5'],
+        conditions: { ready: true },
+        targetRef: { kind: 'Pod', namespace: 'default' },
+      },
+    ];
+    render(<SliceEndpointsSection endpoints={endpoints} connectionID="conn-1" />);
+    const chips = screen.queryAllByTestId('resource-link-chip');
+    expect(chips.length).toBe(0);
+  });
+
   it('renders ResourceLinkChip for targetRef and nodeName when connectionID provided', () => {
     const endpoints: Endpoint[] = [
       {

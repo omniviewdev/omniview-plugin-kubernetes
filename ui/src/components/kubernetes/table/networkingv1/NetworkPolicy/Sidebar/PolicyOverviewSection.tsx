@@ -44,7 +44,17 @@ const PolicyOverviewSection: React.FC<Props> = ({ policy }) => {
   const spec = policy.spec;
   if (!spec) return null;
 
-  const policyTypes = spec.policyTypes || [];
+  // When policyTypes is omitted, K8s implies Ingress is always active,
+  // and Egress is active when egress rules are defined.
+  let effectivePolicyTypes: string[];
+  if (spec.policyTypes && spec.policyTypes.length > 0) {
+    effectivePolicyTypes = spec.policyTypes;
+  } else {
+    effectivePolicyTypes = ['Ingress'];
+    if (spec.egress && spec.egress.length > 0) {
+      effectivePolicyTypes.push('Egress');
+    }
+  }
   const matchLabels = spec.podSelector.matchLabels;
   const matchExpressions = spec.podSelector.matchExpressions;
   const hasSelector =
@@ -59,7 +69,7 @@ const PolicyOverviewSection: React.FC<Props> = ({ policy }) => {
           Policy Overview
         </Text>
         <Stack direction="row" gap={0.5}>
-          {policyTypes.map((pt) => (
+          {effectivePolicyTypes.map((pt) => (
             <Chip
               key={pt}
               size="xs"

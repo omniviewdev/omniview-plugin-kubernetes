@@ -40,6 +40,7 @@ export const ServiceSidebar: React.FC<Props> = ({ ctx }) => {
   const hasConfig =
     spec?.sessionAffinity ||
     spec?.ipFamilyPolicy ||
+    (spec?.ipFamilies && spec.ipFamilies.length > 0) ||
     spec?.internalTrafficPolicy ||
     spec?.externalTrafficPolicy;
 

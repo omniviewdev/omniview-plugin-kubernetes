@@ -164,8 +164,8 @@ const EndpointSubsetsSection: React.FC<Props> = ({ subsets, connectionID }) => {
                 <Text size="xs" weight="semibold" sx={subLabelSx}>
                   Ready Addresses
                 </Text>
-                {subset.addresses.map((addr) => (
-                  <AddressRow key={addr.ip} addr={addr} connectionID={connectionID} />
+                {subset.addresses.map((addr, i) => (
+                  <AddressRow key={`${addr.ip}-${addr.nodeName ?? i}`} addr={addr} connectionID={connectionID} />
                 ))}
               </Box>
             )}
@@ -174,8 +174,8 @@ const EndpointSubsetsSection: React.FC<Props> = ({ subsets, connectionID }) => {
                 <Text size="xs" weight="semibold" sx={{ ...subLabelSx, color: 'warning.400' }}>
                   Not Ready Addresses
                 </Text>
-                {subset.notReadyAddresses.map((addr) => (
-                  <AddressRow key={addr.ip} addr={addr} connectionID={connectionID} />
+                {subset.notReadyAddresses.map((addr, i) => (
+                  <AddressRow key={`${addr.ip}-${addr.nodeName ?? i}`} addr={addr} connectionID={connectionID} />
                 ))}
               </Box>
             )}

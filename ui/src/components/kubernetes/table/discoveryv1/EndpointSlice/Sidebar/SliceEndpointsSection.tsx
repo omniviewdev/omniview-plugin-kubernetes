@@ -89,7 +89,7 @@ const SliceEndpointsSection: React.FC<Props> = ({ endpoints, connectionID }) => 
   if (!endpoints || endpoints.length === 0) return null;
 
   const sections: ExpandableSection[] = endpoints.map((ep: Endpoint, idx: number) => {
-    const primaryAddr = ep.addresses[0] || '';
+    const primaryAddr = ep.addresses?.[0] ?? '';
     const isReady = ep.conditions?.ready !== false;
 
     return {
@@ -120,7 +120,7 @@ const SliceEndpointsSection: React.FC<Props> = ({ endpoints, connectionID }) => 
       children: (
         <Box sx={contentSx}>
           {/* Addresses */}
-          {ep.addresses.length > 0 && (
+          {ep.addresses && ep.addresses.length > 0 && (
             <Box sx={{ mb: 0.5 }}>
               <Text size="xs" weight="semibold" sx={subLabelSx}>
                 Addresses

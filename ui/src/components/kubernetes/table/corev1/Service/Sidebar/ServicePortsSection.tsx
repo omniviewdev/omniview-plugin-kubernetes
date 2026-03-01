@@ -181,24 +181,30 @@ interface ForwardConfigPopoverProps {
 
 function ForwardConfigPopover({ anchorEl, port, onClose, onConfirm }: ForwardConfigPopoverProps) {
   const [localPort, setLocalPort] = React.useState('');
+  const [portError, setPortError] = React.useState('');
   const [protocol, setProtocol] = React.useState<'TCP' | 'UDP'>('TCP');
   const [openInBrowser, setOpenInBrowser] = React.useState(true);
 
   React.useEffect(() => {
     if (anchorEl && port) {
       setLocalPort('');
+      setPortError('');
       setProtocol((port.protocol as 'TCP' | 'UDP') || 'TCP');
       setOpenInBrowser(true);
     }
   }, [anchorEl, port]);
 
   const handleConfirm = () => {
-    const parsed = localPort ? parseInt(localPort, 10) : undefined;
-    onConfirm({
-      localPort: parsed && !isNaN(parsed) ? parsed : undefined,
-      protocol,
-      openInBrowser,
-    });
+    if (localPort) {
+      const parsed = parseInt(localPort, 10);
+      if (isNaN(parsed) || parsed < 1 || parsed > 65535) {
+        setPortError('Port must be 1–65535');
+        return;
+      }
+      onConfirm({ localPort: parsed, protocol, openInBrowser });
+    } else {
+      onConfirm({ localPort: undefined, protocol, openInBrowser });
+    }
     onClose();
   };
 
@@ -224,23 +230,45 @@ function ForwardConfigPopover({ anchorEl, port, onClose, onConfirm }: ForwardCon
         </ConfigRow>
 
         <ConfigRow label="Local Port">
-          <Box
-            component="input"
-            type="number"
-            placeholder="Auto"
-            value={localPort}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalPort(e.target.value)}
-            sx={localPortInputSx}
-          />
+          <Stack direction="column" gap={0.25}>
+            <Box
+              component="input"
+              type="number"
+              placeholder="Auto"
+              value={localPort}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                setLocalPort(e.target.value);
+                setPortError('');
+              }}
+              sx={{
+                ...localPortInputSx,
+                ...(portError ? { borderColor: 'var(--ov-danger-default, #f85149)' } : {}),
+              }}
+            />
+            {portError && (
+              <Box sx={{ fontSize: '0.625rem', color: 'var(--ov-danger-default, #f85149)' }}>
+                {portError}
+              </Box>
+            )}
+          </Stack>
         </ConfigRow>
 
         <ConfigRow label="Protocol">
-          <Box sx={protocolRowSx}>
+          <Box sx={protocolRowSx} role="radiogroup" aria-label="Protocol">
             {(['TCP', 'UDP'] as const).map((p) => (
               <Box
                 key={p}
                 component="button"
+                role="radio"
+                aria-checked={protocol === p}
+                tabIndex={0}
                 onClick={() => setProtocol(p)}
+                onKeyDown={(e: React.KeyboardEvent) => {
+                  if (e.key === ' ' || e.key === 'Enter') {
+                    e.preventDefault();
+                    setProtocol(p);
+                  }
+                }}
                 sx={{
                   all: 'unset',
                   fontSize: '0.6875rem',

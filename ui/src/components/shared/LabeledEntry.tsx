@@ -16,14 +16,15 @@ interface Props {
 
 const LabeledEntry: React.FC<Props> = ({ label, value, labelSize = 4 }) => {
   if (value === undefined || value === null) return null;
+  const clamped = Math.min(Math.max(labelSize, 1), 11);
   return (
     <Grid container spacing={0} sx={entryGridSx}>
-      <Grid size={labelSize}>
+      <Grid size={clamped}>
         <Text sx={entryLabelSx} size="xs">
           {label}
         </Text>
       </Grid>
-      <Grid size={12 - labelSize}>
+      <Grid size={12 - clamped}>
         {typeof value === 'string' ? (
           <ClipboardText value={value} variant="inherit" sx={entryValueSx} />
         ) : (
