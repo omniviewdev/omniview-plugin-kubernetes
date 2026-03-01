@@ -183,7 +183,7 @@ const SliceEndpointsSection: React.FC<Props> = ({ endpoints, connectionID }) => 
                 resourceName={ep.targetRef.name}
                 namespace={ep.targetRef.namespace}
               />
-            ) : ep.targetRef ? (
+            ) : ep.targetRef && ep.targetRef.name ? (
               <Chip
                 size="xs"
                 emphasis="outline"

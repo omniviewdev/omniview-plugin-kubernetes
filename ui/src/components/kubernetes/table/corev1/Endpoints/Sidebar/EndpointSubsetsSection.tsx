@@ -93,7 +93,7 @@ const AddressRow: React.FC<{
             resourceName={addr.targetRef.name}
             namespace={addr.targetRef.namespace}
           />
-        ) : addr.targetRef ? (
+        ) : addr.targetRef && addr.targetRef.name ? (
           <Chip
             size="xs"
             emphasis="outline"

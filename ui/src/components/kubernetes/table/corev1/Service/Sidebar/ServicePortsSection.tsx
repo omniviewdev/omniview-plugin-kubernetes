@@ -189,7 +189,7 @@ function ForwardConfigPopover({ anchorEl, port, onClose, onConfirm }: ForwardCon
     if (anchorEl && port) {
       setLocalPort('');
       setPortError('');
-      setProtocol((port.protocol as 'TCP' | 'UDP') || 'TCP');
+      setProtocol(port.protocol === 'UDP' ? 'UDP' : 'TCP');
       setOpenInBrowser(true);
     }
   }, [anchorEl, port]);
