@@ -1,4 +1,5 @@
 import Box from '@mui/material/Box';
+import Tooltip from '@mui/material/Tooltip';
 import { Link, useInformerState,
   useConnection,
   useResourceTypes,
@@ -9,17 +10,18 @@ import { Link, useInformerState,
 import { Avatar } from '@omniviewdev/ui';
 import { IconButton } from '@omniviewdev/ui/buttons';
 import { Stack } from '@omniviewdev/ui/layout';
-import { NavMenu } from '@omniviewdev/ui/sidebars';
 import { Text } from '@omniviewdev/ui/typography';
 import React from 'react';
-import { LuCog } from 'react-icons/lu';
+import { LuCog, LuLock, LuLockOpen, LuRotateCcw } from 'react-icons/lu';
 import { Outlet, useParams } from 'react-router-dom';
 
+import DraggableNavMenu from '../components/kubernetes/sidebar/DraggableNavMenu';
 import { useStoredState } from '../components/shared/hooks/useStoredState';
 import ResourceCommandPalette from '../components/shared/ResourceCommandPalette';
 import SyncProgressDialog from '../components/shared/SyncProgressDialog';
 import { useClusterPreferences } from '../hooks/useClusterPreferences';
 import { useSidebarLayout } from '../hooks/useSidebarLayout';
+import { useSidebarOrder, applyOrder } from '../hooks/useSidebarOrder';
 import Layout from '../layouts/resource';
 import { stringAvatar } from '../utils/color';
 
@@ -68,7 +70,9 @@ export default function ClusterResourcesPage(): React.ReactElement {
   const { groups } = useResourceGroups({ pluginID: 'kubernetes', connectionID: id });
   const { connection } = useConnection({ pluginID: 'kubernetes', connectionID: id });
   const { connectionOverrides } = useClusterPreferences('kubernetes');
-  const { layout } = useSidebarLayout({ connectionID: id });
+  const { layout: rawLayout } = useSidebarLayout({ connectionID: id });
+  const { order, setOrder, isEditing, setIsEditing, resetOrder } = useSidebarOrder();
+  const layout = React.useMemo(() => applyOrder(rawLayout, order), [rawLayout, order]);
   const { location, navigate } = usePluginRouter();
   const [savedExpandedState, setSavedExpandedState] = useStoredState<Record<string, boolean>>(
     `kubernetes-${id}-sidebar-expanded`,
@@ -237,7 +241,28 @@ export default function ClusterResourcesPage(): React.ReactElement {
                 {connectionOverrides[id]?.displayName || connection.data?.name}
               </Text>
             </Stack>
-            <Stack direction="row" alignItems="center" gap={1}>
+            <Stack direction="row" alignItems="center" gap={0.5}>
+              {isEditing && (
+                <Tooltip title="Reset to default order" placement="bottom">
+                  <span>
+                    <IconButton emphasis="soft" size="sm" color="neutral" onClick={resetOrder}>
+                      <LuRotateCcw size={16} />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              )}
+              <Tooltip title={isEditing ? 'Lock sidebar order' : 'Reorder sidebar'} placement="bottom">
+                <span>
+                  <IconButton
+                    emphasis="soft"
+                    size="sm"
+                    color={isEditing ? 'primary' : 'neutral'}
+                    onClick={() => setIsEditing((prev: boolean) => !prev)}
+                  >
+                    {isEditing ? <LuLockOpen size={16} /> : <LuLock size={16} />}
+                  </IconButton>
+                </span>
+              </Tooltip>
               <Link to={`/cluster/${id}/edit`}>
                 <IconButton emphasis="soft" size="sm" color="neutral">
                   <LuCog size={20} />
@@ -245,13 +270,13 @@ export default function ClusterResourcesPage(): React.ReactElement {
               </Link>
             </Stack>
           </Box>
-          <NavMenu
-            size="sm"
+          <DraggableNavMenu
             sections={layout}
             selected={selected}
             onSelect={handleSelect}
             scrollable
-            animate={false}
+            isEditing={isEditing}
+            onReorder={setOrder}
             initialExpandedState={savedExpandedState}
             onExpandedChange={handleExpandedChange}
           />
