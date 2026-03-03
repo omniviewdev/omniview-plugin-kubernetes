@@ -5,7 +5,7 @@ import { FilterFn } from '@tanstack/react-table';
  * Pass a string[] of allowed values; empty array means "show all".
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const namespaceFilter: FilterFn<any> = (row, columnId, value: string[]) => {
+export const inclusionFilter: FilterFn<any> = (row, columnId, value: string[]) => {
   if (!value?.length) {
     return true;
   }

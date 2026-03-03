@@ -15,7 +15,7 @@ import ResourceTable from '../../../../shared/table/ResourceTable';
 import { ChipListCell } from '../../shared/cells/ChipList';
 import { CopyableCell } from '../../shared/cells/CopyableCell';
 import { withNamespacedResourceColumns } from '../../shared/columns';
-import { namespaceFilter } from '../../shared/filters';
+import { inclusionFilter } from '../../shared/filters';
 
 import PersistentVolumeClaimSidebar from './Sidebar';
 
@@ -43,7 +43,7 @@ const PersistentVolumeClaimTable: React.FC = () => {
             id: 'status',
             header: 'Status',
             accessorFn: (row) => row.status?.phase ?? 'Pending',
-            filterFn: namespaceFilter as FilterFn<PersistentVolumeClaim>,
+            filterFn: inclusionFilter as FilterFn<PersistentVolumeClaim>,
             size: 100,
           },
           {
@@ -83,7 +83,7 @@ const PersistentVolumeClaimTable: React.FC = () => {
             id: 'storageClass',
             header: 'Storage Class',
             accessorFn: (row) => row.spec?.storageClassName ?? '—',
-            filterFn: namespaceFilter as FilterFn<PersistentVolumeClaim>,
+            filterFn: inclusionFilter as FilterFn<PersistentVolumeClaim>,
             size: 160,
             cell: CopyableCell,
             meta: {

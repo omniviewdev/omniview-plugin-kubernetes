@@ -15,7 +15,7 @@ import ResourceTable from '../../../../shared/table/ResourceTable';
 import { ChipListCell } from '../../shared/cells/ChipList';
 import { CopyableCell } from '../../shared/cells/CopyableCell';
 import { withNamespacedResourceColumns } from '../../shared/columns';
-import { namespaceFilter } from '../../shared/filters';
+import { inclusionFilter } from '../../shared/filters';
 
 import ServiceSidebar from './Sidebar';
 
@@ -36,7 +36,7 @@ const ServiceTable: React.FC = () => {
             id: 'type',
             header: 'Type',
             accessorFn: (row) => row.spec?.type ?? 'ClusterIP',
-            filterFn: namespaceFilter as FilterFn<Service>,
+            filterFn: inclusionFilter as FilterFn<Service>,
             size: 120,
             cell: CopyableCell,
           },
@@ -175,7 +175,7 @@ const ServiceTable: React.FC = () => {
       memoizer="metadata.uid,metadata.resourceVersion,spec.ports"
       drawer={drawer}
       toolbarFilters={[
-        { columnId: 'type', placeholder: 'All Types', accessor: (r: Service) => r?.spec?.type },
+        { columnId: 'type', placeholder: 'All Types', accessor: (r: Service) => r?.spec?.type ?? 'ClusterIP' },
         { columnId: 'namespace', placeholder: 'All Namespaces', accessor: (r: Service) => r?.metadata?.namespace },
       ]}
     />

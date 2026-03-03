@@ -22,7 +22,7 @@ import PodSidebar from '../../../sidebar/Pod';
 import ConditionsCell from '../../shared/cells/ConditionsCell';
 import { CopyableCell } from '../../shared/cells/CopyableCell';
 import { withNamespacedResourceColumns } from '../../shared/columns';
-import { namespaceFilter, ownerRefFilter } from '../../shared/filters';
+import { inclusionFilter, ownerRefFilter } from '../../shared/filters';
 
 import ContainerPhaseCell from './cells/ContainerPhaseCell';
 import ContainerStatusCell from './cells/ContainerStatusCell';
@@ -149,7 +149,7 @@ const PodTable: React.FC = () => {
             id: 'node',
             header: 'Node',
             accessorKey: 'spec.nodeName',
-            filterFn: namespaceFilter as FilterFn<Pod>,
+            filterFn: inclusionFilter as FilterFn<Pod>,
             size: 150,
             cell: ({ getValue }) => (
               <ResourceLinkCell

@@ -15,7 +15,7 @@ import ResourceTable from '../../../../shared/table/ResourceTable';
 import ResourceLinkCell from '../../corev1/Pod/cells/ResourceLinkCell';
 import { CopyableCell } from '../../shared/cells/CopyableCell';
 import { withClusterResourceColumns } from '../../shared/columns';
-import { namespaceFilter } from '../../shared/filters';
+import { inclusionFilter } from '../../shared/filters';
 
 import PersistentVolumeSidebar from './Sidebar';
 
@@ -57,7 +57,7 @@ const PersistentVolumeTable: React.FC = () => {
             id: 'storageClass',
             header: 'Storage Class',
             accessorFn: (row) => row.spec?.storageClassName ?? '—',
-            filterFn: namespaceFilter as FilterFn<PersistentVolume>,
+            filterFn: inclusionFilter as FilterFn<PersistentVolume>,
             size: 150,
             cell: CopyableCell,
           },
@@ -89,7 +89,7 @@ const PersistentVolumeTable: React.FC = () => {
             id: 'phase',
             header: 'Status',
             accessorFn: (row) => row.status?.phase ?? 'Unknown',
-            filterFn: namespaceFilter as FilterFn<PersistentVolume>,
+            filterFn: inclusionFilter as FilterFn<PersistentVolume>,
             size: 100,
           },
           {

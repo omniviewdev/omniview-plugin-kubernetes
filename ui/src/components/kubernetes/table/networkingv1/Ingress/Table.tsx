@@ -18,7 +18,7 @@ import ResourceLinkCell from '../../corev1/Pod/cells/ResourceLinkCell';
 import { ChipListCell } from '../../shared/cells/ChipList';
 import { CopyableCell } from '../../shared/cells/CopyableCell';
 import { withNamespacedResourceColumns } from '../../shared/columns';
-import { namespaceFilter } from '../../shared/filters';
+import { inclusionFilter } from '../../shared/filters';
 
 const hideScrollbarSx = {
   scrollbarWidth: 'none',
@@ -44,7 +44,7 @@ const IngressTable: React.FC = () => {
             id: 'ingressClass',
             header: 'Ingress Class',
             accessorFn: (row) => row.spec?.ingressClassName ?? '—',
-            filterFn: namespaceFilter as FilterFn<Ingress>,
+            filterFn: inclusionFilter as FilterFn<Ingress>,
             size: 150,
             cell: CopyableCell,
           },

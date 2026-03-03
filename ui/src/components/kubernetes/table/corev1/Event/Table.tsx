@@ -5,7 +5,7 @@ import { useParams } from 'react-router-dom';
 
 import ResourceTable from '../../../../shared/table/ResourceTable';
 import { withNamespacedResourceColumns } from '../../shared/columns';
-import { namespaceFilter } from '../../shared/filters';
+import { inclusionFilter } from '../../shared/filters';
 
 const resourceKey = 'core::v1::Event';
 
@@ -20,7 +20,7 @@ const EventTable: React.FC = () => {
             id: 'type',
             header: 'Type',
             accessorFn: (row) => row.type ?? '',
-            filterFn: namespaceFilter as FilterFn<Event>,
+            filterFn: inclusionFilter as FilterFn<Event>,
             size: 90,
           },
         ],

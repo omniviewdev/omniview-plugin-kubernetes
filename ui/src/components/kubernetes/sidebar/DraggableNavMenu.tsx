@@ -289,6 +289,7 @@ function ChildSortableContext({
             onToggleExpanded={onToggleExpanded}
             isEditing={isEditing}
             parentId={parentId}
+            onChildReorder={onChildReorder}
           />
         ))}
       </SortableContext>
@@ -412,20 +413,17 @@ export default function DraggableNavMenu({
       if (!over || active.id === over.id) return;
 
       setSections((prev) => {
-        const sectionIdx = prev.findIndex((s) =>
-          s.items.some((i) => i.id === active.id),
-        );
-        if (sectionIdx === -1) return prev;
+        const sectionIdx = prev.findIndex((s) => s.items.some((i) => i.id === active.id));
+        const overSectionIdx = prev.findIndex((s) => s.items.some((i) => i.id === over.id));
+        if (sectionIdx === -1 || overSectionIdx === -1 || sectionIdx !== overSectionIdx) return prev;
 
         const section = prev[sectionIdx];
         const oldIndex = section.items.findIndex((i) => i.id === active.id);
         const newIndex = section.items.findIndex((i) => i.id === over.id);
         if (oldIndex === -1 || newIndex === -1) return prev;
 
-        const newItems = arrayMove(section.items, oldIndex, newIndex);
-        const newSections = prev.map((s, i) =>
-          i === sectionIdx ? { ...s, items: newItems } : s,
-        );
+        const newSections = [...prev];
+        newSections[sectionIdx] = { ...section, items: arrayMove(section.items, oldIndex, newIndex) };
 
         onReorder(extractOrder(newSections));
         return newSections;
@@ -436,25 +434,25 @@ export default function DraggableNavMenu({
 
   const handleChildReorder = useCallback(
     (parentId: string, activeId: string, overId: string) => {
-      setSections((prev) => {
-        function reorderIn(items: NavMenuItemType[]): NavMenuItemType[] {
-          return items.map((item) => {
-            if (item.id === parentId && item.children) {
-              const oldIndex = item.children.findIndex((c) => c.id === activeId);
-              const newIndex = item.children.findIndex((c) => c.id === overId);
-              if (oldIndex === -1 || newIndex === -1) return item;
-              return { ...item, children: arrayMove(item.children, oldIndex, newIndex) };
-            }
-            if (item.children?.length) {
-              return { ...item, children: reorderIn(item.children) };
-            }
-            return item;
-          });
-        }
+      function reorderInTree(items: NavMenuItemType[]): NavMenuItemType[] {
+        return items.map((item) => {
+          if (item.id === parentId && item.children) {
+            const oldIndex = item.children.findIndex((c) => c.id === activeId);
+            const newIndex = item.children.findIndex((c) => c.id === overId);
+            if (oldIndex === -1 || newIndex === -1) return item;
+            return { ...item, children: arrayMove(item.children, oldIndex, newIndex) };
+          }
+          if (item.children?.length) {
+            return { ...item, children: reorderInTree(item.children) };
+          }
+          return item;
+        });
+      }
 
+      setSections((prev) => {
         const newSections = prev.map((section) => ({
           ...section,
-          items: reorderIn(section.items),
+          items: reorderInTree(section.items),
         }));
 
         onReorder(extractOrder(newSections));

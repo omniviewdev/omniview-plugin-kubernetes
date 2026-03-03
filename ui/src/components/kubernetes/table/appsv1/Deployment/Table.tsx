@@ -22,7 +22,7 @@ import ResourceTable from '../../../../shared/table/ResourceTable';
 import ScaleModal from '../../../actions/ScaleModal';
 import ConditionsCell from '../../shared/cells/ConditionsCell';
 import { withNamespacedResourceColumns } from '../../shared/columns';
-import { namespaceFilter } from '../../shared/filters';
+import { inclusionFilter } from '../../shared/filters';
 
 import DeploymentSidebar from './Sidebar';
 
@@ -122,7 +122,7 @@ const DeploymentTable: React.FC = () => {
             id: 'strategy',
             header: 'Strategy',
             accessorFn: (row) => row.spec?.strategy?.type ?? 'RollingUpdate',
-            filterFn: namespaceFilter as FilterFn<Deployment>,
+            filterFn: inclusionFilter as FilterFn<Deployment>,
             size: 120,
           },
           {
