@@ -1,6 +1,5 @@
-import { Select } from '@omniviewdev/ui/inputs';
 import React from 'react';
-
+import { Select } from '@omniviewdev/ui/inputs';
 import type { GroupByMode, ConnectionAttribute } from '../../types/clusters';
 
 type Props = {
@@ -21,17 +20,15 @@ const GroupBySelector: React.FC<Props> = ({
   availableAttributes,
   availableTags,
 }) => {
-  const baseAttrs = availableAttributes.filter((a) => BASE_ATTRIBUTES.has(a.key));
-  const cloudAttrs = availableAttributes.filter((a) => !BASE_ATTRIBUTES.has(a.key));
+  const baseAttrs = availableAttributes.filter(a => BASE_ATTRIBUTES.has(a.key));
+  const cloudAttrs = availableAttributes.filter(a => !BASE_ATTRIBUTES.has(a.key));
   const hasTags = availableTags.length > 0;
 
   return (
     <Select
-      size="sm"
+      size='sm'
       value={value}
-      onChange={(newValue) => {
-        if (newValue) onChange(newValue as GroupByMode);
-      }}
+      onChange={(newValue) => { if (newValue) onChange(newValue as GroupByMode); }}
       sx={{ minWidth: 140 }}
       options={[
         { value: 'none', label: 'No Grouping' },
@@ -41,11 +38,11 @@ const GroupBySelector: React.FC<Props> = ({
         ...(hasCustomGroups ? [{ value: 'custom', label: 'Custom Groups' }] : []),
         ...(hasTags ? [{ value: 'tags', label: 'Tags' }] : []),
         { value: 'recent', label: 'Recent' },
-        ...baseAttrs.map((attr) => ({
+        ...baseAttrs.map(attr => ({
           value: `label:${attr.key}`,
           label: attr.displayName,
         })),
-        ...cloudAttrs.map((attr) => ({
+        ...cloudAttrs.map(attr => ({
           value: `label:${attr.key}`,
           label: attr.displayName,
         })),

@@ -1,17 +1,12 @@
+import React from 'react';
+
 // @omniviewdev/ui
 import { useTheme } from '@mui/material/styles';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Tooltip } from '@omniviewdev/ui/overlays';
+
 import { type ContainerStatus } from 'kubernetes-types/core/v1';
-import React from 'react';
-
 import ContainerStatusCard from './KubernetesContainerStatusCard';
-
-// ---------------------------------------------------------------------------
-// Static styles
-// ---------------------------------------------------------------------------
-
-const containerStackSx = { width: '100%' } as const;
 
 type Props = {
   data?: unknown;
@@ -21,7 +16,7 @@ export const KubernetesContainerStatusCell: React.FC<Props> = ({ data }) => {
   const theme = useTheme();
 
   if (!data || !Array.isArray(data)) {
-    return null;
+    return <React.Fragment />;
   }
 
   const obj = data as ContainerStatus[];
@@ -32,7 +27,7 @@ export const KubernetesContainerStatusCell: React.FC<Props> = ({ data }) => {
     }
 
     if (status.state?.waiting) {
-      return theme.palette.warning.main;
+      return theme.palette.info.main;
     }
 
     if (status.state?.terminated) {
@@ -43,23 +38,16 @@ export const KubernetesContainerStatusCell: React.FC<Props> = ({ data }) => {
     }
 
     if (status.state?.running) {
-      return theme.palette.warning.main;
+      return theme.palette.info.main;
     }
 
     return theme.palette.grey[600];
   };
 
   return (
-    <Stack
-      direction="row"
-      sx={containerStackSx}
-      alignItems="center"
-      justifyContent="flex-start"
-      gap={1}
-    >
+    <Stack direction="row" sx={{ width: '100%' }} alignItems='center' justifyContent='flex-start' gap={1}>
       {obj.map((status) => (
         <Tooltip
-          key={status.name}
           placement="top-end"
           content={<ContainerStatusCard status={status} showStartedAt={false} />}
         >

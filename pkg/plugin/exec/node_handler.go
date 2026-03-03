@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/omniview/kubernetes/pkg/plugin/resource/resourcers"
+	"github.com/omniview/kubernetes/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -32,18 +33,7 @@ func NodeHandler(
 	stopCh chan error,
 	resize <-chan exec.SessionResizeInput,
 ) error {
-	return nodeHandlerWithProvider(defaultClientProvider, ctx, opts, tty, stopCh, resize)
-}
-
-func nodeHandlerWithProvider(
-	provider ClientProvider,
-	ctx *types.PluginContext,
-	opts exec.SessionOptions,
-	tty *os.File,
-	stopCh chan error,
-	resize <-chan exec.SessionResizeInput,
-) error {
-	clients, err := provider(ctx)
+	clients, err := utils.KubeClientsFromContext(ctx)
 	if err != nil {
 		return err
 	}

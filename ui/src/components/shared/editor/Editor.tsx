@@ -1,9 +1,9 @@
-import Editor, { DiffEditor, useMonaco } from '@monaco-editor/react';
-import { type FC, useEffect, useState } from 'react';
+import { type FC, useEffect, useState } from "react";
+import Editor, { DiffEditor, useMonaco } from "@monaco-editor/react";
 
 // Themes
-import BrillianceBlack from './themes/BrillianceBlack';
-import GithubDark from './themes/GithubDark';
+import GithubDark from "./themes/GithubDark";
+import BrillianceBlack from "./themes/BrillianceBlack";
 
 type Props = {
   filename: string;
@@ -34,41 +34,41 @@ const CodeEditor: FC<Props> = ({
   useEffect(() => {
     if (monaco) {
       // Define all of our themes
-      monaco.editor.defineTheme('github-dark', GithubDark);
-      monaco.editor.defineTheme('brilliance-black', BrillianceBlack);
+      monaco.editor.defineTheme("github-dark", GithubDark);
+      monaco.editor.defineTheme("brilliance-black", BrillianceBlack);
     }
 
     async function detectLanguage() {
       try {
-        const detectLangFn = (window as unknown as { detectLanguage?: (opts: { filename: string; contents: string }) => Promise<string | undefined> }).detectLanguage;
-        if (!detectLangFn) return;
-        const detected: string | undefined = await detectLangFn({
+        /* @ts-expect-error - global helper on the window object */
+        const detected = await window.detectLanguage({
           filename,
           contents: value,
         });
         if (detected) {
+          console.log("Detected language", detected);
           setLang(detected);
         }
-      } catch (err: unknown) {
-        console.error('Failed to detect language', err);
+      } catch (err) {
+        console.error("Failed to detect language", err);
       }
     }
 
     if (!lang) {
-      detectLanguage().catch((err: unknown) => { console.error(err); });
+      detectLanguage().catch(console.error);
     }
   }, [monaco, filename, value, lang]);
 
   /**
    * If we are using controlled, we need to handle the change event
    */
-  const handleChange = (val: string) => {
+  const handleChange = (value: string) => {
     if (onChange) {
-      onChange(val);
+      onChange(value);
       return;
     }
 
-    setControlledValue(val);
+    setControlledValue(value);
   };
 
   if (diff && original && lang) {
@@ -85,24 +85,22 @@ const CodeEditor: FC<Props> = ({
   if (lang) {
     return (
       <Editor
-        theme={lang === 'nginx' ? 'nginx-theme-dark' : 'vs-dark'}
+        theme={lang === "nginx" ? "nginx-theme-dark" : "vs-dark"}
         language={lang}
         value={
-          lang === 'json'
+          lang === "json"
             ? // pretty print it
-              JSON.stringify(JSON.parse(value) as unknown, null, 2)
+              JSON.stringify(JSON.parse(value), null, 2)
             : value || controlledValue
         }
-        onChange={(v) => {
-          handleChange(v || '');
+        onChange={(value) => {
+          handleChange(value || "");
         }}
-        height={height ?? '100%'}
+        height={height ?? "100%"}
         options={{ readOnly }}
       />
     );
   }
-
-  return null;
 };
 
 export default CodeEditor;

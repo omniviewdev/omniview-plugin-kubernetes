@@ -1,20 +1,5 @@
-import Box, { type BoxProps } from '@mui/material/Box';
 import React from 'react';
-
-const backdropSx = {
-  position: 'absolute',
-  inset: 0,
-  bgcolor: 'rgba(0, 0, 0, 0.5)',
-} as const;
-
-const drawerContentSx = {
-  minWidth: 256,
-  width: 'max-content',
-  height: '100%',
-  p: 2,
-  boxShadow: 6,
-  bgcolor: 'background.paper',
-} as const;
+import Box, { type BoxProps } from '@mui/material/Box';
 
 type Props = BoxProps & {
   onClose: React.MouseEventHandler<HTMLDivElement>;
@@ -28,22 +13,29 @@ const SideDrawer: React.FC<Props> = ({ onClose, ...props }) => (
     {...props}
     sx={[
       {
-        position: 'fixed',
-        zIndex: 1200,
-        width: '100%',
-        height: '100%',
+        position: 'fixed', zIndex: 1200, width: '100%', height: '100%',
       },
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- MUI SxProps internally uses `any`
       ...(Array.isArray(props.sx) ? props.sx : [props.sx]),
     ]}
   >
     <Box
-      role="button"
+      role='button'
       onClick={onClose}
-      sx={backdropSx}
+      sx={{
+        position: 'absolute',
+        inset: 0,
+        bgcolor: 'rgba(0, 0, 0, 0.5)',
+      }}
     />
     <Box
-      sx={drawerContentSx}
+      sx={{
+        minWidth: 256,
+        width: 'max-content',
+        height: '100%',
+        p: 2,
+        boxShadow: 6,
+        bgcolor: 'background.paper',
+      }}
     >
       {props.children}
     </Box>

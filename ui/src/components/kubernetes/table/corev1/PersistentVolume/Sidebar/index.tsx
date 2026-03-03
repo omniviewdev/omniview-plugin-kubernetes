@@ -1,15 +1,14 @@
-import { DrawerContext } from '@omniviewdev/runtime';
-import { Stack } from '@omniviewdev/ui/layout';
-import { PersistentVolume } from 'kubernetes-types/core/v1';
-import React from 'react';
+import React from "react";
 
 // material-ui
+import { Stack } from "@omniviewdev/ui/layout";
 
 // project-imports
 
 // types
-
-import ObjectMetaSection from '../../../../../shared/ObjectMetaSection';
+import { PersistentVolume } from "kubernetes-types/core/v1";
+import ObjectMetaSection from "../../../../../shared/ObjectMetaSection";
+import { DrawerContext } from "@omniviewdev/runtime";
 
 interface Props {
   ctx: DrawerContext<PersistentVolume>;
@@ -21,11 +20,11 @@ export const PersistentVolumeSidebar: React.FC<Props> = ({ ctx }) => {
   }
 
   return (
-    <Stack direction="column" width={'100%'} spacing={1}>
+    <Stack direction="column" width={"100%"} spacing={1}>
       <ObjectMetaSection data={ctx.data.metadata} />
     </Stack>
   );
 };
 
-PersistentVolumeSidebar.displayName = 'PersistentVolumeSidebar';
+PersistentVolumeSidebar.displayName = "PersistentVolumeSidebar";
 export default PersistentVolumeSidebar;

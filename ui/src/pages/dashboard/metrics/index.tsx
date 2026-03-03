@@ -1,16 +1,12 @@
+import React, { useMemo } from 'react';
+import { useParams } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
+import { Stack } from '@omniviewdev/ui/layout';
+import { MetricsPanel } from '@omniviewdev/ui/charts';
+import type { TimeSeriesDef, ChartTimeRange, MetricFormat, ChartAnnotation } from '@omniviewdev/ui/charts';
 import { useResourceMetrics } from '@omniviewdev/runtime';
 import type { metric } from '@omniviewdev/runtime/models';
-import { MetricsPanel } from '@omniviewdev/ui/charts';
-import type {
-  TimeSeriesDef,
-  ChartTimeRange,
-  MetricFormat,
-  ChartAnnotation,
-} from '@omniviewdev/ui/charts';
-import { Stack } from '@omniviewdev/ui/layout';
-import React, { useMemo } from 'react';
 import {
   LuCpu,
   LuMemoryStick,
@@ -20,19 +16,8 @@ import {
   LuRotateCcw,
   LuTriangleAlert,
 } from 'react-icons/lu';
-import { useParams } from 'react-router-dom';
 
 import { useClusterPreferences } from '../../../hooks/useClusterPreferences';
-
-const emptyStateSx = { p: 3, textAlign: 'center' } as const;
-
-const pageSx = { p: 1.5, overflow: 'auto', height: '100%', width: '100%', flex: 1 } as const;
-
-const chartGridSx = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
-  gap: 1.5,
-} as const;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -96,7 +81,7 @@ function toTimeSeriesDef(
     id: ts.metric_id,
     label,
     data: (ts.data_points ?? []).map((dp) => ({
-      timestamp: new Date(dp.timestamp as unknown as string).getTime(),
+      timestamp: new Date(String(dp.timestamp)).getTime(),
       value: dp.value,
     })),
     color,
@@ -249,20 +234,16 @@ const METRICS_CHARTS: ChartDef[] = [
 
 const ClusterDashboardMetricsPage: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
-  const [timeRange, setTimeRange] = React.useState<ChartTimeRange>(() => ({
+  const [timeRange, setTimeRange] = React.useState<ChartTimeRange>({
     from: new Date(Date.now() - 3600000),
     to: new Date(),
-  }));
+  });
 
   const { connectionOverrides } = useClusterPreferences('kubernetes');
   const metricConfig = connectionOverrides[id]?.metricConfig;
 
   const resourceData = useMemo(() => {
-    if (
-      !metricConfig?.prometheusService &&
-      !metricConfig?.prometheusNamespace &&
-      !metricConfig?.prometheusPort
-    ) {
+    if (!metricConfig?.prometheusService && !metricConfig?.prometheusNamespace && !metricConfig?.prometheusPort) {
       return {};
     }
     return {
@@ -295,11 +276,7 @@ const ClusterDashboardMetricsPage: React.FC = () => {
   }, []);
 
   // Time-series data
-  const {
-    data: tsData,
-    providers,
-    isLoading,
-  } = useResourceMetrics({
+  const { data: tsData, providers, isLoading } = useResourceMetrics({
     pluginID: 'kubernetes',
     connectionID: id,
     resourceKey: 'cluster::metrics',
@@ -333,7 +310,7 @@ const ClusterDashboardMetricsPage: React.FC = () => {
 
   if (providers.length === 0 && !isLoading) {
     return (
-      <Box sx={emptyStateSx}>
+      <Box sx={{ p: 3, textAlign: 'center' }}>
         <Typography variant="body2" color="text.secondary">
           No metric providers available. Ensure Prometheus is running in your cluster.
         </Typography>
@@ -346,10 +323,14 @@ const ClusterDashboardMetricsPage: React.FC = () => {
   );
 
   return (
-    <Box sx={pageSx}>
+    <Box sx={{ p: 1.5, overflow: 'auto', height: '100%', width: '100%', flex: 1 }}>
       <Stack gap={1.5}>
         <Box
-          sx={chartGridSx}
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+            gap: 1.5,
+          }}
         >
           {(isLoading && activeCharts.length === 0 ? METRICS_CHARTS : activeCharts).map((def) => {
             const series: TimeSeriesDef[] = [];

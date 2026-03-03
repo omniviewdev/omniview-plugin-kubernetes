@@ -22,9 +22,6 @@ func FetchOpenAPISchemas(
 		return nil, fmt.Errorf("no connection in context")
 	}
 
-	log.Printf("[FetchOpenAPISchemas] fetching schemas for %d keys, connection=%s",
-		len(registeredKeys), ctx.Connection.ID)
-
 	openapiv3Client := client.Clientset.Discovery().OpenAPIV3()
 	paths, err := openapiv3Client.Paths()
 	if err != nil {
@@ -67,27 +64,27 @@ func FetchOpenAPISchemas(
 				}
 			}
 			if !found {
-				log.Printf("[FetchOpenAPISchemas] no OpenAPI path found for %s/%s", gv.group, gv.version)
+				log.Printf("no OpenAPI path found for %s/%s", gv.group, gv.version)
 				continue
 			}
 		}
 
 		pathItem, ok := paths[openAPIPath]
 		if !ok {
-			log.Printf("[FetchOpenAPISchemas] OpenAPI path %q not found in server paths", openAPIPath)
+			log.Printf("OpenAPI path %q not found in server paths", openAPIPath)
 			continue
 		}
 
 		schemaBytes, err := pathItem.Schema("application/json")
 		if err != nil {
-			log.Printf("[FetchOpenAPISchemas] failed to fetch schema for %s: %v", openAPIPath, err)
+			log.Printf("failed to fetch schema for %s: %v", openAPIPath, err)
 			continue
 		}
 
 		// Parse the schema document to extract individual Kind definitions
 		var schemaDoc map[string]interface{}
 		if err := json.Unmarshal(schemaBytes, &schemaDoc); err != nil {
-			log.Printf("[FetchOpenAPISchemas] failed to parse schema for %s: %v", openAPIPath, err)
+			log.Printf("failed to parse schema for %s: %v", openAPIPath, err)
 			continue
 		}
 
@@ -110,7 +107,6 @@ func FetchOpenAPISchemas(
 			//   io.k8s.api.core.v1.Pod
 			defKey := findDefinitionKey(defs, meta)
 			if defKey == "" {
-				log.Printf("[FetchOpenAPISchemas] no definition found for %s", key)
 				continue
 			}
 
@@ -121,7 +117,7 @@ func FetchOpenAPISchemas(
 
 			defBytes, err := json.Marshal(def)
 			if err != nil {
-				log.Printf("[FetchOpenAPISchemas] failed to marshal definition for %s: %v", key, err)
+				log.Printf("failed to marshal definition for %s: %v", key, err)
 				continue
 			}
 
@@ -135,7 +131,6 @@ func FetchOpenAPISchemas(
 		}
 	}
 
-	log.Printf("[FetchOpenAPISchemas] returning %d schemas for connection %s", len(schemas), ctx.Connection.ID)
 	return schemas, nil
 }
 

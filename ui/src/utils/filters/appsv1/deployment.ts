@@ -1,15 +1,21 @@
-import { Deployment } from 'kubernetes-types/apps/v1';
-import { Secret } from 'kubernetes-types/core/v1';
+import { Deployment } from "kubernetes-types/apps/v1";
+import { Secret } from "kubernetes-types/core/v1";
 
 // Various filters for find linked resources based on the deployment
-export const deplomentUsesSecret = (deployment: Deployment, secret: Secret): boolean => {
+export const deplomentUsesSecret = (
+  deployment: Deployment,
+  secret: Secret,
+): boolean => {
   if (secret === undefined) {
     return false;
   }
 
   if (deployment?.spec?.template?.spec?.volumes) {
     return deployment.spec.template.spec.volumes.some((volume) => {
-      if (volume.secret && volume.secret.secretName === secret?.metadata?.name) {
+      if (
+        volume.secret &&
+        volume.secret.secretName === secret?.metadata?.name
+      ) {
         return true;
       }
     });
@@ -21,7 +27,10 @@ export const deplomentUsesSecret = (deployment: Deployment, secret: Secret): boo
       if (
         container.envFrom &&
         container.envFrom.some((envFrom) => {
-          if (envFrom.secretRef && envFrom.secretRef.name === secret?.metadata?.name) {
+          if (
+            envFrom.secretRef &&
+            envFrom.secretRef.name === secret?.metadata?.name
+          ) {
             return true;
           }
         })

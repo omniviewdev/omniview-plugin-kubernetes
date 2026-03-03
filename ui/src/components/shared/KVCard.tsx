@@ -1,66 +1,44 @@
+import React from "react";
+
 // @omniviewdev/ui
-import Grid from '@mui/material/Grid';
+import Grid from "@mui/material/Grid";
 import { Chip, ClipboardText } from '@omniviewdev/ui';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
-import React from 'react';
-
 import ExpandableSections from './ExpandableSections';
-
-const titleTextSx = { fontSize: 12 } as const;
-
-const chipSx = { borderRadius: 1 } as const;
-
-const gridContainerSx = { px: 1, py: 0.5 } as const;
-
-const gridCellSx = { alignItems: 'center' } as const;
-
-const keyTextSx = { fontSize: 11, fontWeight: 400 } as const;
-
-const valueTextSx = { fontSize: 11, fontWeight: 600 } as const;
 
 interface Props {
   title: string;
   kvs: Record<string, string>;
   defaultExpanded?: boolean;
-  size?: 'sm' | 'md' | 'lg';
+  size?: "sm" | "md" | "lg";
 }
 
-const KVCard: React.FC<Props> = ({ title, kvs, defaultExpanded, size = 'sm' }) => {
+const KVCard: React.FC<Props> = ({ title, kvs, defaultExpanded, size = "sm" }) => {
   const sections = [
     {
       title: (
-        <Stack direction="row" gap={0.75} alignItems="center">
-          <Text weight="semibold" size="xs" sx={titleTextSx}>
-            {title}
-          </Text>
+        <Stack direction='row' gap={0.75} alignItems="center">
+          <Text weight='semibold' size='xs' sx={{ fontSize: 12 }}>{title}</Text>
           <Chip
             size="xs"
             emphasis="outline"
-            color="primary"
-            sx={chipSx}
+            color='primary'
+            sx={{ borderRadius: 1 }}
             label={String(Object.keys(kvs).length)}
           />
         </Stack>
       ),
       defaultExpanded: defaultExpanded && Object.keys(kvs).length > 0,
       children: (
-        <Grid container spacing={0.25} sx={gridContainerSx}>
+        <Grid container spacing={0.25} sx={{ px: 1, py: 0.5 }}>
           {Object.entries(kvs).map(([key, value]) => (
             <React.Fragment key={key}>
-              <Grid size={6} sx={gridCellSx}>
-                <ClipboardText
-                  value={key}
-                  variant="inherit"
-                  sx={keyTextSx}
-                />
+              <Grid size={6} sx={{ alignItems: "center" }}>
+                <ClipboardText value={key} variant="inherit" sx={{ fontSize: 11, fontWeight: 400 }} />
               </Grid>
-              <Grid size={6} sx={gridCellSx}>
-                <ClipboardText
-                  value={value}
-                  variant="inherit"
-                  sx={valueTextSx}
-                />
+              <Grid size={6} sx={{ alignItems: "center" }}>
+                <ClipboardText value={value} variant="inherit" sx={{ fontSize: 11, fontWeight: 600 }} />
               </Grid>
             </React.Fragment>
           ))}
@@ -69,7 +47,9 @@ const KVCard: React.FC<Props> = ({ title, kvs, defaultExpanded, size = 'sm' }) =
     },
   ];
 
-  return <ExpandableSections sections={sections} size={size} />;
+  return (
+    <ExpandableSections sections={sections} size={size} />
+  );
 };
 
 export default KVCard;

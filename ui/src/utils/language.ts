@@ -21,7 +21,7 @@ export function plural(word: string, amount?: number): string {
     '(hive)$': '$1s',
     '(?:([^f])fe|([lr])f)$': '$1$2ves',
     '(shea|lea|loa|thie)f$': '$1ves',
-    sis$: 'ses',
+    'sis$': 'ses',
     '([ti])um$': '$1a',
     '(tomat|potat|ech|her|vet)o$': '$1oes',
     '(bu)s$': '$1ses',
@@ -32,14 +32,14 @@ export function plural(word: string, amount?: number): string {
     '([^s]+)$': '$1s',
   };
   const irregular: Record<string, string> = {
-    move: 'moves',
-    foot: 'feet',
-    goose: 'geese',
-    sex: 'sexes',
-    child: 'children',
-    man: 'men',
-    tooth: 'teeth',
-    person: 'people',
+    'move': 'moves',
+    'foot': 'feet',
+    'goose': 'geese',
+    'sex': 'sexes',
+    'child': 'children',
+    'man': 'men',
+    'tooth': 'teeth',
+    'person': 'people',
   };
   const uncountable: string[] = [
     'sheep',

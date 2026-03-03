@@ -1,13 +1,19 @@
-import { DaemonSet } from 'kubernetes-types/apps/v1';
-import { Secret } from 'kubernetes-types/core/v1';
+import { DaemonSet } from "kubernetes-types/apps/v1";
+import { Secret } from "kubernetes-types/core/v1";
 
-export const daemonSetUsesSecret = (daemonset: DaemonSet, secret: Secret): boolean => {
+export const daemonSetUsesSecret = (
+  daemonset: DaemonSet,
+  secret: Secret,
+): boolean => {
   if (secret === undefined) {
     return false;
   }
   if (daemonset?.spec?.template?.spec?.volumes) {
     return daemonset.spec.template.spec.volumes.some((volume) => {
-      if (volume.secret && volume.secret.secretName === secret?.metadata?.name) {
+      if (
+        volume.secret &&
+        volume.secret.secretName === secret?.metadata?.name
+      ) {
         return true;
       }
     });
@@ -19,7 +25,10 @@ export const daemonSetUsesSecret = (daemonset: DaemonSet, secret: Secret): boole
       if (
         container.envFrom &&
         container.envFrom.some((envFrom) => {
-          if (envFrom.secretRef && envFrom.secretRef.name === secret?.metadata?.name) {
+          if (
+            envFrom.secretRef &&
+            envFrom.secretRef.name === secret?.metadata?.name
+          ) {
             return true;
           }
         })

@@ -93,8 +93,7 @@ describe('toResourceKey', () => {
   it('handles nav IDs with more than 3 underscore segments', () => {
     // e.g. "admissionregistration.k8s.io_v1_ValidatingWebhookConfiguration"
     // This has exactly 3 underscores, so it works fine
-    expect(toResourceKey('admissionregistration.k8s.io_v1_ValidatingWebhookConfiguration')).toBe(
-      'admissionregistration.k8s.io::v1::ValidatingWebhookConfiguration',
-    );
+    expect(toResourceKey('admissionregistration.k8s.io_v1_ValidatingWebhookConfiguration'))
+      .toBe('admissionregistration.k8s.io::v1::ValidatingWebhookConfiguration');
   });
 });

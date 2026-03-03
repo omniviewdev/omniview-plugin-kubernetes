@@ -1,13 +1,16 @@
-import { type Row, flexRender } from '@tanstack/react-table';
-import { type VirtualItem } from '@tanstack/react-virtual';
 import React from 'react';
 
-import type { KubernetesResourceObject } from '../../../types/resource';
+// Tanstack/react-table
+import {
+  type Row,
+  flexRender,
+} from '@tanstack/react-table';
 
 import { type Memoizer } from './types';
+import { type VirtualItem } from '@tanstack/react-virtual';
 import { getCommonPinningStyles } from './utils';
 
-export type Props<T = KubernetesResourceObject> = {
+export type Props<T = any> = {
   memoizer?: Memoizer;
   resourceKey: string;
   resourceID: string;
@@ -16,7 +19,7 @@ export type Props<T = KubernetesResourceObject> = {
   resizedColumnIds: string;
   virtualRow: VirtualItem;
   isSelected: boolean;
-  onRowClick: (id: string, data: KubernetesResourceObject) => void;
+  onRowClick: (id: string, data: any) => void;
   /** The row data */
   row: Row<T>;
 };
@@ -33,15 +36,14 @@ export const RowContainer: React.FC<Props> = ({
   row,
   onRowClick,
 }) => {
-  'use no memo';
   const resizedSet: Set<string> = React.useMemo(
     () => new Set(JSON.parse(resizedColumnIds) as string[]),
-    [resizedColumnIds],
+    [resizedColumnIds]
   );
 
   const handleRowClick = (column: string) => {
     if (column !== 'select' && column !== 'menu') {
-      onRowClick(resourceID, row.original);
+      onRowClick(resourceID, row.original)
     }
   };
 
@@ -62,30 +64,19 @@ export const RowContainer: React.FC<Props> = ({
         backgroundColor: isSelected ? 'var(--ov-accent-subtle)' : 'var(--ov-bg-base)',
       }}
       onMouseEnter={(e) => {
-        if (!isSelected) {
-          e.currentTarget.style.backgroundColor = 'var(--ov-state-hover)';
-        }
-        for (const td of e.currentTarget.querySelectorAll<HTMLElement>('[data-pinned]')) {
-          td.style.backgroundColor = 'var(--ov-bg-base)';
-        }
+        if (!isSelected) e.currentTarget.style.backgroundColor = 'var(--ov-state-hover)';
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.backgroundColor = isSelected
-          ? 'var(--ov-accent-subtle)'
-          : 'var(--ov-bg-base)';
-        for (const td of e.currentTarget.querySelectorAll<HTMLElement>('[data-pinned]')) {
-          td.style.backgroundColor = 'var(--ov-bg-base)';
-        }
+        e.currentTarget.style.backgroundColor = isSelected ? 'var(--ov-accent-subtle)' : 'var(--ov-bg-base)';
       }}
     >
-      {row.getVisibleCells().map((cell) => {
+      {row.getVisibleCells().map(cell => {
         const flexMeta = (cell.column.columnDef.meta as { flex?: number } | undefined)?.flex;
         const isUserResized = resizedSet.has(cell.column.id);
         const applyFlex = flexMeta && !isUserResized;
         return (
           <td
             key={cell.id}
-            data-pinned={cell.column.getIsPinned() || undefined}
             onClick={() => {
               handleRowClick(cell.column.id);
             }}
@@ -105,8 +96,7 @@ export const RowContainer: React.FC<Props> = ({
               color: 'var(--ov-fg-default)',
               borderBottom: '1px solid var(--ov-border-muted)',
               lineHeight: '30px',
-              ...getCommonPinningStyles(cell.column, false),
-              ...(cell.column.getIsPinned() ? { backgroundColor: 'var(--ov-bg-base)' } : {}),
+              ...getCommonPinningStyles(cell.column, false)
             }}
           >
             {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -117,6 +107,8 @@ export const RowContainer: React.FC<Props> = ({
   );
 };
 
+
 RowContainer.displayName = 'RowContainer';
 // RowContainer.whyDidYouRender = true;
 export default RowContainer;
+

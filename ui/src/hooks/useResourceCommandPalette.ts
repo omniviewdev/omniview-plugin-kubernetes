@@ -1,7 +1,7 @@
-import { usePluginData } from '@omniviewdev/runtime';
-import type { CommandItem } from '@omniviewdev/ui/editors';
-import type { NavSection, NavMenuItem } from '@omniviewdev/ui/sidebars';
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { usePluginData } from '@omniviewdev/runtime';
+import type { NavSection, NavMenuItem } from '@omniviewdev/ui/sidebars';
+import type { CommandItem } from '@omniviewdev/ui/editors';
 
 const MAX_RECENT = 8;
 
@@ -76,18 +76,13 @@ type UseResourceCommandPaletteOpts = {
   onSelect: (resourceID: string) => void;
 };
 
-export function useResourceCommandPalette({
-  connectionID,
-  layout,
-  onSelect,
-}: UseResourceCommandPaletteOpts) {
+export function useResourceCommandPalette({ connectionID, layout, onSelect }: UseResourceCommandPaletteOpts) {
   const [open, setOpen] = useState(false);
 
-  const { data: recentIDs, update: setRecentIDs } = usePluginData<string[]>(
-    'kubernetes',
-    `palette_recent_${connectionID}`,
-    [],
-  );
+  const {
+    data: recentIDs,
+    update: setRecentIDs,
+  } = usePluginData<string[]>('kubernetes', `palette_recent_${connectionID}`, []);
 
   // Flatten layout into palette items
   const { items, categories } = useMemo(() => flattenSections(layout), [layout]);
@@ -121,7 +116,7 @@ export function useResourceCommandPalette({
     (item: CommandItem) => {
       // Update recents: prepend, dedupe, cap
       const updated = [item.id, ...recentIDs.filter((id) => id !== item.id)].slice(0, MAX_RECENT);
-      void setRecentIDs(updated);
+      setRecentIDs(updated);
 
       onSelect(item.id);
       setOpen(false);

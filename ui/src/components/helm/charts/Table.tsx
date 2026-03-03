@@ -1,40 +1,19 @@
-import Box from '@mui/material/Box';
-import { DrawerComponent } from '@omniviewdev/runtime';
-import { Text } from '@omniviewdev/ui/typography';
-import { ColumnDef } from '@tanstack/react-table';
 import React from 'react';
-import { SiHelm } from 'react-icons/si';
+import { ColumnDef } from '@tanstack/react-table';
 import { useParams } from 'react-router-dom';
-
-import { stringToColor } from '../../../utils/color';
-import { createStandardViews } from '../../shared/sidebar/createDrawerViews';
+import Box from '@mui/material/Box';
+import { Text } from '@omniviewdev/ui/typography';
 import ResourceTable from '../../shared/table/ResourceTable';
-
+import { DrawerComponent } from '@omniviewdev/runtime';
+import { SiHelm } from 'react-icons/si';
 import ChartSidebar from './ChartSidebar';
+import { createStandardViews } from '../../shared/sidebar/createDrawerViews';
+import { stringToColor } from '../../../utils/color';
 
 const resourceKey = 'helm::v1::Chart';
-
-const nameCellSx = { display: 'flex', alignItems: 'center', gap: 1, overflow: 'hidden' } as const;
-const truncateTextSx = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } as const;
 const ICON_SIZE = 20;
 
-/** Shape of a Helm chart row as rendered in the table. */
-interface HelmChart {
-  id?: string;
-  name?: string;
-  description?: string;
-  version?: string;
-  appVersion?: string;
-  repository?: string;
-  icon?: string;
-  deprecated?: boolean;
-  keywords?: string[];
-  maintainers?: Array<{ name: string; email?: string; url?: string }>;
-  kubeVersion?: string;
-  type?: string;
-  home?: string;
-  dependencies?: Array<{ name: string; version?: string; repository?: string }>;
-}
+type HelmChart = Record<string, any>;
 
 function chartInitials(name: string): string {
   if (!name) return '?';
@@ -111,12 +90,9 @@ const HelmChartTable: React.FC = () => {
         accessorKey: 'name',
         size: 220,
         cell: ({ row, getValue }) => (
-          <Box sx={nameCellSx}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, overflow: 'hidden' }}>
             <ChartIcon icon={row.original.icon} name={getValue() as string} />
-            <Text
-              size="sm"
-              sx={truncateTextSx}
-            >
+            <Text size="sm" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {getValue() as string}
             </Text>
           </Box>
@@ -129,10 +105,7 @@ const HelmChartTable: React.FC = () => {
         size: 300,
         meta: { flex: 1 },
         cell: ({ getValue }) => (
-          <Text
-            size="sm"
-            sx={truncateTextSx}
-          >
+          <Text size="sm" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {getValue() as string}
           </Text>
         ),
@@ -159,15 +132,12 @@ const HelmChartTable: React.FC = () => {
     [],
   );
 
-  const drawer: DrawerComponent<HelmChart> = React.useMemo(
-    () => ({
-      title: 'Chart',
-      icon: <SiHelm />,
-      views: createStandardViews({ SidebarComponent: ChartSidebar }),
-      actions: [],
-    }),
-    [],
-  );
+  const drawer: DrawerComponent<HelmChart> = React.useMemo(() => ({
+    title: 'Chart',
+    icon: <SiHelm />,
+    views: createStandardViews({ SidebarComponent: ChartSidebar }),
+    actions: [],
+  }), []);
 
   return (
     <ResourceTable
@@ -178,7 +148,6 @@ const HelmChartTable: React.FC = () => {
       memoizer="id"
       drawer={drawer}
       hideNamespaceSelector
-      createEnabled={false}
     />
   );
 };

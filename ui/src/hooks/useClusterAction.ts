@@ -1,11 +1,7 @@
-import {
-  usePluginContext,
-  useConnection,
-  useSnackbar,
-  usePluginRouter,
-} from '@omniviewdev/runtime';
-import { types } from '@omniviewdev/runtime/models';
 import { useCallback } from 'react';
+import { usePluginContext, useConnection, useSnackbar } from '@omniviewdev/runtime';
+import { usePluginRouter } from '@omniviewdev/runtime';
+import { types } from '@omniviewdev/runtime/models';
 
 /**
  * Shared hook that handles connect-and-navigate for a cluster connection.
@@ -18,7 +14,6 @@ export function useClusterAction(
 ) {
   const { meta } = usePluginContext();
   const { navigate } = usePluginRouter();
-  // eslint-disable-next-line @typescript-eslint/unbound-method
   const { showSnackbar } = useSnackbar();
   const { startConnection } = useConnection({
     pluginID: meta.id,
@@ -32,7 +27,7 @@ export function useClusterAction(
       return;
     }
     startConnection()
-      .then((status) => {
+      .then(status => {
         if (status.status === types.ConnectionStatusCode.CONNECTED) {
           navigate(`/cluster/${encodeURIComponent(connectionId)}/resources`);
         } else {
@@ -44,7 +39,7 @@ export function useClusterAction(
           });
         }
       })
-      .catch((err) => {
+      .catch(err => {
         if (err instanceof Error) {
           showSnackbar({ status: 'error', message: err.message, icon: 'LuCircleAlert' });
         }

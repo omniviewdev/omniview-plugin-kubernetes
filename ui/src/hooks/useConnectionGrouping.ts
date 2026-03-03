@@ -1,6 +1,5 @@
-import { type types } from '@omniviewdev/runtime/models';
 import { useMemo } from 'react';
-
+import { type types } from '@omniviewdev/runtime/models';
 import type {
   GroupByMode,
   SortByField,
@@ -16,7 +15,6 @@ import type {
 } from '../types/clusters';
 import { LEGACY_GROUP_ALIASES, LEGACY_SORT_ALIASES } from '../types/clusters';
 import { detectProvider, getProviderLabel } from '../utils/providers';
-import { computeEffectiveMembers } from '../utils/folderRules';
 
 interface UseConnectionGroupingOpts {
   connections: types.Connection[];
@@ -34,7 +32,7 @@ interface UseConnectionGroupingOpts {
 function isConnected(conn: types.Connection): boolean {
   const refreshTime = new Date(conn.last_refresh as unknown as string);
   if (refreshTime.toString() === 'Invalid Date') return false;
-  return refreshTime.getTime() + conn.expiry_time > Date.now();
+  return (refreshTime.getTime() + conn.expiry_time) > Date.now();
 }
 
 function enrichConnection(
@@ -101,7 +99,7 @@ function matchesFilters(enriched: EnrichedConnection, filters: FilterState): boo
     if (!filters.status.includes(connStatus)) return false;
   }
   if (filters.tags?.length) {
-    if (!filters.tags.some((tag) => enriched.tags.includes(tag))) return false;
+    if (!filters.tags.some(tag => enriched.tags.includes(tag))) return false;
   }
   if (filters.labels) {
     for (const [key, values] of Object.entries(filters.labels)) {
@@ -203,8 +201,8 @@ function groupConnections(
   }
 
   if (groupBy === 'favorites') {
-    const favs = connections.filter((c) => c.isFavorite);
-    const rest = connections.filter((c) => !c.isFavorite);
+    const favs = connections.filter(c => c.isFavorite);
+    const rest = connections.filter(c => !c.isFavorite);
     const groups: GroupedSection[] = [];
     if (favs.length > 0) {
       groups.push({ key: 'favorites', label: 'Favorites', connections: favs });
@@ -220,15 +218,14 @@ function groupConnections(
     const assigned = new Set<string>();
 
     for (const group of customGroups) {
-      const memberSet = computeEffectiveMembers(group.connectionIds, group.ruleSet, connections);
-      const groupConns = connections.filter((c) => memberSet.has(c.connection.id));
+      const groupConns = connections.filter(c => group.connectionIds.includes(c.connection.id));
       if (groupConns.length > 0) {
         groups.push({ key: group.id, label: group.name, connections: groupConns });
-        groupConns.forEach((c) => assigned.add(c.connection.id));
+        groupConns.forEach(c => assigned.add(c.connection.id));
       }
     }
 
-    const unassigned = connections.filter((c) => !assigned.has(c.connection.id));
+    const unassigned = connections.filter(c => !assigned.has(c.connection.id));
     if (unassigned.length > 0) {
       groups.push({ key: 'ungrouped', label: 'Ungrouped', connections: unassigned });
     }
@@ -265,10 +262,7 @@ function groupConnections(
   }
 
   if (groupBy === 'recent') {
-    const bucketMap = new Map<
-      string,
-      { label: string; order: number; connections: EnrichedConnection[] }
-    >();
+    const bucketMap = new Map<string, { label: string; order: number; connections: EnrichedConnection[] }>();
 
     for (const conn of connections) {
       const bucket = getRecencyBucket(conn.lastAccessed);
@@ -276,11 +270,7 @@ function groupConnections(
       if (existing) {
         existing.connections.push(conn);
       } else {
-        bucketMap.set(bucket.key, {
-          label: bucket.label,
-          order: bucket.order,
-          connections: [conn],
-        });
+        bucketMap.set(bucket.key, { label: bucket.label, order: bucket.order, connections: [conn] });
       }
     }
 
@@ -310,10 +300,7 @@ function groupConnections(
   }
 
   // Special computed grouping modes
-  const groupMap = new Map<
-    string,
-    { label: string; provider?: string; connections: EnrichedConnection[] }
-  >();
+  const groupMap = new Map<string, { label: string; provider?: string; connections: EnrichedConnection[] }>();
 
   for (const conn of connections) {
     let key: string;
@@ -354,7 +341,9 @@ function groupConnections(
 }
 
 function formatAttributeName(key: string): string {
-  return key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  return key
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase());
 }
 
 function discoverAttributes(connections: types.Connection[]): ConnectionAttribute[] {
@@ -408,27 +397,29 @@ export function useConnectionGrouping(opts: UseConnectionGroupingOpts): GroupedC
     } = opts;
 
     // 1. Enrich connections
-    const enriched = connections.map((c) =>
+    const enriched = connections.map(c =>
       enrichConnection(c, favorites, connectionOverrides, recentConnections),
     );
 
     // 2. Collect available providers (before filtering)
-    const availableProviders = [...new Set(enriched.map((c) => c.provider))].sort();
+    const availableProviders = [...new Set(enriched.map(c => c.provider))].sort();
 
     // 3. Discover attributes from raw connections
     const availableAttributes = discoverAttributes(connections);
 
     // 4. Collect all tags
-    const availableTags = [...new Set(enriched.flatMap((c) => c.tags))].sort();
+    const availableTags = [...new Set(enriched.flatMap(c => c.tags))].sort();
 
     // 5. Filter by search + filter chips
-    const filtered = enriched.filter((c) => matchesSearch(c, search) && matchesFilters(c, filters));
+    const filtered = enriched.filter(c =>
+      matchesSearch(c, search) && matchesFilters(c, filters),
+    );
 
     // 6. Group
     const groups = groupConnections(filtered, groupBy, customGroups);
 
     // 7. Sort within groups
-    const sortedGroups = groups.map((g) => ({
+    const sortedGroups = groups.map(g => ({
       ...g,
       connections: sortConnections(g.connections, sortBy, sortDirection),
     }));

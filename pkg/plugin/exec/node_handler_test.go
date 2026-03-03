@@ -1,8 +1,6 @@
 package exec
 
 import (
-	"errors"
-	"strings"
 	"testing"
 	"time"
 
@@ -14,9 +12,6 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/omniview/kubernetes/pkg/plugin/resource/resourcers"
-	"github.com/omniview/kubernetes/pkg/utils/kubeauth"
-	"github.com/omniviewdev/plugin-sdk/pkg/exec"
-	"github.com/omniviewdev/plugin-sdk/pkg/types"
 )
 
 // TestDebugPodSpec verifies that the debug pod created by NodeHandler has the
@@ -233,70 +228,4 @@ func TestWaitForPodRunning_Pending(t *testing.T) {
 		t.Context(), fakeClient, debugPodNamespace, "pending-debug", 3*time.Second,
 	)
 	require.Error(t, err)
-}
-
-// ---------------------------------------------------------------------------
-// nodeHandlerWithProvider error path tests
-// ---------------------------------------------------------------------------
-
-func TestNodeHandler_ProviderError(t *testing.T) {
-	opts := exec.SessionOptions{}
-	err := nodeHandlerWithProvider(
-		func(_ *types.PluginContext) (*kubeauth.KubeClientBundle, error) {
-			return nil, errors.New("kubeconfig is required")
-		},
-		testPluginContext(), opts, nil, nil, nil,
-	)
-	require.Error(t, err)
-	assert.Equal(t, "kubeconfig is required", err.Error())
-}
-
-func TestNodeHandler_MissingMetadata(t *testing.T) {
-	provider := func(_ *types.PluginContext) (*kubeauth.KubeClientBundle, error) {
-		return &kubeauth.KubeClientBundle{}, nil
-	}
-
-	opts := exec.SessionOptions{
-		ResourceData: map[string]interface{}{},
-	}
-	err := nodeHandlerWithProvider(provider, testPluginContext(), opts, nil, nil, nil)
-	require.Error(t, err)
-	assert.Equal(t, "metadata is required", err.Error())
-}
-
-func TestNodeHandler_MissingNodeName(t *testing.T) {
-	provider := func(_ *types.PluginContext) (*kubeauth.KubeClientBundle, error) {
-		return &kubeauth.KubeClientBundle{}, nil
-	}
-
-	opts := exec.SessionOptions{
-		ResourceData: map[string]interface{}{
-			"metadata": map[string]interface{}{},
-		},
-	}
-	err := nodeHandlerWithProvider(provider, testPluginContext(), opts, nil, nil, nil)
-	require.Error(t, err)
-	assert.Equal(t, "node name is required", err.Error())
-}
-
-func TestNodeHandler_CustomImage(t *testing.T) {
-	// Verify param extraction: custom image should be used when provided.
-	// We test the param parsing logic directly since the handler requires
-	// a real *kubernetes.Clientset which can't be faked.
-	img := debugPodImage
-	params := map[string]string{"node_shell_image": "alpine:3.19"}
-	if v, ok := params["node_shell_image"]; ok && v != "" {
-		img = v
-	}
-	assert.Equal(t, "alpine:3.19", img)
-}
-
-func TestNodeHandler_CustomCommand(t *testing.T) {
-	// Verify param extraction: custom command should be parsed via strings.Fields.
-	nsenterCommand := []string{"nsenter", "-t", "1", "-m", "-u", "-i", "-n", "-p", "--", "/bin/bash"}
-	params := map[string]string{"node_shell_command": "nsenter -t 1 -m -u -i -n -p -- /bin/sh"}
-	if cmd, ok := params["node_shell_command"]; ok && cmd != "" {
-		nsenterCommand = strings.Fields(cmd)
-	}
-	assert.Equal(t, []string{"nsenter", "-t", "1", "-m", "-u", "-i", "-n", "-p", "--", "/bin/sh"}, nsenterCommand)
 }

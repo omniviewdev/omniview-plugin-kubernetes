@@ -1,14 +1,14 @@
-import { DrawerContext } from '@omniviewdev/runtime';
-import { Stack } from '@omniviewdev/ui/layout';
-import { PodDisruptionBudget } from 'kubernetes-types/policy/v1';
-import React from 'react';
+import React from "react";
 
 // material-ui
+import { Stack } from "@omniviewdev/ui/layout";
 
 // types
+import { PodDisruptionBudget } from "kubernetes-types/policy/v1";
+import { DrawerContext } from "@omniviewdev/runtime";
 
 // project-imports
-import ObjectMetaSection from '../../../../../shared/ObjectMetaSection';
+import ObjectMetaSection from "../../../../../shared/ObjectMetaSection";
 
 interface Props {
   ctx: DrawerContext<PodDisruptionBudget>;
@@ -24,12 +24,12 @@ export const PodDisruptionBudgetSidebar: React.FC<Props> = ({ ctx }) => {
 
   // compose your component here
   return (
-    <Stack direction="column" width={'100%'} spacing={2}>
+    <Stack direction="column" width={"100%"} spacing={2}>
       <ObjectMetaSection data={ctx.data.metadata} />
       {/** TODO: fill this in with more data */}
     </Stack>
   );
 };
 
-PodDisruptionBudgetSidebar.displayName = 'PodDisruptionBudgetSidebar';
+PodDisruptionBudgetSidebar.displayName = "PodDisruptionBudgetSidebar";
 export default PodDisruptionBudgetSidebar;

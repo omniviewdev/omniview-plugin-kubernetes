@@ -1,22 +1,9 @@
+import React from 'react';
+
 // @omniviewdev/ui
 import Box from '@mui/material/Box';
 import { Chip } from '@omniviewdev/ui';
 import { Tooltip } from '@omniviewdev/ui/overlays';
-import React from 'react';
-
-// ---------------------------------------------------------------------------
-// Static styles
-// ---------------------------------------------------------------------------
-
-const badgeDotSx = {
-  borderRadius: 2,
-  width: 12,
-  height: 12,
-  maxWidth: 12,
-  maxHeight: 12,
-  minWidth: 12,
-  minHeight: 12,
-} as const;
 
 type Props = {
   values: string[];
@@ -46,29 +33,53 @@ export const BadgesCell: React.FC<Props> = ({ align, values, colorMap, hoverMenu
   };
 
   return (
-    <Box display="flex" flex={1} justifyContent={getAlignment()} alignItems="center">
-      {values.map((value) =>
+    <Box
+      display='flex'
+      flex={1}
+      justifyContent={getAlignment()}
+      alignItems='center'
+    >
+      {values.map((value, idx) => (
         hoverMenu ? (
-          <Tooltip key={value} content={hoverMenu(value)}>
+          <Tooltip
+            key={`badge-${idx}`}
+            content={hoverMenu(value)}
+          >
             <Chip
-              size="sm"
-              emphasis="solid"
+              size='sm'
+              emphasis='solid'
               color={getColor(value)}
-              sx={badgeDotSx}
-              label=""
+              sx={{
+                borderRadius: 2,
+                width: 12,
+                height: 12,
+                maxWidth: 12,
+                maxHeight: 12,
+                minWidth: 12,
+                minHeight: 12,
+              }}
+              label=''
             />
           </Tooltip>
         ) : (
           <Chip
-            key={value}
-            size="sm"
-            emphasis="solid"
+            key={`badge-${idx}`}
+            size='sm'
+            emphasis='solid'
             color={getColor(value)}
-            sx={badgeDotSx}
-            label=""
+            sx={{
+              borderRadius: 2,
+              width: 12,
+              height: 12,
+              maxWidth: 12,
+              maxHeight: 12,
+              minWidth: 12,
+              minHeight: 12,
+            }}
+            label=''
           />
-        ),
-      )}
+        )
+      ))}
     </Box>
   );
 };

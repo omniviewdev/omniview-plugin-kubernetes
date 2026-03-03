@@ -1,20 +1,10 @@
-import { TextField } from '@omniviewdev/ui/inputs';
 import React from 'react';
-import { LuSearch, LuX } from 'react-icons/lu';
 
-const clearIconStyle = { cursor: 'pointer' } as const;
+// @omniviewdev/ui
+import { TextField } from '@omniviewdev/ui/inputs';
 
-const searchInputSx = {
-  flexBasis: '240px',
-  display: 'flex',
-  boxShadow: 'none',
-  minWidth: {
-    md: 200,
-    lg: 240,
-    xl: 280,
-  },
-  '--wails-draggable': 'no-drag',
-} as const;
+// Icons
+import { SearchRounded, Clear } from '@mui/icons-material';
 
 type Props = {
   /** Placeholder for the search input. */
@@ -31,33 +21,40 @@ type Props = {
  * Search input component.
  */
 const SearchInput: React.FC<Props> = ({ placeholder, value, onChange, autoFocus }) => {
-  const handleClear = React.useCallback(() => {
+  const handleClear = () => {
     onChange('');
-  }, [onChange]);
+  };
 
   // Recompute only if the value changes
   const hasValue = React.useMemo(() => value !== '', [value]);
-  const endAdornment = React.useMemo(
-    () => (hasValue ? <LuX onClick={handleClear} style={clearIconStyle} /> : null),
-    [hasValue, handleClear],
-  );
+  const endAdornment = React.useMemo(() => hasValue ? <Clear onClick={handleClear} sx={{ cursor: 'pointer' }} /> : null, [hasValue]);
 
   return (
     <TextField
-      size="sm"
-      autoComplete="off"
-      type="text"
+      size='sm'
+      autoComplete='off'
+      type='text'
       placeholder={placeholder ?? 'Search'}
-      // eslint-disable-next-line jsx-a11y/no-autofocus
       autoFocus={autoFocus}
-      startAdornment={<LuSearch />}
+      startAdornment={<SearchRounded color='primary' />}
       endAdornment={endAdornment}
       value={value}
-      onChange={(e) => {
+      onChange={e => {
         onChange(e);
       }}
-      sx={searchInputSx}
+      sx={{
+        flexBasis: '500px',
+        display: 'flex',
+        boxShadow: 'none',
+        minWidth: {
+          md: 400,
+          lg: 400,
+          xl: 500,
+        },
+        '--wails-draggable': 'no-drag',
+      }}
     />
+
   );
 };
 

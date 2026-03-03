@@ -1,11 +1,8 @@
 .DS_Store
-go.work
-go.work.sum
 
 /build
 /bin
 /dist
-.package/bin/
 *.tar.gz
 *.log
 *.log.*

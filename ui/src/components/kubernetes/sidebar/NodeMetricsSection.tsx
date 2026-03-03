@@ -1,61 +1,15 @@
-import Box from '@mui/material/Box';
-import CircularProgress from '@mui/material/CircularProgress';
-import Grid from '@mui/material/Grid';
-import LinearProgress from '@mui/material/LinearProgress';
-import { useResourceMetrics } from '@omniviewdev/runtime';
-import { type metric } from '@omniviewdev/runtime/models';
-import { MetricsPanel } from '@omniviewdev/ui/charts';
-import type { TimeSeriesDef, ChartTimeRange } from '@omniviewdev/ui/charts';
-import { Stack } from '@omniviewdev/ui/layout';
-import { Text } from '@omniviewdev/ui/typography';
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from "react";
 
-const outerBoxSx = { borderRadius: 1, border: '1px solid', borderColor: 'divider' } as const;
-const metricsHeaderSx = {
-  py: 0.5,
-  px: 1,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-} as const;
-const metricsContentSx = { px: 0.5, pb: 1 } as const;
-const loadingBoxSx = { display: 'flex', justifyContent: 'center', py: 2 } as const;
-const noMetricsHeaderSx = { py: 0.5, px: 1 } as const;
-const noMetricsBodySx = { px: 1, pb: 1 } as const;
-const noMetricsTextSx = { color: 'neutral.500' } as const;
-const errorBoxSx = { px: 1, pb: 0.5 } as const;
-const errorTextSx = { color: 'danger.400' } as const;
-const gaugeLabelSx = { color: 'neutral.400' } as const;
-const gaugeValueSx = { fontVariantNumeric: 'tabular-nums' } as const;
-const progressBarSx = { height: 4, borderRadius: 2 } as const;
-const gaugeSubtitleSx = { color: 'neutral.500', fontSize: '0.6rem', mt: 0.25 } as const;
-const gaugeContainerSx = { minWidth: 0, flex: 1 } as const;
-const gaugeHeaderSx = { mb: 0.25 } as const;
-const statTileSx = {
-  py: 0.5,
-  px: 1,
-  borderRadius: 1,
-  border: '1px solid',
-  borderColor: 'divider',
-  bgcolor: 'background.level1',
-} as const;
-const statLabelSx = { color: 'neutral.400', display: 'block', mb: 0.25 } as const;
-const statValueSx = { fontVariantNumeric: 'tabular-nums' } as const;
-const sectionSubheadingSx = {
-  color: 'neutral.400',
-  textTransform: 'uppercase',
-  letterSpacing: '0.04em',
-  fontSize: '0.6rem',
-  mb: 0.75,
-} as const;
-const sectionSubheadingAltSx = {
-  color: 'neutral.400',
-  textTransform: 'uppercase',
-  letterSpacing: '0.04em',
-  fontSize: '0.6rem',
-  mb: 0.5,
-} as const;
-const sectionPaddingSx = { px: 0.5 } as const;
+import Box from "@mui/material/Box";
+import Grid from "@mui/material/Grid";
+import LinearProgress from "@mui/material/LinearProgress";
+import CircularProgress from "@mui/material/CircularProgress";
+import { Stack } from "@omniviewdev/ui/layout";
+import { Text } from "@omniviewdev/ui/typography";
+import { useResourceMetrics } from "@omniviewdev/runtime";
+import { metric } from "@omniviewdev/runtime/models";
+import { MetricsPanel } from "@omniviewdev/ui/charts";
+import type { TimeSeriesDef, ChartTimeRange } from "@omniviewdev/ui/charts";
 
 interface Props {
   connectionID: string;
@@ -101,13 +55,17 @@ function extractTimeSeries(
 }
 
 /** Convert SDK TimeSeries to chart-compatible TimeSeriesDef */
-function toTimeSeriesDef(ts: metric.TimeSeries, label: string, color?: string): TimeSeriesDef {
+function toTimeSeriesDef(
+  ts: metric.TimeSeries,
+  label: string,
+  color?: string,
+): TimeSeriesDef {
   return {
     id: ts.metric_id,
     label,
     // dp.timestamp is a Wails-serialized time.Time (ISO string at runtime)
     data: (ts.data_points ?? []).map((dp) => ({
-      timestamp: new Date(dp.timestamp as unknown as string).getTime(),
+      timestamp: new Date(String(dp.timestamp)).getTime(),
       value: dp.value,
     })),
     color,
@@ -134,15 +92,24 @@ const PercentGauge: React.FC<{
   value: number;
   subtitle?: string;
 }> = ({ label, value, subtitle }) => {
-  const color = value >= 90 ? 'error' : value >= 70 ? 'warning' : 'primary';
+  const color = value >= 90 ? "error" : value >= 70 ? "warning" : "primary";
 
   return (
-    <Box sx={gaugeContainerSx}>
-      <Stack direction="row" justifyContent="space-between" alignItems="baseline" sx={gaugeHeaderSx}>
-        <Text size="xs" sx={gaugeLabelSx}>
+    <Box sx={{ minWidth: 0, flex: 1 }}>
+      <Stack
+        direction="row"
+        justifyContent="space-between"
+        alignItems="baseline"
+        sx={{ mb: 0.25 }}
+      >
+        <Text size="xs" sx={{ color: "neutral.400" }}>
           {label}
         </Text>
-        <Text size="xs" weight="semibold" sx={gaugeValueSx}>
+        <Text
+          size="xs"
+          weight="semibold"
+          sx={{ fontVariantNumeric: "tabular-nums" }}
+        >
           {value.toFixed(1)}%
         </Text>
       </Stack>
@@ -150,10 +117,13 @@ const PercentGauge: React.FC<{
         variant="determinate"
         value={Math.min(value, 100)}
         color={color}
-        sx={progressBarSx}
+        sx={{ height: 4, borderRadius: 2 }}
       />
       {subtitle && (
-        <Text size="xs" sx={gaugeSubtitleSx}>
+        <Text
+          size="xs"
+          sx={{ color: "neutral.500", fontSize: "0.6rem", mt: 0.25 }}
+        >
           {subtitle}
         </Text>
       )}
@@ -166,11 +136,20 @@ const StatTile: React.FC<{
   label: string;
   value: string;
 }> = ({ label, value }) => (
-  <Box sx={statTileSx}>
-    <Text size="xs" sx={statLabelSx}>
+  <Box
+    sx={{
+      py: 0.5,
+      px: 1,
+      borderRadius: 1,
+      border: "1px solid",
+      borderColor: "divider",
+      bgcolor: "background.level1",
+    }}
+  >
+    <Text size="xs" sx={{ color: "neutral.400", display: "block", mb: 0.25 }}>
       {label}
     </Text>
-    <Text size="sm" weight="semibold" sx={statValueSx}>
+    <Text size="sm" weight="semibold" sx={{ fontVariantNumeric: "tabular-nums" }}>
       {value}
     </Text>
   </Box>
@@ -182,18 +161,14 @@ const NodeMetricsSection: React.FC<Props> = ({
   resourceID,
   resourceData,
 }) => {
-  const [timeRange, setTimeRange] = useState<ChartTimeRange>(() => ({
+  const [timeRange, setTimeRange] = useState<ChartTimeRange>({
     from: new Date(Date.now() - 60 * 60 * 1000),
     to: new Date(),
-  }));
+  });
 
   // Instant values (shape=0 CURRENT)
-  const {
-    data: currentData,
-    isLoading: currentLoading,
-    error,
-  } = useResourceMetrics({
-    pluginID: 'kubernetes',
+  const { data: currentData, isLoading: currentLoading, error } = useResourceMetrics({
+    pluginID: "kubernetes",
     connectionID,
     resourceKey,
     resourceID,
@@ -203,7 +178,7 @@ const NodeMetricsSection: React.FC<Props> = ({
 
   // Time-series data (shape=1 TIMESERIES)
   const { data: tsData, isLoading: tsLoading } = useResourceMetrics({
-    pluginID: 'kubernetes',
+    pluginID: "kubernetes",
     connectionID,
     resourceKey,
     resourceID,
@@ -212,22 +187,22 @@ const NodeMetricsSection: React.FC<Props> = ({
     timeRange: {
       start: timeRange.from,
       end: timeRange.to,
-      step: '',
+      step: "",
     },
     metricIDs: [
-      'prom_cpu_utilization',
-      'prom_memory_utilization',
-      'prom_network_receive_rate',
-      'prom_network_transmit_rate',
-      'prom_disk_utilization',
-      'prom_load_avg_1m',
-      'prom_load_avg_5m',
-      'prom_load_avg_15m',
-      'prom_pod_count',
-      'prom_disk_read_rate',
-      'prom_disk_write_rate',
-      'prom_network_errors',
-      'prom_context_switches',
+      "prom_cpu_utilization",
+      "prom_memory_utilization",
+      "prom_network_receive_rate",
+      "prom_network_transmit_rate",
+      "prom_disk_utilization",
+      "prom_load_avg_1m",
+      "prom_load_avg_5m",
+      "prom_load_avg_15m",
+      "prom_pod_count",
+      "prom_disk_read_rate",
+      "prom_disk_write_rate",
+      "prom_network_errors",
+      "prom_context_switches",
     ],
     refreshInterval: 30000,
   });
@@ -241,67 +216,67 @@ const NodeMetricsSection: React.FC<Props> = ({
   // Build chart series
   const cpuSeries = useMemo<TimeSeriesDef[]>(() => {
     const s: TimeSeriesDef[] = [];
-    const cpu = tsSeries.get('prom_cpu_utilization');
-    if (cpu) s.push(toTimeSeriesDef(cpu, 'CPU Utilization', 'var(--ov-accent)'));
+    const cpu = tsSeries.get("prom_cpu_utilization");
+    if (cpu) s.push(toTimeSeriesDef(cpu, "CPU Utilization", "var(--ov-accent)"));
     return s;
   }, [tsSeries]);
 
   const memorySeries = useMemo<TimeSeriesDef[]>(() => {
     const s: TimeSeriesDef[] = [];
-    const mem = tsSeries.get('prom_memory_utilization');
-    if (mem) s.push(toTimeSeriesDef(mem, 'Memory Utilization', 'var(--ov-accent)'));
+    const mem = tsSeries.get("prom_memory_utilization");
+    if (mem) s.push(toTimeSeriesDef(mem, "Memory Utilization", "var(--ov-accent)"));
     return s;
   }, [tsSeries]);
 
   const networkSeries = useMemo<TimeSeriesDef[]>(() => {
     const s: TimeSeriesDef[] = [];
-    const rx = tsSeries.get('prom_network_receive_rate');
-    if (rx) s.push(toTimeSeriesDef(rx, 'Receive', '#22c55e'));
-    const tx = tsSeries.get('prom_network_transmit_rate');
-    if (tx) s.push(toTimeSeriesDef(tx, 'Transmit', '#f97316'));
+    const rx = tsSeries.get("prom_network_receive_rate");
+    if (rx) s.push(toTimeSeriesDef(rx, "Receive", "#22c55e"));
+    const tx = tsSeries.get("prom_network_transmit_rate");
+    if (tx) s.push(toTimeSeriesDef(tx, "Transmit", "#f97316"));
     return s;
   }, [tsSeries]);
 
   const diskUtilSeries = useMemo<TimeSeriesDef[]>(() => {
     const s: TimeSeriesDef[] = [];
-    const d = tsSeries.get('prom_disk_utilization');
-    if (d) s.push(toTimeSeriesDef(d, 'Disk Utilization', '#a855f7'));
+    const d = tsSeries.get("prom_disk_utilization");
+    if (d) s.push(toTimeSeriesDef(d, "Disk Utilization", "#a855f7"));
     return s;
   }, [tsSeries]);
 
   const diskIOSeries = useMemo<TimeSeriesDef[]>(() => {
     const s: TimeSeriesDef[] = [];
-    const r = tsSeries.get('prom_disk_read_rate');
-    if (r) s.push(toTimeSeriesDef(r, 'Read', '#22c55e'));
-    const w = tsSeries.get('prom_disk_write_rate');
-    if (w) s.push(toTimeSeriesDef(w, 'Write', '#f97316'));
+    const r = tsSeries.get("prom_disk_read_rate");
+    if (r) s.push(toTimeSeriesDef(r, "Read", "#22c55e"));
+    const w = tsSeries.get("prom_disk_write_rate");
+    if (w) s.push(toTimeSeriesDef(w, "Write", "#f97316"));
     return s;
   }, [tsSeries]);
 
   const loadAvgSeries = useMemo<TimeSeriesDef[]>(() => {
     const s: TimeSeriesDef[] = [];
-    const l1 = tsSeries.get('prom_load_avg_1m');
-    if (l1) s.push(toTimeSeriesDef(l1, '1m', '#3b82f6'));
-    const l5 = tsSeries.get('prom_load_avg_5m');
-    if (l5) s.push(toTimeSeriesDef(l5, '5m', '#f97316'));
-    const l15 = tsSeries.get('prom_load_avg_15m');
-    if (l15) s.push(toTimeSeriesDef(l15, '15m', '#a855f7'));
+    const l1 = tsSeries.get("prom_load_avg_1m");
+    if (l1) s.push(toTimeSeriesDef(l1, "1m", "#3b82f6"));
+    const l5 = tsSeries.get("prom_load_avg_5m");
+    if (l5) s.push(toTimeSeriesDef(l5, "5m", "#f97316"));
+    const l15 = tsSeries.get("prom_load_avg_15m");
+    if (l15) s.push(toTimeSeriesDef(l15, "15m", "#a855f7"));
     return s;
   }, [tsSeries]);
 
   const podCountSeries = useMemo<TimeSeriesDef[]>(() => {
     const s: TimeSeriesDef[] = [];
-    const p = tsSeries.get('prom_pod_count');
-    if (p) s.push(toTimeSeriesDef(p, 'Pod Count', 'var(--ov-accent)'));
+    const p = tsSeries.get("prom_pod_count");
+    if (p) s.push(toTimeSeriesDef(p, "Pod Count", "var(--ov-accent)"));
     return s;
   }, [tsSeries]);
 
   const systemActivitySeries = useMemo<TimeSeriesDef[]>(() => {
     const s: TimeSeriesDef[] = [];
-    const cs = tsSeries.get('prom_context_switches');
-    if (cs) s.push(toTimeSeriesDef(cs, 'Context Switches', '#3b82f6'));
-    const ne = tsSeries.get('prom_network_errors');
-    if (ne) s.push(toTimeSeriesDef(ne, 'Network Errors', '#ef4444'));
+    const cs = tsSeries.get("prom_context_switches");
+    if (cs) s.push(toTimeSeriesDef(cs, "Context Switches", "#3b82f6"));
+    const ne = tsSeries.get("prom_network_errors");
+    if (ne) s.push(toTimeSeriesDef(ne, "Network Errors", "#ef4444"));
     return s;
   }, [tsSeries]);
 
@@ -311,7 +286,7 @@ const NodeMetricsSection: React.FC<Props> = ({
 
   if (isLoading) {
     return (
-      <Box sx={loadingBoxSx}>
+      <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
         <CircularProgress size={20} />
       </Box>
     );
@@ -319,14 +294,18 @@ const NodeMetricsSection: React.FC<Props> = ({
 
   if (metrics.size === 0 && !hasTimeSeries && !error) {
     return (
-      <Box sx={outerBoxSx}>
-        <Box sx={noMetricsHeaderSx}>
-          <Text weight="semibold" size="sm">
-            Metrics
-          </Text>
+      <Box
+        sx={{
+          borderRadius: 1,
+          border: "1px solid",
+          borderColor: "divider",
+        }}
+      >
+        <Box sx={{ py: 0.5, px: 1 }}>
+          <Text weight="semibold" size="sm">Metrics</Text>
         </Box>
-        <Box sx={noMetricsBodySx}>
-          <Text size="xs" sx={noMetricsTextSx}>
+        <Box sx={{ px: 1, pb: 1 }}>
+          <Text size="xs" sx={{ color: "neutral.500" }}>
             No metrics available. Ensure metrics-server or Prometheus is installed.
           </Text>
         </Box>
@@ -335,39 +314,51 @@ const NodeMetricsSection: React.FC<Props> = ({
   }
 
   // Extract known current metrics with defaults
-  const cpuUsage = metrics.get('cpu_usage') ?? 0;
-  const cpuUtilPct = metrics.get('prom_cpu_utilization');
-  const memUsage = metrics.get('memory_usage') ?? 0;
-  const memUtilPct = metrics.get('prom_memory_utilization');
-  const memTotal = metrics.get('prom_memory_total');
-  const diskUtilPct = metrics.get('prom_disk_utilization');
-  const diskTotal = metrics.get('prom_disk_total');
-  const netRx = metrics.get('prom_network_receive_rate');
-  const netTx = metrics.get('prom_network_transmit_rate');
-  const loadAvg = metrics.get('prom_load_avg_1m');
-  const podCount = metrics.get('prom_pod_count');
+  const cpuUsage = metrics.get("cpu_usage") ?? 0;
+  const cpuUtilPct = metrics.get("prom_cpu_utilization");
+  const memUsage = metrics.get("memory_usage") ?? 0;
+  const memUtilPct = metrics.get("prom_memory_utilization");
+  const memTotal = metrics.get("prom_memory_total");
+  const diskUtilPct = metrics.get("prom_disk_utilization");
+  const diskTotal = metrics.get("prom_disk_total");
+  const netRx = metrics.get("prom_network_receive_rate");
+  const netTx = metrics.get("prom_network_transmit_rate");
+  const loadAvg = metrics.get("prom_load_avg_1m");
+  const podCount = metrics.get("prom_pod_count");
 
   const hasPrometheus = cpuUtilPct !== undefined;
 
   return (
-    <Box sx={outerBoxSx}>
+    <Box
+      sx={{
+        borderRadius: 1,
+        border: "1px solid",
+        borderColor: "divider",
+      }}
+    >
       {/* Header */}
-      <Box sx={metricsHeaderSx}>
-        <Text weight="semibold" size="sm">
-          Metrics
-        </Text>
+      <Box
+        sx={{
+          py: 0.5,
+          px: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <Text weight="semibold" size="sm">Metrics</Text>
         {(currentLoading || tsLoading) && <CircularProgress size={12} />}
       </Box>
 
       {error && (
-        <Box sx={errorBoxSx}>
-          <Text size="xs" sx={errorTextSx}>
-            {error.message || 'Failed to load metrics'}
+        <Box sx={{ px: 1, pb: 0.5 }}>
+          <Text size="xs" sx={{ color: "danger.400" }}>
+            {error.message || "Failed to load metrics"}
           </Text>
         </Box>
       )}
 
-      <Box sx={metricsContentSx}>
+      <Box sx={{ px: 0.5, pb: 1 }}>
         <Stack spacing={0.75}>
           {/* Time-series charts */}
           {hasTimeSeries && (
@@ -484,12 +475,24 @@ const NodeMetricsSection: React.FC<Props> = ({
 
           {/* Utilization gauges (instant values) — shown when no charts available */}
           {hasPrometheus && !hasTimeSeries && (
-            <Box sx={sectionPaddingSx}>
-              <Text size="xs" weight="semibold" sx={sectionSubheadingSx}>
+            <Box sx={{ px: 0.5 }}>
+              <Text
+                size="xs"
+                weight="semibold"
+                sx={{
+                  color: "neutral.400",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                  fontSize: "0.6rem",
+                  mb: 0.75,
+                }}
+              >
                 Utilization
               </Text>
               <Stack spacing={0.75}>
-                {cpuUtilPct !== undefined && <PercentGauge label="CPU" value={cpuUtilPct} />}
+                {cpuUtilPct !== undefined && (
+                  <PercentGauge label="CPU" value={cpuUtilPct} />
+                )}
                 {memUtilPct !== undefined && (
                   <PercentGauge
                     label="Memory"
@@ -510,9 +513,19 @@ const NodeMetricsSection: React.FC<Props> = ({
 
           {/* Metrics-server CPU/Memory */}
           {(cpuUsage > 0 || memUsage > 0) && (
-            <Box sx={sectionPaddingSx}>
-              <Text size="xs" weight="semibold" sx={sectionSubheadingAltSx}>
-                {hasPrometheus ? 'Current Usage' : 'Usage'}
+            <Box sx={{ px: 0.5 }}>
+              <Text
+                size="xs"
+                weight="semibold"
+                sx={{
+                  color: "neutral.400",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                  fontSize: "0.6rem",
+                  mb: 0.5,
+                }}
+              >
+                {hasPrometheus ? "Current Usage" : "Usage"}
               </Text>
               <Grid container spacing={0.5}>
                 {cpuUsage > 0 && (
@@ -538,8 +551,18 @@ const NodeMetricsSection: React.FC<Props> = ({
 
           {/* Network stats (instant, when no charts) */}
           {!hasTimeSeries && (netRx !== undefined || netTx !== undefined) && (
-            <Box sx={sectionPaddingSx}>
-              <Text size="xs" weight="semibold" sx={sectionSubheadingAltSx}>
+            <Box sx={{ px: 0.5 }}>
+              <Text
+                size="xs"
+                weight="semibold"
+                sx={{
+                  color: "neutral.400",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                  fontSize: "0.6rem",
+                  mb: 0.5,
+                }}
+              >
                 Network
               </Text>
               <Grid container spacing={0.5}>
@@ -559,8 +582,18 @@ const NodeMetricsSection: React.FC<Props> = ({
 
           {/* System stats */}
           {(loadAvg !== undefined || podCount !== undefined) && (
-            <Box sx={sectionPaddingSx}>
-              <Text size="xs" weight="semibold" sx={sectionSubheadingAltSx}>
+            <Box sx={{ px: 0.5 }}>
+              <Text
+                size="xs"
+                weight="semibold"
+                sx={{
+                  color: "neutral.400",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                  fontSize: "0.6rem",
+                  mb: 0.5,
+                }}
+              >
                 System
               </Text>
               <Grid container spacing={0.5}>

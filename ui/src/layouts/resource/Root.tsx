@@ -1,5 +1,5 @@
-import Box, { type BoxProps } from '@mui/material/Box';
 import React from 'react';
+import Box, { type BoxProps } from '@mui/material/Box';
 
 /**
  * The root component for the generic sidemenu layout
@@ -15,7 +15,6 @@ const Root: React.FC<BoxProps> = (props: BoxProps) => (
         flexGrow: 1,
         overflow: 'hidden',
       },
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- MUI SxProps internally uses `any`
       ...(Array.isArray(props.sx) ? props.sx : [props.sx]),
     ]}
   />

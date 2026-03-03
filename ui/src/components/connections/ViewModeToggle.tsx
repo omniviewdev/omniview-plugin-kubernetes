@@ -1,8 +1,7 @@
+import React from 'react';
 import { IconButton } from '@omniviewdev/ui/buttons';
 import { Stack } from '@omniviewdev/ui/layout';
-import React from 'react';
 import { LuList, LuLayoutGrid } from 'react-icons/lu';
-
 import type { ViewMode } from '../../types/clusters';
 
 type Props = {
@@ -11,9 +10,9 @@ type Props = {
 };
 
 const ViewModeToggle: React.FC<Props> = ({ value, onChange }) => (
-  <Stack direction="row" alignItems="center" gap={0.25}>
+  <Stack direction='row' alignItems='center' gap={0.25}>
     <IconButton
-      size="sm"
+      size='sm'
       emphasis={value === 'list' ? 'soft' : 'ghost'}
       color={value === 'list' ? 'primary' : 'neutral'}
       onClick={() => onChange('list')}
@@ -21,7 +20,7 @@ const ViewModeToggle: React.FC<Props> = ({ value, onChange }) => (
       <LuList size={18} />
     </IconButton>
     <IconButton
-      size="sm"
+      size='sm'
       emphasis={value === 'grid' ? 'soft' : 'ghost'}
       color={value === 'grid' ? 'primary' : 'neutral'}
       onClick={() => onChange('grid')}

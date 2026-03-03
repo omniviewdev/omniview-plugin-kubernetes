@@ -1,12 +1,11 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react'
+import { useStoredState } from './useStoredState'
 
-import { useStoredState } from './useStoredState';
-
-const SHARED_KEY_PREFIX = 'kubernetes-';
-const SHARED_KEY_SUFFIX = '-namespaces';
+const SHARED_KEY_PREFIX = 'kubernetes-'
+const SHARED_KEY_SUFFIX = '-namespaces'
 
 function sharedKey(connectionID: string): string {
-  return `${SHARED_KEY_PREFIX}${connectionID}${SHARED_KEY_SUFFIX}`;
+  return `${SHARED_KEY_PREFIX}${connectionID}${SHARED_KEY_SUFFIX}`
 }
 
 /**
@@ -18,45 +17,42 @@ function sharedKey(connectionID: string): string {
  * Also strips the namespace entry from all per-resource column-filter keys.
  */
 function migrateOnce(connectionID: string): string[] {
-  const sk = sharedKey(connectionID);
+  const sk = sharedKey(connectionID)
 
   // Already migrated — shared key exists
   if (localStorage.getItem(sk) !== null) {
-    return JSON.parse(localStorage.getItem(sk)!) as string[];
+    return JSON.parse(localStorage.getItem(sk)!) as string[]
   }
 
-  const prefix = `kubernetes-${connectionID}-`;
-  const suffix = '-column-filters';
-  let bestNamespaces: string[] = [];
+  const prefix = `kubernetes-${connectionID}-`
+  const suffix = '-column-filters'
+  let bestNamespaces: string[] = []
 
   for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (!key || !key.startsWith(prefix) || !key.endsWith(suffix)) continue;
+    const key = localStorage.key(i)
+    if (!key || !key.startsWith(prefix) || !key.endsWith(suffix)) continue
 
     try {
-      const filters = JSON.parse(localStorage.getItem(key)!) as Array<{
-        id: string;
-        value: unknown;
-      }>;
-      const nsFilter = filters.find((f) => f.id === 'namespace');
+      const filters = JSON.parse(localStorage.getItem(key)!) as Array<{ id: string; value: unknown }>
+      const nsFilter = filters.find(f => f.id === 'namespace')
       if (nsFilter && Array.isArray(nsFilter.value) && nsFilter.value.length > 0) {
         // Use the longest selection as "most recent" heuristic
         if (nsFilter.value.length > bestNamespaces.length) {
-          bestNamespaces = nsFilter.value as string[];
+          bestNamespaces = nsFilter.value as string[]
         }
       }
 
       // Strip namespace entry from per-resource key
-      const cleaned = filters.filter((f) => f.id !== 'namespace');
-      localStorage.setItem(key, JSON.stringify(cleaned));
+      const cleaned = filters.filter(f => f.id !== 'namespace')
+      localStorage.setItem(key, JSON.stringify(cleaned))
     } catch {
       // Ignore malformed entries
     }
   }
 
   // Write the shared key (even if empty — marks migration as done)
-  localStorage.setItem(sk, JSON.stringify(bestNamespaces));
-  return bestNamespaces;
+  localStorage.setItem(sk, JSON.stringify(bestNamespaces))
+  return bestNamespaces
 }
 
 /**
@@ -66,27 +62,27 @@ function migrateOnce(connectionID: string): string[] {
  * so that the selection persists across all namespaced resources within a connection.
  */
 export function useConnectionNamespaces(connectionID: string) {
-  // Run migration synchronously before the first read per connectionID.
-  // useState with an initializer ensures this runs once; when connectionID
-  // changes we detect the mismatch and re-run migration during render.
-  const [migratedFor, setMigratedFor] = useState(() => {
-    migrateOnce(connectionID);
-    return connectionID;
-  });
+  const migrated = useRef(false)
 
-  if (migratedFor !== connectionID) {
-    migrateOnce(connectionID);
-    setMigratedFor(connectionID);
+  // Run migration before the first read
+  if (!migrated.current) {
+    migrateOnce(connectionID)
+    migrated.current = true
   }
 
-  const [namespaces, setNamespacesRaw] = useStoredState<string[]>(sharedKey(connectionID), []);
+  const [namespaces, setNamespacesRaw] = useStoredState<string[]>(
+    sharedKey(connectionID),
+    [],
+  )
 
-  const setNamespaces = useCallback(
-    (value: string[]) => {
-      setNamespacesRaw(value);
-    },
-    [setNamespacesRaw],
-  );
+  // Reset migration flag when connection changes
+  useEffect(() => {
+    migrated.current = false
+  }, [connectionID])
 
-  return { namespaces, setNamespaces };
+  const setNamespaces = useCallback((value: string[]) => {
+    setNamespacesRaw(value)
+  }, [setNamespacesRaw])
+
+  return { namespaces, setNamespaces }
 }

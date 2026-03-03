@@ -1,115 +1,97 @@
+import React from 'react';
+import { useParams } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
+import { Stack } from '@omniviewdev/ui/layout';
+import { Text } from '@omniviewdev/ui/typography';
+import type { ChartTimeRange } from '@omniviewdev/ui/charts';
+import {
+  LuBox,
+  LuCalendarClock,
+  LuContainer,
+  LuDatabase,
+  LuListChecks,
+  LuNetwork,
+} from 'react-icons/lu';
 import {
   useConnection,
   useExtensionPoint,
   usePluginRouter,
   useResources,
 } from '@omniviewdev/runtime';
-import type { ChartTimeRange } from '@omniviewdev/ui/charts';
-import { Stack } from '@omniviewdev/ui/layout';
-import { Text } from '@omniviewdev/ui/typography';
-import type { Pod, Node as K8sNode, Event as K8sEvent } from 'kubernetes-types/core/v1';
-import React from 'react';
-import { useParams } from 'react-router-dom';
 
-import NamespaceSelect from '../../../components/tables/NamespaceSelect';
 import { useClusterPreferences } from '../../../hooks/useClusterPreferences';
-
+import NamespaceSelect from '../../../components/tables/NamespaceSelect';
 import ClusterInfoCard from './components/ClusterInfoCard';
 import ClusterMetricsSection from './components/ClusterMetricsSection';
 import ClusterResourceGauges from './components/ClusterResourceGauges';
-
-const pageSx = {
-  p: 1.5,
-  overflow: 'auto',
-  height: '100%',
-  width: '100%',
-  flex: 1,
-  display: 'flex',
-  flexDirection: 'column',
-} as const;
-
-const namespaceLabelSx = { color: 'text.secondary' } as const;
-
-const eventsContainerSx = {
-  height: 'clamp(300px, 40vh, 600px)',
-  overflow: 'auto',
-  border: '1px solid',
-  borderColor: 'divider',
-  borderRadius: 1,
-} as const;
-import {
-  PodStatCard,
-  DeploymentStatCard,
-  StatefulSetStatCard,
-  DaemonSetStatCard,
-  JobStatCard,
-  CronJobStatCard,
-} from './components/WorkloadStatCards';
+import WorkloadSummaryCard from './components/WorkloadSummaryCard';
 import EventsTable from './EventsTable';
 
-/** Shape of the connection metadata returned by the runtime for Kubernetes clusters. */
-type ConnectionData = {
-  server_url?: string;
-  k8s_version?: string;
-  k8s_platform?: string;
-  node_count?: number;
-  api_groups?: number;
-  last_checked?: string;
-};
+type KubeResource = Record<string, any>;
 
-/**
- * Generic filter for namespaced K8s resources.
- * Accepts any object with an optional metadata?.namespace field.
- */
-function filterByNamespace<T extends { metadata?: { namespace?: string } }>(
-  resources: T[],
-  namespaces: string[],
-): T[] {
+function filterByNamespace(resources: KubeResource[], namespaces: string[]): KubeResource[] {
   if (namespaces.length === 0) return resources;
-  return resources.filter((r) => namespaces.includes(r.metadata?.namespace ?? ''));
+  return resources.filter(r => namespaces.includes(r.metadata?.namespace));
 }
 
 const ClusterDashboardOverviewPage: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
   const { navigate } = usePluginRouter();
   const [namespaces, setNamespaces] = React.useState<string[]>([]);
-  const [timeRange, setTimeRange] = React.useState<ChartTimeRange>(() => ({
+  const [timeRange, setTimeRange] = React.useState<ChartTimeRange>({
     from: new Date(Date.now() - 3600000),
     to: new Date(),
-  }));
+  });
 
-  const goToResource = React.useCallback(
-    (resourceKey: string) => {
-      navigate(`/cluster/${id}/resources/${resourceKey}`);
-    },
-    [navigate, id],
-  );
-
-  // Stable onClick callbacks per resource type
-  const goToPods = React.useCallback(() => goToResource('core_v1_Pod'), [goToResource]);
-  const goToDeployments = React.useCallback(
-    () => goToResource('apps_v1_Deployment'),
-    [goToResource],
-  );
-  const goToStatefulSets = React.useCallback(
-    () => goToResource('apps_v1_StatefulSet'),
-    [goToResource],
-  );
-  const goToDaemonSets = React.useCallback(() => goToResource('apps_v1_DaemonSet'), [goToResource]);
-  const goToJobs = React.useCallback(() => goToResource('batch_v1_Job'), [goToResource]);
-  const goToCronJobs = React.useCallback(() => goToResource('batch_v1_CronJob'), [goToResource]);
+  const goToResource = React.useCallback((resourceKey: string) => {
+    navigate(`/cluster/${id}/resources/${resourceKey}`);
+  }, [navigate, id]);
 
   const { connection } = useConnection({ pluginID: 'kubernetes', connectionID: id });
   const { connectionOverrides } = useClusterPreferences('kubernetes');
   const metricConfig = connectionOverrides[id]?.metricConfig;
 
-  // Only keep the resource hooks needed for ClusterInfoCard and EventsTable
+  // --- Resource hooks ---
   const { resources: pods } = useResources({
     pluginID: 'kubernetes',
     connectionID: id,
     resourceKey: 'core::v1::Pod',
+    idAccessor: 'metadata.uid',
+  });
+
+  const { resources: deployments } = useResources({
+    pluginID: 'kubernetes',
+    connectionID: id,
+    resourceKey: 'apps::v1::Deployment',
+    idAccessor: 'metadata.uid',
+  });
+
+  const { resources: statefulSets } = useResources({
+    pluginID: 'kubernetes',
+    connectionID: id,
+    resourceKey: 'apps::v1::StatefulSet',
+    idAccessor: 'metadata.uid',
+  });
+
+  const { resources: daemonSets } = useResources({
+    pluginID: 'kubernetes',
+    connectionID: id,
+    resourceKey: 'apps::v1::DaemonSet',
+    idAccessor: 'metadata.uid',
+  });
+
+  const { resources: jobs } = useResources({
+    pluginID: 'kubernetes',
+    connectionID: id,
+    resourceKey: 'batch::v1::Job',
+    idAccessor: 'metadata.uid',
+  });
+
+  const { resources: cronJobs } = useResources({
+    pluginID: 'kubernetes',
+    connectionID: id,
+    resourceKey: 'batch::v1::CronJob',
     idAccessor: 'metadata.uid',
   });
 
@@ -128,32 +110,162 @@ const ClusterDashboardOverviewPage: React.FC = () => {
   });
 
   // --- Extension point for dashboard widgets ---
-  const widgetEP = useExtensionPoint<{ pluginID: string; connectionID: string }>(
-    'omniview/dashboard/widget',
-  );
+  const widgetEP = useExtensionPoint<{ pluginID: string; connectionID: string }>('omniview/dashboard/widget');
   const widgets = widgetEP?.list() ?? [];
 
+  // --- Pod stats ---
+  const podStats = React.useMemo(() => {
+    const all = filterByNamespace(pods.data?.result ?? [], namespaces);
+    const counts = { Running: 0, Pending: 0, Failed: 0, Succeeded: 0, Unknown: 0 };
+    for (const p of all) {
+      const phase = p.status?.phase ?? 'Unknown';
+      if (phase in counts) {
+        counts[phase as keyof typeof counts]++;
+      } else {
+        counts.Unknown++;
+      }
+    }
+    return {
+      total: all.length,
+      statuses: [
+        { label: 'Running', count: counts.Running, color: 'success' as const },
+        { label: 'Pending', count: counts.Pending, color: 'warning' as const },
+        { label: 'Failed', count: counts.Failed, color: 'danger' as const },
+        { label: 'Succeeded', count: counts.Succeeded, color: 'neutral' as const },
+        { label: 'Unknown', count: counts.Unknown, color: 'neutral' as const },
+      ],
+    };
+  }, [pods.data, namespaces]);
+
+  // --- Deployment stats ---
+  const deployStats = React.useMemo(() => {
+    const all = filterByNamespace(deployments.data?.result ?? [], namespaces);
+    let ready = 0;
+    let unavailable = 0;
+    for (const d of all) {
+      const avail = d.status?.availableReplicas ?? 0;
+      const desired = d.spec?.replicas ?? 0;
+      if (avail >= desired && desired > 0) {
+        ready++;
+      } else {
+        unavailable++;
+      }
+    }
+    return {
+      total: all.length,
+      statuses: [
+        { label: 'Ready', count: ready, color: 'success' as const },
+        { label: 'Unavailable', count: unavailable, color: 'danger' as const },
+      ],
+    };
+  }, [deployments.data, namespaces]);
+
+  // --- StatefulSet stats ---
+  const stsStats = React.useMemo(() => {
+    const all = filterByNamespace(statefulSets.data?.result ?? [], namespaces);
+    let ready = 0;
+    let notReady = 0;
+    for (const s of all) {
+      const readyReplicas = s.status?.readyReplicas ?? 0;
+      const desired = s.spec?.replicas ?? 0;
+      if (readyReplicas >= desired && desired > 0) {
+        ready++;
+      } else {
+        notReady++;
+      }
+    }
+    return {
+      total: all.length,
+      statuses: [
+        { label: 'Ready', count: ready, color: 'success' as const },
+        { label: 'Not Ready', count: notReady, color: 'danger' as const },
+      ],
+    };
+  }, [statefulSets.data, namespaces]);
+
+  // --- DaemonSet stats ---
+  const dsStats = React.useMemo(() => {
+    const all = filterByNamespace(daemonSets.data?.result ?? [], namespaces);
+    let ready = 0;
+    let notReady = 0;
+    for (const d of all) {
+      const desired = d.status?.desiredNumberScheduled ?? 0;
+      const numberReady = d.status?.numberReady ?? 0;
+      if (numberReady >= desired && desired > 0) {
+        ready++;
+      } else {
+        notReady++;
+      }
+    }
+    return {
+      total: all.length,
+      statuses: [
+        { label: 'Ready', count: ready, color: 'success' as const },
+        { label: 'Not Ready', count: notReady, color: 'danger' as const },
+      ],
+    };
+  }, [daemonSets.data, namespaces]);
+
+  // --- Job stats ---
+  const jobStats = React.useMemo(() => {
+    const all = filterByNamespace(jobs.data?.result ?? [], namespaces);
+    let complete = 0;
+    let active = 0;
+    let failed = 0;
+    for (const j of all) {
+      const conditions = j.status?.conditions ?? [];
+      const isComplete = conditions.some((c: any) => c.type === 'Complete' && c.status === 'True');
+      const isFailed = conditions.some((c: any) => c.type === 'Failed' && c.status === 'True');
+      if (isComplete) {
+        complete++;
+      } else if (isFailed) {
+        failed++;
+      } else {
+        active++;
+      }
+    }
+    return {
+      total: all.length,
+      statuses: [
+        { label: 'Complete', count: complete, color: 'success' as const },
+        { label: 'Active', count: active, color: 'warning' as const },
+        { label: 'Failed', count: failed, color: 'danger' as const },
+      ],
+    };
+  }, [jobs.data, namespaces]);
+
+  // --- CronJob stats ---
+  const cronJobStats = React.useMemo(() => {
+    const all = filterByNamespace(cronJobs.data?.result ?? [], namespaces);
+    let activeCount = 0;
+    let suspended = 0;
+    for (const cj of all) {
+      if (cj.spec?.suspend) {
+        suspended++;
+      } else {
+        activeCount++;
+      }
+    }
+    return {
+      total: all.length,
+      statuses: [
+        { label: 'Active', count: activeCount, color: 'success' as const },
+        { label: 'Suspended', count: suspended, color: 'neutral' as const },
+      ],
+    };
+  }, [cronJobs.data, namespaces]);
+
   // --- Filtered data for health banner and events ---
-  // runtime ListResult.result is typed as any[]; cast to the known K8s types
-  const allPods = React.useMemo(
-    () => filterByNamespace((pods.data?.result ?? []) as Pod[], namespaces),
-    [pods.data, namespaces],
-  );
-  const allNodes = React.useMemo(() => (nodes.data?.result ?? []) as K8sNode[], [nodes.data]);
-  const allEvents = React.useMemo(
-    () => filterByNamespace((events.data?.result ?? []) as K8sEvent[], namespaces),
-    [events.data, namespaces],
-  );
+  const allPods = React.useMemo(() => filterByNamespace(pods.data?.result ?? [], namespaces), [pods.data, namespaces]);
+  const allNodes = React.useMemo(() => nodes.data?.result ?? [], [nodes.data]);
+  const allEvents = React.useMemo(() => filterByNamespace(events.data?.result ?? [], namespaces), [events.data, namespaces]);
 
   return (
-    <Box
-      sx={pageSx}
-    >
+    <Box sx={{ p: 1.5, overflow: 'auto', height: '100%', width: '100%', flex: 1, display: 'flex', flexDirection: 'column' }}>
       <Stack gap={1.5}>
         {/* Cluster info + health status */}
         <ClusterInfoCard
-          // Connection.data is Record<string, any> from the runtime; cast to the expected shape
-          data={connection.data?.data as ConnectionData | undefined}
+          data={connection.data?.data}
           loading={connection.isLoading}
           nodes={allNodes}
           pods={allPods}
@@ -161,45 +273,80 @@ const ClusterDashboardOverviewPage: React.FC = () => {
         />
 
         {/* Namespace filter */}
-        <Stack direction="row" alignItems="center" gap={1}>
-          <Text size="sm" sx={namespaceLabelSx}>
-            Namespace:
-          </Text>
+        <Stack direction='row' alignItems='center' gap={1}>
+          <Text size='sm' sx={{ color: 'text.secondary' }}>Namespace:</Text>
           <NamespaceSelect connectionID={id} selected={namespaces} setNamespaces={setNamespaces} />
         </Stack>
 
-        {/* Workload summary cards — each owns its own useResources hook */}
+        {/* Workload summary cards — 6 columns */}
         <Grid container spacing={1.5}>
           <Grid size={{ xs: 12, sm: 6, md: 2 }}>
-            <PodStatCard connectionID={id} namespaces={namespaces} onClick={goToPods} />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
-            <DeploymentStatCard
-              connectionID={id}
-              namespaces={namespaces}
-              onClick={goToDeployments}
+            <WorkloadSummaryCard
+              title='Pods'
+              icon={<LuContainer size={14} />}
+              total={podStats.total}
+              statuses={podStats.statuses}
+              loading={pods.isLoading}
+              onClick={() => goToResource('core_v1_Pod')}
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 2 }}>
-            <StatefulSetStatCard
-              connectionID={id}
-              namespaces={namespaces}
-              onClick={goToStatefulSets}
+            <WorkloadSummaryCard
+              title='Deployments'
+              icon={<LuBox size={14} />}
+              total={deployStats.total}
+              statuses={deployStats.statuses}
+              loading={deployments.isLoading}
+              onClick={() => goToResource('apps_v1_Deployment')}
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 2 }}>
-            <DaemonSetStatCard connectionID={id} namespaces={namespaces} onClick={goToDaemonSets} />
+            <WorkloadSummaryCard
+              title='StatefulSets'
+              icon={<LuDatabase size={14} />}
+              total={stsStats.total}
+              statuses={stsStats.statuses}
+              loading={statefulSets.isLoading}
+              onClick={() => goToResource('apps_v1_StatefulSet')}
+            />
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 2 }}>
-            <JobStatCard connectionID={id} namespaces={namespaces} onClick={goToJobs} />
+            <WorkloadSummaryCard
+              title='DaemonSets'
+              icon={<LuNetwork size={14} />}
+              total={dsStats.total}
+              statuses={dsStats.statuses}
+              loading={daemonSets.isLoading}
+              onClick={() => goToResource('apps_v1_DaemonSet')}
+            />
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 2 }}>
-            <CronJobStatCard connectionID={id} namespaces={namespaces} onClick={goToCronJobs} />
+            <WorkloadSummaryCard
+              title='Jobs'
+              icon={<LuListChecks size={14} />}
+              total={jobStats.total}
+              statuses={jobStats.statuses}
+              loading={jobs.isLoading}
+              onClick={() => goToResource('batch_v1_Job')}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+            <WorkloadSummaryCard
+              title='CronJobs'
+              icon={<LuCalendarClock size={14} />}
+              total={cronJobStats.total}
+              statuses={cronJobStats.statuses}
+              loading={cronJobs.isLoading}
+              onClick={() => goToResource('batch_v1_CronJob')}
+            />
           </Grid>
         </Grid>
 
         {/* Resource capacity gauges */}
-        <ClusterResourceGauges connectionID={id} metricConfig={metricConfig} />
+        <ClusterResourceGauges
+          connectionID={id}
+          metricConfig={metricConfig}
+        />
 
         {/* Cluster metrics */}
         <ClusterMetricsSection
@@ -214,13 +361,10 @@ const ClusterDashboardOverviewPage: React.FC = () => {
         {widgets.length > 0 && (
           <Grid container spacing={1.5}>
             {widgets.map((w) => {
-              const Component = w.component as unknown as React.FC<{
-                pluginID: string;
-                connectionID: string;
-              }>;
+              const Component = w.component as unknown as React.FC<{ pluginID: string; connectionID: string }>;
               return (
                 <Grid key={w.id} size={{ xs: 12, sm: 6, md: 4 }}>
-                  <Component pluginID="kubernetes" connectionID={id} />
+                  <Component pluginID='kubernetes' connectionID={id} />
                 </Grid>
               );
             })}
@@ -229,12 +373,10 @@ const ClusterDashboardOverviewPage: React.FC = () => {
 
         {/* Recent events — responsive height, scrolls independently */}
         <Stack gap={0.75}>
-          <Text weight="semibold" size="sm">
+          <Text weight='semibold' size='sm'>
             Recent Events ({allEvents.length})
           </Text>
-          <Box
-            sx={eventsContainerSx}
-          >
+          <Box sx={{ height: 'clamp(300px, 40vh, 600px)', overflow: 'auto', border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
             <EventsTable events={allEvents} loading={events.isLoading} connectionID={id} />
           </Box>
         </Stack>

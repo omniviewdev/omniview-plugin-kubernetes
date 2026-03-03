@@ -1,41 +1,39 @@
+import { Condition } from "kubernetes-types/meta/v1";
 import { Chip } from '@omniviewdev/ui';
 import { Tooltip } from '@omniviewdev/ui/overlays';
-import { Condition } from 'kubernetes-types/meta/v1';
-import React from 'react';
+import React from "react";
 
 type Props = {
   /** The kubernetes condition */
   condition: Condition;
 
   /** Flip the status so that 'False' is treated as healthy */
-  flipped?: boolean;
+  flipped?: boolean
 
   /** The color level to use for the unhealthy value. Defaults to 'faded' */
-  unhealthyColor?: 'warning' | 'danger' | 'neutral' | 'faded';
+  unhealthyColor?: 'warning' | 'danger' | 'neutral' | 'faded'
 
   /** The color level to use for the healthy value. Defaults to 'success' */
-  healthyColor?: 'success' | 'neutral';
-};
+  healthyColor?: 'success' | 'neutral'
+}
 
-function CustomTooltip({
-  children,
-  content,
-  ...rest
-}: {
-  children: React.ReactElement;
-  content?: string;
-  size?: string;
-}) {
+
+function CustomTooltip({ children, content, ...rest }: { children: React.ReactElement; content?: string; size?: string }) {
   const [renderTooltip, setRenderTooltip] = React.useState(false);
 
   return (
-    <div onMouseEnter={() => !renderTooltip && setRenderTooltip(true)} className="display-contents">
+    <div
+      onMouseEnter={() => !renderTooltip && setRenderTooltip(true)}
+      className="display-contents"
+    >
       {!renderTooltip && children}
-      {renderTooltip && (
-        <Tooltip content={content} {...rest}>
-          {children}
-        </Tooltip>
-      )}
+      {
+        renderTooltip && (
+          <Tooltip content={content} {...rest}>
+            {children}
+          </Tooltip>
+        )
+      }
     </div>
   );
 }
@@ -48,18 +46,22 @@ export const ConditionChip: React.FC<Props> = ({
   condition,
   flipped,
   unhealthyColor = 'faded',
-  healthyColor = 'success',
+  healthyColor = 'success'
 }) => {
-  const healthy = flipped ? condition.status === 'False' : condition.status === 'True';
+  const healthy = flipped ? condition.status === 'False' : condition.status === 'True'
 
-  const color = healthy ? healthyColor : unhealthyColor === 'faded' ? 'neutral' : unhealthyColor;
+  const color = healthy
+    ? healthyColor
+    : unhealthyColor === 'faded'
+      ? 'neutral'
+      : unhealthyColor;
 
   return (
-    <CustomTooltip size="sm" content={condition.message}>
+    <CustomTooltip size='sm' content={condition.message}>
       <Chip
-        size="xs"
+        size='xs'
         color={color}
-        emphasis="soft"
+        emphasis='soft'
         sx={{
           borderRadius: 1,
           ...(!healthy && unhealthyColor === 'faded' ? { opacity: 0.45 } : {}),
@@ -67,7 +69,7 @@ export const ConditionChip: React.FC<Props> = ({
         label={condition.type}
       />
     </CustomTooltip>
-  );
-};
+  )
+}
 
-export default ConditionChip;
+export default ConditionChip

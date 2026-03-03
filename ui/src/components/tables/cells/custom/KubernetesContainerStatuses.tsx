@@ -1,28 +1,26 @@
+import React from 'react';
+
+// @omniviewdev/ui
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
 import { Chip } from '@omniviewdev/ui';
-import { Tooltip } from '@omniviewdev/ui/overlays';
 import { Text } from '@omniviewdev/ui/typography';
-import { formatRelative } from 'date-fns';
+import { Tooltip } from '@omniviewdev/ui/overlays';
+
+// project imports
+import Icon from '../../../shared/Icon';
+import { getStatus } from './utils';
+
+// types
 import {
   type ContainerStateTerminated,
   type ContainerStateWaiting,
   type ContainerStatus,
 } from 'kubernetes-types/core/v1';
-import React from 'react';
-
-import Icon from '../../../shared/Icon';
-
 import ContainerStatusCard from './KubernetesContainerStatusCard';
-import { getStatus } from './utils';
 
-// ---------------------------------------------------------------------------
-// Static styles
-// ---------------------------------------------------------------------------
-
-const kvPairsSx = { p: 1, borderRadius: 'sm', bgcolor: 'background.level1' } as const;
-const messageChipSx = { my: 1, borderRadius: 'sm' } as const;
-const decoratorChipSx = { borderRadius: 'sm', px: 1 } as const;
+// third party
+import { formatRelative } from 'date-fns';
 
 const KeyValuePairs = ({ message }: { message: string }) => {
   const regex = /(\w+)=(?:"([^"]*)"|(\S*))/g;
@@ -36,10 +34,10 @@ const KeyValuePairs = ({ message }: { message: string }) => {
   }
 
   return (
-    <Box sx={kvPairsSx}>
+    <Box sx={{ p: 1, borderRadius: 'sm', bgcolor: 'background.level1' }}>
       <Grid container>
-        {pairs.map((pair) => (
-          <React.Fragment key={pair.key}>
+        {pairs.map((pair, index) => (
+          <React.Fragment key={index}>
             <Grid size={2}>
               <Text size="xs">{pair.key}</Text>
             </Grid>
@@ -60,8 +58,12 @@ export const ContainerTerminatedStatusInfo: React.FC<{
     'Exit Code': state.exitCode,
     Signal: state.signal,
     Reason: state.reason,
-    Started: state.startedAt ? formatRelative(new Date(state.startedAt), new Date()) : undefined,
-    Finished: state.finishedAt ? formatRelative(new Date(state.finishedAt), new Date()) : undefined,
+    Started: state.startedAt
+      ? formatRelative(new Date(state.startedAt), new Date())
+      : undefined,
+    Finished: state.finishedAt
+      ? formatRelative(new Date(state.finishedAt), new Date())
+      : undefined,
   };
 
   return (
@@ -78,12 +80,12 @@ export const ContainerTerminatedStatusInfo: React.FC<{
           </React.Fragment>
         ) : null,
       )}
-      {state.message && (
+      {state.message &&
         <Grid size={12}>
-          <Chip size="sm" emphasis="outline" sx={messageChipSx} label="Message" />
+          <Chip size='sm' emphasis='outline' sx={{ my: 1, borderRadius: 'sm' }} label='Message' />
           <KeyValuePairs message={state.message} />
         </Grid>
-      )}
+      }
     </Grid>
   );
 };
@@ -139,10 +141,15 @@ export const ContainerStatusDecorator: React.FC<{
     >
       <Chip
         size="sm"
-        sx={decoratorChipSx}
+        sx={{
+          borderRadius: 'sm',
+          px: 1,
+        }}
         color={statusInfo.color}
         emphasis={getEmphasis()}
-        startAdornment={statusInfo.icon && <Icon name={statusInfo.icon} size={16} />}
+        startAdornment={
+          statusInfo.icon && <Icon name={statusInfo.icon} size={16} />
+        }
         label={statusInfo.text}
       />
     </Tooltip>

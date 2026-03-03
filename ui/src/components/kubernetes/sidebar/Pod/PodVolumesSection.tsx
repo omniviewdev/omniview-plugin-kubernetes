@@ -1,68 +1,37 @@
-import Box from '@mui/material/Box';
-import { Chip } from '@omniviewdev/ui';
-import { Stack } from '@omniviewdev/ui/layout';
-import { Text } from '@omniviewdev/ui/typography';
-import type { Pod, Volume } from 'kubernetes-types/core/v1';
-import React from 'react';
+import React from "react";
 
-import DetailsCard, { DetailsCardEntry } from '../../../shared/DetailsCard';
-import ExpandableSections from '../../../shared/ExpandableSections';
-import ResourceLinkChip from '../../../shared/ResourceLinkChip';
+// @omniviewdev/ui
+import Box from "@mui/material/Box";
+import { Chip } from "@omniviewdev/ui";
+import { Stack } from "@omniviewdev/ui/layout";
+import { Text } from "@omniviewdev/ui/typography";
 
-const sectionHeadingLabelSx = {
-  color: 'text.secondary',
-  textTransform: 'uppercase',
-  letterSpacing: '0.08em',
-  fontSize: 11,
-  flexShrink: 0,
-} as const;
+// project imports
+import DetailsCard, { DetailsCardEntry } from "../../../shared/DetailsCard";
+import ExpandableSections from "../../../shared/ExpandableSections";
 
-const chipBorderRadiusSx = { borderRadius: 1, flexShrink: 0 } as const;
-
-const sectionHeadingDividerSx = { flex: 1, height: '1px', bgcolor: 'divider' } as const;
-
-const sectionHeadingStackSx = { mb: 0.75 } as const;
-
-const volumeChipSx = { borderRadius: 1 } as const;
+// types
+import type { Pod, Volume } from "kubernetes-types/core/v1";
 
 interface Props {
   pod: Pod;
-  /** When provided, resource references (ConfigMap, Secret, PVC) become clickable */
-  connectionID?: string;
-  namespace?: string;
 }
 
 function getVolumeInfo(
   volume: Volume,
-  connectionID?: string,
-  namespace?: string,
 ): { type: string; details: DetailsCardEntry[] } {
   if (volume.configMap) {
-    const name = volume.configMap.name || '';
     return {
-      type: 'ConfigMap',
+      type: "ConfigMap",
       details: [
-        {
-          key: 'ConfigMap Name',
-          value: name,
-          endAdornment:
-            connectionID && name ? (
-              <ResourceLinkChip
-                connectionID={connectionID}
-                resourceKey="core::v1::ConfigMap"
-                resourceID={name}
-                resourceName="ConfigMap"
-                namespace={namespace}
-              />
-            ) : undefined,
-        },
+        { key: "ConfigMap Name", value: volume.configMap.name || "" },
         ...(volume.configMap.optional != null
-          ? [{ key: 'Optional', value: String(volume.configMap.optional) }]
+          ? [{ key: "Optional", value: String(volume.configMap.optional) }]
           : []),
         ...(volume.configMap.defaultMode != null
           ? [
               {
-                key: 'Default Mode',
+                key: "Default Mode",
                 value: String(volume.configMap.defaultMode),
               },
             ]
@@ -72,31 +41,17 @@ function getVolumeInfo(
   }
 
   if (volume.secret) {
-    const name = volume.secret.secretName || '';
     return {
-      type: 'Secret',
+      type: "Secret",
       details: [
-        {
-          key: 'Secret Name',
-          value: name,
-          endAdornment:
-            connectionID && name ? (
-              <ResourceLinkChip
-                connectionID={connectionID}
-                resourceKey="core::v1::Secret"
-                resourceID={name}
-                resourceName="Secret"
-                namespace={namespace}
-              />
-            ) : undefined,
-        },
+        { key: "Secret Name", value: volume.secret.secretName || "" },
         ...(volume.secret.optional != null
-          ? [{ key: 'Optional', value: String(volume.secret.optional) }]
+          ? [{ key: "Optional", value: String(volume.secret.optional) }]
           : []),
         ...(volume.secret.defaultMode != null
           ? [
               {
-                key: 'Default Mode',
+                key: "Default Mode",
                 value: String(volume.secret.defaultMode),
               },
             ]
@@ -106,26 +61,12 @@ function getVolumeInfo(
   }
 
   if (volume.persistentVolumeClaim) {
-    const claimName = volume.persistentVolumeClaim.claimName;
     return {
-      type: 'PVC',
+      type: "PVC",
       details: [
+        { key: "Claim Name", value: volume.persistentVolumeClaim.claimName },
         {
-          key: 'Claim Name',
-          value: claimName,
-          endAdornment:
-            connectionID && claimName ? (
-              <ResourceLinkChip
-                connectionID={connectionID}
-                resourceKey="core::v1::PersistentVolumeClaim"
-                resourceID={claimName}
-                resourceName="PVC"
-                namespace={namespace}
-              />
-            ) : undefined,
-        },
-        {
-          key: 'Read Only',
+          key: "Read Only",
           value: String(volume.persistentVolumeClaim.readOnly ?? false),
         },
       ],
@@ -134,22 +75,26 @@ function getVolumeInfo(
 
   if (volume.emptyDir) {
     const details: DetailsCardEntry[] = [];
-    if (volume.emptyDir.medium) details.push({ key: 'Medium', value: volume.emptyDir.medium });
+    if (volume.emptyDir.medium)
+      details.push({ key: "Medium", value: volume.emptyDir.medium });
     if (volume.emptyDir.sizeLimit)
       details.push({
-        key: 'Size Limit',
+        key: "Size Limit",
         value: String(volume.emptyDir.sizeLimit),
       });
-    if (details.length === 0) details.push({ key: 'Medium', value: 'Default (disk)' });
-    return { type: 'EmptyDir', details };
+    if (details.length === 0)
+      details.push({ key: "Medium", value: "Default (disk)" });
+    return { type: "EmptyDir", details };
   }
 
   if (volume.hostPath) {
     return {
-      type: 'HostPath',
+      type: "HostPath",
       details: [
-        { key: 'Path', value: volume.hostPath.path },
-        ...(volume.hostPath.type ? [{ key: 'Type', value: volume.hostPath.type }] : []),
+        { key: "Path", value: volume.hostPath.path },
+        ...(volume.hostPath.type
+          ? [{ key: "Type", value: volume.hostPath.type }]
+          : []),
       ],
     };
   }
@@ -158,21 +103,21 @@ function getVolumeInfo(
     const sources = volume.projected.sources || [];
     const sourceTypes = sources
       .map((s) => {
-        if (s.serviceAccountToken) return 'ServiceAccountToken';
-        if (s.configMap) return 'ConfigMap';
-        if (s.secret) return 'Secret';
-        if (s.downwardAPI) return 'DownwardAPI';
-        return 'Unknown';
+        if (s.serviceAccountToken) return "ServiceAccountToken";
+        if (s.configMap) return "ConfigMap";
+        if (s.secret) return "Secret";
+        if (s.downwardAPI) return "DownwardAPI";
+        return "Unknown";
       })
-      .join(', ');
+      .join(", ");
     return {
-      type: 'Projected',
+      type: "Projected",
       details: [
-        { key: 'Sources', value: sourceTypes },
+        { key: "Sources", value: sourceTypes },
         ...(volume.projected.defaultMode != null
           ? [
               {
-                key: 'Default Mode',
+                key: "Default Mode",
                 value: String(volume.projected.defaultMode),
               },
             ]
@@ -184,48 +129,60 @@ function getVolumeInfo(
   if (volume.downwardAPI) {
     const items = volume.downwardAPI.items || [];
     return {
-      type: 'DownwardAPI',
+      type: "DownwardAPI",
       details: items.map((item) => ({
         key: item.path,
-        value: item.fieldRef?.fieldPath || item.resourceFieldRef?.resource || '',
+        value:
+          item.fieldRef?.fieldPath || item.resourceFieldRef?.resource || "",
       })),
     };
   }
 
   if (volume.csi) {
     return {
-      type: 'CSI',
+      type: "CSI",
       details: [
-        { key: 'Driver', value: volume.csi.driver },
+        { key: "Driver", value: volume.csi.driver },
         ...(volume.csi.readOnly != null
-          ? [{ key: 'Read Only', value: String(volume.csi.readOnly) }]
+          ? [{ key: "Read Only", value: String(volume.csi.readOnly) }]
           : []),
-        ...(volume.csi.fsType ? [{ key: 'FS Type', value: volume.csi.fsType }] : []),
+        ...(volume.csi.fsType
+          ? [{ key: "FS Type", value: volume.csi.fsType }]
+          : []),
       ],
     };
   }
 
   if (volume.nfs) {
     return {
-      type: 'NFS',
+      type: "NFS",
       details: [
-        { key: 'Server', value: volume.nfs.server },
-        { key: 'Path', value: volume.nfs.path },
-        { key: 'Read Only', value: String(volume.nfs.readOnly ?? false) },
+        { key: "Server", value: volume.nfs.server },
+        { key: "Path", value: volume.nfs.path },
+        { key: "Read Only", value: String(volume.nfs.readOnly ?? false) },
       ],
     };
   }
 
-  return { type: 'Unknown', details: [] };
+  return { type: "Unknown", details: [] };
 }
 
 // ── IDE-style section heading ──
-const SectionHeading: React.FC<{ label: string; count: number }> = ({ label, count }) => (
-  <Stack direction="row" alignItems="center" gap={1} sx={sectionHeadingStackSx}>
+const SectionHeading: React.FC<{ label: string; count: number }> = ({
+  label,
+  count,
+}) => (
+  <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 0.75 }}>
     <Text
       size="xs"
       weight="semibold"
-      sx={sectionHeadingLabelSx}
+      sx={{
+        color: "text.secondary",
+        textTransform: "uppercase",
+        letterSpacing: "0.08em",
+        fontSize: 11,
+        flexShrink: 0,
+      }}
     >
       {label}
     </Text>
@@ -233,24 +190,30 @@ const SectionHeading: React.FC<{ label: string; count: number }> = ({ label, cou
       size="xs"
       emphasis="outline"
       color="primary"
-      sx={chipBorderRadiusSx}
+      sx={{ borderRadius: 1, flexShrink: 0 }}
       label={String(count)}
     />
-    <Box sx={sectionHeadingDividerSx} />
+    <Box sx={{ flex: 1, height: "1px", bgcolor: "divider" }} />
   </Stack>
 );
 
-const PodVolumesSection: React.FC<Props> = ({ pod, connectionID, namespace }) => {
+const PodVolumesSection: React.FC<Props> = ({ pod }) => {
   const volumes = pod.spec?.volumes;
   if (!volumes || volumes.length === 0) return null;
 
   const sections = volumes.map((volume) => {
-    const { type, details } = getVolumeInfo(volume, connectionID, namespace);
+    const { type, details } = getVolumeInfo(volume);
     return {
-      icon: 'LuHardDrive',
+      icon: "LuHardDrive",
       title: volume.name,
       endDecorator: (
-        <Chip size="xs" emphasis="outline" color="primary" sx={volumeChipSx} label={type} />
+        <Chip
+          size="xs"
+          emphasis="outline"
+          color="primary"
+          sx={{ borderRadius: 1 }}
+          label={type}
+        />
       ),
       children: details.length > 0 ? <DetailsCard data={details} /> : null,
     };
@@ -259,7 +222,7 @@ const PodVolumesSection: React.FC<Props> = ({ pod, connectionID, namespace }) =>
   return (
     <Box>
       <SectionHeading label="Volumes" count={volumes.length} />
-      <ExpandableSections sections={sections} size="sm" sx={{ gap: 1 }} />
+      <ExpandableSections sections={sections} size="sm" />
     </Box>
   );
 };

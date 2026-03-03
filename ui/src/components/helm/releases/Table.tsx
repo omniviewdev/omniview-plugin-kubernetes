@@ -1,37 +1,16 @@
-import { DrawerComponent } from '@omniviewdev/runtime';
-import { Chip } from '@omniviewdev/ui';
-import { ColumnDef } from '@tanstack/react-table';
 import React from 'react';
-import { SiHelm } from 'react-icons/si';
+import { ColumnDef } from '@tanstack/react-table';
 import { useParams } from 'react-router-dom';
-
-import { createStandardViews } from '../../shared/sidebar/createDrawerViews';
+import { Chip } from '@omniviewdev/ui';
 import ResourceTable from '../../shared/table/ResourceTable';
-
+import { DrawerComponent } from '@omniviewdev/runtime';
+import { SiHelm } from 'react-icons/si';
 import ReleaseSidebar from './ReleaseSidebar';
+import { createStandardViews } from '../../shared/sidebar/createDrawerViews';
 
 const resourceKey = 'helm::v1::Release';
 
-const statusChipSx = { borderRadius: 'sm' } as const;
-
-/** Shape of a Helm release row as rendered in the table. */
-interface HelmRelease {
-  name?: string;
-  namespace?: string;
-  version?: number;
-  info?: {
-    status?: string;
-    last_deployed?: string;
-    description?: string;
-  };
-  chart?: {
-    metadata?: {
-      name?: string;
-      version?: string;
-      appVersion?: string;
-    };
-  };
-}
+type HelmRelease = Record<string, any>;
 
 const statusColorMap: Record<string, 'success' | 'danger' | 'warning' | 'neutral'> = {
   deployed: 'success',
@@ -91,7 +70,7 @@ const HelmReleaseTable: React.FC = () => {
               size="sm"
               emphasis="soft"
               color={statusColorMap[status] ?? 'neutral'}
-              sx={statusChipSx}
+              sx={{ borderRadius: 'sm' }}
               label={status}
             />
           );
@@ -102,15 +81,12 @@ const HelmReleaseTable: React.FC = () => {
     [],
   );
 
-  const drawer: DrawerComponent<HelmRelease> = React.useMemo(
-    () => ({
-      title: 'Release',
-      icon: <SiHelm />,
-      views: createStandardViews({ SidebarComponent: ReleaseSidebar }),
-      actions: [],
-    }),
-    [],
-  );
+  const drawer: DrawerComponent<HelmRelease> = React.useMemo(() => ({
+    title: 'Release',
+    icon: <SiHelm />,
+    views: createStandardViews({ SidebarComponent: ReleaseSidebar }),
+    actions: [],
+  }), []);
 
   return (
     <ResourceTable
@@ -120,7 +96,6 @@ const HelmReleaseTable: React.FC = () => {
       idAccessor="name"
       memoizer="name,version"
       drawer={drawer}
-      createEnabled={false}
     />
   );
 };

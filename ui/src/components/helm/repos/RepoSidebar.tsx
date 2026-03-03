@@ -1,71 +1,25 @@
+import React from 'react';
+
+// material-ui
 import Box from '@mui/material/Box';
+import { Card } from '@omniviewdev/ui';
+import { Chip } from '@omniviewdev/ui';
 import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Grid';
-import {
-  DrawerContext,
-  useExecuteAction,
-  useResources,
-  useRightDrawer,
-} from '@omniviewdev/runtime';
-import { Card, Chip } from '@omniviewdev/ui';
 import { IconButton } from '@omniviewdev/ui/buttons';
 import { TextField } from '@omniviewdev/ui/inputs';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
-import React from 'react';
+
+// icons
 import { LuRefreshCw, LuLink, LuShieldCheck, LuShieldOff } from 'react-icons/lu';
 
+// project-imports
+import { DrawerContext, useExecuteAction, useResources, useRightDrawer } from '@omniviewdev/runtime';
 import NamedAvatar from '../../shared/NamedAvatar';
 
-const metaLabelSx = { color: 'neutral.400' } as const;
-const metaValueSx = { fontWeight: 400, color: 'neutral.100' } as const;
-const chartIconContainerSx = {
-  width: 36,
-  height: 36,
-  borderRadius: '6px',
-  flexShrink: 0,
-  bgcolor: 'rgba(255,255,255,0.08)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-} as const;
-const chartIconImgSx = { width: 30, height: 30, objectFit: 'contain', borderRadius: '4px' } as const;
-const chartDescriptionSx = {
-  color: 'neutral.400',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-} as const;
-const chartVersionSx = { color: 'neutral.500', mt: 0.25 } as const;
-const chartListContainerSx = { flex: 1, minHeight: 0, overflow: 'auto' } as const;
-const chartsSectionSx = { flex: 1, minHeight: 0, mt: 2 } as const;
-const chartsHeaderSx = { flexShrink: 0 } as const;
-const chartDetailColumnSx = { flex: 1, minWidth: 0 } as const;
-const noChartsSx = { color: 'neutral.400', textAlign: 'center', py: 2 } as const;
-const urlTextSx = { wordBreak: 'break-all' } as const;
-const rootSx = { height: '100%', minHeight: 0 } as const;
-
 // ── types ──
-
-/** Shape of a Helm repository as returned by the backend. */
-interface HelmRepo {
-  name?: string;
-  url?: string;
-  type?: string;
-  username?: string;
-  insecure_skip_tls_verify?: boolean;
-}
-
-/** Shape of a chart entry in the chart resource list. */
-interface ChartListEntry {
-  id?: string;
-  name?: string;
-  description?: string;
-  version?: string;
-  appVersion?: string;
-  icon?: string;
-  repository?: string;
-}
+type HelmRepo = Record<string, any>;
 
 interface Props {
   ctx: DrawerContext<HelmRepo>;
@@ -74,12 +28,10 @@ interface Props {
 const MetaEntry: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
   <Grid container spacing={0}>
     <Grid size={3}>
-      <Text sx={metaLabelSx} size="sm">
-        {label}
-      </Text>
+      <Text sx={{ color: "neutral.400" }} size="sm">{label}</Text>
     </Grid>
     <Grid size={9}>
-      <Text sx={metaValueSx} weight="semibold" size="sm">
+      <Text sx={{ fontWeight: 400, color: "neutral.100" }} weight="semibold" size="sm">
         {value}
       </Text>
     </Grid>
@@ -91,13 +43,19 @@ const ChartIcon: React.FC<{ icon?: string; name: string }> = ({ icon, name }) =>
   const [failed, setFailed] = React.useState(false);
   if (icon && !failed) {
     return (
-      <Box sx={chartIconContainerSx}>
+      <Box
+        sx={{
+          width: 36, height: 36, borderRadius: '6px', flexShrink: 0,
+          bgcolor: 'rgba(255,255,255,0.08)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}
+      >
         <Box
           component="img"
           src={icon}
           alt={name}
           onError={() => setFailed(true)}
-          sx={chartIconImgSx}
+          sx={{ width: 30, height: 30, objectFit: 'contain', borderRadius: '4px' }}
         />
       </Box>
     );
@@ -138,91 +96,78 @@ export const RepoSidebar: React.FC<Props> = ({ ctx }) => {
   const data = ctx.data;
 
   // Filter charts by this repository
-  // chartsQuery.data?.result is typed as unknown[] from the runtime; cast to expected shape
-  const allCharts = (chartsQuery.data?.result ?? []) as ChartListEntry[];
+  const allCharts = (chartsQuery.data?.result ?? []) as Array<Record<string, any>>;
   const repoCharts = allCharts.filter((c) => c.repository === repoName);
 
   const filteredCharts = chartFilter
     ? repoCharts.filter((c) => {
-        const name = (c.name ?? '').toLowerCase();
-        const desc = (c.description ?? '').toLowerCase();
+        const name = (c.name as string ?? '').toLowerCase();
+        const desc = (c.description as string ?? '').toLowerCase();
         return name.includes(chartFilter.toLowerCase()) || desc.includes(chartFilter.toLowerCase());
       })
     : repoCharts;
 
   return (
-    <Stack direction="column" width="100%" sx={rootSx}>
+    <Stack direction="column" width="100%" sx={{ height: '100%', minHeight: 0 }}>
       {/* ── Fixed header ── */}
-      <Card
-        sx={{ p: 1.5, borderRadius: 'sm', flexShrink: 0, overflow: 'visible' }}
-        emphasis="outline"
-      >
-        <Stack direction="column" spacing={1}>
-          <Stack direction="row" justifyContent="space-between" alignItems="center">
-            <Stack direction="row" alignItems="center" spacing={1}>
-              <Text weight="semibold" size="lg">
-                {repoName}
-              </Text>
-              {data.type === 'oci' && <Chip size="sm" emphasis="soft" color="info" label="OCI" />}
-            </Stack>
-            <IconButton
-              size="sm"
-              emphasis="outline"
-              color="primary"
-              disabled={isExecuting}
-              onClick={() =>
-                void executeAction({
+      <Card sx={{ p: 1.5, borderRadius: 'sm', flexShrink: 0, overflow: 'visible' }} emphasis="outline">
+          <Stack direction="column" spacing={1}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center">
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <Text weight="semibold" size="lg">{repoName}</Text>
+                {data.type === 'oci' && (
+                  <Chip size="sm" emphasis="soft" color="info" label="OCI" />
+                )}
+              </Stack>
+              <IconButton
+                size="sm"
+                emphasis="outline"
+                color="primary"
+                disabled={isExecuting}
+                onClick={() => void executeAction({
                   actionID: 'refresh',
                   id: repoName,
-                })
+                })}
+                title="Refresh Repository"
+              >
+                <LuRefreshCw />
+              </IconButton>
+            </Stack>
+            <Divider />
+            <MetaEntry
+              label="URL"
+              value={
+                <Stack direction="row" alignItems="center" spacing={0.5}>
+                  <LuLink size={12} />
+                  <Text size="sm" sx={{ wordBreak: 'break-all' }}>
+                    {data.url ?? '—'}
+                  </Text>
+                </Stack>
               }
-              title="Refresh Repository"
-            >
-              <LuRefreshCw />
-            </IconButton>
+            />
+            {data.username && <MetaEntry label="Username" value={data.username} />}
+            <MetaEntry
+              label="TLS"
+              value={
+                <Chip
+                  size="sm"
+                  emphasis="soft"
+                  color={data.insecure_skip_tls_verify ? 'warning' : 'success'}
+                  startAdornment={
+                    data.insecure_skip_tls_verify
+                      ? <LuShieldOff size={12} />
+                      : <LuShieldCheck size={12} />
+                  }
+                  label={data.insecure_skip_tls_verify ? 'Insecure' : 'Verified'}
+                />
+              }
+            />
           </Stack>
-          <Divider />
-          <MetaEntry
-            label="URL"
-            value={
-              <Stack direction="row" alignItems="center" spacing={0.5}>
-                <LuLink size={12} />
-                <Text size="sm" sx={urlTextSx}>
-                  {data.url ?? '—'}
-                </Text>
-              </Stack>
-            }
-          />
-          {data.username && <MetaEntry label="Username" value={data.username} />}
-          <MetaEntry
-            label="TLS"
-            value={
-              <Chip
-                size="sm"
-                emphasis="soft"
-                color={data.insecure_skip_tls_verify ? 'warning' : 'success'}
-                startAdornment={
-                  data.insecure_skip_tls_verify ? (
-                    <LuShieldOff size={12} />
-                  ) : (
-                    <LuShieldCheck size={12} />
-                  )
-                }
-                label={data.insecure_skip_tls_verify ? 'Insecure' : 'Verified'}
-              />
-            }
-          />
-        </Stack>
       </Card>
 
       {/* ── Charts section — fills remaining space ── */}
-      <Stack direction="column" spacing={1} sx={chartsSectionSx}>
-        <Stack
-          direction="row"
-          justifyContent="space-between"
-          alignItems="center"
-          sx={chartsHeaderSx}
-        >
+      <Stack direction="column" spacing={1} sx={{ flex: 1, minHeight: 0, mt: 2 }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ flexShrink: 0 }}>
           <Text weight="semibold" size="sm">
             Charts in this repository ({repoCharts.length})
           </Text>
@@ -239,10 +184,14 @@ export const RepoSidebar: React.FC<Props> = ({ ctx }) => {
         />
 
         {/* Chart list — scrolls within remaining space */}
-        <Stack direction="column" spacing={0.5} sx={chartListContainerSx}>
+        <Stack
+          direction="column"
+          spacing={0.5}
+          sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}
+        >
           {filteredCharts.map((chart) => (
             <Card
-              key={chart.id ?? chart.name ?? ''}
+              key={chart.id as string}
               sx={{
                 p: 1,
                 overflow: 'visible',
@@ -252,36 +201,37 @@ export const RepoSidebar: React.FC<Props> = ({ ctx }) => {
                 '&:hover': { bgcolor: 'background.level2' },
               }}
               emphasis="outline"
-              onClick={() =>
-                showResourceSidebar({
-                  pluginID: 'kubernetes',
-                  connectionID,
-                  resourceKey: 'helm::v1::Chart',
-                  resourceID: chart.id ?? '',
-                })
-              }
+              onClick={() => showResourceSidebar({
+                pluginID: 'kubernetes',
+                connectionID,
+                resourceKey: 'helm::v1::Chart',
+                resourceID: chart.id as string,
+              })}
             >
               <Stack direction="row" spacing={1.5} alignItems="flex-start">
-                <ChartIcon icon={chart.icon} name={chart.name ?? ''} />
-                <Stack direction="column" spacing={0} sx={chartDetailColumnSx}>
-                  <Text weight="semibold" size="sm">
-                    {chart.name ?? ''}
-                  </Text>
-                  {chart.description && (
-                    <Text size="xs" sx={chartDescriptionSx}>
-                      {chart.description}
+                <ChartIcon icon={chart.icon as string} name={chart.name as string} />
+                <Stack direction="column" spacing={0} sx={{ flex: 1, minWidth: 0 }}>
+                  <Text weight="semibold" size="sm">{chart.name as string}</Text>
+                  {(chart.description as string) && (
+                    <Text size="xs" sx={{
+                      color: 'neutral.400',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}>
+                      {chart.description as string}
                     </Text>
                   )}
-                  <Text size="xs" sx={chartVersionSx}>
-                    v{chart.version ?? ''}
-                    {chart.appVersion ? ` · App: ${chart.appVersion}` : ''}
+                  <Text size="xs" sx={{ color: 'neutral.500', mt: 0.25 }}>
+                    v{chart.version as string}
+                    {chart.appVersion && ` · App: ${chart.appVersion as string}`}
                   </Text>
                 </Stack>
               </Stack>
             </Card>
           ))}
           {chartsQuery.isSuccess && filteredCharts.length === 0 && (
-            <Text size="sm" sx={noChartsSx}>
+            <Text size="sm" sx={{ color: 'neutral.400', textAlign: 'center', py: 2 }}>
               {chartFilter
                 ? 'No charts match the filter'
                 : data.type === 'oci'
@@ -290,7 +240,7 @@ export const RepoSidebar: React.FC<Props> = ({ ctx }) => {
             </Text>
           )}
           {chartsQuery.isLoading && (
-            <Text size="sm" sx={noChartsSx}>
+            <Text size="sm" sx={{ color: 'neutral.400', textAlign: 'center', py: 2 }}>
               Loading charts...
             </Text>
           )}

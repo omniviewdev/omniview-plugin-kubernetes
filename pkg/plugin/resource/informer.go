@@ -7,7 +7,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
@@ -43,14 +42,6 @@ var ignoreResources = []schema.GroupVersionResource{
 // and therefore cannot have informers. These are always skipped.
 var nonK8sGroups = []string{"helm"}
 
-// resourceChans holds the event channels for a registered resource.
-type resourceChans struct {
-	addChan    chan types.InformerAddPayload
-	updateChan chan types.InformerUpdatePayload
-	deleteChan chan types.InformerDeletePayload
-	connID     string // connection ID for event payloads
-}
-
 // kubeInformerHandle wraps a DynamicSharedInformerFactory to implement types.InformerHandle.
 type kubeInformerHandle struct {
 	factory   dynamicinformer.DynamicSharedInformerFactory
@@ -60,8 +51,6 @@ type kubeInformerHandle struct {
 	stopCh     chan struct{}
 	resources  map[string]schema.GroupVersionResource // resourceKey → GVR
 	policies   map[string]types.InformerSyncPolicy    // resourceKey → policy
-	gates      map[string]*atomic.Bool                // resourceKey → ready flag (suppresses events during initial sync)
-	chans      map[string]resourceChans               // resourceKey → event channels
 	connection string
 }
 
@@ -79,8 +68,6 @@ func NewKubeInformerHandle(
 		discovery:  client.DiscoveryClient,
 		resources:  make(map[string]schema.GroupVersionResource),
 		policies:   make(map[string]types.InformerSyncPolicy),
-		gates:      make(map[string]*atomic.Bool),
-		chans:      make(map[string]resourceChans),
 		connection: connID,
 	}, nil
 }
@@ -116,20 +103,9 @@ func (h *kubeInformerHandle) RegisterResource(
 		return types.ErrResourceSkipped
 	}
 
-	// Create a gate for this resource — events are suppressed until the gate
-	// is opened after initial cache sync completes.
-	gate := &atomic.Bool{} // defaults to false (closed)
-
 	h.mu.Lock()
 	h.resources[key] = gvr
 	h.policies[key] = syncPolicy
-	h.gates[key] = gate
-	h.chans[key] = resourceChans{
-		addChan:    addChan,
-		updateChan: updateChan,
-		deleteChan: deleteChan,
-		connID:     ctx.Connection.ID,
-	}
 	h.mu.Unlock()
 
 	// create the informer and register event handlers
@@ -137,9 +113,6 @@ func (h *kubeInformerHandle) RegisterResource(
 
 	handlers := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj any) {
-			if !gate.Load() {
-				return // suppress during initial sync
-			}
 			r, ok := obj.(*unstructured.Unstructured)
 			if !ok || r == nil {
 				return
@@ -159,9 +132,6 @@ func (h *kubeInformerHandle) RegisterResource(
 			}
 		},
 		UpdateFunc: func(oldObj, obj any) {
-			if !gate.Load() {
-				return // suppress during initial sync
-			}
 			orig, ok := oldObj.(*unstructured.Unstructured)
 			if !ok || orig == nil {
 				return
@@ -186,9 +156,6 @@ func (h *kubeInformerHandle) RegisterResource(
 			}
 		},
 		DeleteFunc: func(obj any) {
-			if !gate.Load() {
-				return // suppress during initial sync
-			}
 			r, ok := obj.(*unstructured.Unstructured)
 			if !ok || r == nil {
 				return
@@ -273,42 +240,11 @@ func (h *kubeInformerHandle) Start(
 			defer cancel()
 
 			if cache.WaitForCacheSync(syncCtx.Done(), ri.informer.HasSynced) {
-				// Burst-send all cached items as ADD events
-				items, err := h.factory.ForResource(ri.gvr).Lister().List(labels.Everything())
 				count := 0
+				items, err := h.factory.ForResource(ri.gvr).Lister().List(labels.Everything())
 				if err == nil {
 					count = len(items)
-					h.mu.Lock()
-					ch := h.chans[ri.key]
-					h.mu.Unlock()
-					for _, obj := range items {
-						r, ok := obj.(*unstructured.Unstructured)
-						if !ok || r == nil {
-							continue
-						}
-						kind := r.GroupVersionKind()
-						group := kind.Group
-						if group == "" {
-							group = "core"
-						}
-						eventKey := fmt.Sprintf("%s::%s::%s", group, kind.Version, kind.Kind)
-						ch.addChan <- types.InformerAddPayload{
-							Key:        eventKey,
-							Connection: ch.connID,
-							ID:         r.GetName(),
-							Namespace:  r.GetNamespace(),
-							Data:       r.Object,
-						}
-					}
 				}
-
-				// Open the gate so real-time events flow through
-				h.mu.Lock()
-				if g, ok := h.gates[ri.key]; ok {
-					g.Store(true)
-				}
-				h.mu.Unlock()
-
 				stateChan <- types.InformerStateEvent{
 					Connection:    h.connection,
 					ResourceKey:   ri.key,
@@ -317,13 +253,6 @@ func (h *kubeInformerHandle) Start(
 					TotalCount:    count,
 				}
 			} else {
-				// Open the gate even on error so the resource isn't permanently silenced
-				h.mu.Lock()
-				if g, ok := h.gates[ri.key]; ok {
-					g.Store(true)
-				}
-				h.mu.Unlock()
-
 				stateChan <- types.InformerStateEvent{
 					Connection:  h.connection,
 					ResourceKey: ri.key,
@@ -374,42 +303,11 @@ func (h *kubeInformerHandle) StartResource(
 	go informer.Run(ctx.Done())
 
 	if cache.WaitForCacheSync(ctx.Done(), informer.HasSynced) {
-		// Burst-send all cached items as ADD events
-		items, err := h.factory.ForResource(gvr).Lister().List(labels.Everything())
 		count := 0
+		items, err := h.factory.ForResource(gvr).Lister().List(labels.Everything())
 		if err == nil {
 			count = len(items)
-			h.mu.Lock()
-			ch := h.chans[key]
-			h.mu.Unlock()
-			for _, obj := range items {
-				r, ok := obj.(*unstructured.Unstructured)
-				if !ok || r == nil {
-					continue
-				}
-				kind := r.GroupVersionKind()
-				group := kind.Group
-				if group == "" {
-					group = "core"
-				}
-				eventKey := fmt.Sprintf("%s::%s::%s", group, kind.Version, kind.Kind)
-				ch.addChan <- types.InformerAddPayload{
-					Key:        eventKey,
-					Connection: ch.connID,
-					ID:         r.GetName(),
-					Namespace:  r.GetNamespace(),
-					Data:       r.Object,
-				}
-			}
 		}
-
-		// Open the gate so real-time events flow through
-		h.mu.Lock()
-		if g, ok := h.gates[key]; ok {
-			g.Store(true)
-		}
-		h.mu.Unlock()
-
 		stateChan <- types.InformerStateEvent{
 			Connection:    h.connection,
 			ResourceKey:   key,
@@ -418,13 +316,6 @@ func (h *kubeInformerHandle) StartResource(
 			TotalCount:    count,
 		}
 	} else {
-		// Open the gate even on error
-		h.mu.Lock()
-		if g, ok := h.gates[key]; ok {
-			g.Store(true)
-		}
-		h.mu.Unlock()
-
 		stateChan <- types.InformerStateEvent{
 			Connection:  h.connection,
 			ResourceKey: key,

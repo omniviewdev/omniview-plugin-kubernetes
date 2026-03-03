@@ -1,64 +1,39 @@
-import Box from '@mui/material/Box';
-import Divider from '@mui/material/Divider';
-import Grid from '@mui/material/Grid';
-import { Chip, ClipboardText } from '@omniviewdev/ui';
-import { Stack } from '@omniviewdev/ui/layout';
-import { Text } from '@omniviewdev/ui/typography';
-import { formatRelative } from 'date-fns';
-import type { Pod } from 'kubernetes-types/core/v1';
-import { Condition } from 'kubernetes-types/meta/v1';
-import React from 'react';
+import React from "react";
 
-import ConditionChip from '../../../shared/ConditionChip';
-import ResourceLinkChip from '../../../shared/ResourceLinkChip';
+// @omniviewdev/ui
+import Box from "@mui/material/Box";
+import Divider from "@mui/material/Divider";
+import Grid from "@mui/material/Grid";
+import { Chip, ClipboardText } from "@omniviewdev/ui";
+import { Stack } from "@omniviewdev/ui/layout";
+import { Text } from "@omniviewdev/ui/typography";
 
-const statusEntryGridSx = { minHeight: 22, alignItems: 'center' } as const;
+// project imports
+import ConditionChip from "../../../shared/ConditionChip";
 
-const statusEntryLabelSx = { color: 'neutral.300' } as const;
+// types
+import type { Pod } from "kubernetes-types/core/v1";
+import { Condition } from "kubernetes-types/meta/v1";
 
-const statusEntryValueSx = { fontWeight: 600, fontSize: 12 } as const;
-
-const sectionBorderSx = {
-  borderRadius: 1,
-  border: '1px solid',
-  borderColor: 'divider',
-} as const;
-
-const headerSx = {
-  py: 0.5,
-  px: 1,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 1,
-} as const;
-
-const chipBorderRadiusSx = { borderRadius: 1 } as const;
-
-const bodyBgSx = {
-  py: 0.5,
-  px: 1,
-  bgcolor: 'background.level1',
-} as const;
+// third-party
+import { formatRelative } from "date-fns";
 
 interface Props {
   pod: Pod;
-  /** When provided, the Node chip becomes clickable and opens the Node sidebar */
-  connectionID?: string;
 }
 
-const phaseColor = (phase?: string): 'success' | 'warning' | 'primary' | 'danger' | 'neutral' => {
+const phaseColor = (phase?: string): "success" | "warning" | "primary" | "danger" | "neutral" | "info" => {
   switch (phase) {
-    case 'Running':
-      return 'success';
-    case 'Pending':
-      return 'warning';
-    case 'Succeeded':
-      return 'primary';
-    case 'Failed':
-      return 'danger';
+    case "Running":
+      return "success";
+    case "Pending":
+      return "info";
+    case "Succeeded":
+      return "primary";
+    case "Failed":
+      return "danger";
     default:
-      return 'neutral';
+      return "neutral";
   }
 };
 
@@ -68,15 +43,15 @@ const StatusEntry: React.FC<{
 }> = ({ label, value }) => {
   if (value === undefined || value === null) return null;
   return (
-    <Grid container spacing={0} sx={statusEntryGridSx}>
+    <Grid container spacing={0} sx={{ minHeight: 22, alignItems: "center" }}>
       <Grid size={3}>
-        <Text sx={statusEntryLabelSx} size="xs">
+        <Text sx={{ color: "neutral.300" }} size="xs">
           {label}
         </Text>
       </Grid>
       <Grid size={9}>
-        {typeof value === 'string' ? (
-          <ClipboardText value={value} variant="inherit" sx={statusEntryValueSx} />
+        {typeof value === "string" ? (
+          <ClipboardText value={value} variant="inherit" sx={{ fontWeight: 600, fontSize: 12 }} />
         ) : (
           value
         )}
@@ -85,7 +60,7 @@ const StatusEntry: React.FC<{
   );
 };
 
-const PodStatusSection: React.FC<Props> = ({ pod, connectionID }) => {
+const PodStatusSection: React.FC<Props> = ({ pod }) => {
   const phase = pod.status?.phase;
   const qosClass = pod.status?.qosClass;
   const podIP = pod.status?.podIP;
@@ -95,23 +70,42 @@ const PodStatusSection: React.FC<Props> = ({ pod, connectionID }) => {
   const conditions = pod.status?.conditions;
 
   const totalRestarts =
-    (pod.status?.containerStatuses?.reduce((sum, cs) => sum + (cs.restartCount || 0), 0) ?? 0) +
-    (pod.status?.initContainerStatuses?.reduce((sum, cs) => sum + (cs.restartCount || 0), 0) ?? 0);
+    (pod.status?.containerStatuses?.reduce(
+      (sum, cs) => sum + (cs.restartCount || 0),
+      0,
+    ) ?? 0) +
+    (pod.status?.initContainerStatuses?.reduce(
+      (sum, cs) => sum + (cs.restartCount || 0),
+      0,
+    ) ?? 0);
 
   return (
-    <Box sx={sectionBorderSx}>
+    <Box
+      sx={{
+        borderRadius: 1,
+        border: "1px solid",
+        borderColor: "divider",
+      }}
+    >
       {/* Header: title + phase chip + conditions */}
-      <Box sx={headerSx}>
+      <Box
+        sx={{
+          py: 0.5,
+          px: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 1,
+        }}
+      >
         <Stack direction="row" gap={0.75} alignItems="center" flexShrink={0}>
-          <Text weight="semibold" size="sm">
-            Status
-          </Text>
+          <Text weight="semibold" size="sm">Status</Text>
           <Chip
             size="xs"
             color={phaseColor(phase)}
             emphasis="soft"
-            sx={chipBorderRadiusSx}
-            label={phase || 'Unknown'}
+            sx={{ borderRadius: 1 }}
+            label={phase || "Unknown"}
           />
         </Stack>
         {conditions && conditions.length > 0 && (
@@ -123,7 +117,13 @@ const PodStatusSection: React.FC<Props> = ({ pod, connectionID }) => {
         )}
       </Box>
       <Divider />
-      <Box sx={bodyBgSx}>
+      <Box
+        sx={{
+          py: 0.5,
+          px: 1,
+          bgcolor: "background.level1",
+        }}
+      >
         <StatusEntry label="QoS" value={qosClass} />
         <StatusEntry label="Pod IP" value={podIP} />
         <StatusEntry label="Host IP" value={hostIP} />
@@ -131,22 +131,13 @@ const PodStatusSection: React.FC<Props> = ({ pod, connectionID }) => {
           label="Node"
           value={
             nodeName ? (
-              connectionID ? (
-                <ResourceLinkChip
-                  connectionID={connectionID}
-                  resourceKey="core::v1::Node"
-                  resourceID={nodeName}
-                  resourceName={nodeName}
-                />
-              ) : (
-                <Chip
-                  size="xs"
-                  color="primary"
-                  emphasis="soft"
-                  sx={chipBorderRadiusSx}
-                  label={nodeName}
-                />
-              )
+              <Chip
+                size="xs"
+                color="primary"
+                emphasis="soft"
+                sx={{ borderRadius: 1 }}
+                label={nodeName}
+              />
             ) : undefined
           }
         />
@@ -156,16 +147,19 @@ const PodStatusSection: React.FC<Props> = ({ pod, connectionID }) => {
             value={
               <Chip
                 size="xs"
-                color={totalRestarts > 5 ? 'danger' : 'warning'}
+                color={totalRestarts > 5 ? "danger" : "warning"}
                 emphasis="soft"
-                sx={chipBorderRadiusSx}
+                sx={{ borderRadius: 1 }}
                 label={String(totalRestarts)}
               />
             }
           />
         )}
         {startTime && (
-          <StatusEntry label="Started" value={formatRelative(new Date(startTime), new Date())} />
+          <StatusEntry
+            label="Started"
+            value={formatRelative(new Date(startTime), new Date())}
+          />
         )}
       </Box>
     </Box>

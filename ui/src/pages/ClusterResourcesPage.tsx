@@ -1,65 +1,37 @@
+import React from 'react';
+import { Outlet, useParams } from 'react-router-dom';
+import { Link, useInformerState } from '@omniviewdev/runtime';
+
+// @omniviewdev/ui
 import Box from '@mui/material/Box';
-import { Link, useInformerState,
+import { Avatar } from '@omniviewdev/ui';
+import { IconButton } from '@omniviewdev/ui/buttons';
+import { Stack } from '@omniviewdev/ui/layout';
+import { Text } from '@omniviewdev/ui/typography';
+import { NavMenu } from '@omniviewdev/ui/sidebars';
+
+// Hooks
+import {
   useConnection,
   useResourceTypes,
   useResourceGroups,
   useSnackbar,
   usePluginRouter,
-  useEditorSchemas } from '@omniviewdev/runtime';
-import { Avatar } from '@omniviewdev/ui';
-import { IconButton } from '@omniviewdev/ui/buttons';
-import { Stack } from '@omniviewdev/ui/layout';
-import { NavMenu } from '@omniviewdev/ui/sidebars';
-import { Text } from '@omniviewdev/ui/typography';
-import React from 'react';
-import { LuCog } from 'react-icons/lu';
-import { Outlet, useParams } from 'react-router-dom';
+} from '@omniviewdev/runtime';
 
+// Layout
+import Layout from '../layouts/resource';
+
+import { stringAvatar } from '../utils/color';
+import { useClusterPreferences } from '../hooks/useClusterPreferences';
+
+// Icons
+import { LuCog } from 'react-icons/lu';
+import { useSidebarLayout } from '../hooks/useSidebarLayout';
 import { useStoredState } from '../components/shared/hooks/useStoredState';
 import ResourceCommandPalette from '../components/shared/ResourceCommandPalette';
 import SyncProgressDialog from '../components/shared/SyncProgressDialog';
-import { useClusterPreferences } from '../hooks/useClusterPreferences';
-import { useSidebarLayout } from '../hooks/useSidebarLayout';
-import Layout from '../layouts/resource';
-import { stringAvatar } from '../utils/color';
 
-const rootSx = {
-  p: 0,
-  gap: 0,
-} as const;
-
-const sidenavStackSx = {
-  maxHeight: '100%',
-  height: '100%',
-  overflow: 'hidden',
-} as const;
-
-const sidenavHeaderSx = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  p: 1,
-  borderRadius: 1,
-  border: '1px solid',
-  borderColor: 'divider',
-} as const;
-
-const clusterAvatarSx = {
-  backgroundColor: 'transparent',
-  objectFit: 'contain',
-  border: 0,
-  maxHeight: 28,
-  maxWidth: 28,
-} as const;
-
-const mainSx = {
-  display: 'flex',
-  flexDirection: 'column',
-} as const;
-
-const mainContentSx = { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 } as const;
-
-const clusterNameSx = { textOverflow: 'ellipsis' } as const;
 
 export default function ClusterResourcesPage(): React.ReactElement {
   const { id = '' } = useParams<{ id: string }>();
@@ -68,43 +40,18 @@ export default function ClusterResourcesPage(): React.ReactElement {
   const { groups } = useResourceGroups({ pluginID: 'kubernetes', connectionID: id });
   const { connection } = useConnection({ pluginID: 'kubernetes', connectionID: id });
   const { connectionOverrides } = useClusterPreferences('kubernetes');
-  const { layout } = useSidebarLayout({ connectionID: id });
+  const { layout } = useSidebarLayout({ connectionID: id })
   const { location, navigate } = usePluginRouter();
   const [savedExpandedState, setSavedExpandedState] = useStoredState<Record<string, boolean>>(
     `kubernetes-${id}-sidebar-expanded`,
     {},
   );
 
-  const handleExpandedChange = React.useCallback(
-    (state: Record<string, boolean>) => {
-      setSavedExpandedState(state);
-    },
-    [setSavedExpandedState],
-  );
+  const handleExpandedChange = React.useCallback((state: Record<string, boolean>) => {
+    setSavedExpandedState(state);
+  }, [setSavedExpandedState]);
   const { isFullySynced, summary } = useInformerState({ pluginID: 'kubernetes', connectionID: id });
 
-  // Fetch and register OpenAPI schemas with the host's Monaco schema registry
-  const { schemas: editorSchemas } = useEditorSchemas({ pluginID: 'kubernetes', connectionID: id });
-  React.useEffect(() => {
-    // The Monaco schema registry is attached to window by the host app at runtime.
-    // It exposes register/unregister methods for managing JSON schemas.
-    const win = window as Window & {
-      __monacoSchemaRegistry?: {
-        register: (plugin: string, connId: string, schemas: typeof editorSchemas) => void;
-        unregister: (plugin: string, connId: string) => void;
-      };
-    };
-    const registry = win.__monacoSchemaRegistry;
-    if (!registry || !editorSchemas?.length || !id) return;
-
-    registry.register('kubernetes', id, editorSchemas);
-
-    return () => {
-      registry.unregister('kubernetes', id);
-    };
-  }, [editorSchemas, id]);
-
-  // eslint-disable-next-line @typescript-eslint/unbound-method
   const { showSnackbar } = useSnackbar();
 
   // Sync modal — open only when we know the connection is actively syncing,
@@ -142,7 +89,7 @@ export default function ClusterResourcesPage(): React.ReactElement {
   // Listen for footer click to re-open sync modal
   React.useEffect(() => {
     const handler = (e: Event) => {
-      const detail = (e as CustomEvent<{ connectionID?: string }>).detail;
+      const detail = (e as CustomEvent).detail;
       if (detail?.connectionID === id) {
         manualOpenRef.current = true;
         setSyncModalOpen(true);
@@ -158,22 +105,18 @@ export default function ClusterResourcesPage(): React.ReactElement {
   const lastSegment = location.pathname.split('/').pop() ?? '';
   const selected = DASHBOARD_TABS.has(lastSegment) ? '__dashboard__' : lastSegment;
 
-  const handleSelect = React.useCallback(
-    (resourceID: string) => {
-      if (resourceID === '__dashboard__') {
-        navigate(`/cluster/${id}/resources`);
-      } else {
-        navigate(`/cluster/${id}/resources/${resourceID}`);
-      }
-    },
-    [navigate, id],
-  );
+  const handleSelect = React.useCallback((resourceID: string) => {
+    if (resourceID === '__dashboard__') {
+      navigate(`/cluster/${id}/resources`);
+    } else {
+      navigate(`/cluster/${id}/resources/${resourceID}`);
+    }
+  }, [navigate, id]);
 
   React.useEffect(() => {
     showSnackbar({
       message: 'You are currently running in development mode',
-      details:
-        'Rendering performance will be slightly degraded until this application is built for production.',
+      details: 'Rendering performance will be slightly degraded until this application is built for production.',
       status: 'info',
       showOnce: true,
       autoHideDuration: 15000,
@@ -193,60 +136,79 @@ export default function ClusterResourcesPage(): React.ReactElement {
   }
 
   if (groups.isError) {
-    return <>{types.error}</>;
+    return (<>{types.error}</>);
   }
 
   const clusterName = connectionOverrides[id]?.displayName || connection.data?.name || id;
 
   return (
     <Layout.Root
-      sx={rootSx}
+      sx={{
+        p: 0,
+        gap: 0,
+      }}
     >
       <ResourceCommandPalette connectionID={id} layout={layout} onNavigate={handleSelect} />
-      <Layout.SideNav type="bordered" padding={0.5}>
+      <Layout.SideNav type='bordered' padding={0.5} >
         <Stack
-          direction="column"
-          sx={sidenavStackSx}
+          direction='column'
+          sx={{
+            maxHeight: '100%',
+            height: '100%',
+            overflow: 'hidden',
+          }}
           gap={0.5}
         >
           <Box
-            sx={sidenavHeaderSx}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              p: 1,
+              borderRadius: 1,
+              border: '1px solid',
+              borderColor: 'divider',
+            }}
           >
-            <Stack direction="row" alignItems="center" gap={1}>
+            <Stack direction='row' alignItems='center' gap={1}>
               {(() => {
                 const override = connectionOverrides[id];
                 const avatarSrc = override?.avatar || connection.data?.avatar;
                 if (avatarSrc) {
                   return (
                     <Avatar
-                      size="sm"
+                      size='sm'
                       src={avatarSrc}
-                      sx={clusterAvatarSx}
+                      sx={{
+                        backgroundColor: 'transparent',
+                        objectFit: 'contain',
+                        border: 0,
+                        maxHeight: 28,
+                        maxWidth: 28,
+                      }}
                     />
                   );
                 }
-                const avatarProps = stringAvatar(
-                  override?.displayName || connection.data?.name || '',
-                );
+                const avatarProps = stringAvatar(override?.displayName || connection.data?.name || '');
                 if (override?.avatarColor) {
                   avatarProps.sx = { ...avatarProps.sx, bgcolor: override.avatarColor };
                 }
-                return <Avatar size="sm" {...avatarProps} />;
+                return <Avatar size='sm' {...avatarProps} />;
               })()}
-              <Text weight="semibold" size="sm" sx={clusterNameSx}>
+              <Text weight='semibold' size='sm' sx={{ textOverflow: 'ellipsis' }}>
                 {connectionOverrides[id]?.displayName || connection.data?.name}
               </Text>
             </Stack>
-            <Stack direction="row" alignItems="center" gap={1}>
+            <Stack direction='row' alignItems='center' gap={1}>
               <Link to={`/cluster/${id}/edit`}>
-                <IconButton emphasis="soft" size="sm" color="neutral">
+                <IconButton emphasis='soft' size='sm' color='neutral'>
                   <LuCog size={20} />
                 </IconButton>
               </Link>
             </Stack>
           </Box>
           <NavMenu
-            size="sm"
+            size='sm'
             sections={layout}
             selected={selected}
             onSelect={handleSelect}
@@ -258,9 +220,12 @@ export default function ClusterResourcesPage(): React.ReactElement {
         </Stack>
       </Layout.SideNav>
       <Layout.Main
-        sx={mainSx}
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+        }}
       >
-        <Box sx={mainContentSx}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <Outlet />
         </Box>
       </Layout.Main>

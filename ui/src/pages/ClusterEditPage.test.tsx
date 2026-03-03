@@ -1,32 +1,15 @@
 import { render, screen, fireEvent, act } from '@testing-library/react';
-import type React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-
-import type { ConnectionOverride } from '../types/clusters';
-
 import ClusterEditPage from './ClusterEditPage';
-
-// ---------------------------------------------------------------------------
-// Mock connection shape — mirrors the fields accessed by ClusterEditPage
-// ---------------------------------------------------------------------------
-
-interface MockConnectionData {
-  id: string;
-  name?: string;
-  last_refresh: string;
-  expiry_time: number;
-  labels: Record<string, string>;
-  data: Record<string, string | number>;
-}
 
 // ---------------------------------------------------------------------------
 // Module-level mock state (reset in beforeEach)
 // ---------------------------------------------------------------------------
 
 const mockNavigate = vi.fn();
-let mockConnectionData: MockConnectionData | null = null;
-let mockConnectionOverrides: Record<string, ConnectionOverride> = {};
+let mockConnectionData: any = null;
+let mockConnectionOverrides: Record<string, any> = {};
 let mockAvailableTags: string[] = [];
 const mockUpdateOverride = vi.fn().mockResolvedValue(undefined);
 
@@ -58,16 +41,9 @@ vi.mock('../hooks/useClusterPreferences', () => ({
 
 // Stub child components as lightweight divs with interactive buttons
 vi.mock('../components/connections/AvatarEditor', () => ({
-  default: ({ name, onAvatarUrlChange, onAvatarColorChange }: {
-    name: string;
-    onAvatarUrlChange: (url: string) => void;
-    onAvatarColorChange: (color: string) => void;
-  }) => (
+  default: ({ name, onAvatarUrlChange, onAvatarColorChange }: any) => (
     <div data-testid="avatar-editor" data-name={name}>
-      <button
-        data-testid="avatar-change-url"
-        onClick={() => onAvatarUrlChange('http://new-avatar.png')}
-      >
+      <button data-testid="avatar-change-url" onClick={() => onAvatarUrlChange('http://new-avatar.png')}>
         Change Avatar URL
       </button>
       <button data-testid="avatar-change-color" onClick={() => onAvatarColorChange('#ff0000')}>
@@ -78,16 +54,8 @@ vi.mock('../components/connections/AvatarEditor', () => ({
 }));
 
 vi.mock('../components/connections/TagInput', () => ({
-  default: ({ tags, availableTags, onChange }: {
-    tags: string[];
-    availableTags: string[];
-    onChange: (tags: string[]) => void;
-  }) => (
-    <div
-      data-testid="tag-input"
-      data-tags={JSON.stringify(tags)}
-      data-available={JSON.stringify(availableTags)}
-    >
+  default: ({ tags, availableTags, onChange }: any) => (
+    <div data-testid="tag-input" data-tags={JSON.stringify(tags)} data-available={JSON.stringify(availableTags)}>
       <button data-testid="tag-add" onClick={() => onChange([...tags, 'new-tag'])}>
         Add Tag
       </button>
@@ -96,44 +64,28 @@ vi.mock('../components/connections/TagInput', () => ({
 }));
 
 vi.mock('../components/settings/MetricsTabContent', () => ({
-  default: ({ pluginID, connectionID, connected }: {
-    pluginID: string;
-    connectionID: string;
-    connected: boolean;
-  }) => (
-    <div
-      data-testid="metrics-content"
-      data-plugin-id={pluginID}
-      data-connection-id={connectionID}
-      data-connected={String(connected)}
-    />
+  default: ({ pluginID, connectionID, connected }: any) => (
+    <div data-testid="metrics-content" data-plugin-id={pluginID} data-connection-id={connectionID} data-connected={String(connected)} />
   ),
 }));
 
 vi.mock('../components/settings/NodeShellTabContent', () => ({
-  default: ({ pluginID, connectionID }: {
-    pluginID: string;
-    connectionID: string;
-  }) => (
-    <div
-      data-testid="node-shell-content"
-      data-plugin-id={pluginID}
-      data-connection-id={connectionID}
-    />
+  default: ({ pluginID, connectionID }: any) => (
+    <div data-testid="node-shell-content" data-plugin-id={pluginID} data-connection-id={connectionID} />
   ),
 }));
 
 // Stub the layout components as pass-through containers
 vi.mock('../layouts/resource', () => ({
   default: {
-    Root: ({ children }: { children: React.ReactNode }) => <div data-testid="layout-root">{children}</div>,
-    SideNav: ({ children }: { children: React.ReactNode }) => <div data-testid="layout-sidenav">{children}</div>,
-    Main: ({ children }: { children: React.ReactNode }) => <div data-testid="layout-main">{children}</div>,
+    Root: ({ children }: any) => <div data-testid="layout-root">{children}</div>,
+    SideNav: ({ children }: any) => <div data-testid="layout-sidenav">{children}</div>,
+    Main: ({ children }: any) => <div data-testid="layout-main">{children}</div>,
   },
 }));
 
 vi.mock('@omniviewdev/ui/overlays', () => ({
-  Tooltip: ({ title, children }: { title: string; children: React.ReactNode }) => <span data-tooltip={title}>{children}</span>,
+  Tooltip: ({ title, children }: any) => <span data-tooltip={title}>{children}</span>,
 }));
 
 vi.mock('../utils/color', () => ({
@@ -153,7 +105,7 @@ function renderPage(section?: string) {
   );
 }
 
-function makeConnection(overrides: Partial<MockConnectionData> = {}): MockConnectionData {
+function makeConnection(overrides: Record<string, any> = {}) {
   return {
     id: 'test-cluster',
     name: 'my-cluster',
@@ -257,9 +209,7 @@ describe('Deep linking via search params', () => {
 
   it('renders cluster-info section for ?section=cluster-info', () => {
     renderPage('cluster-info');
-    expect(
-      screen.getByText('Read-only information discovered from the cluster.'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Read-only information discovered from the cluster.')).toBeInTheDocument();
     expect(screen.getByText('v1.28.3')).toBeInTheDocument();
   });
 
@@ -340,10 +290,8 @@ describe('Back button', () => {
 // ---- 6. Save / Cancel / Dirty state ----
 
 describe('Save / Cancel / Dirty state', () => {
-  const getSaveBtn = (container: HTMLElement) =>
-    container.querySelector('[data-tooltip="Save changes"] button');
-  const getCancelBtn = (container: HTMLElement) =>
-    container.querySelector('[data-tooltip="Discard changes"] button');
+  const getSaveBtn = (container: HTMLElement) => container.querySelector('[data-tooltip="Save changes"] button');
+  const getCancelBtn = (container: HTMLElement) => container.querySelector('[data-tooltip="Discard changes"] button');
 
   it('Save and Cancel buttons hidden when no unsaved changes', () => {
     const { container } = renderPage();
@@ -496,17 +444,13 @@ describe('Edge cases', () => {
     mockConnectionData = null;
     renderPage('cluster-info');
     // ClusterInfoSection is guarded by `conn &&`, so the section header won't render
-    expect(
-      screen.queryByText('Read-only information discovered from the cluster.'),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText('Read-only information discovered from the cluster.')).not.toBeInTheDocument();
   });
 
   it('conn is null — connection section does not render content', () => {
     mockConnectionData = null;
     renderPage('connection');
-    expect(
-      screen.queryByText('Kubeconfig context details for this cluster.'),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText('Kubeconfig context details for this cluster.')).not.toBeInTheDocument();
   });
 
   it('conn.name undefined falls back to connectionId in the card', () => {

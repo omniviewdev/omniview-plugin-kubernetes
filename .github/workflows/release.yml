@@ -9,30 +9,14 @@ on:
         description: 'Version to publish (e.g., 0.1.0)'
         required: true
 
-permissions:
-  contents: write
-
 jobs:
   publish:
     uses: omniviewdev/publish-plugin-action/.github/workflows/build-and-publish.yml@v1
     with:
-      go-version: '1.25'
       plugin-id: kubernetes
       publisher-slug: omniview
-      api-url: https://api.staging.omniview.dev
       version: ${{ github.event_name == 'push' && github.ref_name || format('v{0}', inputs.version) }}
       go-entry: ./pkg
       ui-path: ./ui
     secrets:
       api-key: ${{ secrets.OMNIVIEW_API_KEY }}
-
-  github-release:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push'
-    steps:
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          generate_release_notes: true
-          prerelease: ${{ contains(github.ref_name, '-') }}
-          token: ${{ secrets.GITHUB_TOKEN }}

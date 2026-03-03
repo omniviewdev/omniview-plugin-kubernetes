@@ -75,49 +75,51 @@ export type ImageRepositoryInfo = {
 };
 
 async function performFetch<T>(url: string): Promise<T | undefined> {
-  const response = await fetch(url, { mode: 'no-cors' });
+  const response = await fetch(url, { mode: "no-cors" });
   if (!response.ok) {
     return undefined;
   }
 
-  const data = (await response.json()) as JSONResponse<T>;
+  const data: JSONResponse<T> = await response.json();
   return data.data;
 }
 
 export const getDockerHubImageInfo = async (image: string) => {
-  image = image.replace('docker.io/', '');
-  let [user, name] = image.split('/');
+  image = image.replace("docker.io/", "");
+  let [user, name] = image.split("/");
   if (!name) {
     // this is a library image
     name = user;
-    user = 'library';
+    user = "library";
   }
 
   try {
     const [repo, org] = await Promise.all([
-      performFetch<DockerHubRepository>(`https://hub.docker.com/v2/repositories/${user}/${name}/`),
+      performFetch<DockerHubRepository>(
+        `https://hub.docker.com/v2/repositories/${user}/${name}/`,
+      ),
       performFetch<DHOrg>(`https://hub.docker.com/v2/orgs/${user}/`),
     ]);
 
     return {
-      user: repo?.user || '',
-      name: repo?.name || '',
-      shortDescription: repo?.description || '',
-      description: repo?.full_description || '',
-      status: repo?.status_description || '',
+      user: repo?.user || "",
+      name: repo?.name || "",
+      shortDescription: repo?.description || "",
+      description: repo?.full_description || "",
+      status: repo?.status_description || "",
       private: repo?.is_private || false,
       automated: repo?.is_automated || false,
       starCount: repo?.star_count || 0,
       pullCount: repo?.pull_count || 0,
       collaboratorCount: repo?.collaborator_count || 0,
-      updatedAt: repo?.last_updated || '',
-      registeredAt: repo?.date_registered || '',
+      updatedAt: repo?.last_updated || "",
+      registeredAt: repo?.date_registered || "",
       logoSources: [
         `https://hub.docker.com/api/media/repos_logo/v1/${user}%2F${name}`,
-        ...(org?.gravatar_url ? [org.gravatar_url] : []),
+        org?.gravatar_url,
       ],
-      categories: repo?.categories.map((c) => c.name) ?? [],
-    } satisfies ImageRepositoryInfo;
+      categories: repo?.categories.map((c) => c.name) || [],
+    } as ImageRepositoryInfo;
   } catch (error) {
     console.error(error);
     return null;

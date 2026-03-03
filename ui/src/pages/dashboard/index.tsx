@@ -1,41 +1,20 @@
-import Box from '@mui/material/Box';
-import MuiTab from '@mui/material/Tab';
-import MuiTabs from '@mui/material/Tabs';
-import { useExtensionPoint, usePluginRouter } from '@omniviewdev/runtime';
 import React from 'react';
 import { Outlet } from 'react-router-dom';
-
-const rootSx = {
-  display: 'flex',
-  flexDirection: 'column',
-  flex: 1,
-  minHeight: 0,
-  bgcolor: 'transparent',
-} as const;
-
-const dashboardTabsSx = { bgcolor: 'transparent', minHeight: 0 } as const;
-
-const dashboardTabItemSx = { minHeight: 32, py: 0.5, textTransform: 'none' } as const;
-
-const mainSx = {
-  flex: 1,
-  display: 'flex',
-  minHeight: 0,
-  overflow: 'auto',
-} as const;
+import { useExtensionPoint, usePluginRouter } from '@omniviewdev/runtime';
+import Box from '@mui/material/Box';
+import MuiTabs from '@mui/material/Tabs';
+import MuiTab from '@mui/material/Tab';
 
 const builtinTabs: Record<string, string> = {
   '': 'Overview',
-  metrics: 'Metrics',
+  'metrics': 'Metrics',
 };
 
 export const DashboardLayout: React.FC = () => {
   const { pluginPath, navigate } = usePluginRouter();
 
   // Dynamic tabs from extension point
-  const tabEP = useExtensionPoint<{ pluginID: string; connectionID: string }>(
-    'omniview/dashboard/tab',
-  );
+  const tabEP = useExtensionPoint<{ pluginID: string; connectionID: string }>('omniview/dashboard/tab');
   const extensionTabs = tabEP?.list() ?? [];
 
   // Determine the active tab from the last path segment.
@@ -45,7 +24,13 @@ export const DashboardLayout: React.FC = () => {
 
   return (
     <Box
-      sx={rootSx}
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        flex: 1,
+        minHeight: 0,
+        bgcolor: 'transparent',
+      }}
     >
       <MuiTabs
         value={activeTab}
@@ -55,28 +40,33 @@ export const DashboardLayout: React.FC = () => {
             navigate(value || '.', { replace: true });
           }
         }}
-        sx={dashboardTabsSx}
+        sx={{ bgcolor: 'transparent', minHeight: 0 }}
       >
         {Object.entries(builtinTabs).map(([path, label]) => (
           <MuiTab
             key={path}
             value={path}
             label={label}
-            sx={dashboardTabItemSx}
+            sx={{ minHeight: 32, py: 0.5, textTransform: 'none' }}
           />
         ))}
         {extensionTabs.map((ext) => (
           <MuiTab
             key={ext.id}
-            value={(ext.meta as { path?: string } | undefined)?.path ?? ext.id}
+            value={(ext as any).path}
             label={ext.label}
-            sx={dashboardTabItemSx}
+            sx={{ minHeight: 32, py: 0.5, textTransform: 'none' }}
           />
         ))}
       </MuiTabs>
       <Box
-        component="main"
-        sx={mainSx}
+        component='main'
+        sx={{
+          flex: 1,
+          display: 'flex',
+          minHeight: 0,
+          overflow: 'auto',
+        }}
       >
         <Outlet />
       </Box>

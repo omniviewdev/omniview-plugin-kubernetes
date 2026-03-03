@@ -1,15 +1,14 @@
+import * as React from "react";
+
 import { ExpandableSections as UiExpandableSections } from '@omniviewdev/ui';
 import type { ExpandableSectionItem as UiExpandableSection } from '@omniviewdev/ui';
-import type { SxProps, Theme } from '@mui/material/styles';
-import * as React from 'react';
 
 interface Props {
   sections: Array<ExpandableSection>;
   monospace?: boolean;
-  variant?: 'bordered' | 'plain' | 'flush';
-  size?: 'sm' | 'md' | 'lg';
+  variant?: "bordered" | "plain" | "flush";
+  size?: "sm" | "md" | "lg";
   exclusive?: boolean;
-  sx?: SxProps<Theme>;
 }
 
 export interface ExpandableSection {
@@ -24,10 +23,9 @@ export interface ExpandableSection {
 export default function ExpandableSections({
   sections,
   monospace = false,
-  variant = 'bordered',
-  size = 'sm',
+  variant = "bordered",
+  size = "sm",
   exclusive,
-  sx,
 }: Props): React.ReactElement {
   const mappedSections: UiExpandableSection[] = sections.map((section) => ({
     icon: section.icon,
@@ -45,7 +43,6 @@ export default function ExpandableSections({
       variant={variant}
       size={size}
       exclusive={exclusive}
-      sx={sx}
     />
   );
 }

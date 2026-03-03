@@ -1,8 +1,9 @@
-import React from 'react';
-import { type IconBaseProps } from 'react-icons/lib';
-import { LuFileQuestion } from 'react-icons/lu';
-import * as Lu from 'react-icons/lu';
-import * as Si from 'react-icons/si';
+import React from "react";
+import { type IconBaseProps } from "react-icons/lib";
+import { LuFileQuestion } from "react-icons/lu";
+
+import * as Lu from "react-icons/lu";
+import * as Si from "react-icons/si";
 
 type NamedIconProps = {
   name: string;
@@ -36,7 +37,11 @@ export const DynamicIcon: React.FC<NamedIconProps> = ({ name, ...props }) => {
     DynamicIcon = loadIconComponent(name) as React.ElementType<IconBaseProps>;
   } catch (error) {
     console.error(error);
-    return <LuFileQuestion />; // Or any other fallback UI
+    return (
+      <>
+        <LuFileQuestion />
+      </>
+    ); // Or any other fallback UI
   }
 
   return <DynamicIcon {...props} />;

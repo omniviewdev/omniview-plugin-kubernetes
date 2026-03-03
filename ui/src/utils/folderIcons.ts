@@ -1,4 +1,3 @@
-import React from 'react';
 import type { IconType } from 'react-icons';
 import {
   LuFolder,
@@ -74,32 +73,4 @@ export function getFolderIcon(name?: string): IconType {
     return FOLDER_ICON_MAP[name];
   }
   return LuFolder;
-}
-
-/**
- * Renders either a custom image (data URI) or a preset icon.
- * When `customImage` is set it takes precedence over `icon`.
- */
-export function FolderIconDisplay({
-  icon,
-  customImage,
-  size,
-  color,
-}: {
-  icon?: string;
-  customImage?: string;
-  size: number;
-  color?: string;
-}): React.ReactElement {
-  if (customImage) {
-    return React.createElement('img', {
-      src: customImage,
-      alt: '',
-      width: size,
-      height: size,
-      style: { objectFit: 'contain', borderRadius: 2 },
-    });
-  }
-  const Icon = getFolderIcon(icon);
-  return React.createElement(Icon, { size, color });
 }
