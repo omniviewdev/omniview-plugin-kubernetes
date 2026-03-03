@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import Collapse from '@mui/material/Collapse';
 import {
   DndContext,
   closestCenter,
@@ -10,8 +9,6 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
-  type DragStartEvent,
-  DragOverlay,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -41,18 +38,6 @@ const FONT_SIZE = 12;
 const CHEVRON_SIZE = 12;
 const CHEVRON_SLOT = 14;
 const INDENT = 10;
-
-function getAllExpandable(sections: NavSection[]): Record<string, boolean> {
-  const state: Record<string, boolean> = {};
-  function walk(items: NavMenuItemType[]) {
-    for (const item of items) {
-      if (item.children && item.children.length > 0) state[item.id] = true;
-      if (item.children) walk(item.children);
-    }
-  }
-  for (const section of sections) walk(section.items);
-  return state;
-}
 
 function getExplicitExpanded(sections: NavSection[]): Record<string, boolean> {
   const state: Record<string, boolean> = {};
@@ -332,10 +317,15 @@ export default function DraggableNavMenu({
   initialExpandedState,
   onExpandedChange,
 }: DraggableNavMenuProps) {
+  // Local copy for optimistic reorder during drag — kept in sync with
+  // incoming props so layout changes (e.g. new resources) are reflected.
   const [sections, setSections] = useState(sectionsProp);
+  const isDragging = useRef(false);
 
   useEffect(() => {
-    setSections(sectionsProp);
+    if (!isDragging.current) {
+      setSections(sectionsProp);
+    }
   }, [sectionsProp]);
 
   // ── Expand/collapse state (mirroring NavMenu logic) ──
@@ -417,19 +407,25 @@ export default function DraggableNavMenu({
 
   const handleTopLevelDragEnd = useCallback(
     (event: DragEndEvent) => {
+      isDragging.current = false;
       const { active, over } = event;
       if (!over || active.id === over.id) return;
 
       setSections((prev) => {
-        const section = prev[0];
-        if (!section) return prev;
+        const sectionIdx = prev.findIndex((s) =>
+          s.items.some((i) => i.id === active.id),
+        );
+        if (sectionIdx === -1) return prev;
 
+        const section = prev[sectionIdx];
         const oldIndex = section.items.findIndex((i) => i.id === active.id);
         const newIndex = section.items.findIndex((i) => i.id === over.id);
         if (oldIndex === -1 || newIndex === -1) return prev;
 
         const newItems = arrayMove(section.items, oldIndex, newIndex);
-        const newSections = [{ ...section, items: newItems }, ...prev.slice(1)];
+        const newSections = prev.map((s, i) =>
+          i === sectionIdx ? { ...s, items: newItems } : s,
+        );
 
         onReorder(extractOrder(newSections));
         return newSections;
@@ -507,6 +503,7 @@ export default function DraggableNavMenu({
         sensors={sensors}
         collisionDetection={closestCenter}
         modifiers={[restrictToVerticalAxis]}
+        onDragStart={() => { isDragging.current = true; }}
         onDragEnd={handleTopLevelDragEnd}
       >
         <SortableContext items={topLevelIds} strategy={verticalListSortingStrategy}>
