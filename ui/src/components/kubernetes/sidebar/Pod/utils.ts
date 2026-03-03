@@ -13,7 +13,8 @@ export const getStatus = (status: ContainerStatus) => {
   if (status.state?.running) {
     return {
       text: 'Running',
-      color: 'success',
+      // Mirror getColor: green when ready, info/blue when running but not yet ready
+      color: status.ready ? 'success' : 'info',
     } as ContainerStatusInfo;
   } else if (status.state?.waiting) {
     return {

@@ -8,15 +8,15 @@ import React from 'react';
 import { getStatus } from '../../../../sidebar/Pod/utils';
 
 type Props = {
-  data?: Array<object>;
-  initData?: Array<object>;
+  data?: ContainerStatus[];
+  initData?: ContainerStatus[];
 };
 
 export const ContainerStatusCell: React.FC<Props> = ({ data, initData }) => {
   const theme = useTheme();
 
-  const containers = (Array.isArray(data) ? data : []) as Array<ContainerStatus>;
-  const initContainers = (Array.isArray(initData) ? initData : []) as Array<ContainerStatus>;
+  const containers = data ?? [];
+  const initContainers = initData ?? [];
 
   if (containers.length === 0 && initContainers.length === 0) {
     return null;

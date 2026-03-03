@@ -9,7 +9,7 @@ import {
   useRightDrawer,
 } from '@omniviewdev/runtime';
 import { type ColumnDef } from '@tanstack/react-table';
-import { ContainerStatus, Pod } from 'kubernetes-types/core/v1';
+import { Pod } from 'kubernetes-types/core/v1';
 import { Condition, OwnerReference } from 'kubernetes-types/meta/v1';
 import React from 'react';
 import { LuBugPlay, LuContainer, LuLogs, LuScaling, LuTerminal, LuTrash } from 'react-icons/lu';
@@ -85,8 +85,8 @@ const PodTable: React.FC = () => {
               const pod = getValue() as Pod;
               return (
                 <ContainerStatusCell
-                  data={pod.status?.containerStatuses as Array<ContainerStatus>}
-                  initData={pod.status?.initContainerStatuses as Array<ContainerStatus>}
+                  data={pod.status?.containerStatuses}
+                  initData={pod.status?.initContainerStatuses}
                 />
               );
             },
