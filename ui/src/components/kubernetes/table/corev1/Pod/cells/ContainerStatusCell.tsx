@@ -25,7 +25,7 @@ export const ContainerStatusCell: React.FC<Props> = ({ data }) => {
     }
 
     if (status.state?.waiting) {
-      return theme.palette.warning.main;
+      return theme.palette.info.main;
     }
 
     if (status.state?.terminated) {
@@ -37,9 +37,8 @@ export const ContainerStatusCell: React.FC<Props> = ({ data }) => {
     }
 
     if (status.state?.running) {
-      // If the container is running, but not ready, it's still a warning
-      // because it's not ready to serve traffic
-      return theme.palette.warning.main;
+      // Running but not ready: use info (blue) for visual distinction from green (ready)
+      return theme.palette.info.main;
     }
 
     return theme.palette.grey[600];

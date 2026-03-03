@@ -47,12 +47,12 @@ interface Props {
   connectionID?: string;
 }
 
-const phaseColor = (phase?: string): 'success' | 'warning' | 'primary' | 'danger' | 'neutral' => {
+const phaseColor = (phase?: string): 'success' | 'warning' | 'primary' | 'danger' | 'neutral' | 'info' => {
   switch (phase) {
     case 'Running':
       return 'success';
     case 'Pending':
-      return 'warning';
+      return 'info';
     case 'Succeeded':
       return 'primary';
     case 'Failed':

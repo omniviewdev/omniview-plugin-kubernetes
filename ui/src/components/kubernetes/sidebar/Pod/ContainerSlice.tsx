@@ -124,6 +124,8 @@ const statusDotColor = (status?: ContainerStatus): string => {
       return 'success.main';
     case 'warning':
       return 'warning.main';
+    case 'info':
+      return 'info.main';
     case 'danger':
       return 'error.main';
     case 'primary':
