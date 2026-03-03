@@ -33,7 +33,7 @@ export const ContainerStatusCell: React.FC<Props> = ({ data, initData }) => {
     }
 
     if (status.state?.terminated) {
-      if (status.state.terminated.exitCode === 0) {
+      if (status.state.terminated.reason === 'Completed') {
         return theme.palette.grey[800];
       }
 
