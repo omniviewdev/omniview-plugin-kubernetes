@@ -79,11 +79,17 @@ const PodTable: React.FC = () => {
           {
             id: 'containers',
             header: 'Containers',
-            accessorKey: 'status.containerStatuses',
+            accessorFn: (row) => row,
             size: 150,
-            cell: ({ getValue }) => (
-              <ContainerStatusCell data={getValue() as Array<ContainerStatus>} />
-            ),
+            cell: ({ getValue }) => {
+              const pod = getValue() as Pod;
+              return (
+                <ContainerStatusCell
+                  data={pod.status?.containerStatuses as Array<ContainerStatus>}
+                  initData={pod.status?.initContainerStatuses as Array<ContainerStatus>}
+                />
+              );
+            },
           },
           {
             id: 'cpuUsage',
