@@ -30,6 +30,22 @@ function reorderByIds<T extends { id: string }>(items: T[], order: string[]): T[
 }
 
 /**
+ * Recursively apply stored child ordering at every nesting level.
+ */
+function applyChildOrder(items: NavMenuItem[], order: SidebarOrder): NavMenuItem[] {
+  return items.map((item) => {
+    if (!item.children?.length) return item;
+
+    const childOrder = order.children[item.id];
+    const reordered = childOrder?.length
+      ? reorderByIds(item.children, childOrder)
+      : item.children;
+
+    return { ...item, children: applyChildOrder(reordered, order) };
+  });
+}
+
+/**
  * Apply a stored sidebar order on top of a computed layout.
  * Returns a new array — never mutates the input.
  */
@@ -40,33 +56,36 @@ export function applyOrder(
   if (!order || !layout.length) return layout;
 
   return layout.map((section) => {
-    const reorderedItems = reorderByIds(section.items, order.items).map((item) => {
-      if (!item.children?.length) return item;
-
-      const childOrder = order.children[item.id];
-      if (!childOrder?.length) return item;
-
-      return { ...item, children: reorderByIds(item.children, childOrder) };
-    });
-
+    const reorderedItems = applyChildOrder(
+      reorderByIds(section.items, order.items),
+      order,
+    );
     return { ...section, items: reorderedItems };
   });
 }
 
 /**
  * Extract the current ordering from a layout so it can be persisted.
+ * Recurses into all nesting levels (e.g. CRD groups contain sub-groups).
  */
 export function extractOrder(layout: NavSection[]): SidebarOrder {
   const items: string[] = [];
   const children: Record<string, string[]> = {};
 
+  function walkChildren(navItems: NavMenuItem[]) {
+    for (const item of navItems) {
+      if (item.children?.length) {
+        children[item.id] = item.children.map((c) => c.id);
+        walkChildren(item.children);
+      }
+    }
+  }
+
   for (const section of layout) {
     for (const item of section.items) {
       items.push(item.id);
-      if (item.children?.length) {
-        children[item.id] = item.children.map((c: NavMenuItem) => c.id);
-      }
     }
+    walkChildren(section.items);
   }
 
   return { items, children };

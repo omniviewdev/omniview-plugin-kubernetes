@@ -437,15 +437,24 @@ export default function DraggableNavMenu({
   const handleChildReorder = useCallback(
     (parentId: string, activeId: string, overId: string) => {
       setSections((prev) => {
+        function reorderIn(items: NavMenuItemType[]): NavMenuItemType[] {
+          return items.map((item) => {
+            if (item.id === parentId && item.children) {
+              const oldIndex = item.children.findIndex((c) => c.id === activeId);
+              const newIndex = item.children.findIndex((c) => c.id === overId);
+              if (oldIndex === -1 || newIndex === -1) return item;
+              return { ...item, children: arrayMove(item.children, oldIndex, newIndex) };
+            }
+            if (item.children?.length) {
+              return { ...item, children: reorderIn(item.children) };
+            }
+            return item;
+          });
+        }
+
         const newSections = prev.map((section) => ({
           ...section,
-          items: section.items.map((item) => {
-            if (item.id !== parentId || !item.children) return item;
-            const oldIndex = item.children.findIndex((c) => c.id === activeId);
-            const newIndex = item.children.findIndex((c) => c.id === overId);
-            if (oldIndex === -1 || newIndex === -1) return item;
-            return { ...item, children: arrayMove(item.children, oldIndex, newIndex) };
-          }),
+          items: reorderIn(section.items),
         }));
 
         onReorder(extractOrder(newSections));
@@ -505,6 +514,7 @@ export default function DraggableNavMenu({
         modifiers={[restrictToVerticalAxis]}
         onDragStart={() => { isDragging.current = true; }}
         onDragEnd={handleTopLevelDragEnd}
+        onDragCancel={() => { isDragging.current = false; }}
       >
         <SortableContext items={topLevelIds} strategy={verticalListSortingStrategy}>
           {sections.map((section, i) => (
