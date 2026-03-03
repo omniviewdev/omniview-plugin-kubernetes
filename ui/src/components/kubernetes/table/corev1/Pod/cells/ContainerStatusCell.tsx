@@ -1,22 +1,26 @@
 import { useTheme } from '@mui/material/styles';
+import { Tooltip } from '@omniviewdev/ui/overlays';
 import { Stack } from '@omniviewdev/ui/layout';
+import { Text } from '@omniviewdev/ui/typography';
 import { ContainerStatus } from 'kubernetes-types/core/v1';
 import React from 'react';
 
-// material-ui
+import { getStatus } from '../../../../sidebar/Pod/utils';
 
 type Props = {
-  data?: Array<object>;
+  data?: ContainerStatus[];
+  initData?: ContainerStatus[];
 };
 
-export const ContainerStatusCell: React.FC<Props> = ({ data }) => {
+export const ContainerStatusCell: React.FC<Props> = ({ data, initData }) => {
   const theme = useTheme();
 
-  if (!data || !Array.isArray(data)) {
+  const containers = data ?? [];
+  const initContainers = initData ?? [];
+
+  if (containers.length === 0 && initContainers.length === 0) {
     return null;
   }
-
-  const obj = data as Array<ContainerStatus>;
 
   /** Get the color for the chip based on the status */
   const getColor = (status: ContainerStatus) => {
@@ -29,7 +33,7 @@ export const ContainerStatusCell: React.FC<Props> = ({ data }) => {
     }
 
     if (status.state?.terminated) {
-      if (status.state.terminated.exitCode === 0) {
+      if (status.state.terminated.reason === 'Completed' || status.state.terminated.exitCode === 0) {
         return theme.palette.grey[800];
       }
 
@@ -44,6 +48,41 @@ export const ContainerStatusCell: React.FC<Props> = ({ data }) => {
     return theme.palette.grey[600];
   };
 
+  const chipStyle = (color: string, dim?: boolean): React.CSSProperties => ({
+    backgroundColor: color,
+    borderRadius: 2,
+    width: 10,
+    height: 10,
+    maxWidth: 10,
+    maxHeight: 10,
+    minWidth: 10,
+    minHeight: 10,
+    flexShrink: 0,
+    cursor: 'default',
+    ...(dim ? { opacity: 0.5 } : {}),
+  });
+
+  const renderTooltipContent = (status: ContainerStatus, isInit?: boolean) => {
+    const stateInfo = getStatus(status);
+    return (
+      <Stack direction="column" spacing={0.5} sx={{ py: 0.25 }}>
+        <Stack direction="row" alignItems="center" spacing={1}>
+          <Text size="xs" sx={{ fontWeight: 600 }}>
+            {isInit ? `${status.name} (init)` : status.name}
+          </Text>
+        </Stack>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
+          <Text size="xs" sx={{ color: 'var(--ov-fg-muted)' }}>State</Text>
+          <Text size="xs">{stateInfo.text}</Text>
+        </Stack>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
+          <Text size="xs" sx={{ color: 'var(--ov-fg-muted)' }}>Restarts</Text>
+          <Text size="xs">{status.restartCount ?? 0}</Text>
+        </Stack>
+      </Stack>
+    );
+  };
+
   return (
     <Stack
       direction="row"
@@ -52,21 +91,15 @@ export const ContainerStatusCell: React.FC<Props> = ({ data }) => {
       justifyContent={'flex-start'}
       spacing={1}
     >
-      {obj.map((status) => (
-        <div
-          key={status.name}
-          color={getColor(status)}
-          style={{
-            backgroundColor: getColor(status),
-            borderRadius: 2,
-            width: 10,
-            height: 10,
-            maxWidth: 10,
-            maxHeight: 10,
-            minWidth: 10,
-            minHeight: 10,
-          }}
-        />
+      {containers.map((status) => (
+        <Tooltip key={status.name} variant="rich" placement="top" content={renderTooltipContent(status)}>
+          <div tabIndex={0} style={chipStyle(getColor(status))} />
+        </Tooltip>
+      ))}
+      {initContainers.map((status) => (
+        <Tooltip key={`init-${status.name}`} variant="rich" placement="top" content={renderTooltipContent(status, true)}>
+          <div tabIndex={0} style={chipStyle(getColor(status), true)} />
+        </Tooltip>
       ))}
     </Stack>
   );
