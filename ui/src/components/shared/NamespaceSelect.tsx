@@ -1,8 +1,8 @@
-import { useConnectionNamespaces } from '@omniviewdev/runtime';
+import { useMemo } from 'react';
 import { Autocomplete } from '@omniviewdev/ui/inputs';
 import type { AutocompleteOption } from '@omniviewdev/ui/inputs';
 import type { ComponentSize } from '@omniviewdev/ui/types';
-import { useMemo } from 'react';
+import { useConnectionNamespaces } from '@omniviewdev/runtime';
 
 interface NamespaceSelectProps {
   value: string;

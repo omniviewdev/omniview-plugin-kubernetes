@@ -272,9 +272,6 @@ func Register(plugin *sdk.Plugin) {
 			LoadConnectionNamespacesFunc: LoadConnectionNamespacesFunc,
 			CheckConnectionFunc:          CheckConnectionFunc,
 			CreateInformerFunc:           NewKubeInformerHandle,
-			SyncPolicies: map[string]types.InformerSyncPolicy{
-				"core::v1::Event": types.SyncNever,
-			},
 			ResourceGroups:               ResourceGroups,
 			ResourceDefinitions:          resourceDefs,
 			DefaultResourceDefinition:    resourcers.DefaultResourceDef,

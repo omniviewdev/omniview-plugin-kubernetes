@@ -1,17 +1,23 @@
-import { ResourceClient, ExecClient } from '@omniviewdev/runtime/api';
-import { type types } from '@omniviewdev/runtime/models';
+import React from 'react';
 import { useQuery } from '@tanstack/react-query';
+
+// third party
 import { type ColumnDef } from '@tanstack/react-table';
 import jsonpath from 'jsonpath';
 import get from 'lodash.get';
-import React from 'react';
 
-import ActionMenu from '../components/tables/actions/ActionMenu';
-import { type Actions } from '../components/tables/actions/types';
-import { TextCell } from '../components/tables/cells';
-import KubernetesContainerStatusCell from '../components/tables/cells/custom/KubernetesContainerStatusCell';
+// project imports
+import { ResourceClient, ExecClient } from '@omniviewdev/runtime/api';
+import { type types } from '@omniviewdev/runtime/models';
+
 import SelectBoxHeader from '../components/tables/cells/SelectBoxHeader';
 import SelectBoxRow from '../components/tables/cells/SelectBoxRow';
+import { type Actions } from '../components/tables/actions/types';
+import ActionMenu from '../components/tables/actions/ActionMenu';
+import { TextCell } from '../components/tables/cells';
+
+import KubernetesContainerStatusCell from '../components/tables/cells/custom/KubernetesContainerStatusCell';
+
 
 type UseResourceDefinitionOptions = {
   /**
@@ -24,8 +30,8 @@ type UseResourceDefinitionOptions = {
    */
   connectionID: string;
   /**
-   * Resource key that uniquely identifies the resource
-   */
+  * Resource key that uniquely identifies the resource
+  */
   resourceKey: string;
 };
 
@@ -60,15 +66,14 @@ export type ResourceMetadata = {
 /**
  * Render one of the custom cells. Should likely restructure out of the backend-focused one
  */
-// eslint-disable-next-line react-refresh/only-export-components
-const CustomTableCell: React.FC<{ name: string; data?: unknown }> = ({ name, data }) => {
+const CustomTableCell: React.FC<{ name: string, data?: unknown }> = ({ name, data }) => {
   switch (name) {
     case 'ContainerStatusCell':
       return <KubernetesContainerStatusCell data={data} />;
     default:
       return <TextCell value={data as string} />;
   }
-};
+}
 
 /**
  * Use our metadata and resource defenitions to dynamically build out our ColumnDefs at runtime.
@@ -88,23 +93,11 @@ const parseColumnDef = ({
     };
   }
 
-  const defs: Array<ColumnDef<Record<string, unknown>>> = [
+  const defs: Array<ColumnDef<any>> = [
     {
       id: 'select',
-      header: ({ table }) => {
-        'use no memo';
-        return (
-          <SelectBoxHeader
-            checked={table.getIsAllPageRowsSelected()}
-            indeterminate={table.getIsSomePageRowsSelected()}
-            onToggle={(checked: boolean) => table.toggleAllPageRowsSelected(checked)}
-          />
-        );
-      },
-      cell: ({ row, table }) => {
-        'use no memo';
-        return <SelectBoxRow row={row} checked={!!table.getState().rowSelection[row.id]} />;
-      },
+      header: SelectBoxHeader,
+      cell: SelectBoxRow,
       size: 40,
       enableSorting: false,
       enableHiding: false,
@@ -112,20 +105,17 @@ const parseColumnDef = ({
   ];
 
   columnDefs.forEach((def) => {
-    const column: ColumnDef<Record<string, unknown>> = {
+    let column: ColumnDef<any> = {
       id: def.id,
       header: def.header,
-      accessorFn: (data: Record<string, unknown>) => {
-        const val = def.accessor
-          .split(',')
-          .map((accessor) => {
-            if (accessor.startsWith('$.')) {
-              return (jsonpath.value(data, accessor) as string | undefined) ?? '';
-            }
+      accessorFn: (data) => {
+        const val = def.accessor.split(',').map((accessor) => {
+          if (accessor.startsWith('$.')) {
+            return jsonpath.value(data, accessor) ?? '';
+          }
 
-            return get(data, accessor, '') as string;
-          })
-          .filter((v) => v !== undefined && v !== '');
+          return get(data, accessor, '');
+        }).filter((v) => v !== undefined && v !== '');
 
         let prioritized = '';
         switch (def.accessorPriority) {
@@ -142,8 +132,9 @@ const parseColumnDef = ({
         if (def.valueMap) {
           // process the prioritized value through the value map, each key being the regex to match
           // and the value being the replacement
-          Object.entries(def.valueMap).forEach(([key, replacement]) => {
-            prioritized = prioritized.replace(new RegExp(key), replacement);
+          Object.entries(def.valueMap).forEach(([key, val]) => {
+            console.log('replacing', key, val);
+            prioritized = prioritized.replace(new RegExp(key), val);
           });
         }
 
@@ -154,12 +145,11 @@ const parseColumnDef = ({
         return val.length === 1 ? val[0] : val;
       },
       cell: ({ getValue, row }) =>
-        def.component ? (
+        !!def.component
           // using a custom federated component
-          <CustomTableCell data={getValue()} name={def.component} />
-        ) : (
+          ? <CustomTableCell data={getValue()} name={def.component} />
           // in-house component
-          <TextCell
+          : <TextCell
             align={getAlignment(def.align)}
             value={getValue() as string}
             formatter={def.formatter}
@@ -170,10 +160,9 @@ const parseColumnDef = ({
               connectionID,
               resourceKey,
               resourceID: row.id,
-              namespace: namespaceAccessor ? (get(row.original, namespaceAccessor, '') as string) : '',
+              namespace: namespaceAccessor ? get(row.original, namespaceAccessor, '') : '',
             }}
-          />
-        ),
+          />,
     };
 
     if (def.width) {
@@ -187,16 +176,14 @@ const parseColumnDef = ({
     // add the actions to the end
     defs.push({
       id: 'menu',
-      cell: ({ row }) => (
-        <ActionMenu
-          actions={actions}
-          connection={connectionID}
-          resource={resourceKey}
-          data={row.original}
-          id={row.id}
-          namespace={namespaceAccessor ? (get(row.original, namespaceAccessor, '') as string) : ''}
-        />
-      ),
+      cell: ({ row }) => <ActionMenu
+        actions={actions}
+        connection={connectionID}
+        resource={resourceKey}
+        data={row.original}
+        id={row.id}
+        namespace={namespaceAccessor ? get(row.original, namespaceAccessor, '') : ''}
+      />,
       size: 50,
       enableSorting: false,
       enableHiding: false,
@@ -213,11 +200,7 @@ const parseColumnDef = ({
  * Fetches the resource definition for the given resource key and returns calculated resource
  * schema objects for rendering the resource.
  */
-export const useResourceDefinition = ({
-  pluginID,
-  resourceKey,
-  connectionID,
-}: UseResourceDefinitionOptions) => {
+export const useResourceDefinition = ({ pluginID, resourceKey, connectionID }: UseResourceDefinitionOptions) => {
   const queryKey = [pluginID, 'resource_definition', resourceKey];
 
   const definition = useQuery({
@@ -243,18 +226,14 @@ export const useResourceDefinition = ({
     retry: false,
   });
 
-  const columns = React.useMemo(
-    () =>
-      parseColumnDef({
-        columnDefs: definition.data?.columnDefs,
-        actions: actions.data,
-        pluginID,
-        connectionID,
-        resourceKey,
-        namespaceAccessor: definition.data?.namespace_accessor,
-      }),
-    [pluginID, connectionID, resourceKey, actions.data, definition.data?.columnDefs, definition.data?.namespace_accessor],
-  );
+  const columns = React.useMemo(() => parseColumnDef({
+    columnDefs: definition.data?.columnDefs,
+    actions: actions.data,
+    pluginID,
+    connectionID,
+    resourceKey,
+    namespaceAccessor: definition.data?.namespace_accessor,
+  }), [pluginID, connectionID, resourceKey]);
 
   return {
     data: definition.data,

@@ -1,4 +1,4 @@
-import { ObjectMeta } from 'kubernetes-types/meta/v1';
+import { ObjectMeta } from "kubernetes-types/meta/v1";
 
 /**
  * Props passed in by the IDE to the resource sidebar component.
@@ -25,6 +25,7 @@ export interface ResourceSearchResult {
   namespaces: string[];
   isLoading: boolean;
   isError: boolean;
+  // eslint-disable-next-line @typescript-eslint/ban-types
   error: Error | null;
   data: unknown[];
 }
@@ -69,7 +70,7 @@ export type ResourceSearchEntry = {
  * Defines the interface that every kubernetes resource object must adhere to
  */
 export interface KubernetesResourceObject {
-  apiVersion?: string;
-  kind?: string;
-  metadata?: ObjectMeta;
+  apiVersion?: string
+  kind?: string
+  metadata?: ObjectMeta
 }

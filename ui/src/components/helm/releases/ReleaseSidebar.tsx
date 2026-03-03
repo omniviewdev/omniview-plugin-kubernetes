@@ -1,122 +1,31 @@
+import React from 'react';
+
 // material-ui
 import Box from '@mui/material/Box';
+import { Card } from '@omniviewdev/ui';
+import { Chip } from '@omniviewdev/ui';
 import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Grid';
-import { DrawerContext, useExecuteAction, useRightDrawer } from '@omniviewdev/runtime';
-import { Card, Chip } from '@omniviewdev/ui';
 import { Button, IconButton } from '@omniviewdev/ui/buttons';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Tabs, TabPanel } from '@omniviewdev/ui/navigation';
 import { Text } from '@omniviewdev/ui/typography';
-import React from 'react';
-import { LuCircleArrowUp, LuUndo2, LuGitCompare } from 'react-icons/lu';
 import { stringify, parse } from 'yaml';
 
 // icons
+import {
+  LuCircleArrowUp,
+  LuUndo2,
+  LuGitCompare,
+} from 'react-icons/lu';
 
 // project-imports
-
+import { DrawerContext, useExecuteAction, useRightDrawer } from '@omniviewdev/runtime';
 import CodeEditor from '../../shared/CodeEditor';
-
 import UpgradeDialog from './UpgradeDialog';
 
-const metaLabelSx = { color: 'neutral.400' } as const;
-const metaValueSx = { fontWeight: 400, color: 'neutral.100' } as const;
-const editorBoxSx = {
-  height: 400,
-  border: '1px solid',
-  borderColor: 'neutral.700',
-  borderRadius: 'sm',
-  overflow: 'hidden',
-} as const;
-const notesSx = {
-  fontSize: 12,
-  fontFamily: 'monospace',
-  bgcolor: 'background.level1',
-  p: 1.5,
-  borderRadius: 'sm',
-  overflow: 'auto',
-  maxHeight: 400,
-  whiteSpace: 'pre-wrap',
-  wordBreak: 'break-word',
-} as const;
-const hookDetailSx = { color: 'neutral.400' } as const;
-const noDataSx = { color: 'neutral.400' } as const;
-const revisionDetailSx = { color: 'neutral.400' } as const;
-const resourceNsSx = { color: 'neutral.500' } as const;
-const diffButtonSx = { mb: 1 } as const;
-
 // ── types ──
-
-/** Shape of a Helm release as returned by the backend list/get APIs. */
-interface HelmRelease {
-  name?: string;
-  namespace?: string;
-  version?: number;
-  info?: {
-    status?: string;
-    last_deployed?: string;
-    description?: string;
-  };
-  chart?: {
-    metadata?: {
-      name?: string;
-      version?: string;
-      appVersion?: string;
-    };
-  };
-}
-
-/** Data returned by `get-values` action. */
-interface ValuesActionData {
-  [key: string]: unknown;
-}
-
-/** Data returned by `get-manifest` action. */
-interface ManifestActionData {
-  manifest?: string;
-}
-
-/** Data returned by `get-notes` action. */
-interface NotesActionData {
-  notes?: string;
-}
-
-/** A single Helm hook. */
-interface HelmHook {
-  name: string;
-  kind: string;
-  weight: string | number;
-  events?: string[];
-}
-
-/** Data returned by `get-hooks` action. */
-interface HooksActionData {
-  hooks?: HelmHook[];
-}
-
-/** A single history revision. */
-interface HelmRevision {
-  version: number;
-  info?: {
-    status?: string;
-    description?: string;
-  };
-}
-
-/** Data returned by `get-history` action. */
-interface HistoryActionData {
-  revisions?: HelmRevision[];
-}
-
-/** Union of all possible per-tab cached data shapes. */
-type TabDataEntry =
-  | ValuesActionData
-  | ManifestActionData
-  | NotesActionData
-  | HooksActionData
-  | HistoryActionData
-  | null;
+type HelmRelease = Record<string, any>;
 
 interface Props {
   ctx: DrawerContext<HelmRelease>;
@@ -136,41 +45,27 @@ const statusColorMap: Record<string, 'success' | 'danger' | 'warning' | 'neutral
 const MetaEntry: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
   <Grid container spacing={0}>
     <Grid size={4}>
-      <Text sx={metaLabelSx} size="sm">
-        {label}
-      </Text>
+      <Text sx={{ color: "neutral.400" }} size="sm">{label}</Text>
     </Grid>
     <Grid size={8}>
-      <Text sx={metaValueSx} weight="semibold" size="sm">
+      <Text sx={{ fontWeight: 400, color: "neutral.100" }} weight="semibold" size="sm">
         {value}
       </Text>
     </Grid>
   </Grid>
 );
 
-/** Shape of a parsed YAML Kubernetes resource document. */
-interface ParsedK8sResource {
-  kind?: string;
-  metadata?: {
-    name?: string;
-    namespace?: string;
-  };
-}
-
 /**
  * Parse a YAML manifest string into individual resource documents.
  */
-function parseManifestResources(
-  manifest: string,
-): Array<{ kind: string; name: string; namespace?: string }> {
+function parseManifestResources(manifest: string): Array<{ kind: string; name: string; namespace?: string }> {
   if (!manifest) return [];
   const docs = manifest.split(/^---$/m).filter((d) => d.trim());
   const resources: Array<{ kind: string; name: string; namespace?: string }> = [];
   for (const doc of docs) {
     try {
-      // yaml.parse returns `any` by design; cast to the expected K8s resource shape
-      const parsed = parse(doc) as ParsedK8sResource | null;
-      if (parsed?.kind && parsed.metadata?.name) {
+      const parsed = parse(doc);
+      if (parsed?.kind && parsed?.metadata?.name) {
         resources.push({
           kind: parsed.kind,
           name: parsed.metadata.name,
@@ -189,7 +84,7 @@ function parseManifestResources(
  */
 export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
   // Per-action cached tab data
-  const [tabData, setTabData] = React.useState<Record<string, TabDataEntry>>({});
+  const [tabData, setTabData] = React.useState<Record<string, any>>({});
   const [activeTab, setActiveTab] = React.useState('0');
   const [showManifestDiff, setShowManifestDiff] = React.useState(false);
   const [prevManifest, setPrevManifest] = React.useState<string | null>(null);
@@ -208,32 +103,22 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
   const { showResourceSidebar } = useRightDrawer();
 
   // Fetch tab data on tab change, caching results per action
-  const fetchTabData = React.useCallback(
-    async (actionID: string) => {
-      if (tabData[actionID]) return; // Already cached
-      try {
-        const result = await executeAction({
-          actionID,
-          id: releaseName,
-          namespace,
-        });
-        setTabData((prev) => ({ ...prev, [actionID]: result.data as TabDataEntry }));
-      } catch {
-        setTabData((prev) => ({ ...prev, [actionID]: null }));
-      }
-    },
-    [executeAction, releaseName, namespace, tabData],
-  );
+  const fetchTabData = React.useCallback(async (actionID: string) => {
+    if (tabData[actionID]) return; // Already cached
+    try {
+      const result = await executeAction({
+        actionID,
+        id: releaseName,
+        namespace,
+      });
+      setTabData((prev) => ({ ...prev, [actionID]: result.data }));
+    } catch {
+      setTabData((prev) => ({ ...prev, [actionID]: null }));
+    }
+  }, [executeAction, releaseName, namespace, tabData]);
 
   React.useEffect(() => {
-    const tabActions = [
-      'get-values',
-      'get-manifest',
-      'get-notes',
-      'get-hooks',
-      'get-history',
-      'get-manifest',
-    ];
+    const tabActions = ['get-values', 'get-manifest', 'get-notes', 'get-hooks', 'get-history', 'get-manifest'];
     const actionID = tabActions[Number(activeTab)];
     if (actionID && connectionID) {
       void fetchTabData(actionID);
@@ -251,8 +136,7 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
         namespace,
         params: { revision: revision - 1 },
       });
-      const manifestData = result.data as ManifestActionData | undefined;
-      setPrevManifest(manifestData?.manifest ?? '');
+      setPrevManifest(result.data?.manifest ?? '');
     } catch {
       setPrevManifest('# Failed to load previous revision manifest');
     }
@@ -277,38 +161,30 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
   const revision = data.version ?? 0;
   const lastDeployed = data.info?.last_deployed ?? '';
 
-  const manifestEntry = tabData['get-manifest'] as ManifestActionData | null | undefined;
-  const currentManifest = manifestEntry?.manifest ?? '';
+  const currentManifest = tabData['get-manifest']?.manifest ?? '';
   const manifestResources = parseManifestResources(currentManifest);
-
-  const valuesEntry = tabData['get-values'] as ValuesActionData | null | undefined;
-  const notesEntry = tabData['get-notes'] as NotesActionData | null | undefined;
-  const hooksEntry = tabData['get-hooks'] as HooksActionData | null | undefined;
-  const historyEntry = tabData['get-history'] as HistoryActionData | null | undefined;
 
   return (
     <Stack direction="column" width="100%" spacing={2}>
       {/* Header card */}
       <Card sx={{ p: 1.5, borderRadius: 'sm' }} emphasis="outline">
-        <Stack direction="column" spacing={1}>
-          <Stack direction="row" justifyContent="space-between" alignItems="center">
-            <Text weight="semibold" size="lg">
-              {releaseName}
-            </Text>
-            <Chip
-              size="sm"
-              emphasis="soft"
-              color={statusColorMap[status] ?? 'neutral'}
-              label={status}
-            />
+          <Stack direction="column" spacing={1}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center">
+              <Text weight="semibold" size="lg">{releaseName}</Text>
+              <Chip
+                size="sm"
+                emphasis="soft"
+                color={statusColorMap[status] ?? 'neutral'}
+                label={status}
+              />
+            </Stack>
+            <Divider />
+            <MetaEntry label="Namespace" value={namespace} />
+            <MetaEntry label="Chart" value={`${chartName}-${chartVersion}`} />
+            <MetaEntry label="App Version" value={appVersion} />
+            <MetaEntry label="Revision" value={String(revision)} />
+            {lastDeployed && <MetaEntry label="Updated" value={lastDeployed} />}
           </Stack>
-          <Divider />
-          <MetaEntry label="Namespace" value={namespace} />
-          <MetaEntry label="Chart" value={`${chartName}-${chartVersion}`} />
-          <MetaEntry label="App Version" value={appVersion} />
-          <MetaEntry label="Revision" value={String(revision)} />
-          {lastDeployed && <MetaEntry label="Updated" value={lastDeployed} />}
-        </Stack>
       </Card>
 
       {/* Action buttons */}
@@ -329,14 +205,12 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
             emphasis="outline"
             color="warning"
             disabled={isExecuting}
-            onClick={() =>
-              void executeAction({
-                actionID: 'rollback',
-                id: releaseName,
-                namespace,
-                params: { revision: revision - 1 },
-              })
-            }
+            onClick={() => void executeAction({
+              actionID: 'rollback',
+              id: releaseName,
+              namespace,
+              params: { revision: revision - 1 },
+            })}
             title="Rollback Release"
           >
             <LuUndo2 />
@@ -360,12 +234,12 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
       />
 
       {/* Values - Monaco editor */}
-      <TabPanel value="0" activeValue={activeTab}>
-        <Box sx={editorBoxSx}>
+      <TabPanel value='0' activeValue={activeTab}>
+        <Box sx={{ height: 400, border: '1px solid', borderColor: 'neutral.700', borderRadius: 'sm', overflow: 'hidden' }}>
           <CodeEditor
             filename="values.yaml"
             language="yaml"
-            value={valuesEntry ? stringify(valuesEntry) : '# Loading...'}
+            value={tabData['get-values'] ? stringify(tabData['get-values']) : '# Loading...'}
             readOnly
             height={400}
           />
@@ -373,9 +247,9 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
       </TabPanel>
 
       {/* Manifest - Monaco with diff toggle */}
-      <TabPanel value="1" activeValue={activeTab}>
+      <TabPanel value='1' activeValue={activeTab}>
         {revision > 1 && (
-          <Stack direction="row" spacing={1} sx={diffButtonSx}>
+          <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
             <Button
               size="sm"
               emphasis={showManifestDiff ? 'solid' : 'outline'}
@@ -388,7 +262,7 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
             </Button>
           </Stack>
         )}
-        <Box sx={editorBoxSx}>
+        <Box sx={{ height: 400, border: '1px solid', borderColor: 'neutral.700', borderRadius: 'sm', overflow: 'hidden' }}>
           <CodeEditor
             filename="manifest.yaml"
             language="yaml"
@@ -402,98 +276,101 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
       </TabPanel>
 
       {/* Notes */}
-      <TabPanel value="2" activeValue={activeTab}>
-        <Box component="pre" sx={notesSx}>
-          {notesEntry?.notes ?? 'No release notes'}
+      <TabPanel value='2' activeValue={activeTab}>
+        <Box
+          component="pre"
+          sx={{
+            fontSize: 12,
+            fontFamily: 'monospace',
+            bgcolor: 'background.level1',
+            p: 1.5,
+            borderRadius: 'sm',
+            overflow: 'auto',
+            maxHeight: 400,
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+          }}
+        >
+          {tabData['get-notes']?.notes ?? 'No release notes'}
         </Box>
       </TabPanel>
 
       {/* Hooks */}
-      <TabPanel value="3" activeValue={activeTab}>
-        {hooksEntry?.hooks?.length ? (
+      <TabPanel value='3' activeValue={activeTab}>
+        {tabData['get-hooks']?.hooks?.length ? (
           <Stack spacing={1}>
-            {hooksEntry.hooks.map((hook) => (
-              <Card key={hook.name} emphasis="outline">
-                <Text weight="semibold" size="sm">
-                  {hook.name}
-                </Text>
-                <Text size="xs" sx={hookDetailSx}>
-                  Kind: {hook.kind} | Weight: {String(hook.weight)}
-                </Text>
-                {hook.events && (
-                  <Stack direction="row" spacing={0.5} mt={0.5} flexWrap="wrap">
-                    {hook.events.map((e) => (
-                      <Chip key={e} size="sm" emphasis="soft" label={e} />
-                    ))}
-                  </Stack>
-                )}
+            {(tabData['get-hooks'].hooks as any[]).map((hook: any, i: number) => (
+              <Card key={i} emphasis="outline">
+                  <Text weight="semibold" size="sm">{hook.name}</Text>
+                  <Text size="xs" sx={{ color: "neutral.400" }}>
+                    Kind: {hook.kind} | Weight: {hook.weight}
+                  </Text>
+                  {hook.events && (
+                    <Stack direction="row" spacing={0.5} mt={0.5} flexWrap="wrap">
+                      {(hook.events as string[]).map((e: string) => (
+                        <Chip key={e} size="sm" emphasis="soft" label={e} />
+                      ))}
+                    </Stack>
+                  )}
               </Card>
             ))}
           </Stack>
         ) : (
-          <Text size="sm" sx={noDataSx}>
-            No hooks
-          </Text>
+          <Text size="sm" sx={{ color: "neutral.400" }}>No hooks</Text>
         )}
       </TabPanel>
 
       {/* History */}
-      <TabPanel value="4" activeValue={activeTab}>
-        {historyEntry?.revisions?.length ? (
+      <TabPanel value='4' activeValue={activeTab}>
+        {tabData['get-history']?.revisions?.length ? (
           <Stack spacing={1}>
-            {historyEntry.revisions.map((rev) => (
-              <Card key={rev.version} emphasis="outline">
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
-                  <Text weight="semibold" size="sm">
-                    Revision {rev.version}
+            {(tabData['get-history'].revisions as any[]).map((rev: any, i: number) => (
+              <Card key={i} emphasis="outline">
+                  <Stack direction="row" justifyContent="space-between" alignItems="center">
+                    <Text weight="semibold" size="sm">Revision {rev.version}</Text>
+                    <Chip
+                      size="sm"
+                      emphasis="soft"
+                      color={statusColorMap[rev.info?.status] ?? 'neutral'}
+                      label={rev.info?.status}
+                    />
+                  </Stack>
+                  <Text size="xs" sx={{ color: "neutral.400" }}>
+                    {rev.info?.description ?? ''}
                   </Text>
-                  <Chip
-                    size="sm"
-                    emphasis="soft"
-                    color={statusColorMap[rev.info?.status ?? ''] ?? 'neutral'}
-                    label={rev.info?.status ?? ''}
-                  />
-                </Stack>
-                <Text size="xs" sx={revisionDetailSx}>
-                  {rev.info?.description ?? ''}
-                </Text>
-                {rev.version !== revision && (
-                  <IconButton
-                    size="sm"
-                    emphasis="ghost"
-                    color="warning"
-                    disabled={isExecuting}
-                    onClick={() =>
-                      void executeAction({
+                  {rev.version !== revision && (
+                    <IconButton
+                      size="sm"
+                      emphasis="ghost"
+                      color="warning"
+                      disabled={isExecuting}
+                      onClick={() => void executeAction({
                         actionID: 'rollback',
                         id: releaseName,
                         namespace,
                         params: { revision: rev.version },
-                      })
-                    }
-                    title={`Rollback to revision ${rev.version}`}
-                    sx={{ mt: 0.5 }}
-                  >
-                    <LuUndo2 size={14} />
-                  </IconButton>
-                )}
+                      })}
+                      title={`Rollback to revision ${rev.version}`}
+                      sx={{ mt: 0.5 }}
+                    >
+                      <LuUndo2 size={14} />
+                    </IconButton>
+                  )}
               </Card>
             ))}
           </Stack>
         ) : (
-          <Text size="sm" sx={noDataSx}>
-            No history
-          </Text>
+          <Text size="sm" sx={{ color: "neutral.400" }}>No history</Text>
         )}
       </TabPanel>
 
       {/* Resources - parsed from manifest */}
-      <TabPanel value="5" activeValue={activeTab}>
+      <TabPanel value='5' activeValue={activeTab}>
         {manifestResources.length > 0 ? (
           <Stack spacing={0.5}>
-            {manifestResources.map((res) => (
+            {manifestResources.map((res, i) => (
               <Card
-                key={`${res.kind}/${res.name}`}
+                key={i}
                 sx={{
                   p: 1,
                   borderRadius: 'sm',
@@ -539,21 +416,17 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
               >
                 <Stack direction="row" spacing={1} alignItems="center">
                   <Chip size="sm" emphasis="soft" color="neutral" label={res.kind} />
-                  <Text size="sm" weight="semibold">
-                    {res.name}
-                  </Text>
+                  <Text size="sm" weight="semibold">{res.name}</Text>
                   {res.namespace && (
-                    <Text size="xs" sx={resourceNsSx}>
-                      {res.namespace}
-                    </Text>
+                    <Text size="xs" sx={{ color: 'neutral.500' }}>{res.namespace}</Text>
                   )}
                 </Stack>
               </Card>
             ))}
           </Stack>
         ) : (
-          <Text size="sm" sx={noDataSx}>
-            {manifestEntry ? 'No resources found in manifest' : 'Loading manifest...'}
+          <Text size="sm" sx={{ color: "neutral.400" }}>
+            {tabData['get-manifest'] ? 'No resources found in manifest' : 'Loading manifest...'}
           </Text>
         )}
       </TabPanel>

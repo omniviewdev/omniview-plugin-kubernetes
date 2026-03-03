@@ -1,28 +1,18 @@
-import Box from '@mui/material/Box';
-import { Checkbox } from '@omniviewdev/ui/inputs';
 import { type Row } from '@tanstack/react-table';
 
-// ---------------------------------------------------------------------------
-// Static styles
-// ---------------------------------------------------------------------------
+import Box from '@mui/material/Box';
+import { Checkbox } from '@omniviewdev/ui/inputs';
 
-const selectBoxSx = {
-  display: 'flex',
-  justifyContent: 'center',
-  alignItems: 'center',
-  height: '100%',
-  maxWidth: 24,
-} as const;
-
-export const SelectBoxRow = ({ row, checked }: { row: Row<Record<string, unknown>>; checked: boolean }) => (
-  <Box sx={selectBoxSx}>
+export const SelectBoxRow = ({ row }: { row: Row<any> }) => (
+  <Box sx={{
+    display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', maxWidth: 24 }}>
     <Checkbox
-      size="sm"
-      checked={checked}
-      onChange={(value) => {
-        row.toggleSelected(value);
+      size='sm'
+      checked={row.getIsSelected()}
+      onChange={(checked) => {
+        row.toggleSelected(checked);
       }}
-      aria-label="Select row"
+      aria-label='Select node'
     />
   </Box>
 );

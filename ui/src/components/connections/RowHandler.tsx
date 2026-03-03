@@ -1,10 +1,8 @@
-import { useDraggable } from '@dnd-kit/core';
-import Box from '@mui/material/Box';
 import React from 'react';
-
-import { useClusterAction } from '../../hooks/useClusterAction';
+import Box from '@mui/material/Box';
+import { useDraggable } from '@dnd-kit/core';
 import type { EnrichedConnection } from '../../types/clusters';
-
+import { useClusterAction } from '../../hooks/useClusterAction';
 import HubClusterRow from './HubClusterRow';
 
 type Props = {

@@ -1,12 +1,10 @@
-import type { DrawerComponentView, DrawerContext } from '@omniviewdev/runtime';
 import React from 'react';
 import { LuCode, LuSquareChartGantt, LuZap } from 'react-icons/lu';
+import type { DrawerComponentView, DrawerContext } from '@omniviewdev/runtime';
 
-import type { KubernetesResourceObject } from '../../../types/resource';
-import ResourceEventsView from '../../kubernetes/sidebar/ResourceEventsView';
-
-import BaseEditorPage from './pages/editor/BaseEditorPage';
 import { createMetricsView } from './pages/metrics/ResourceMetricsPage';
+import ResourceEventsView from '../../kubernetes/sidebar/ResourceEventsView';
+import BaseEditorPage from './pages/editor/BaseEditorPage';
 
 /**
  * Returns the canonical set of drawer views for a Kubernetes resource sidebar:
@@ -16,9 +14,9 @@ import { createMetricsView } from './pages/metrics/ResourceMetricsPage';
  * and the drawer factory in `entry.ts` uses it so linked-resource clicks get the
  * same view set.
  */
-export function createStandardViews<T = KubernetesResourceObject>(opts: {
+export function createStandardViews<T = any>(opts: {
   SidebarComponent: React.FC<{ ctx: DrawerContext<T> }>;
-  onEditorSubmit?: (ctx: DrawerContext<T>, value: Record<string, unknown>) => void;
+  onEditorSubmit?: (ctx: DrawerContext<T>, value: Record<string, any>) => void;
 }): Array<DrawerComponentView<T>> {
   const { SidebarComponent, onEditorSubmit } = opts;
 
@@ -28,7 +26,7 @@ export function createStandardViews<T = KubernetesResourceObject>(opts: {
       icon: <LuSquareChartGantt />,
       component: (ctx) => <SidebarComponent ctx={ctx} />,
     },
-    createMetricsView() as unknown as DrawerComponentView<T>,
+    createMetricsView(),
     {
       title: 'Events',
       icon: <LuZap />,
@@ -38,14 +36,8 @@ export function createStandardViews<T = KubernetesResourceObject>(opts: {
       title: 'Editor',
       icon: <LuCode />,
       component: onEditorSubmit
-        ? (ctx) => (
-            <BaseEditorPage
-              data={ctx.data as KubernetesResourceObject}
-              resourceKey={ctx.resource?.key}
-              onSubmit={(val) => onEditorSubmit(ctx, val)}
-            />
-          )
-        : (ctx) => <BaseEditorPage data={ctx.data as KubernetesResourceObject} resourceKey={ctx.resource?.key} />,
+        ? (ctx) => <BaseEditorPage data={ctx.data as any} onSubmit={(val) => onEditorSubmit(ctx, val)} />
+        : (ctx) => <BaseEditorPage data={ctx.data as any} />,
     },
   ];
 }

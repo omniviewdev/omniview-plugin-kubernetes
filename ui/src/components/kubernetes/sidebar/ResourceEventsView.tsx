@@ -1,20 +1,14 @@
+import React, { useState, useMemo } from 'react';
 import Box from '@mui/material/Box';
-import type { DrawerContext } from '@omniviewdev/runtime';
 import { Chip } from '@omniviewdev/ui';
 import { IconButton } from '@omniviewdev/ui/buttons';
-import { EventsList, Timeline } from '@omniviewdev/ui/domain';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
-import React, { useState, useMemo } from 'react';
+import { EventsList, Timeline } from '@omniviewdev/ui/domain';
 import { LuList, LuGitCommitHorizontal } from 'react-icons/lu';
+import type { DrawerContext } from '@omniviewdev/runtime';
 
 import { useResourceEvents } from '../../../hooks/useResourceEvents';
-
-const outerStackSx = { width: '100%', flex: 1 } as const;
-
-const headerBarSx = { px: 1.5, py: 1, borderBottom: '1px solid var(--ov-border-muted)' } as const;
-
-const filterChipsSx = { px: 1.5, py: 0.75 } as const;
 
 type EventFilter = 'all' | 'Normal' | 'Warning';
 
@@ -60,13 +54,13 @@ const ResourceEventsView: React.FC<ResourceEventsViewProps> = ({ ctx }) => {
   }
 
   return (
-    <Stack direction="column" gap={0} sx={outerStackSx}>
+    <Stack direction="column" gap={0} sx={{ width: '100%', flex: 1 }}>
       {/* Header bar */}
       <Stack
         direction="row"
         align="center"
         justify="between"
-        sx={headerBarSx}
+        sx={{ px: 1.5, py: 1, borderBottom: '1px solid var(--ov-border-muted)' }}
       >
         <Stack direction="row" align="center" gap={1}>
           <Text weight="semibold" size="sm">
@@ -101,7 +95,7 @@ const ResourceEventsView: React.FC<ResourceEventsViewProps> = ({ ctx }) => {
       </Stack>
 
       {/* Filter chips */}
-      <Stack direction="row" gap={0.5} sx={filterChipsSx}>
+      <Stack direction="row" gap={0.5} sx={{ px: 1.5, py: 0.75 }}>
         {(['all', 'Normal', 'Warning'] as EventFilter[]).map((f) => (
           <Chip
             key={f}
@@ -115,14 +109,7 @@ const ResourceEventsView: React.FC<ResourceEventsViewProps> = ({ ctx }) => {
       </Stack>
 
       {/* Content */}
-      <Box
-        sx={{
-          flex: 1,
-          overflowY: 'auto',
-          px: viewMode === 'timeline' ? 1.5 : 0,
-          py: viewMode === 'timeline' ? 1 : 0,
-        }}
-      >
+      <Box sx={{ flex: 1, overflowY: 'auto', px: viewMode === 'timeline' ? 1.5 : 0, py: viewMode === 'timeline' ? 1 : 0 }}>
         {viewMode === 'list' ? (
           <EventsList events={filteredEvents} loading={isLoading} />
         ) : (

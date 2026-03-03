@@ -1,20 +1,24 @@
-import Divider from '@mui/material/Divider';
-import { Card, Chip } from '@omniviewdev/ui';
-import { Stack } from '@omniviewdev/ui/layout';
-import { Text } from '@omniviewdev/ui/typography';
-import { formatRelative } from 'date-fns';
-import { ContainerStatus } from 'kubernetes-types/core/v1';
-import * as React from 'react';
+import * as React from "react";
 
-import Icon from '../../../shared/Icon';
+// material-ui
+import { Card, Chip } from "@omniviewdev/ui";
+import Divider from "@mui/material/Divider";
+import { Stack } from "@omniviewdev/ui/layout";
+import { Text } from "@omniviewdev/ui/typography";
 
-import { ContainerTerminatedStatusInfo, ContainerWaitingStatusInfo } from './ContainerStatuses';
-import { getStatus } from './utils';
+// project imports
+import Icon from "../../../shared/Icon";
+import { getStatus } from "./utils";
 
-const cardSx = { p: 0.5, minWidth: 300 } as const;
-const statusChipSx = { borderRadius: 'sm' } as const;
-const lastStateCardSx = { px: 1, gap: 0.5, pb: 1, pt: 0.5 } as const;
-const lastStateLabelSx = { fontSize: 12, color: 'neutral.50' } as const;
+// types
+import { ContainerStatus } from "kubernetes-types/core/v1";
+import {
+  ContainerTerminatedStatusInfo,
+  ContainerWaitingStatusInfo,
+} from "./ContainerStatuses";
+
+// third-party
+import { formatRelative } from "date-fns";
 
 interface Props {
   status: ContainerStatus;
@@ -31,51 +35,66 @@ const ContainerStatusCard: React.FC<Props> = ({
 
   const getVariant = () => {
     switch (statusInfo.text) {
-      case 'Completed':
-        return 'outline';
-      case 'Waiting':
-        return 'soft';
+      case "Completed":
+        return "outline";
+      case "Waiting":
+        return "soft";
       default:
-        return 'solid';
+        return "solid";
     }
   };
 
   const getStatusText = () => {
     if (status.ready && status.started) {
-      return 'Ready';
+      return "Ready";
     } else if (!status.ready && status.started) {
-      return 'Started';
+      return "Started";
     }
-    return 'Not Ready';
+    return "Not Ready";
   };
 
   return (
     <Card
       emphasis="soft"
-      sx={cardSx}
+      sx={{
+        p: 0.5,
+        minWidth: 300,
+      }}
     >
-      <Stack direction="row" alignItems="center" justifyContent={'space-between'} spacing={2}>
+      <Stack
+        direction="row"
+        alignItems="center"
+        justifyContent={"space-between"}
+        spacing={2}
+      >
+
         {showContainerName && <Text size="sm">{status.name}</Text>}
-        <Stack gap={1} direction={'row'} alignItems={'center'}>
+        <Stack gap={1} direction={"row"} alignItems={"center"}>
           <Chip
             size="sm"
             color={statusInfo.color}
             emphasis={getVariant()}
-            sx={statusChipSx}
-            startAdornment={statusInfo.icon && <Icon name={statusInfo.icon} size={16} />}
+            sx={{ borderRadius: "sm" }}
+            startAdornment={
+              statusInfo.icon && <Icon name={statusInfo.icon} size={16} />
+            }
             label={statusInfo.text}
           />
           <Chip
             size="sm"
-            color={status.ready ? 'primary' : 'warning'}
-            emphasis={'outline'}
-            sx={statusChipSx}
+            color={status.ready ? "primary" : "info"}
+            emphasis={"outline"}
+            sx={{ borderRadius: "sm" }}
             label={getStatusText()}
           />
         </Stack>
         {showStartedAt && status.state?.running && status.state.running.startedAt && (
           <Text size="sm">
-            Started {formatRelative(new Date(status.state.running.startedAt), new Date())}
+            Started{" "}
+            {formatRelative(
+              new Date(status.state.running.startedAt),
+              new Date(),
+            )}
           </Text>
         )}
       </Stack>
@@ -84,32 +103,36 @@ const ContainerStatusCard: React.FC<Props> = ({
           {status.state?.terminated && (
             <ContainerTerminatedStatusInfo state={status.state.terminated} />
           )}
-          {status.state?.waiting && <ContainerWaitingStatusInfo state={status.state.waiting} />}
+          {status.state?.waiting && (
+            <ContainerWaitingStatusInfo state={status.state.waiting} />
+          )}
           {status.state?.running && !status.lastState?.terminated && (
-            <Text size="sm" color="success">
-              Container is healthy
-            </Text>
+            <Text size="sm" color="success">Container is healthy</Text>
           )}
           {status.lastState?.terminated && (
-            <Card emphasis="outline" sx={lastStateCardSx}>
+            <Card emphasis="outline" sx={{ px: 1, gap: 0.5, pb: 1, pt: 0.5 }}>
               <Stack
                 direction="row"
                 spacing={1}
-                alignItems={'center'}
-                justifyContent={'space-between'}
+                alignItems={"center"}
+                justifyContent={"space-between"}
               >
-                <Text sx={lastStateLabelSx}>Last State</Text>
+                <Text sx={{ fontSize: 12, color: "neutral.50" }}>
+                  Last State
+                </Text>
                 <Chip
                   size="sm"
                   color="danger"
                   emphasis="outline"
-                  sx={statusChipSx}
+                  sx={{ borderRadius: "sm" }}
                   label="Terminated"
                 />
               </Stack>
               <Divider />
               <div>
-                <ContainerTerminatedStatusInfo state={status.lastState.terminated} />
+                <ContainerTerminatedStatusInfo
+                  state={status.lastState.terminated}
+                />
               </div>
             </Card>
           )}

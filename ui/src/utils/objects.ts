@@ -5,11 +5,15 @@ export function findValueByKeys<T>(obj: T, keys: string[]): string {
   for (const key of keys) {
     /* eslint-disable */
     let currentObject: any = obj;
-    const keyParts = key.split('.');
+    const keyParts = key.split(".");
     let found = true;
 
     for (let part of keyParts) {
-      if (currentObject && typeof currentObject === 'object' && part in currentObject) {
+      if (
+        currentObject &&
+        typeof currentObject === "object" &&
+        part in currentObject
+      ) {
         currentObject = currentObject[part];
       } else {
         found = false;
@@ -20,15 +24,15 @@ export function findValueByKeys<T>(obj: T, keys: string[]): string {
     if (found) {
       // Ensuring the found value is a string before returning it.
       // If the value is not a string, you might want to return a string representation or handle it differently
-      return typeof currentObject === 'string' ? currentObject : '';
+      return typeof currentObject === "string" ? currentObject : "";
     }
   }
-  return '';
+  return "";
 }
 
 export function hasKey<T>(obj: T, key: string): boolean {
-  return key.split('.').every((x) => {
-    if (typeof obj !== 'object' || obj === null || !(x in obj)) {
+  return key.split(".").every((x) => {
+    if (typeof obj !== "object" || obj === null || !(x in obj)) {
       return false;
     }
     // @ts-ignore
@@ -37,7 +41,10 @@ export function hasKey<T>(obj: T, key: string): boolean {
   });
 }
 
-export function containsKey(obj: Record<string, string> | undefined, key: string): boolean {
+export function containsKey(
+  obj: Record<string, string> | undefined,
+  key: string,
+): boolean {
   if (!obj) return false;
   return key in obj;
 }

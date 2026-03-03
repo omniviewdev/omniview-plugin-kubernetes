@@ -1,25 +1,9 @@
+import React from 'react';
 import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
 import { Chip, CircularProgress } from '@omniviewdev/ui';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
-import type { NodeCondition, Node as K8sNode, Event as K8sEvent, Pod  } from 'kubernetes-types/core/v1';
-import React from 'react';
-
-const statIconSx = { display: 'flex', color: 'text.tertiary' } as const;
-
-const statLabelSx = { fontWeight: 600 } as const;
-
-const cardRowSx = {
-  py: 0.75,
-  borderBottom: '1px solid',
-  borderColor: 'divider',
-} as const;
-
-const statListSx = { minWidth: 0 } as const;
-
-const healthChipSx = { flexShrink: 0, ml: 1.5 } as const;
-
 import {
   LuCircleCheck,
   LuCircleX,
@@ -41,12 +25,14 @@ type ConnectionData = {
   last_checked?: string;
 };
 
+type KubeResource = Record<string, any>;
+
 type Props = {
   data: ConnectionData | undefined;
   loading?: boolean;
-  nodes: K8sNode[];
-  pods: Pod[];
-  events: K8sEvent[];
+  nodes: KubeResource[];
+  pods: KubeResource[];
+  events: KubeResource[];
 };
 
 function formatLastChecked(timestamp: string | undefined): string {
@@ -66,13 +52,13 @@ function formatLastChecked(timestamp: string | undefined): string {
 function StatItem({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   const empty = value === '-';
   return (
-    <Stack direction="row" alignItems="center" gap={0.5}>
-      <Box sx={statIconSx}>{icon}</Box>
-      <Text size="xs" sx={statLabelSx} noWrap>
+    <Stack direction='row' alignItems='center' gap={0.5}>
+      <Box sx={{ display: 'flex', color: 'text.tertiary' }}>{icon}</Box>
+      <Text size='xs' sx={{ fontWeight: 600 }} noWrap>
         {label}
       </Text>
       <Text
-        size="xs"
+        size='xs'
         noWrap
         sx={{
           color: empty ? 'text.tertiary' : 'text.secondary',
@@ -85,26 +71,22 @@ function StatItem({ icon, label, value }: { icon: React.ReactNode; label: string
   );
 }
 
-function useHealthStatus(nodes: K8sNode[], pods: Pod[], events: K8sEvent[]) {
+function useHealthStatus(nodes: KubeResource[], pods: KubeResource[], events: KubeResource[]) {
   return React.useMemo(() => {
-    const unhealthyNodes = nodes.filter((n) => {
-      const conditions: NodeCondition[] = n.status?.conditions ?? [];
-      const ready = conditions.find((c) => c.type === 'Ready');
+    const unhealthyNodes = nodes.filter(n => {
+      const conditions = n.status?.conditions ?? [];
+      const ready = conditions.find((c: any) => c.type === 'Ready');
       return !ready || ready.status !== 'True';
     });
-    const failedPods = pods.filter((p) => p.status?.phase === 'Failed');
-    const pendingPods = pods.filter((p) => p.status?.phase === 'Pending');
-    const warningEvents = events.filter((e) => e.type === 'Warning');
+    const failedPods = pods.filter(p => p.status?.phase === 'Failed');
+    const pendingPods = pods.filter(p => p.status?.phase === 'Pending');
+    const warningEvents = events.filter(e => e.type === 'Warning');
 
     const issues: string[] = [];
-    if (unhealthyNodes.length > 0)
-      issues.push(`${unhealthyNodes.length} node${unhealthyNodes.length > 1 ? 's' : ''} not ready`);
-    if (failedPods.length > 0)
-      issues.push(`${failedPods.length} failed pod${failedPods.length > 1 ? 's' : ''}`);
-    if (pendingPods.length > 0)
-      issues.push(`${pendingPods.length} pending pod${pendingPods.length > 1 ? 's' : ''}`);
-    if (warningEvents.length > 0)
-      issues.push(`${warningEvents.length} warning event${warningEvents.length > 1 ? 's' : ''}`);
+    if (unhealthyNodes.length > 0) issues.push(`${unhealthyNodes.length} node${unhealthyNodes.length > 1 ? 's' : ''} not ready`);
+    if (failedPods.length > 0) issues.push(`${failedPods.length} failed pod${failedPods.length > 1 ? 's' : ''}`);
+    if (pendingPods.length > 0) issues.push(`${pendingPods.length} pending pod${pendingPods.length > 1 ? 's' : ''}`);
+    if (warningEvents.length > 0) issues.push(`${warningEvents.length} warning event${warningEvents.length > 1 ? 's' : ''}`);
 
     const hasErrors = unhealthyNodes.length > 0 || failedPods.length > 0;
     return { issues, hasErrors };
@@ -116,73 +98,52 @@ const ClusterInfoCard: React.FC<Props> = ({ data, loading, nodes, pods, events }
 
   if (loading) {
     return (
-      <Stack
-        direction="row"
-        alignItems="center"
-        gap={1}
-        sx={cardRowSx}
-      >
-        <CircularProgress size="sm" />
+      <Stack direction='row' alignItems='center' gap={1} sx={{ py: 0.75, borderBottom: '1px solid', borderColor: 'divider' }}>
+        <CircularProgress size='sm' />
       </Stack>
     );
   }
 
-  const healthColor =
-    health.issues.length === 0 ? 'success' : health.hasErrors ? 'danger' : 'warning';
-  const HealthIcon =
-    health.issues.length === 0 ? LuCircleCheck : health.hasErrors ? LuCircleX : LuTriangleAlert;
+  const healthColor = health.issues.length === 0 ? 'success' : health.hasErrors ? 'danger' : 'warning';
+  const HealthIcon = health.issues.length === 0 ? LuCircleCheck : health.hasErrors ? LuCircleX : LuTriangleAlert;
 
   return (
     <Stack
-      direction="row"
-      alignItems="center"
-      justifyContent="space-between"
-      sx={cardRowSx}
+      direction='row'
+      alignItems='center'
+      justifyContent='space-between'
+      sx={{
+        py: 0.75,
+        borderBottom: '1px solid',
+        borderColor: 'divider',
+      }}
     >
       {/* Left: cluster info + stats with dividers */}
       <Stack
-        direction="row"
-        alignItems="center"
-        divider={<Divider orientation="vertical" flexItem />}
+        direction='row'
+        alignItems='center'
+        divider={<Divider orientation='vertical' flexItem />}
         gap={1.5}
-        sx={statListSx}
+        sx={{ minWidth: 0 }}
       >
-        <StatItem icon={<LuGlobe size={12} />} label="Cluster" value={data?.server_url ?? '-'} />
-        <StatItem
-          icon={<LuTag size={12} />}
-          label="Version"
-          value={String(data?.k8s_version ?? '-')}
-        />
-        <StatItem
-          icon={<LuCpu size={12} />}
-          label="Platform"
-          value={String(data?.k8s_platform ?? '-')}
-        />
-        <StatItem
-          icon={<LuServer size={12} />}
-          label="Nodes"
-          value={data?.node_count != null ? String(data.node_count) : '-'}
-        />
-        <StatItem
-          icon={<LuLayers size={12} />}
-          label="APIs"
-          value={data?.api_groups != null ? String(data.api_groups) : '-'}
-        />
-        <StatItem
-          icon={<LuRefreshCw size={12} />}
-          label="Checked"
-          value={formatLastChecked(data?.last_checked)}
-        />
+        <StatItem icon={<LuGlobe size={12} />} label='Cluster' value={data?.server_url ?? '-'} />
+        <StatItem icon={<LuTag size={12} />} label='Version' value={String(data?.k8s_version ?? '-')} />
+        <StatItem icon={<LuCpu size={12} />} label='Platform' value={String(data?.k8s_platform ?? '-')} />
+        <StatItem icon={<LuServer size={12} />} label='Nodes' value={data?.node_count != null ? String(data.node_count) : '-'} />
+        <StatItem icon={<LuLayers size={12} />} label='APIs' value={data?.api_groups != null ? String(data.api_groups) : '-'} />
+        <StatItem icon={<LuRefreshCw size={12} />} label='Checked' value={formatLastChecked(data?.last_checked)} />
       </Stack>
 
       {/* Right: health chip */}
       <Chip
-        size="sm"
-        emphasis="soft"
+        size='sm'
+        emphasis='soft'
         color={healthColor}
         startAdornment={<HealthIcon size={12} />}
-        sx={healthChipSx}
-        label={health.issues.length === 0 ? 'Healthy' : health.issues.join(' \u00b7 ')}
+        sx={{ flexShrink: 0, ml: 1.5 }}
+        label={health.issues.length === 0
+          ? 'Healthy'
+          : health.issues.join(' \u00b7 ')}
       />
     </Stack>
   );

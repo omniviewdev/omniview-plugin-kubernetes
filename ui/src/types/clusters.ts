@@ -2,11 +2,7 @@ import { type types } from '@omniviewdev/runtime/models';
 
 // Special grouping modes + dynamic label-based grouping via `label:${string}`
 export type GroupByMode =
-  | 'none'
-  | 'provider'
-  | 'status'
-  | 'favorites'
-  | 'custom'
+  | 'none' | 'provider' | 'status' | 'favorites' | 'custom'
   | 'tags'
   | 'recent'
   | `label:${string}`;
@@ -18,7 +14,10 @@ export const LEGACY_GROUP_ALIASES: Record<string, string> = {
   cluster: 'cluster',
 };
 
-export type SortByField = 'name' | 'provider' | 'status' | 'recency' | `label:${string}`;
+export type SortByField =
+  | 'name' | 'provider' | 'status'
+  | 'recency'
+  | `label:${string}`;
 
 // Legacy aliases that map to label-based sorting
 export const LEGACY_SORT_ALIASES: Record<string, string> = {
@@ -37,41 +36,12 @@ export interface FilterState {
   labels?: Record<string, string[]>;
 }
 
-// ── Folder auto-match rule types ──────────────────────────────────────────────
-
-export type RuleField =
-  | 'name' | 'id' | 'provider' | 'tag' | 'isConnected'
-  | `label:${string}`
-  | `data:${string}`;
-
-export type RuleOperator =
-  | 'equals' | 'not_equals' | 'contains' | 'not_contains'
-  | 'matches_regex' | 'exists' | 'not_exists';
-
-export interface FolderRule {
-  id: string;
-  field: RuleField;
-  operator: RuleOperator;
-  value: string;
-}
-
-export type RuleLogic = 'and' | 'or';
-
-export interface FolderRuleSet {
-  logic: RuleLogic;
-  rules: FolderRule[];
-}
-
-// ── Connection group ──────────────────────────────────────────────────────────
-
 export interface ConnectionGroup {
   id: string;
   name: string;
   color?: string;
   icon?: string;
-  customImage?: string; // data URI (data:image/png;base64,... or data:image/svg+xml;base64,...)
   connectionIds: string[];
-  ruleSet?: FolderRuleSet;
 }
 
 export interface MetricConfig {

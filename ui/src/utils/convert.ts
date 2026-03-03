@@ -1,23 +1,23 @@
 export type KubernetesByteUnit =
-  | 'E'
-  | 'EB'
-  | 'P'
-  | 'PB'
-  | 'T'
-  | 'TB'
-  | 'G'
-  | 'GB'
-  | 'M'
-  | 'MB'
-  | 'k'
-  | 'KB'
-  | 'Ei'
-  | 'Pi'
-  | 'Ti'
-  | 'Gi'
-  | 'Mi'
-  | 'Ki'
-  | 'B';
+  | "E"
+  | "EB"
+  | "P"
+  | "PB"
+  | "T"
+  | "TB"
+  | "G"
+  | "GB"
+  | "M"
+  | "MB"
+  | "k"
+  | "KB"
+  | "Ei"
+  | "Pi"
+  | "Ti"
+  | "Gi"
+  | "Mi"
+  | "Ki"
+  | "B";
 
 export interface ByteConversionOptions {
   from: string;
@@ -69,18 +69,22 @@ const unitMultipliers: { [unit in KubernetesByteUnit]: bigint } = {
 //   }
 // }
 
-export function convertKubernetesByteUnits({ from, to, round }: ByteConversionOptions): string {
+export function convertKubernetesByteUnits({
+  from,
+  to,
+  round,
+}: ByteConversionOptions): string {
   const regex = /^(\d+(?:\.\d+)?)([EPTGMkEiPiTiGiMiKiB]*)$/;
   const match = from.match(regex);
 
-  if (!match) return '';
+  if (!match) return "";
 
   const [, valueStr, unit] = match;
   // Convert float to bigint accurately by handling the part after the decimal
 
   /* eslint-disable prefer-const */
-  let [integerPart, fractionalPart = ''] = valueStr.split('.');
-  fractionalPart = fractionalPart.padEnd(6, '0'); // Ensure the fractional part is 6 digits for precision
+  let [integerPart, fractionalPart = ""] = valueStr.split(".");
+  fractionalPart = fractionalPart.padEnd(6, "0"); // Ensure the fractional part is 6 digits for precision
   const value = BigInt(integerPart) * 10n ** 6n + BigInt(fractionalPart); // Convert to bigint equivalent with precision
 
   const fromMultiplier = unitMultipliers[unit as KubernetesByteUnit] || 1n;

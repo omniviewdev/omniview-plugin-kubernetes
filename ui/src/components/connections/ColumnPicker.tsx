@@ -1,8 +1,8 @@
-import Box from '@mui/material/Box';
-import { IconButton } from '@omniviewdev/ui/buttons';
-import { Checkbox } from '@omniviewdev/ui/inputs';
-import { Text } from '@omniviewdev/ui/typography';
 import React from 'react';
+import Box from '@mui/material/Box';
+import { Checkbox } from '@omniviewdev/ui/inputs';
+import { IconButton } from '@omniviewdev/ui/buttons';
+import { Text } from '@omniviewdev/ui/typography';
 import { LuColumns3 } from 'react-icons/lu';
 
 type Props = {
@@ -11,49 +11,10 @@ type Props = {
   onToggleColumn: (column: string) => void;
 };
 
-const backdropStyle = { position: 'fixed', inset: 0, zIndex: 999 } as const;
-
-const dropdownSx = {
-  position: 'absolute',
-  right: 0,
-  top: '100%',
-  mt: 0.5,
-  zIndex: 1000,
-  borderRadius: 'var(--ov-radius-md, 6px)',
-  boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
-  minWidth: 160,
-  maxHeight: 280,
-  overflow: 'auto',
-  py: 0.5,
-  px: 0.5,
-  border: '1px solid var(--ov-border-default, rgba(255,255,255,0.08))',
-  bgcolor: 'var(--ov-bg-surface, #1e1e1e)',
-} as const;
-
-const headingSx = {
-  px: 0.5,
-  pb: 0.25,
-  color: 'var(--ov-fg-muted)',
-  textTransform: 'uppercase',
-  letterSpacing: '0.04em',
-  fontSize: '0.625rem',
-} as const;
-
-const columnRowSx = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 0.75,
-  py: 0.25,
-  px: 0.5,
-  cursor: 'pointer',
-  borderRadius: 'var(--ov-radius-sm, 4px)',
-  '&:hover': { bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))' },
-} as const;
-
-const columnLabelSx = { userSelect: 'none' } as const;
-
 function formatColumnName(key: string): string {
-  return key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  return key
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase());
 }
 
 const ColumnPicker: React.FC<Props> = ({ allColumns, visibleColumns, onToggleColumn }) => {
@@ -70,44 +31,63 @@ const ColumnPicker: React.FC<Props> = ({ allColumns, visibleColumns, onToggleCol
   return (
     <>
       <IconButton
-        size="xs"
-        emphasis="ghost"
-        color="neutral"
-        onClick={() => setOpen((prev) => !prev)}
-        title="Select visible columns"
+        size='sm'
+        emphasis='ghost'
+        color='neutral'
+        onClick={() => setOpen(prev => !prev)}
+        title='Select visible columns'
       >
-        <LuColumns3 size={12} />
+        <LuColumns3 size={14} />
       </IconButton>
       {open && (
         <>
           {/* Backdrop */}
-          {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
           <div
-            style={backdropStyle}
+            style={{ position: 'fixed', inset: 0, zIndex: 999 }}
             onClick={() => setOpen(false)}
           />
           <Box
-            sx={dropdownSx}
+            sx={{
+              position: 'absolute',
+              right: 0,
+              top: '100%',
+              mt: 0.5,
+              zIndex: 1000,
+              borderRadius: 'var(--ov-radius-md, 6px)',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+              minWidth: 160,
+              maxHeight: 280,
+              overflow: 'auto',
+              py: 0.5,
+              px: 0.5,
+              border: '1px solid var(--ov-border-default, rgba(255,255,255,0.08))',
+              bgcolor: 'var(--ov-bg-surface, #1e1e1e)',
+            }}
           >
-            <Text
-              size="xs"
-              weight="semibold"
-              sx={headingSx}
-            >
+            <Text size='xs' weight='semibold' sx={{ px: 0.5, pb: 0.25, color: 'var(--ov-fg-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: '0.625rem' }}>
               Visible Columns
             </Text>
-            {sorted.map((col) => (
+            {sorted.map(col => (
               <Box
                 key={col}
                 onClick={() => onToggleColumn(col)}
-                sx={columnRowSx}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.75,
+                  py: 0.25,
+                  px: 0.5,
+                  cursor: 'pointer',
+                  borderRadius: 'var(--ov-radius-sm, 4px)',
+                  '&:hover': { bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))' },
+                }}
               >
                 <Checkbox
-                  size="sm"
+                  size='sm'
                   checked={visibleColumns.includes(col)}
                   onChange={() => onToggleColumn(col)}
                 />
-                <Text size="xs" sx={columnLabelSx}>
+                <Text size='xs' sx={{ userSelect: 'none' }}>
                   {formatColumnName(col)}
                 </Text>
               </Box>

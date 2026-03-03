@@ -1,13 +1,12 @@
-import { Column } from '@tanstack/react-table';
-import { CSSProperties } from 'react';
+import { CSSProperties } from "react"
+import { Column } from "@tanstack/react-table"
 
-export const getCommonPinningStyles = <T = Record<string, unknown>,>(
-  column: Column<T>,
-  header: boolean,
-): CSSProperties => {
-  const isPinned = column.getIsPinned();
-  const isLastLeftPinnedColumn = isPinned === 'left' && column.getIsLastColumn('left');
-  const isFirstRightPinnedColumn = isPinned === 'right' && column.getIsFirstColumn('right');
+export const getCommonPinningStyles = <T = any>(column: Column<T>, header: boolean): CSSProperties => {
+  const isPinned = column.getIsPinned()
+  const isLastLeftPinnedColumn =
+    isPinned === 'left' && column.getIsLastColumn('left')
+  const isFirstRightPinnedColumn =
+    isPinned === 'right' && column.getIsFirstColumn('right')
 
   const styles: CSSProperties = {
     boxShadow: isLastLeftPinnedColumn
@@ -20,14 +19,14 @@ export const getCommonPinningStyles = <T = Record<string, unknown>,>(
     position: isPinned ? 'sticky' : 'relative',
     width: `calc(var(--col-${column.id}-size) * 1px)`,
     zIndex: isPinned ? 1 : 0,
-  };
+  }
 
   // Only set backgroundColor when pinned — avoids clobbering inline styles with undefined
   if (isPinned) {
     // Header pinned cells: match header surface background
     // Body pinned cells: inherit from the row so hover/selection colors show through
-    styles.backgroundColor = header ? 'var(--ov-bg-surface)' : 'inherit';
+    styles.backgroundColor = header ? 'var(--ov-bg-surface)' : 'inherit'
   }
 
-  return styles;
-};
+  return styles
+}

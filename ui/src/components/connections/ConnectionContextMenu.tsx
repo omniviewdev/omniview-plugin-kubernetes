@@ -1,8 +1,9 @@
-import { usePluginRouter } from '@omniviewdev/runtime';
+import React, { useState } from 'react';
+import Box from '@mui/material/Box';
 import { IconButton } from '@omniviewdev/ui/buttons';
-import { DropdownMenu } from '@omniviewdev/ui/menus';
-import type { ContextMenuItem } from '@omniviewdev/ui/menus';
-import React, { useMemo } from 'react';
+import { Text } from '@omniviewdev/ui/typography';
+import Divider from '@mui/material/Divider';
+import { MoreVert } from '@mui/icons-material';
 import {
   LuPencil,
   LuTrash,
@@ -13,13 +14,14 @@ import {
   LuFolder,
   LuFolderPlus,
   LuCheck,
-  LuEllipsisVertical,
+  LuChevronDown,
+  LuChevronRight,
 } from 'react-icons/lu';
-
+import { Link } from '@omniviewdev/runtime';
 import type { ConnectionGroup } from '../../types/clusters';
-import { FolderIconDisplay } from '../../utils/folderIcons';
+import { getFolderIcon } from '../../utils/folderIcons';
 
-const ICON_SIZE = 14;
+const ICON_SIZE = 12;
 
 type Props = {
   connectionId: string;
@@ -52,147 +54,183 @@ const ConnectionContextMenu: React.FC<Props> = ({
   onCopyId,
   onDelete,
 }) => {
-  const { navigate } = usePluginRouter();
+  const [foldersExpanded, setFoldersExpanded] = useState(false);
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const open = Boolean(anchorEl);
 
-  const deleteName =
-    connectionName.length > 30 ? `${connectionName.slice(0, 30)}...` : connectionName;
+  const handleMenuClick = (e: React.MouseEvent<HTMLElement>) => {
+    e.stopPropagation();
+    setAnchorEl(e.currentTarget);
+  };
 
-  const items = useMemo<ContextMenuItem[]>(() => {
-    const result: ContextMenuItem[] = [];
+  const handleClose = () => {
+    setAnchorEl(null);
+    setFoldersExpanded(false);
+  };
 
-    // Connect / Disconnect
-    result.push(
-      isConnected
-        ? {
-            key: 'disconnect',
-            label: 'Disconnect',
-            icon: <LuUnplug size={ICON_SIZE} />,
-            onClick: onDisconnect,
-            dividerAfter: true,
-          }
-        : {
-            key: 'connect',
-            label: 'Connect',
-            icon: <LuPlug size={ICON_SIZE} />,
-            onClick: onConnect,
-            dividerAfter: true,
-          },
-    );
-
-    // Edit
-    result.push({
-      key: 'edit',
-      label: 'Edit',
-      icon: <LuPencil size={ICON_SIZE} />,
-      onClick: () => navigate(`/cluster/${encodeURIComponent(connectionId)}/edit`),
-    });
-
-    // Favorite — dividerAfter is set when there's no folders section below
-    const hasFolders = customGroups.length > 0 || !!onCreateFolder;
-    result.push({
-      key: 'favorite',
-      label: isFavorite ? 'Unfavorite' : 'Favorite',
-      icon: <LuStar size={ICON_SIZE} />,
-      onClick: onToggleFavorite,
-      dividerAfter: !hasFolders,
-    });
-
-    // Folders submenu
-    if (hasFolders) {
-      const folderChildren: ContextMenuItem[] = customGroups.map((group) => {
-        const isInGroup = group.connectionIds.includes(connectionId);
-        return {
-          key: `folder-${group.id}`,
-          label: group.name,
-          icon: isInGroup ? (
-            <LuCheck size={ICON_SIZE} />
-          ) : (
-            <FolderIconDisplay
-              icon={group.icon}
-              customImage={group.customImage}
-              size={ICON_SIZE}
-              color={group.color}
-            />
-          ),
-          onClick: () => {
-            if (isInGroup && onRemoveFromGroup) {
-              onRemoveFromGroup(group.id);
-            } else if (!isInGroup) {
-              onAssignToGroup(group.id);
-            }
-          },
-        };
-      });
-
-      if (onCreateFolder) {
-        folderChildren.push({
-          key: 'new-folder',
-          label: 'New Folder...',
-          icon: <LuFolderPlus size={ICON_SIZE} />,
-          onClick: () => onCreateFolder(connectionId),
-        });
-      }
-
-      result.push({
-        key: 'folders',
-        label: 'Folders',
-        icon: <LuFolder size={ICON_SIZE} />,
-        dividerAfter: true,
-        children: folderChildren,
-      });
-    }
-
-    // Copy ID
-    result.push({
-      key: 'copy-id',
-      label: 'Copy Connection ID',
-      icon: <LuCopy size={ICON_SIZE} />,
-      onClick: onCopyId,
-      dividerAfter: true,
-    });
-
-    // Delete
-    result.push({
-      key: 'delete',
-      label: `Delete '${deleteName}'`,
-      icon: <LuTrash size={ICON_SIZE} />,
-      color: 'danger',
-      onClick: onDelete,
-    });
-
-    return result;
-  }, [
-    isConnected,
-    isFavorite,
-    connectionId,
-    connectionName,
-    deleteName,
-    customGroups,
-    onConnect,
-    onDisconnect,
-    onToggleFavorite,
-    onAssignToGroup,
-    onRemoveFromGroup,
-    onCreateFolder,
-    onCopyId,
-    onDelete,
-    navigate,
-  ]);
+  // Truncate long names for the delete label
+  const deleteName = connectionName.length > 30
+    ? `${connectionName.slice(0, 30)}...`
+    : connectionName;
 
   return (
-    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
-    <span onClick={(e) => e.stopPropagation()}>
-      <DropdownMenu
-        items={items}
-        size="xs"
-        placement="bottom-end"
-        trigger={
-          <IconButton aria-label="More" size="sm" emphasis="ghost" color="neutral">
-            <LuEllipsisVertical size={16} />
-          </IconButton>
-        }
-      />
-    </span>
+    <>
+      <IconButton
+        aria-label='More'
+        size='sm'
+        emphasis='ghost'
+        color='neutral'
+        onClick={handleMenuClick}
+      >
+        <MoreVert sx={{ fontSize: 16 }} />
+      </IconButton>
+      {/* Note: This menu structure is simplified since DropdownMenu from @omniviewdev/ui/menus
+          may have a different API. Using basic Box-based menu as fallback. */}
+      {open && (
+        <>
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+            onClick={handleClose}
+          />
+          <Box
+            sx={{
+              position: 'absolute',
+              right: 0,
+              top: '100%',
+              zIndex: 1000,
+              borderRadius: 'var(--ov-radius-md, 6px)',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+              bgcolor: 'var(--ov-bg-surface, #1e1e1e)',
+              border: '1px solid var(--ov-border-default, rgba(255,255,255,0.08))',
+              minWidth: 150,
+              fontSize: '0.75rem',
+              py: 0.375,
+            }}
+          >
+            {isConnected ? (
+              <Box
+                onClick={() => { onDisconnect(); handleClose(); }}
+                sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 0.75, py: 0.25, cursor: 'pointer', '&:hover': { bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))' } }}
+              >
+                <LuUnplug size={ICON_SIZE} />
+                Disconnect
+              </Box>
+            ) : (
+              <Box
+                onClick={() => { onConnect(); handleClose(); }}
+                sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 0.75, py: 0.25, cursor: 'pointer', '&:hover': { bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))' } }}
+              >
+                <LuPlug size={ICON_SIZE} />
+                Connect
+              </Box>
+            )}
+
+            <Divider sx={{ my: 0.5 }} />
+
+            <Link to={`/cluster/${encodeURIComponent(connectionId)}/edit`} style={{ textDecoration: 'none', color: 'inherit' }}>
+              <Box
+                onClick={handleClose}
+                sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 0.75, py: 0.25, cursor: 'pointer', '&:hover': { bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))' } }}
+              >
+                <LuPencil size={ICON_SIZE} />
+                Edit
+              </Box>
+            </Link>
+
+            <Box
+              onClick={() => { onToggleFavorite(); handleClose(); }}
+              sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 0.75, py: 0.25, cursor: 'pointer', '&:hover': { bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))' } }}
+            >
+              <LuStar size={ICON_SIZE} />
+              {isFavorite ? 'Unfavorite' : 'Favorite'}
+            </Box>
+
+            {(customGroups.length > 0 || onCreateFolder) && (
+              <>
+                <Divider sx={{ my: 0.5 }} />
+                <Box
+                  role='menuitem'
+                  tabIndex={0}
+                  onClick={() => setFoldersExpanded(prev => !prev)}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    px: 1,
+                    py: 0.5,
+                    cursor: 'pointer',
+                    '&:hover': { bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))' },
+                  }}
+                >
+                  <LuFolder size={ICON_SIZE} />
+                  <Text sx={{ flex: 1, fontSize: 'inherit' }}>Folders</Text>
+                  {foldersExpanded
+                    ? <LuChevronDown size={ICON_SIZE} style={{ opacity: 0.5, marginLeft: 6 }} />
+                    : <LuChevronRight size={ICON_SIZE} style={{ opacity: 0.5, marginLeft: 6 }} />
+                  }
+                </Box>
+                {foldersExpanded && (
+                  <>
+                    {customGroups.map(group => {
+                      const isInGroup = group.connectionIds.includes(connectionId);
+                      const Icon = getFolderIcon(group.icon);
+                      return (
+                        <Box
+                          key={group.id}
+                          onClick={() => {
+                            if (isInGroup && onRemoveFromGroup) {
+                              onRemoveFromGroup(group.id);
+                            } else if (!isInGroup) {
+                              onAssignToGroup(group.id);
+                            }
+                            handleClose();
+                          }}
+                          sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: 3, pr: 0.75, py: 0.25, cursor: 'pointer', '&:hover': { bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))' } }}
+                        >
+                          <Box sx={{ color: group.color }}>
+                            {isInGroup ? <LuCheck size={ICON_SIZE} /> : <Icon size={ICON_SIZE} />}
+                          </Box>
+                          {group.name}
+                        </Box>
+                      );
+                    })}
+                    {onCreateFolder && (
+                      <Box
+                        onClick={() => { onCreateFolder(connectionId); handleClose(); }}
+                        sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: 3, pr: 0.75, py: 0.25, cursor: 'pointer', '&:hover': { bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))' } }}
+                      >
+                        <LuFolderPlus size={ICON_SIZE} />
+                        New Folder...
+                      </Box>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+
+            <Divider sx={{ my: 0.5 }} />
+
+            <Box
+              onClick={() => { onCopyId(); handleClose(); }}
+              sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 0.75, py: 0.25, cursor: 'pointer', '&:hover': { bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))' } }}
+            >
+              <LuCopy size={ICON_SIZE} />
+              Copy Connection ID
+            </Box>
+
+            <Divider sx={{ my: 0.5 }} />
+
+            <Box
+              onClick={() => { onDelete(); handleClose(); }}
+              sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 0.75, py: 0.25, cursor: 'pointer', color: 'error.main', '&:hover': { bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))' } }}
+            >
+              <LuTrash size={ICON_SIZE} />
+              Delete '{deleteName}'
+            </Box>
+          </Box>
+        </>
+      )}
+    </>
   );
 };
 

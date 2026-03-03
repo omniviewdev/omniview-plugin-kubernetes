@@ -1,5 +1,5 @@
-import type { DrawerComponent } from '@omniviewdev/runtime';
 import { createContext, useContext } from 'react';
+import type { DrawerComponent } from '@omniviewdev/runtime';
 
 /**
  * Provides the DrawerComponent (with its actions array) to table cells.
@@ -8,7 +8,6 @@ import { createContext, useContext } from 'react';
  */
 export const TableDrawerContext = createContext<DrawerComponent | undefined>(undefined);
 
-// eslint-disable-next-line react-refresh/only-export-components
 export function useTableDrawer(): DrawerComponent | undefined {
   return useContext(TableDrawerContext);
 }

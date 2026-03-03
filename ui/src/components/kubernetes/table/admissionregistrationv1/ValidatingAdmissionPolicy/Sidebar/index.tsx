@@ -1,14 +1,14 @@
-import { DrawerContext } from '@omniviewdev/runtime';
-import { Stack } from '@omniviewdev/ui/layout';
-import { ValidatingAdmissionPolicy } from 'kubernetes-types/admissionregistration/v1';
-import React from 'react';
+import React from "react";
 
 // material-ui
+import { Stack } from "@omniviewdev/ui/layout";
 
 // types
+import { ValidatingAdmissionPolicy } from "kubernetes-types/admissionregistration/v1";
+import { DrawerContext } from "@omniviewdev/runtime";
 
 // project-imports
-import ObjectMetaSection from '../../../../../shared/ObjectMetaSection';
+import ObjectMetaSection from "../../../../../shared/ObjectMetaSection";
 
 interface Props {
   ctx: DrawerContext<ValidatingAdmissionPolicy>;
@@ -23,12 +23,12 @@ export const ValidatingAdmissionPolicySidebar: React.FC<Props> = ({ ctx }) => {
   }
 
   return (
-    <Stack direction="column" width={'100%'} spacing={2}>
+    <Stack direction="column" width={"100%"} spacing={2}>
       <ObjectMetaSection data={ctx.data.metadata} />
       {/** TODO: fill this in with more data */}
     </Stack>
   );
 };
 
-ValidatingAdmissionPolicySidebar.displayName = 'ValidatingAdmissionPolicySidebar';
+ValidatingAdmissionPolicySidebar.displayName = "ValidatingAdmissionPolicySidebar";
 export default ValidatingAdmissionPolicySidebar;

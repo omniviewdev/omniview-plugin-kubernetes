@@ -1,14 +1,14 @@
-import { DrawerContext } from '@omniviewdev/runtime';
-import { Stack } from '@omniviewdev/ui/layout';
-import { PersistentVolumeClaim } from 'kubernetes-types/core/v1';
-import React from 'react';
+import React from "react";
 
 // material-ui
+import { Stack } from "@omniviewdev/ui/layout";
 
 // types
+import { PersistentVolumeClaim } from "kubernetes-types/core/v1";
 
 // project-imports
-import ObjectMetaSection from '../../../../../shared/ObjectMetaSection';
+import ObjectMetaSection from "../../../../../shared/ObjectMetaSection";
+import { DrawerContext } from "@omniviewdev/runtime";
 
 interface Props {
   ctx: DrawerContext<PersistentVolumeClaim>;
@@ -24,12 +24,12 @@ export const PersistentVolumeClaimSidebar: React.FC<Props> = ({ ctx }) => {
 
   // compose your component here
   return (
-    <Stack direction="column" width={'100%'} spacing={2}>
+    <Stack direction="column" width={"100%"} spacing={2}>
       <ObjectMetaSection data={ctx.data.metadata} />
       {/** TODO: fill this in with more data */}
     </Stack>
   );
 };
 
-PersistentVolumeClaimSidebar.displayName = 'PersistentVolumeClaimSidebar';
+PersistentVolumeClaimSidebar.displayName = "PersistentVolumeClaimSidebar";
 export default PersistentVolumeClaimSidebar;

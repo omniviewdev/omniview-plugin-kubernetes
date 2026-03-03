@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/omniview/kubernetes/pkg/utils"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	"k8s.io/client-go/kubernetes"
@@ -56,18 +57,7 @@ func PodHandler(
 	stopCh chan error,
 	resize <-chan exec.SessionResizeInput,
 ) error {
-	return podHandlerWithProvider(defaultClientProvider, ctx, opts, tty, stopCh, resize)
-}
-
-func podHandlerWithProvider(
-	provider ClientProvider,
-	ctx *types.PluginContext,
-	opts exec.SessionOptions,
-	tty *os.File,
-	stopCh chan error,
-	resize <-chan exec.SessionResizeInput,
-) error {
-	clients, err := provider(ctx)
+	clients, err := utils.KubeClientsFromContext(ctx)
 	if err != nil {
 		return err
 	}

@@ -1,17 +1,12 @@
+import React from 'react';
+
 // @omniviewdev/ui
 import Box from '@mui/material/Box';
 import { Chip } from '@omniviewdev/ui';
 import { Text } from '@omniviewdev/ui/typography';
-import React from 'react';
 
 // project imports
 import Icon from '../../shared/Icon';
-
-// ---------------------------------------------------------------------------
-// Static styles
-// ---------------------------------------------------------------------------
-
-const chipSx = { borderRadius: 'sm' } as const;
 
 type Props = {
   value: string;
@@ -23,15 +18,7 @@ type Props = {
   variant?: 'soft' | 'outlined';
 };
 
-export const ChipCell: React.FC<Props> = ({
-  align,
-  value,
-  color,
-  colorMap,
-  startDecorator,
-  endDecorator,
-  variant,
-}) => {
+export const ChipCell: React.FC<Props> = ({ align, value, color, colorMap, startDecorator, endDecorator, variant }) => {
   const getColor = () => {
     if (colorMap) {
       return colorMap[value] || 'neutral';
@@ -61,27 +48,26 @@ export const ChipCell: React.FC<Props> = ({
   };
 
   return (
-    <Box display="flex" flex={1} justifyContent={getAlignment()} alignItems="center">
+    <Box
+      display='flex'
+      flex={1}
+      justifyContent={getAlignment()}
+      alignItems='center'
+    >
       <Chip
         size="sm"
         color={getColor()}
         emphasis={getEmphasis()}
-        sx={chipSx}
+        sx={{
+          borderRadius: 'sm',
+        }}
         startAdornment={
-          typeof startDecorator === 'string' ? (
-            <Icon name={startDecorator} size={16} />
-          ) : (
-            startDecorator
-          )
+          typeof startDecorator === 'string' ? <Icon name={startDecorator} size={16} /> : startDecorator
         }
         endAdornment={
           typeof endDecorator === 'string' ? <Icon name={endDecorator} size={16} /> : endDecorator
         }
-        label={
-          <Text weight="semibold" size="sm">
-            {value}
-          </Text>
-        }
+        label={<Text weight='semibold' size='sm'>{value}</Text>}
       />
     </Box>
   );

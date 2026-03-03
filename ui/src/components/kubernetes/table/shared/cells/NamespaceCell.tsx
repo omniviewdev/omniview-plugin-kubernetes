@@ -1,17 +1,8 @@
+import { useState } from 'react';
 import Box from '@mui/material/Box';
 import { CopyButton } from '@omniviewdev/ui/buttons';
-import type { CellContext } from '@tanstack/react-table';
-import { useState } from 'react';
 import { LuFilter } from 'react-icons/lu';
-
-const namespaceCellSx = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 0.25,
-  minWidth: 0,
-} as const;
-
-const namespaceTextStyle = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } as const;
+import type { CellContext } from '@tanstack/react-table';
 
 /**
  * NamespaceCell renders the namespace value with hover actions:
@@ -36,20 +27,22 @@ export const NamespaceCell = <T,>({ getValue, table, column }: CellContext<T, un
     }
   };
 
-  const isFiltered = ((table.getColumn('namespace')?.getFilterValue() as string[]) ?? []).includes(
-    val,
-  );
+  const isFiltered = ((table.getColumn('namespace')?.getFilterValue() as string[]) ?? []).includes(val);
 
   return (
     <Box
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      sx={namespaceCellSx}
+      sx={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 0.25,
+        minWidth: 0,
+      }}
     >
-      <span style={namespaceTextStyle}>
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {val}
       </span>
-      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
       <span
         onClick={(e) => e.stopPropagation()}
         style={{
@@ -63,17 +56,13 @@ export const NamespaceCell = <T,>({ getValue, table, column }: CellContext<T, un
         <CopyButton value={val} size="xs" />
         <span
           role="button"
-          tabIndex={0}
           onClick={handleFilter}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleFilter(e as unknown as React.MouseEvent); } }}
           title={isFiltered ? 'Remove namespace filter' : 'Filter by this namespace'}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
             cursor: 'pointer',
-            color: isFiltered
-              ? 'var(--mui-palette-primary-main)'
-              : 'var(--mui-palette-action-active)',
+            color: isFiltered ? 'var(--mui-palette-primary-main)' : 'var(--mui-palette-action-active)',
             lineHeight: 0,
           }}
         >

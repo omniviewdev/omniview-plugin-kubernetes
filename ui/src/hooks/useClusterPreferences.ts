@@ -1,13 +1,6 @@
-import { usePluginData } from '@omniviewdev/runtime';
 import { useCallback, useMemo } from 'react';
-
-import type {
-  ConnectionOverride,
-  ConnectionGroup,
-  FolderRuleSet,
-  RecentEntry,
-  HubSectionConfig,
-} from '../types/clusters';
+import { usePluginData } from '@omniviewdev/runtime';
+import type { ConnectionOverride, ConnectionGroup, RecentEntry, HubSectionConfig } from '../types/clusters';
 
 const DEFAULT_FAVORITES: string[] = [];
 const DEFAULT_GROUPS: ConnectionGroup[] = [];
@@ -43,11 +36,7 @@ export function useClusterPreferences(pluginID: string) {
     data: connectionOverrides,
     update: setConnectionOverrides,
     isLoading: overridesLoading,
-  } = usePluginData<Record<string, ConnectionOverride>>(
-    pluginID,
-    'cluster_overrides',
-    DEFAULT_OVERRIDES,
-  );
+  } = usePluginData<Record<string, ConnectionOverride>>(pluginID, 'cluster_overrides', DEFAULT_OVERRIDES);
 
   const {
     data: recentConnections,
@@ -61,136 +50,95 @@ export function useClusterPreferences(pluginID: string) {
     isLoading: hubSectionsLoading,
   } = usePluginData<HubSectionConfig[]>(pluginID, 'hub_sections', DEFAULT_HUB_SECTIONS);
 
-  const setHubSections = useCallback(
-    async (sections: HubSectionConfig[]) => {
-      await setHubSectionsRaw(sections);
-    },
-    [setHubSectionsRaw],
-  );
+  const setHubSections = useCallback(async (sections: HubSectionConfig[]) => {
+    await setHubSectionsRaw(sections);
+  }, [setHubSectionsRaw]);
 
-  const updateHubSectionCollapsed = useCallback(
-    async (sectionType: string, collapsed: boolean) => {
-      const current = hubSections ?? DEFAULT_HUB_SECTIONS;
-      await setHubSectionsRaw(
-        current.map((s) => (s.type === sectionType ? { ...s, collapsed } : s)),
-      );
-    },
-    [hubSections, setHubSectionsRaw],
-  );
+  const updateHubSectionCollapsed = useCallback(async (sectionType: string, collapsed: boolean) => {
+    const current = hubSections ?? DEFAULT_HUB_SECTIONS;
+    await setHubSectionsRaw(current.map(s =>
+      s.type === sectionType ? { ...s, collapsed } : s,
+    ));
+  }, [hubSections, setHubSectionsRaw]);
 
-  const toggleFavorite = useCallback(
-    async (connectionId: string) => {
-      const current = favorites ?? [];
-      const next = current.includes(connectionId)
-        ? current.filter((id) => id !== connectionId)
-        : [...current, connectionId];
-      await setFavorites(next);
-    },
-    [favorites, setFavorites],
-  );
+  const toggleFavorite = useCallback(async (connectionId: string) => {
+    const current = favorites ?? [];
+    const next = current.includes(connectionId)
+      ? current.filter(id => id !== connectionId)
+      : [...current, connectionId];
+    await setFavorites(next);
+  }, [favorites, setFavorites]);
 
-  const addGroup = useCallback(
-    async (group: ConnectionGroup) => {
-      const current = customGroups ?? [];
-      await setCustomGroups([...current, group]);
-    },
-    [customGroups, setCustomGroups],
-  );
+  const addGroup = useCallback(async (group: ConnectionGroup) => {
+    const current = customGroups ?? [];
+    await setCustomGroups([...current, group]);
+  }, [customGroups, setCustomGroups]);
 
-  const removeGroup = useCallback(
-    async (groupId: string) => {
-      const current = customGroups ?? [];
-      await setCustomGroups(current.filter((g) => g.id !== groupId));
-    },
-    [customGroups, setCustomGroups],
-  );
+  const removeGroup = useCallback(async (groupId: string) => {
+    const current = customGroups ?? [];
+    await setCustomGroups(current.filter(g => g.id !== groupId));
+  }, [customGroups, setCustomGroups]);
 
-  const assignToGroup = useCallback(
-    async (groupId: string, connectionId: string) => {
-      const current = customGroups ?? [];
-      await setCustomGroups(
-        current.map((g) => {
-          if (g.id !== groupId) return g;
-          if (g.connectionIds.includes(connectionId)) return g;
-          return { ...g, connectionIds: [...g.connectionIds, connectionId] };
-        }),
-      );
-    },
-    [customGroups, setCustomGroups],
-  );
+  const assignToGroup = useCallback(async (groupId: string, connectionId: string) => {
+    const current = customGroups ?? [];
+    await setCustomGroups(current.map(g => {
+      if (g.id !== groupId) return g;
+      if (g.connectionIds.includes(connectionId)) return g;
+      return { ...g, connectionIds: [...g.connectionIds, connectionId] };
+    }));
+  }, [customGroups, setCustomGroups]);
 
-  const removeFromGroup = useCallback(
-    async (groupId: string, connectionId: string) => {
-      const current = customGroups ?? [];
-      await setCustomGroups(
-        current.map((g) => {
-          if (g.id !== groupId) return g;
-          return { ...g, connectionIds: g.connectionIds.filter((id) => id !== connectionId) };
-        }),
-      );
-    },
-    [customGroups, setCustomGroups],
-  );
+  const removeFromGroup = useCallback(async (groupId: string, connectionId: string) => {
+    const current = customGroups ?? [];
+    await setCustomGroups(current.map(g => {
+      if (g.id !== groupId) return g;
+      return { ...g, connectionIds: g.connectionIds.filter(id => id !== connectionId) };
+    }));
+  }, [customGroups, setCustomGroups]);
 
-  const updateGroup = useCallback(
-    async (groupId: string, updates: { name?: string; color?: string; icon?: string; customImage?: string; ruleSet?: FolderRuleSet }) => {
-      const current = customGroups ?? [];
-      await setCustomGroups(
-        current.map((g) => {
-          if (g.id !== groupId) return g;
-          return { ...g, ...updates };
-        }),
-      );
-    },
-    [customGroups, setCustomGroups],
-  );
+  const updateGroup = useCallback(async (groupId: string, updates: { name?: string; color?: string; icon?: string }) => {
+    const current = customGroups ?? [];
+    await setCustomGroups(current.map(g => {
+      if (g.id !== groupId) return g;
+      return { ...g, ...updates };
+    }));
+  }, [customGroups, setCustomGroups]);
 
-  const updateOverride = useCallback(
-    async (connectionId: string, override: ConnectionOverride) => {
-      const current = connectionOverrides ?? {};
-      await setConnectionOverrides({ ...current, [connectionId]: override });
-    },
-    [connectionOverrides, setConnectionOverrides],
-  );
+  const updateOverride = useCallback(async (connectionId: string, override: ConnectionOverride) => {
+    const current = connectionOverrides ?? {};
+    await setConnectionOverrides({ ...current, [connectionId]: override });
+  }, [connectionOverrides, setConnectionOverrides]);
 
-  const removeOverride = useCallback(
-    async (connectionId: string) => {
-      const current = connectionOverrides ?? {};
-      const next = { ...current };
-      delete next[connectionId];
-      await setConnectionOverrides(next);
-    },
-    [connectionOverrides, setConnectionOverrides],
-  );
+  const removeOverride = useCallback(async (connectionId: string) => {
+    const current = connectionOverrides ?? {};
+    const next = { ...current };
+    delete next[connectionId];
+    await setConnectionOverrides(next);
+  }, [connectionOverrides, setConnectionOverrides]);
 
-  const recordAccess = useCallback(
-    async (connectionId: string) => {
-      const current = recentConnections ?? {};
-      const existing = current[connectionId];
-      const next = {
-        ...current,
-        [connectionId]: {
-          lastAccessed: Date.now(),
-          accessCount: (existing?.accessCount ?? 0) + 1,
-        },
-      };
+  const recordAccess = useCallback(async (connectionId: string) => {
+    const current = recentConnections ?? {};
+    const existing = current[connectionId];
+    const next = {
+      ...current,
+      [connectionId]: {
+        lastAccessed: Date.now(),
+        accessCount: (existing?.accessCount ?? 0) + 1,
+      },
+    };
 
-      // Prune oldest entries if over limit
-      const keys = Object.keys(next);
-      if (keys.length > MAX_RECENT_ENTRIES) {
-        const sorted = keys.sort(
-          (a, b) => (next[a].lastAccessed ?? 0) - (next[b].lastAccessed ?? 0),
-        );
-        const toRemove = sorted.slice(0, keys.length - MAX_RECENT_ENTRIES);
-        for (const key of toRemove) {
-          delete next[key];
-        }
+    // Prune oldest entries if over limit
+    const keys = Object.keys(next);
+    if (keys.length > MAX_RECENT_ENTRIES) {
+      const sorted = keys.sort((a, b) => (next[a].lastAccessed ?? 0) - (next[b].lastAccessed ?? 0));
+      const toRemove = sorted.slice(0, keys.length - MAX_RECENT_ENTRIES);
+      for (const key of toRemove) {
+        delete next[key];
       }
+    }
 
-      await setRecentConnections(next);
-    },
-    [recentConnections, setRecentConnections],
-  );
+    await setRecentConnections(next);
+  }, [recentConnections, setRecentConnections]);
 
   // Collect all tags used across all connection overrides
   const availableTags = useMemo(() => {
@@ -212,8 +160,7 @@ export function useClusterPreferences(pluginID: string) {
     recentConnections: recentConnections ?? DEFAULT_RECENT,
     hubSections: hubSections ?? DEFAULT_HUB_SECTIONS,
     availableTags,
-    isLoading:
-      favoritesLoading || groupsLoading || overridesLoading || recentLoading || hubSectionsLoading,
+    isLoading: favoritesLoading || groupsLoading || overridesLoading || recentLoading || hubSectionsLoading,
     toggleFavorite,
     addGroup,
     removeGroup,

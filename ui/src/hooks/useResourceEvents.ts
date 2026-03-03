@@ -1,7 +1,6 @@
+import { useMemo } from 'react';
 import { useResources } from '@omniviewdev/runtime';
 import type { KubeEvent, TimelineEvent } from '@omniviewdev/ui/domain';
-import type { Event as K8sEvent } from 'kubernetes-types/core/v1';
-import { useMemo } from 'react';
 
 const MAX_EVENTS = 100;
 
@@ -78,8 +77,7 @@ export function useResourceEvents({
       return { events: [], timelineEvents: [], isLoading: false, warningCount: 0 };
     }
 
-    // The runtime SDK types result as any[]; cast to the K8s Event type
-    const rawEvents = resources.data.result as K8sEvent[];
+    const rawEvents = resources.data.result as Record<string, any>[];
 
     // Filter events belonging to this specific resource
     const filtered = rawEvents
@@ -89,8 +87,8 @@ export function useResourceEvents({
         return io.kind === kind && io.name === resourceName;
       })
       .sort((a, b) => {
-        const tsA = (a.lastTimestamp ?? a.firstTimestamp ?? a.metadata?.creationTimestamp ?? '');
-        const tsB = (b.lastTimestamp ?? b.firstTimestamp ?? b.metadata?.creationTimestamp ?? '');
+        const tsA = a.lastTimestamp || a.firstTimestamp || a.metadata?.creationTimestamp || '';
+        const tsB = b.lastTimestamp || b.firstTimestamp || b.metadata?.creationTimestamp || '';
         return new Date(tsB).getTime() - new Date(tsA).getTime();
       })
       .slice(0, MAX_EVENTS);
@@ -100,9 +98,9 @@ export function useResourceEvents({
       reason: ev.reason ?? '',
       message: ev.message ?? '',
       count: ev.count,
-      firstTimestamp: (ev.firstTimestamp ?? ev.metadata?.creationTimestamp),
+      firstTimestamp: ev.firstTimestamp ?? ev.metadata?.creationTimestamp,
       lastTimestamp: ev.lastTimestamp,
-      involvedObject: ev.involvedObject?.kind && ev.involvedObject?.name
+      involvedObject: ev.involvedObject
         ? {
             kind: ev.involvedObject.kind,
             name: ev.involvedObject.name,
@@ -115,8 +113,8 @@ export function useResourceEvents({
       id: ev.metadata?.uid ?? String(i),
       title: ev.reason ?? 'Event',
       description: ev.message,
-      timestamp: formatAge(((ev.lastTimestamp ?? ev.firstTimestamp ?? ev.metadata?.creationTimestamp))),
-      color: ev.type === 'Warning' ? ('warning' as const) : ('info' as const),
+      timestamp: formatAge(ev.lastTimestamp ?? ev.firstTimestamp ?? ev.metadata?.creationTimestamp),
+      color: ev.type === 'Warning' ? 'warning' as const : 'info' as const,
     }));
 
     const warningCount = events.filter((e) => e.type === 'Warning').length;

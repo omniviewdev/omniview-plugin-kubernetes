@@ -1,22 +1,10 @@
+import React, { useMemo } from 'react';
 import Box from '@mui/material/Box';
 import { useResourceMetrics } from '@omniviewdev/runtime';
 import type { metric } from '@omniviewdev/runtime/models';
 import { MetricsPanel } from '@omniviewdev/ui/charts';
-import type {
-  TimeSeriesDef,
-  ChartTimeRange,
-  MetricFormat,
-  ChartAnnotation,
-} from '@omniviewdev/ui/charts';
-import React, { useMemo } from 'react';
-import {
-  LuCpu,
-  LuMemoryStick,
-  LuNetwork,
-  LuHardDrive,
-  LuActivity,
-  LuRotateCcw,
-} from 'react-icons/lu';
+import type { TimeSeriesDef, ChartTimeRange, MetricFormat, ChartAnnotation } from '@omniviewdev/ui/charts';
+import { LuCpu, LuMemoryStick, LuNetwork, LuHardDrive, LuActivity, LuRotateCcw } from 'react-icons/lu';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -99,7 +87,7 @@ function toTimeSeriesDef(
     id: ts.metric_id,
     label,
     data: (ts.data_points ?? []).map((dp) => ({
-      timestamp: new Date(dp.timestamp as unknown as string).getTime(),
+      timestamp: new Date(String(dp.timestamp)).getTime(),
       value: dp.value,
     })),
     color,
@@ -208,12 +196,6 @@ const CLUSTER_CHARTS: ChartDef[] = [
   },
 ];
 
-const chartGridSx = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-  gap: 1.5,
-} as const;
-
 const NAMESPACE_CHARTS: ChartDef[] = [
   {
     title: 'Workload CPU',
@@ -292,11 +274,7 @@ const ClusterMetricsSection: React.FC<ClusterMetricsSectionProps> = ({
 
   // Build resourceData with optional Prometheus config override
   const resourceData = useMemo(() => {
-    if (
-      !metricConfig?.prometheusService &&
-      !metricConfig?.prometheusNamespace &&
-      !metricConfig?.prometheusPort
-    ) {
+    if (!metricConfig?.prometheusService && !metricConfig?.prometheusNamespace && !metricConfig?.prometheusPort) {
       return {};
     }
     return {
@@ -309,11 +287,7 @@ const ClusterMetricsSection: React.FC<ClusterMetricsSectionProps> = ({
   }, [metricConfig]);
 
   // Time-series query (shape=1)
-  const {
-    data: tsData,
-    providers,
-    isLoading,
-  } = useResourceMetrics({
+  const { data: tsData, providers, isLoading } = useResourceMetrics({
     pluginID: 'kubernetes',
     connectionID,
     resourceKey: 'cluster::metrics',
@@ -351,13 +325,19 @@ const ClusterMetricsSection: React.FC<ClusterMetricsSectionProps> = ({
   if (providers.length === 0 && !isLoading) return null;
 
   // Only show charts that have data
-  const activeCharts = charts.filter((def) => def.metricIDs.some((id) => tsSeries.has(id)));
+  const activeCharts = charts.filter((def) =>
+    def.metricIDs.some((id) => tsSeries.has(id)),
+  );
 
   if (activeCharts.length === 0 && !isLoading) return null;
 
   return (
     <Box
-      sx={chartGridSx}
+      sx={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+        gap: 1.5,
+      }}
     >
       {(isLoading && activeCharts.length === 0 ? charts : activeCharts).map((def) => {
         const series: TimeSeriesDef[] = [];

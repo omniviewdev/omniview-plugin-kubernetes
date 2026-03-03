@@ -1,10 +1,7 @@
-import { ColumnDef } from '@tanstack/react-table';
+import { ColumnDef } from '@tanstack/react-table'
+import AgeCell from '../cells/AgeCell'
 
-import AgeCell from '../cells/AgeCell';
-
-export const ageColumn = <
-  T extends { metadata?: { creationTimestamp?: string } },
->(): ColumnDef<T> => ({
+export const ageColumn = <T extends { metadata?: { creationTimestamp?: string } }>(): ColumnDef<T> => ({
   id: 'age',
   header: 'Age',
   accessorKey: 'metadata.creationTimestamp',
@@ -12,6 +9,6 @@ export const ageColumn = <
   size: 100,
   minSize: 60,
   maxSize: 200,
-});
+})
 
-export default ageColumn;
+export default ageColumn

@@ -1,36 +1,19 @@
+import { type Table } from '@tanstack/react-table';
+
 import Box from '@mui/material/Box';
 import { Checkbox } from '@omniviewdev/ui/inputs';
 
-// ---------------------------------------------------------------------------
-// Static styles
-// ---------------------------------------------------------------------------
-
-const selectBoxSx = {
-  display: 'flex',
-  justifyContent: 'center',
-  alignItems: 'center',
-  height: '100%',
-  maxWidth: 24,
-} as const;
-
-export const SelectBoxHeader = ({
-  checked,
-  indeterminate,
-  onToggle,
-}: {
-  checked: boolean;
-  indeterminate: boolean;
-  onToggle: (checked: boolean) => void;
-}) => (
-  <Box sx={selectBoxSx}>
+export const SelectBoxHeader = ({ table }: { table: Table<any> }) => (
+  <Box sx={{
+    display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', maxWidth: 24
+  }}>
     <Checkbox
-      size="sm"
-      checked={checked}
-      indeterminate={indeterminate}
-      onChange={(value) => {
-        onToggle(value);
+      size='sm'
+      checked={table.getIsAllPageRowsSelected()}
+      onChange={(checked) => {
+        table.toggleAllPageRowsSelected(checked);
       }}
-      aria-label="Select all rows"
+      aria-label='Select all nodes'
     />
   </Box>
 );

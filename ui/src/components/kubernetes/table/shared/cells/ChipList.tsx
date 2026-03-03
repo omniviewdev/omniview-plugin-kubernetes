@@ -1,27 +1,18 @@
-import { Chip } from '@omniviewdev/ui';
-import { Stack } from '@omniviewdev/ui/layout';
-
-const chipListStackSx = {
-  scrollbarWidth: 'none',
-  '&::-webkit-scrollbar': {
-    display: 'none',
-  },
-} as const;
-
-const chipSx = { borderRadius: '2px' } as const;
+import { Chip } from "@omniviewdev/ui"
+import { Stack } from "@omniviewdev/ui/layout"
 
 type Props = {
-  values: string[];
-};
+  values: string[]
+}
 
 export const ChipListCell = ({ getValue }: { getValue: () => unknown }) => {
-  const val = getValue() as string[] | undefined;
+  const val = getValue() as string[] | undefined
   if (!val) {
-    return null;
+    return <></>
   }
 
-  return <ChipList values={val} />;
-};
+  return <ChipList values={val} />
+}
 
 const ChipList: React.FC<Props> = ({ values }) => {
   return (
@@ -29,13 +20,16 @@ const ChipList: React.FC<Props> = ({ values }) => {
       direction={'row'}
       overflow={'scroll'}
       gap={0.25}
-      sx={chipListStackSx}
-    >
-      {values.map((value) => (
-        <Chip key={value} size={'sm'} sx={chipSx} emphasis="outline" label={value} />
-      ))}
+      sx={{
+        scrollbarWidth: "none",
+        // hide scrollbar
+        "&::-webkit-scrollbar": {
+          display: "none",
+        },
+      }}>
+      {values.map((value) => <Chip size={'sm'} sx={{ borderRadius: '2px' }} emphasis='outline' label={value} />)}
     </Stack>
-  );
-};
+  )
+}
 
-export default ChipList;
+export default ChipList

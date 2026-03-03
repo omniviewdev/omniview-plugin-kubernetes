@@ -1,22 +1,12 @@
 import { render, screen } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-
 import ClustersPage from './ClustersPage';
-
-// ---------------------------------------------------------------------------
-// Mock connection shape — minimal fields used by ClustersPage
-// ---------------------------------------------------------------------------
-
-interface MockConnection {
-  id: string;
-  name: string;
-}
 
 // ---------------------------------------------------------------------------
 // Module-level mock state (reset in beforeEach)
 // ---------------------------------------------------------------------------
 
-let mockConnectionsData: MockConnection[] | undefined = undefined;
+let mockConnectionsData: any[] | undefined = undefined;
 let mockIsLoading = false;
 
 // ---------------------------------------------------------------------------
@@ -38,7 +28,7 @@ vi.mock('@omniviewdev/runtime', () => ({
 }));
 
 vi.mock('../components/shared/hooks/useStoredState', () => ({
-  useStoredState: <T,>(_key: string, defaultValue: T) => {
+  useStoredState: (_key: string, defaultValue: any) => {
     const state = vi.fn();
     return [defaultValue, state];
   },
@@ -66,18 +56,16 @@ vi.mock('../hooks/useClusterPreferences', () => ({
 }));
 
 vi.mock('../hooks/useConnectionGrouping', () => ({
-  useConnectionGrouping: (opts: { connections: MockConnection[] }) => ({
-    groups: [
-      {
-        key: 'all',
-        label: 'All',
-        connections: (opts.connections ?? []).map((c: MockConnection) => ({
-          ...c,
-          isFavorite: false,
-          groupIds: [],
-        })),
-      },
-    ],
+  useConnectionGrouping: (opts: any) => ({
+    groups: [{
+      key: 'all',
+      label: 'All',
+      connections: (opts.connections ?? []).map((c: any) => ({
+        ...c,
+        isFavorite: false,
+        groupIds: [],
+      })),
+    }],
     totalCount: opts.connections?.length ?? 0,
     filteredCount: opts.connections?.length ?? 0,
     availableProviders: [],

@@ -1,86 +1,34 @@
-import MuiAvatar from '@mui/material/Avatar';
+import React from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import Box from '@mui/material/Box';
+import MuiAvatar from '@mui/material/Avatar';
 import Divider from '@mui/material/Divider';
-import { usePluginContext, useConnection } from '@omniviewdev/runtime';
-import { type types } from '@omniviewdev/runtime/models';
 import { Avatar, Chip } from '@omniviewdev/ui';
 import { IconButton } from '@omniviewdev/ui/buttons';
+import { Tooltip } from '@omniviewdev/ui/overlays';
 import { FormField, TextField, TextArea } from '@omniviewdev/ui/inputs';
 import { Stack } from '@omniviewdev/ui/layout';
-import { Tooltip } from '@omniviewdev/ui/overlays';
-import { NavMenu, type NavSection } from '@omniviewdev/ui/sidebars';
 import { Text } from '@omniviewdev/ui/typography';
-import React from 'react';
-import { LuArrowLeft, LuCircle, LuSave, LuX } from 'react-icons/lu';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-
+import { NavMenu, type NavSection } from '@omniviewdev/ui/sidebars';
+import {
+  LuArrowLeft,
+  LuCircle,
+  LuSave,
+  LuX,
+} from 'react-icons/lu';
+import {
+  usePluginContext,
+  useConnection,
+} from '@omniviewdev/runtime';
+import { useClusterPreferences } from '../hooks/useClusterPreferences';
+import type { ConnectionOverride } from '../types/clusters';
 import AvatarEditor from '../components/connections/AvatarEditor';
 import TagInput from '../components/connections/TagInput';
 import MetricsTabContent from '../components/settings/MetricsTabContent';
 import NodeShellTabContent from '../components/settings/NodeShellTabContent';
-import { useClusterPreferences } from '../hooks/useClusterPreferences';
 import Layout from '../layouts/resource';
-import type { ConnectionOverride } from '../types/clusters';
-import { getInitials } from '../utils/avatarUtils';
 import { stringToColor } from '../utils/color';
-
-const sidenavHeaderSx = { px: 1, py: 1, borderBottom: '1px solid', borderColor: 'divider' } as const;
-
-const clusterCardWrapperSx = { px: 1, py: 1 } as const;
-
-const clusterCardSx = {
-  bgcolor: 'background.level1',
-  border: '1px solid',
-  borderColor: 'divider',
-  borderRadius: 1,
-  p: 1.25,
-  display: 'flex',
-  alignItems: 'center',
-  gap: 1.25,
-} as const;
-
-const avatarImgSx = { width: 40, height: 40, borderRadius: 1, '--Avatar-size': '40px' } as const;
-
-const clusterNameSx = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } as const;
-
-const navMenuSx = { py: 0.5 } as const;
-
-const sectionWrapperHeaderSx = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 1.5,
-  pb: 2,
-  borderBottom: '1px solid',
-  borderColor: 'divider',
-} as const;
-
-const sectionWrapperBodySx = { flex: 1, overflow: 'auto', minHeight: 0, pt: 2 } as const;
-
-const formRowSx = { py: 2.5, display: 'flex', gap: 4, alignItems: 'flex-start' } as const;
-
-const formLabelColumnSx = { minWidth: 180, maxWidth: 180, display: 'flex', flexDirection: 'column' } as const;
-
-const formFieldColumnSx = { flex: 1, maxWidth: 480 } as const;
-
-const tagsContainerSx = { maxWidth: 600 } as const;
-
-const infoRowSx = { py: 1.5, display: 'flex', gap: 4, alignItems: 'baseline' } as const;
-
-const infoLabelSx = { color: 'text.secondary', minWidth: 140 } as const;
-
-const sidenavColumnSx = { height: '100%' } as const;
-
-const headerTitleSx = { flex: 1, ml: 0.25 } as const;
-
-const clusterInfoColumnSx = { minWidth: 0, flex: 1 } as const;
-
-const sectionWrapperStackSx = { width: '100%', height: '100%' } as const;
-
-const mainPanelSx = { p: 3, overflow: 'auto' } as const;
-
-const formHintSx = { color: 'text.secondary', mt: 0.25 } as const;
-
-const sectionDescriptionSx = { color: 'text.secondary' } as const;
+import { getInitials } from '../utils/avatarUtils';
 
 type SectionId = 'identity' | 'tags' | 'cluster-info' | 'connection' | 'metrics' | 'node-shell';
 
@@ -128,11 +76,11 @@ const ClusterEditPage: React.FC = () => {
   React.useEffect(() => {
     const o = connectionOverrides[connectionId];
     if (o) {
-      setDisplayName((prev) => prev || o.displayName || '');
-      setDescription((prev) => prev || o.description || '');
-      setAvatarUrl((prev) => prev || o.avatar || '');
-      setAvatarColor((prev) => prev || o.avatarColor || '');
-      setTags((prev) => (prev.length === 0 ? (o.tags ?? []) : prev));
+      setDisplayName(prev => prev || o.displayName || '');
+      setDescription(prev => prev || o.description || '');
+      setAvatarUrl(prev => prev || o.avatar || '');
+      setAvatarColor(prev => prev || o.avatarColor || '');
+      setTags(prev => prev.length === 0 ? (o.tags ?? []) : prev);
     }
   }, [connectionOverrides, connectionId]);
 
@@ -155,10 +103,10 @@ const ClusterEditPage: React.FC = () => {
     override.avatarColor = avatarColor || undefined;
     override.tags = tags.length > 0 ? tags : undefined;
     await updateOverride(connectionId, override);
-    void rrNavigate(-1);
+    rrNavigate(-1);
   };
 
-  const handleBack = React.useCallback(() => { void rrNavigate(-1); }, [rrNavigate]);
+  const handleBack = () => rrNavigate(-1);
 
   const handleCancel = () => {
     const o = connectionOverrides[connectionId] ?? {};
@@ -176,17 +124,16 @@ const ClusterEditPage: React.FC = () => {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [handleBack]);
+  }, []);
 
   const connected = React.useMemo(() => {
     if (!conn) return false;
     const refreshTime = new Date(conn.last_refresh as unknown as string);
     if (refreshTime.toString() === 'Invalid Date') return false;
-    // eslint-disable-next-line react-hooks/purity -- Date.now() is intentionally impure here
-    return refreshTime.getTime() + conn.expiry_time > Date.now();
+    return (refreshTime.getTime() + conn.expiry_time) > Date.now();
   }, [conn]);
 
-  const formatTime = React.useCallback((timestamp: string | number | Date | null | undefined): string => {
+  const formatTime = (timestamp: any): string => {
     if (!timestamp) return 'Never';
     const date = new Date(timestamp);
     if (date.toString() === 'Invalid Date') return 'Never';
@@ -198,7 +145,7 @@ const ClusterEditPage: React.FC = () => {
     if (hours < 24) return `${hours}h ago`;
     const days = Math.floor(hours / 24);
     return `${days}d ago`;
-  }, []);
+  };
 
   const handleSectionChange = (id: string) => {
     setSearchParams({ section: id }, { replace: true });
@@ -211,30 +158,23 @@ const ClusterEditPage: React.FC = () => {
 
   return (
     <Layout.Root>
-      <Layout.SideNav type="bordered" scrollable>
-        <Stack direction="column" sx={sidenavColumnSx}>
+      <Layout.SideNav type='bordered' scrollable>
+        <Stack direction='column' sx={{ height: '100%' }}>
           {/* Header with back + title + actions */}
-          <Stack
-            direction="row"
-            alignItems="center"
-            gap={0.5}
-            sx={sidenavHeaderSx}
-          >
-            <IconButton size="sm" emphasis="ghost" onClick={handleBack}>
+          <Stack direction='row' alignItems='center' gap={0.5} sx={{ px: 1, py: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
+            <IconButton size='sm' emphasis='ghost' onClick={handleBack}>
               <LuArrowLeft size={16} />
             </IconButton>
-            <Text size="sm" weight="semibold" sx={headerTitleSx}>
-              Cluster Settings
-            </Text>
+            <Text size='sm' weight='semibold' sx={{ flex: 1, ml: 0.25 }}>Cluster Settings</Text>
             {hasDrafts && (
               <>
-                <Tooltip title="Discard changes" placement="bottom">
-                  <IconButton size="sm" emphasis="ghost" color="neutral" onClick={handleCancel}>
+                <Tooltip title='Discard changes' placement='bottom'>
+                  <IconButton size='sm' emphasis='ghost' color='neutral' onClick={handleCancel}>
                     <LuX size={16} />
                   </IconButton>
                 </Tooltip>
-                <Tooltip title="Save changes" placement="bottom">
-                  <IconButton size="sm" emphasis="ghost" color="primary" onClick={() => { void handleSave(); }}>
+                <Tooltip title='Save changes' placement='bottom'>
+                  <IconButton size='sm' emphasis='ghost' color='primary' onClick={handleSave}>
                     <LuSave size={16} />
                   </IconButton>
                 </Tooltip>
@@ -243,14 +183,21 @@ const ClusterEditPage: React.FC = () => {
           </Stack>
 
           {/* Cluster card */}
-          <Box sx={clusterCardWrapperSx}>
-            <Box
-              sx={clusterCardSx}
-            >
+          <Box sx={{ px: 1, py: 1 }}>
+            <Box sx={{
+              bgcolor: 'background.level1',
+              border: '1px solid',
+              borderColor: 'divider',
+              borderRadius: 1,
+              p: 1.25,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.25,
+            }}>
               {avatarUrl ? (
                 <Avatar
                   src={avatarUrl}
-                  sx={avatarImgSx}
+                  sx={{ width: 40, height: 40, borderRadius: 1, '--Avatar-size': '40px' }}
                 />
               ) : (
                 <MuiAvatar
@@ -265,20 +212,16 @@ const ClusterEditPage: React.FC = () => {
                   {cardInitials}
                 </MuiAvatar>
               )}
-              <Stack direction="column" gap={0.25} sx={clusterInfoColumnSx}>
-                <Text
-                  size="sm"
-                  weight="semibold"
-                  sx={clusterNameSx}
-                >
+              <Stack direction='column' gap={0.25} sx={{ minWidth: 0, flex: 1 }}>
+                <Text size='sm' weight='semibold' sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {cardName}
                 </Text>
-                <Stack direction="row" alignItems="center" gap={0.75}>
+                <Stack direction='row' alignItems='center' gap={0.75}>
                   <Chip
-                    size="sm"
-                    emphasis="soft"
+                    size='sm'
+                    emphasis='soft'
                     color={connected ? 'success' : 'neutral'}
-                    startAdornment={<LuCircle size={6} fill="currentColor" />}
+                    startAdornment={<LuCircle size={6} fill='currentColor' />}
                     label={connected ? 'Connected' : 'Disconnected'}
                   />
                 </Stack>
@@ -288,16 +231,16 @@ const ClusterEditPage: React.FC = () => {
 
           {/* Nav menu */}
           <NavMenu
-            size="sm"
+            size='sm'
             sections={SECTIONS}
             selected={section}
             onSelect={handleSectionChange}
-            sx={navMenuSx}
+            sx={{ py: 0.5 }}
           />
         </Stack>
       </Layout.SideNav>
 
-      <Layout.Main sx={mainPanelSx}>
+      <Layout.Main sx={{ p: 3, overflow: 'auto' }}>
         {section === 'identity' && (
           <IdentitySection
             displayName={displayName}
@@ -312,7 +255,11 @@ const ClusterEditPage: React.FC = () => {
           />
         )}
         {section === 'tags' && (
-          <TagsSection tags={tags} availableTags={availableTags} onChange={setTags} />
+          <TagsSection
+            tags={tags}
+            availableTags={availableTags}
+            onChange={setTags}
+          />
         )}
         {section === 'cluster-info' && conn && (
           <ClusterInfoSection conn={conn} formatTime={formatTime} />
@@ -321,10 +268,7 @@ const ClusterEditPage: React.FC = () => {
           <ConnectionSection conn={conn} formatTime={formatTime} />
         )}
         {section === 'metrics' && (
-          <SectionWrapper
-            title="Metrics"
-            description="Configure Prometheus metrics collection for this cluster."
-          >
+          <SectionWrapper title='Metrics' description='Configure Prometheus metrics collection for this cluster.'>
             <MetricsTabContent
               pluginID={meta.id}
               connectionID={connectionId}
@@ -333,11 +277,11 @@ const ClusterEditPage: React.FC = () => {
           </SectionWrapper>
         )}
         {section === 'node-shell' && (
-          <SectionWrapper
-            title="Node Shell"
-            description="Configure the debug pod and shell command used for node access."
-          >
-            <NodeShellTabContent pluginID={meta.id} connectionID={connectionId} />
+          <SectionWrapper title='Node Shell' description='Configure the debug pod and shell command used for node access.'>
+            <NodeShellTabContent
+              pluginID={meta.id}
+              connectionID={connectionId}
+            />
           </SectionWrapper>
         )}
       </Layout.Main>
@@ -349,30 +293,22 @@ const ClusterEditPage: React.FC = () => {
 // Section wrapper with header (matches CoreSettingsPage pattern)
 // ---------------------------------------------------------------------------
 
-function SectionWrapper({
-  title,
-  description,
-  children,
-}: {
+function SectionWrapper({ title, description, children }: {
   title: string;
   description: string;
   children: React.ReactNode;
 }) {
   return (
-    <Stack direction="column" gap={0} sx={sectionWrapperStackSx}>
-      <Box
-        sx={sectionWrapperHeaderSx}
-      >
-        <Stack direction="column" gap={0.25}>
-          <Text weight="semibold" size="lg">
-            {title}
-          </Text>
-          <Text size="xs" sx={sectionDescriptionSx}>
-            {description}
-          </Text>
+    <Stack direction='column' gap={0} sx={{ width: '100%', height: '100%' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, pb: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+        <Stack direction='column' gap={0.25}>
+          <Text weight='semibold' size='lg'>{title}</Text>
+          <Text size='xs' sx={{ color: 'text.secondary' }}>{description}</Text>
         </Stack>
       </Box>
-      <Box sx={sectionWrapperBodySx}>{children}</Box>
+      <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0, pt: 2 }}>
+        {children}
+      </Box>
     </Stack>
   );
 }
@@ -381,17 +317,7 @@ function SectionWrapper({
 // Identity section
 // ---------------------------------------------------------------------------
 
-function IdentitySection({
-  displayName,
-  description,
-  avatarUrl,
-  avatarColor,
-  connName,
-  onDisplayNameChange,
-  onDescriptionChange,
-  onAvatarUrlChange,
-  onAvatarColorChange,
-}: {
+function IdentitySection({ displayName, description, avatarUrl, avatarColor, connName, onDisplayNameChange, onDescriptionChange, onAvatarUrlChange, onAvatarColorChange }: {
   displayName: string;
   description: string;
   avatarUrl: string;
@@ -403,20 +329,13 @@ function IdentitySection({
   onAvatarColorChange: (v: string) => void;
 }) {
   return (
-    <SectionWrapper
-      title="Identity"
-      description="Customize how this cluster appears in the sidebar and connection list."
-    >
-      <Stack direction="column" gap={0}>
+    <SectionWrapper title='Identity' description='Customize how this cluster appears in the sidebar and connection list.'>
+      <Stack direction='column' gap={0}>
         {/* Avatar row */}
-        <Box sx={formRowSx}>
-          <Box sx={formLabelColumnSx}>
-            <Text size="sm" weight="medium">
-              Avatar
-            </Text>
-            <Text size="xs" sx={formHintSx}>
-              Upload an image or pick a color
-            </Text>
+        <Box sx={{ py: 2.5, display: 'flex', gap: 4, alignItems: 'flex-start' }}>
+          <Box sx={{ minWidth: 180, maxWidth: 180, display: 'flex', flexDirection: 'column' }}>
+            <Text size='sm' weight='medium'>Avatar</Text>
+            <Text size='xs' sx={{ color: 'text.secondary', mt: 0.25 }}>Upload an image or pick a color</Text>
           </Box>
           <AvatarEditor
             name={displayName || connName}
@@ -429,22 +348,18 @@ function IdentitySection({
         <Divider />
 
         {/* Display name row */}
-        <Box sx={formRowSx}>
-          <Box sx={formLabelColumnSx}>
-            <Text size="sm" weight="medium">
-              Display Name
-            </Text>
-            <Text size="xs" sx={formHintSx}>
-              Override the default context name
-            </Text>
+        <Box sx={{ py: 2.5, display: 'flex', gap: 4, alignItems: 'flex-start' }}>
+          <Box sx={{ minWidth: 180, maxWidth: 180, display: 'flex', flexDirection: 'column' }}>
+            <Text size='sm' weight='medium'>Display Name</Text>
+            <Text size='xs' sx={{ color: 'text.secondary', mt: 0.25 }}>Override the default context name</Text>
           </Box>
-          <Box sx={formFieldColumnSx}>
+          <Box sx={{ flex: 1, maxWidth: 480 }}>
             <FormField>
               <TextField
-                size="sm"
+                size='sm'
                 placeholder={connName}
                 value={displayName}
-                onChange={(e) => onDisplayNameChange(e)}
+                onChange={e => onDisplayNameChange(e)}
                 fullWidth
               />
             </FormField>
@@ -453,24 +368,20 @@ function IdentitySection({
         <Divider />
 
         {/* Description row */}
-        <Box sx={formRowSx}>
-          <Box sx={formLabelColumnSx}>
-            <Text size="sm" weight="medium">
-              Description
-            </Text>
-            <Text size="xs" sx={formHintSx}>
-              Optional note for this cluster
-            </Text>
+        <Box sx={{ py: 2.5, display: 'flex', gap: 4, alignItems: 'flex-start' }}>
+          <Box sx={{ minWidth: 180, maxWidth: 180, display: 'flex', flexDirection: 'column' }}>
+            <Text size='sm' weight='medium'>Description</Text>
+            <Text size='xs' sx={{ color: 'text.secondary', mt: 0.25 }}>Optional note for this cluster</Text>
           </Box>
-          <Box sx={formFieldColumnSx}>
+          <Box sx={{ flex: 1, maxWidth: 480 }}>
             <FormField>
               <TextArea
-                size="sm"
+                size='sm'
                 minRows={2}
                 maxRows={4}
-                placeholder="Optional description for this cluster"
+                placeholder='Optional description for this cluster'
                 value={description}
-                onChange={(e) => onDescriptionChange(e)}
+                onChange={e => onDescriptionChange(e)}
                 fullWidth
               />
             </FormField>
@@ -485,22 +396,19 @@ function IdentitySection({
 // Tags section
 // ---------------------------------------------------------------------------
 
-function TagsSection({
-  tags,
-  availableTags,
-  onChange,
-}: {
+function TagsSection({ tags, availableTags, onChange }: {
   tags: string[];
   availableTags: string[];
   onChange: (tags: string[]) => void;
 }) {
   return (
-    <SectionWrapper
-      title="Tags"
-      description="Organize clusters by environment, team, or any custom category."
-    >
-      <Box sx={tagsContainerSx}>
-        <TagInput tags={tags} availableTags={availableTags} onChange={onChange} />
+    <SectionWrapper title='Tags' description='Organize clusters by environment, team, or any custom category.'>
+      <Box sx={{ maxWidth: 600 }}>
+        <TagInput
+          tags={tags}
+          availableTags={availableTags}
+          onChange={onChange}
+        />
       </Box>
     </SectionWrapper>
   );
@@ -510,34 +418,16 @@ function TagsSection({
 // Cluster Info section
 // ---------------------------------------------------------------------------
 
-function ClusterInfoSection({ conn, formatTime }: { conn: types.Connection; formatTime: (t: string | number | null | undefined) => string }) {
-  // conn.data and conn.labels are Record<string, any> from the runtime SDK; narrow to known shapes
-  const connData = conn.data as Record<string, string | number | undefined>;
-  const connLabels = conn.labels as Record<string, string | undefined>;
+function ClusterInfoSection({ conn, formatTime }: { conn: any; formatTime: (t: any) => string }) {
   return (
-    <SectionWrapper
-      title="Cluster Info"
-      description="Read-only information discovered from the cluster."
-    >
-      <Stack direction="column" gap={0}>
-        <InfoRow
-          label="Server"
-          value={String(connData?.server_url ?? connLabels?.server ?? '-')}
-        />
-        <InfoRow label="Kubernetes Version" value={String(connData?.k8s_version ?? '-')} />
-        <InfoRow label="Platform" value={String(connData?.k8s_platform ?? '-')} />
-        <InfoRow
-          label="Nodes"
-          value={connData?.node_count != null ? String(connData.node_count) : '-'}
-        />
-        <InfoRow
-          label="API Groups"
-          value={connData?.api_groups != null ? String(connData.api_groups) : '-'}
-        />
-        <InfoRow
-          label="Last Checked"
-          value={connData?.last_checked ? formatTime(connData.last_checked) : '-'}
-        />
+    <SectionWrapper title='Cluster Info' description='Read-only information discovered from the cluster.'>
+      <Stack direction='column' gap={0}>
+        <InfoRow label='Server' value={String(conn.data?.server_url ?? conn.labels?.server ?? '-')} />
+        <InfoRow label='Kubernetes Version' value={String(conn.data?.k8s_version ?? '-')} />
+        <InfoRow label='Platform' value={String(conn.data?.k8s_platform ?? '-')} />
+        <InfoRow label='Nodes' value={conn.data?.node_count != null ? String(conn.data.node_count) : '-'} />
+        <InfoRow label='API Groups' value={conn.data?.api_groups != null ? String(conn.data.api_groups) : '-'} />
+        <InfoRow label='Last Checked' value={conn.data?.last_checked ? formatTime(conn.data.last_checked) : '-'} />
       </Stack>
     </SectionWrapper>
   );
@@ -547,26 +437,17 @@ function ClusterInfoSection({ conn, formatTime }: { conn: types.Connection; form
 // Connection section
 // ---------------------------------------------------------------------------
 
-function ConnectionSection({ conn, formatTime }: { conn: types.Connection; formatTime: (t: string | number | null | undefined) => string }) {
-  // conn.data and conn.labels are Record<string, any> from the runtime SDK; narrow to known shapes
-  const connData = conn.data as Record<string, string | number | undefined>;
-  const connLabels = conn.labels as Record<string, string | undefined>;
+function ConnectionSection({ conn, formatTime }: { conn: any; formatTime: (t: any) => string }) {
   return (
-    <SectionWrapper title="Connection" description="Kubeconfig context details for this cluster.">
-      <Stack direction="column" gap={0}>
-        <InfoRow label="Context" value={conn.id} />
-        <InfoRow
-          label="Cluster"
-          value={String(connLabels?.cluster ?? connData?.cluster ?? '-')}
-        />
-        <InfoRow
-          label="Kubeconfig"
-          value={String(connLabels?.kubeconfig ?? connData?.kubeconfig ?? '-')}
-        />
-        <InfoRow label="User" value={String(connLabels?.user ?? connData?.user ?? '-')} />
-        <InfoRow label="Auth Method" value={String(connLabels?.auth_method ?? '-')} />
-        <InfoRow label="Namespace" value={String(connData?.namespace ?? '(default)')} />
-        <InfoRow label="Last Refresh" value={formatTime(conn.last_refresh as unknown as string)} />
+    <SectionWrapper title='Connection' description='Kubeconfig context details for this cluster.'>
+      <Stack direction='column' gap={0}>
+        <InfoRow label='Context' value={conn.id} />
+        <InfoRow label='Cluster' value={String(conn.labels?.cluster ?? conn.data?.cluster ?? '-')} />
+        <InfoRow label='Kubeconfig' value={String(conn.labels?.kubeconfig ?? conn.data?.kubeconfig ?? '-')} />
+        <InfoRow label='User' value={String(conn.labels?.user ?? conn.data?.user ?? '-')} />
+        <InfoRow label='Auth Method' value={String(conn.labels?.auth_method ?? '-')} />
+        <InfoRow label='Namespace' value={String(conn.data?.namespace ?? '(default)')} />
+        <InfoRow label='Last Refresh' value={formatTime(conn.last_refresh)} />
       </Stack>
     </SectionWrapper>
   );
@@ -580,13 +461,11 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   const empty = value === '-';
   return (
     <>
-      <Box sx={infoRowSx}>
-        <Text size="xs" sx={infoLabelSx}>
-          {label}
-        </Text>
+      <Box sx={{ py: 1.5, display: 'flex', gap: 4, alignItems: 'baseline' }}>
+        <Text size='xs' sx={{ color: 'text.secondary', minWidth: 140 }}>{label}</Text>
         <Text
-          size="sm"
-          weight="medium"
+          size='sm'
+          weight='medium'
           sx={{
             wordBreak: 'break-all',
             opacity: empty ? 0.4 : 1,

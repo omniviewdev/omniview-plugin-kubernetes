@@ -1,103 +1,31 @@
-import { MoreVert } from '@mui/icons-material';
+import React from 'react';
+import { Link, usePluginRouter } from '@omniviewdev/runtime';
+
+// @omniviewdev/ui
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
+import { Avatar, Badge, Chip } from '@omniviewdev/ui';
+import { IconButton } from '@omniviewdev/ui/buttons';
+import { Stack } from '@omniviewdev/ui/layout';
+import { Text } from '@omniviewdev/ui/typography';
+
 import {
-  Link,
-  usePluginRouter,
   usePluginContext,
   useConnection,
   useSnackbar,
 } from '@omniviewdev/runtime';
 import { types } from '@omniviewdev/runtime/models';
-import { Avatar, Badge, Chip } from '@omniviewdev/ui';
-import { IconButton } from '@omniviewdev/ui/buttons';
-import { Stack } from '@omniviewdev/ui/layout';
-import { Text } from '@omniviewdev/ui/typography';
-import React from 'react';
-import { LuPencil, LuTrash } from 'react-icons/lu';
-
 import NamedAvatar from '../shared/NamedAvatar';
 
 // Icons
-
-const containerSx = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  py: 0.5,
-  px: 1,
-} as const;
-
-const clickableRowSx = {
-  display: 'flex',
-  flex: 1,
-  alignItems: 'center',
-  borderRadius: 'sm',
-  cursor: 'pointer',
-  '&:hover': { bgcolor: 'background.level1' },
-  py: 0.5,
-  px: 1,
-} as const;
-
-const avatarWrapperSx = { mr: 1.5, display: 'flex' } as const;
-
-const avatarSx = {
-  borderRadius: 6,
-  backgroundColor: 'transparent',
-  objectFit: 'contain',
-  border: 0,
-  maxHeight: 28,
-  maxWidth: 28,
-} as const;
-
-const nameStackSx = { width: '100%' } as const;
-
-const innerNameStackSx = { width: '100%', height: '100%' } as const;
-
-const chipSx = { pointerEvents: 'none', borderRadius: 'sm' } as const;
-
-const menuContainerSx = { position: 'relative' } as const;
-
-const backdropStyle = { position: 'fixed', inset: 0, zIndex: 999 } as const;
-
-const menuDropdownSx = {
-  position: 'absolute',
-  right: 0,
-  top: '100%',
-  zIndex: 1000,
-  bgcolor: 'background.surface',
-  border: '1px solid',
-  borderColor: 'divider',
-  borderRadius: 'sm',
-  boxShadow: 'md',
-  py: 0.5,
-  minWidth: 140,
-} as const;
-
-const menuItemSx = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 1,
-  px: 1.5,
-  py: 0.75,
-  cursor: 'pointer',
-  '&:hover': { bgcolor: 'background.level1' },
-} as const;
+import { MoreVert } from '@mui/icons-material';
+import { LuPencil, LuTrash } from 'react-icons/lu';
 
 type Props = Omit<types.Connection, 'createFrom' | 'convertValues'>;
 
-const ConnectionListItem: React.FC<Props> = ({
-  id,
-  name,
-  description,
-  avatar,
-  labels,
-  last_refresh,
-  expiry_time,
-}) => {
+const ConnectionListItem: React.FC<Props> = ({ id, name, description, avatar, labels, last_refresh, expiry_time }) => {
   const { meta } = usePluginContext();
   const { navigate } = usePluginRouter();
-  // eslint-disable-next-line @typescript-eslint/unbound-method
   const { showSnackbar } = useSnackbar();
 
   const { startConnection } = useConnection({ pluginID: meta.id, connectionID: id });
@@ -140,10 +68,10 @@ const ConnectionListItem: React.FC<Props> = ({
 
     setConnecting(true);
     startConnection()
-      .then((status) => {
+      .then(status => {
         handleConnectionStatus(status);
       })
-      .catch((err) => {
+      .catch(err => {
         if (err instanceof Error) {
           showSnackbar({
             status: 'error',
@@ -165,99 +93,130 @@ const ConnectionListItem: React.FC<Props> = ({
     const refreshTime = new Date(last_refresh as unknown as string);
     // if we have no valid refresh time, we can't determine if the connection is connected, so assume we are
     if (refreshTime.toString() === 'Invalid Date') {
-      console.warn('Invalid Date for refresh time', last_refresh);
+      console.log('Invalid Date for refresh time', last_refresh);
       return true;
     }
 
     const now = new Date();
-    return refreshTime.getTime() + expiry_time > now.getTime();
+    return (refreshTime.getTime() + expiry_time) > now.getTime();
   };
 
   return (
     <Box
       id={`connection-${id}`}
-      sx={containerSx}
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        py: 0.5,
+        px: 1,
+      }}
     >
       <Box
-        sx={clickableRowSx}
+        sx={{
+          display: 'flex',
+          flex: 1,
+          alignItems: 'center',
+          borderRadius: 'sm',
+          cursor: 'pointer',
+          '&:hover': { bgcolor: 'background.level1' },
+          py: 0.5,
+          px: 1,
+        }}
         onClick={handleClick}
       >
-        <Box sx={avatarWrapperSx}>
+        <Box sx={{ mr: 1.5, display: 'flex' }}>
           <Badge
             color="success"
             invisible={!isConnected()}
-            size="sm"
+            size='sm'
             anchorOrigin={{
               vertical: 'top',
               horizontal: 'right',
             }}
           >
-            {avatar ? (
-              <Avatar
-                size="sm"
+            {avatar
+              ? <Avatar
+                size='sm'
                 src={avatar}
-                sx={avatarSx}
+                sx={{
+                  borderRadius: 6,
+                  backgroundColor: 'transparent',
+                  objectFit: 'contain',
+                  border: 0,
+                  maxHeight: 28,
+                  maxWidth: 28,
+                }}
               />
-            ) : (
-              <NamedAvatar value={name} />
-            )}
+              : <NamedAvatar value={name} />
+            }
           </Badge>
         </Box>
-        <Stack direction="row" sx={nameStackSx} alignItems="center">
-          <Stack direction="row" sx={innerNameStackSx} alignItems="center" gap={2}>
-            <Text weight="semibold" size="sm" noWrap>
-              {name}
-            </Text>
-            {Boolean(description) && (
-              <Text size="sm" noWrap>
-                {description}
-              </Text>
-            )}
+        <Stack direction='row' sx={{ width: '100%' }} alignItems='center'>
+          <Stack direction='row' sx={{ width: '100%', height: '100%' }} alignItems='center' gap={2}>
+            <Text weight='semibold' size='sm' noWrap>{name}</Text>
+            {Boolean(description) && <Text size='sm' noWrap>{description}</Text>}
             {connecting && <CircularProgress size={16} />}
           </Stack>
-          <Stack direction="row" gap={1} alignItems="center">
-            {labels &&
-              Object.entries(labels)
-                .sort()
-                .map(([key, _]) => (
-                  <Chip
-                    key={key}
-                    emphasis="outline"
-                    color="primary"
-                    size="sm"
-                    sx={chipSx}
-                    label={key}
-                  />
-                ))}
+          <Stack direction='row' gap={1} alignItems='center'>
+            {labels && Object.entries(labels).sort().map(([key, _]) => (
+              <Chip
+                key={key}
+                emphasis='outline'
+                color='primary'
+                size='sm'
+                sx={{ pointerEvents: 'none', borderRadius: 'sm' }}
+                label={key}
+              />
+            ))}
           </Stack>
         </Stack>
       </Box>
-      <Box sx={menuContainerSx}>
+      <Box sx={{ position: 'relative' }}>
         <IconButton
-          size="sm"
-          emphasis="ghost"
-          color="neutral"
-          onClick={() => setMenuOpen((prev) => !prev)}
+          size='sm'
+          emphasis='ghost'
+          color='neutral'
+          onClick={() => setMenuOpen(prev => !prev)}
         >
           <MoreVert />
         </IconButton>
         {menuOpen && (
           <>
-            {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
             <div
-              style={backdropStyle}
+              style={{ position: 'fixed', inset: 0, zIndex: 999 }}
               onClick={() => setMenuOpen(false)}
             />
             <Box
-              sx={menuDropdownSx}
+              sx={{
+                position: 'absolute',
+                right: 0,
+                top: '100%',
+                zIndex: 1000,
+                bgcolor: 'background.surface',
+                border: '1px solid',
+                borderColor: 'divider',
+                borderRadius: 'sm',
+                boxShadow: 'md',
+                py: 0.5,
+                minWidth: 140,
+              }}
             >
               <Link to={`/connection/${id}/edit`}>
                 <Box
-                  sx={menuItemSx}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    px: 1.5,
+                    py: 0.75,
+                    cursor: 'pointer',
+                    '&:hover': { bgcolor: 'background.level1' },
+                  }}
                   onClick={() => setMenuOpen(false)}
                 >
                   <LuPencil size={14} />
-                  <Text size="sm">Edit &apos;{name}&apos;</Text>
+                  <Text size='sm'>Edit '{name}'</Text>
                 </Box>
               </Link>
               <Box
@@ -273,7 +232,7 @@ const ConnectionListItem: React.FC<Props> = ({
                 onClick={() => setMenuOpen(false)}
               >
                 <LuTrash size={14} />
-                <Text size="sm">Delete &apos;{name}&apos;</Text>
+                <Text size='sm'>Delete '{name}'</Text>
               </Box>
             </Box>
           </>

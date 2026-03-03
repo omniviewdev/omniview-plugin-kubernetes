@@ -1,5 +1,6 @@
-import { MetricClient } from '@omniviewdev/runtime/api';
-import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { MetricClient } from "@omniviewdev/runtime/api";
+import type { metric } from "@omniviewdev/runtime/models";
 
 export type PodMetricEntry = {
   cpuMillicores: number;
@@ -9,13 +10,10 @@ export type PodMetricEntry = {
 /** Map keyed by "namespace/podName" → { cpuMillicores, memoryBytes } */
 export type PodMetricsMap = Map<string, PodMetricEntry>;
 
-/** Stable empty map — avoids creating a new reference on every render when metrics haven't loaded */
-const EMPTY_MAP: PodMetricsMap = new Map();
-
 // Metric IDs for CPU usage (millicores)
-const CPU_METRIC_IDS = new Set(['cpu_usage', 'prom_cpu_usage_rate']);
+const CPU_METRIC_IDS = new Set(["cpu_usage", "prom_cpu_usage_rate"]);
 // Metric IDs for memory usage (bytes)
-const MEM_METRIC_IDS = new Set(['memory_usage', 'prom_memory_working_set']);
+const MEM_METRIC_IDS = new Set(["memory_usage", "prom_memory_working_set"]);
 
 /**
  * Fetch CPU/memory metrics for ALL pods in one batch call.
@@ -31,26 +29,34 @@ export function usePodMetricsBatch(opts: {
   refreshInterval?: number;
   enabled?: boolean;
 }): { metricsMap: PodMetricsMap; isLoading: boolean } {
-  const { connectionID, namespace = '', refreshInterval = 30_000, enabled = true } = opts;
+  const {
+    connectionID,
+    namespace = "",
+    refreshInterval = 30_000,
+    enabled = true,
+  } = opts;
 
-  const resourceKey = 'core::v1::Pod';
+  const resourceKey = "core::v1::Pod";
 
   const query = useQuery<PodMetricsMap>({
-    queryKey: ['metric', 'pod-batch', connectionID, namespace],
+    queryKey: [
+      "metric",
+      "pod-batch",
+      connectionID,
+      namespace,
+    ],
     queryFn: async () => {
       const resp = await MetricClient.QueryAll(
         connectionID,
         resourceKey,
-        '', // empty resourceID = batch mode
+        "", // empty resourceID = batch mode
         namespace,
         {},
         // Request both metrics-server and Prometheus metric IDs.
         // The Go backend will try both sources; whichever is available responds.
         [
-          'cpu_usage',
-          'memory_usage', // metrics-server
-          'prom_cpu_usage_rate',
-          'prom_memory_working_set', // prometheus
+          "cpu_usage", "memory_usage",           // metrics-server
+          "prom_cpu_usage_rate", "prom_memory_working_set", // prometheus
         ],
         0, // ShapeCurrent
         new Date(0),
@@ -63,15 +69,15 @@ export function usePodMetricsBatch(opts: {
 
       // Aggregate results from all providers
       for (const providerResp of Object.values(resp)) {
-        const qr = providerResp;
+        const qr = providerResp as metric.QueryResponse;
         if (!qr?.success || !qr.results) continue;
 
         for (const result of qr.results) {
           const cv = result.current_value;
           if (!cv?.labels) continue;
 
-          const pod = cv.labels['pod'];
-          const ns = cv.labels['namespace'];
+          const pod = cv.labels["pod"];
+          const ns = cv.labels["namespace"];
           if (!pod) continue;
 
           const key = ns ? `${ns}/${pod}` : pod;
@@ -80,7 +86,7 @@ export function usePodMetricsBatch(opts: {
             memoryBytes: 0,
           };
 
-          const mid = cv.metric_id ?? '';
+          const mid = cv.metric_id ?? "";
 
           if (CPU_METRIC_IDS.has(mid)) {
             // Both metrics-server and Prometheus batch return millicores
@@ -103,7 +109,7 @@ export function usePodMetricsBatch(opts: {
   });
 
   return {
-    metricsMap: query.data ?? EMPTY_MAP,
+    metricsMap: query.data ?? new Map(),
     isLoading: query.isLoading,
   };
 }

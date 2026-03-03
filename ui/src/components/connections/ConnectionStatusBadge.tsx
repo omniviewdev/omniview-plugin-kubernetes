@@ -1,5 +1,5 @@
-import { Badge } from '@omniviewdev/ui';
 import React from 'react';
+import { Badge } from '@omniviewdev/ui';
 
 type Props = {
   isConnected: boolean;
@@ -8,29 +8,24 @@ type Props = {
 
 const ConnectionStatusBadge: React.FC<Props> = ({ isConnected, children }) => (
   <Badge
-    dot
-    color="success"
+    color='success'
     invisible={!isConnected}
-    size="sm"
+    size='sm'
     anchorOrigin={{
       vertical: 'top',
       horizontal: 'right',
     }}
-    sx={
-      isConnected
-        ? {
-            '& .MuiBadge-dot': {
-              animation: 'ov-pulse 2s ease-in-out infinite',
-              boxShadow: '0 0 0 0 var(--ov-success-default, #4caf50)',
-            },
-            '@keyframes ov-pulse': {
-              '0%': { boxShadow: '0 0 0 0 rgba(76, 175, 80, 0.5)' },
-              '70%': { boxShadow: '0 0 0 5px rgba(76, 175, 80, 0)' },
-              '100%': { boxShadow: '0 0 0 0 rgba(76, 175, 80, 0)' },
-            },
-          }
-        : undefined
-    }
+    sx={isConnected ? {
+      '& .MuiBadge-dot': {
+        animation: 'ov-pulse 2s ease-in-out infinite',
+        boxShadow: '0 0 0 0 var(--ov-success-default, #4caf50)',
+      },
+      '@keyframes ov-pulse': {
+        '0%': { boxShadow: '0 0 0 0 rgba(76, 175, 80, 0.5)' },
+        '70%': { boxShadow: '0 0 0 5px rgba(76, 175, 80, 0)' },
+        '100%': { boxShadow: '0 0 0 0 rgba(76, 175, 80, 0)' },
+      },
+    } : undefined}
   >
     {children}
   </Badge>

@@ -1,10 +1,10 @@
-import Box from '@mui/material/Box';
-import Divider from '@mui/material/Divider';
-import Grid from '@mui/material/Grid';
-import { Chip, ClipboardText } from '@omniviewdev/ui';
-import { Stack } from '@omniviewdev/ui/layout';
-import { Text } from '@omniviewdev/ui/typography';
-import { formatRelative } from 'date-fns';
+import React from "react";
+import Box from "@mui/material/Box";
+import Divider from "@mui/material/Divider";
+import Grid from "@mui/material/Grid";
+import { Chip, ClipboardText } from "@omniviewdev/ui";
+import { Stack } from "@omniviewdev/ui/layout";
+import { Text } from "@omniviewdev/ui/typography";
 import {
   Container,
   ContainerStateTerminated,
@@ -12,91 +12,15 @@ import {
   Pod,
   Probe,
   Volume,
-} from 'kubernetes-types/core/v1';
-import React from 'react';
+} from "kubernetes-types/core/v1";
+import { ContainerStatusDecorator } from "./ContainerStatuses";
+import { getStatus } from "./utils";
+import Icon from "../../../shared/Icon";
+import DetailsCard, { DetailsCardEntry } from "../../../shared/DetailsCard";
+import PortDetailsCard from "./PortDetailsCard";
+import { formatRelative } from "date-fns";
 
-import DetailsCard, { DetailsCardEntry } from '../../../shared/DetailsCard';
-import Icon from '../../../shared/Icon';
-import ResourceLinkChip from '../../../shared/ResourceLinkChip';
-
-import { ContainerStatusDecorator } from './ContainerStatuses';
-import PortDetailsCard from './PortDetailsCard';
-import { getStatus } from './utils';
-
-const containerSx = { py: 1, px: 1.25 } as const;
-const headerSx = { mb: 1 } as const;
-const chipSx = { borderRadius: 1 } as const;
-const infoRowSx = { minHeight: 28, alignItems: 'flex-start' } as const;
-const infoRowLabelCellSx = { display: 'flex', alignItems: 'center', minHeight: 28 } as const;
-const infoRowValueCellSx = { display: 'flex', alignItems: 'center', minHeight: 28 } as const;
-const fontSize13Sx = { fontSize: 13 } as const;
-const resourceBarRowSx = { minHeight: 32 } as const;
-const resourceBarLabelSx = { minWidth: 85, flexShrink: 0 } as const;
-const resourceBarContainerSx = { flex: 1, display: 'flex', alignItems: 'center' } as const;
-const resourceBarBgSx = {
-  width: '100%',
-  height: 10,
-  borderRadius: 5,
-  bgcolor: 'action.hover',
-  overflow: 'hidden',
-} as const;
-const resourceBarTextSx = {
-  fontSize: 12,
-  color: 'neutral.300',
-  minWidth: 100,
-  textAlign: 'right',
-  flexShrink: 0,
-} as const;
-const infoCardSx = {
-  borderRadius: 1,
-  border: '1px solid',
-  borderColor: 'divider',
-  bgcolor: 'background.level1',
-  overflow: 'hidden',
-  p: 1,
-} as const;
-const resourceCardSx = {
-  borderRadius: 1,
-  border: '1px solid',
-  borderColor: 'divider',
-  bgcolor: 'background.level1',
-  overflow: 'hidden',
-} as const;
-const resourceCardHeaderSx = {
-  py: 0.5,
-  px: 1,
-  bgcolor: 'background.surface',
-  borderBottom: '1px solid',
-  borderColor: 'divider',
-  display: 'flex',
-  alignItems: 'center',
-} as const;
-const resourceCardBodySx = { py: 0.75, px: 1 } as const;
-const restartHeaderSx = {
-  py: 0.5,
-  px: 1,
-  bgcolor: 'background.surface',
-  borderBottom: '1px solid',
-  borderColor: 'divider',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-} as const;
-const restartBodySx = { py: 0.75, px: 1 } as const;
-const lastTermLabelSx = {
-  color: 'text.secondary',
-  textTransform: 'uppercase',
-  letterSpacing: '0.08em',
-  fontSize: 10,
-  mb: 0.25,
-} as const;
-const termEntryRowSx = { minHeight: 22 } as const;
-const termLabelCellSx = { display: 'flex', alignItems: 'center' } as const;
-const termValueCellSx = { display: 'flex', alignItems: 'center' } as const;
-const termLabelTextSx = { fontSize: 12, color: 'text.secondary' } as const;
-const waitingDividerSx = { my: 0.75 } as const;
-
-type ContainerType = 'container' | 'init' | 'ephemeral';
+type ContainerType = "container" | "init" | "ephemeral";
 
 export interface ContainerSliceProps {
   resourceID: string;
@@ -117,129 +41,121 @@ export interface ContainerSliceProps {
 // ────────────────────────────────────────────────────────────────────────────
 
 const statusDotColor = (status?: ContainerStatus): string => {
-  if (!status) return 'grey.500';
+  if (!status) return "grey.500";
   const info = getStatus(status);
   switch (info.color) {
-    case 'success':
-      return 'success.main';
-    case 'warning':
-      return 'warning.main';
-    case 'danger':
-      return 'error.main';
-    case 'primary':
-      return 'primary.main';
+    case "success":
+      return "success.main";
+    case "warning":
+      return "warning.main";
+    case "danger":
+      return "error.main";
+    case "primary":
+      return "primary.main";
     default:
-      return 'grey.500';
+      return "grey.500";
   }
 };
 
 const typeLabel = (type: ContainerType): string | undefined => {
   switch (type) {
-    case 'init':
-      return 'Init';
-    case 'ephemeral':
-      return 'Ephemeral';
+    case "init":
+      return "Init";
+    case "ephemeral":
+      return "Ephemeral";
     default:
       return undefined;
   }
 };
 
-const typeChipColor = (type: ContainerType): 'warning' | 'primary' | undefined => {
+const typeChipColor = (
+  type: ContainerType,
+): "warning" | "primary" | undefined => {
   switch (type) {
-    case 'init':
-      return 'warning';
-    case 'ephemeral':
-      return 'primary';
+    case "init":
+      return "warning";
+    case "ephemeral":
+      return "primary";
     default:
       return undefined;
   }
 };
 
 // ── Resolve a fieldRef path against a Pod object ──
-function resolveFieldRef(pod: Pod, fieldPath: string): string | undefined {
+function resolveFieldRef(
+  pod: Pod,
+  fieldPath: string,
+): string | undefined {
   try {
-    const parts = fieldPath.split('.');
-    let current: unknown = pod;
+    const parts = fieldPath.split(".");
+    let current: any = pod;
     for (const part of parts) {
-      if (current == null || typeof current !== 'object') return undefined;
-      const obj = current as Record<string, unknown>;
       const bracketMatch = part.match(/^(\w+)\['(.+)'\]$/);
       if (bracketMatch) {
-        const nested = obj[bracketMatch[1]];
-        if (nested == null || typeof nested !== 'object') return undefined;
-        current = (nested as Record<string, unknown>)[bracketMatch[2]];
+        current = current?.[bracketMatch[1]]?.[bracketMatch[2]];
       } else {
-        current = obj[part];
+        current = current?.[part];
       }
       if (current == null) return undefined;
     }
-    return typeof current === 'object' ? JSON.stringify(current) : String(current as string | number | boolean);
+    return typeof current === "object"
+      ? JSON.stringify(current)
+      : String(current);
   } catch {
     return undefined;
   }
 }
 
 // ── Resolve a resourceFieldRef against a Container's resources ──
-function resolveResourceFieldRef(container: Container, resource: string): string | undefined {
-  const parts = resource.split('.');
+function resolveResourceFieldRef(
+  container: Container,
+  resource: string,
+): string | undefined {
+  const parts = resource.split(".");
   if (parts.length !== 2) return undefined;
   const [type, name] = parts;
-  if (type === 'limits') {
-    return container.resources?.limits?.[name];
+  if (type === "limits") {
+    return container.resources?.limits?.[name] as string | undefined;
   }
-  if (type === 'requests') {
-    return container.resources?.requests?.[name];
+  if (type === "requests") {
+    return container.resources?.requests?.[name] as string | undefined;
   }
   return undefined;
 }
 
 // ── Get volume type from the pod's volumes list by mount name ──
-function getVolumeType(volumes: Volume[] | undefined, name: string): string | undefined {
-  const vol = volumes?.find((v) => v.name === name);
-  if (!vol) return undefined;
-  if (vol.configMap) return 'ConfigMap';
-  if (vol.secret) return 'Secret';
-  if (vol.persistentVolumeClaim) return 'PVC';
-  if (vol.emptyDir) return 'EmptyDir';
-  if (vol.hostPath) return 'HostPath';
-  if (vol.projected) return 'Projected';
-  if (vol.downwardAPI) return 'DownwardAPI';
-  if (vol.csi) return 'CSI';
-  if (vol.nfs) return 'NFS';
-  return 'Unknown';
-}
-
-/** Get the resource reference for a volume (name + resourceKey), if it references a linkable resource. */
-function getVolumeResourceRef(
+function getVolumeType(
   volumes: Volume[] | undefined,
   name: string,
-): { resourceName: string; resourceKey: string } | undefined {
+): string | undefined {
   const vol = volumes?.find((v) => v.name === name);
   if (!vol) return undefined;
-  if (vol.configMap?.name)
-    return { resourceName: vol.configMap.name, resourceKey: 'core::v1::ConfigMap' };
-  if (vol.secret?.secretName)
-    return { resourceName: vol.secret.secretName, resourceKey: 'core::v1::Secret' };
-  if (vol.persistentVolumeClaim?.claimName)
-    return {
-      resourceName: vol.persistentVolumeClaim.claimName,
-      resourceKey: 'core::v1::PersistentVolumeClaim',
-    };
-  return undefined;
+  if (vol.configMap) return "ConfigMap";
+  if (vol.secret) return "Secret";
+  if (vol.persistentVolumeClaim) return "PVC";
+  if (vol.emptyDir) return "EmptyDir";
+  if (vol.hostPath) return "HostPath";
+  if (vol.projected) return "Projected";
+  if (vol.downwardAPI) return "DownwardAPI";
+  if (vol.csi) return "CSI";
+  if (vol.nfs) return "NFS";
+  return "Unknown";
 }
 
-function volumeTypeColor(type: string): 'primary' | 'warning' | 'success' | 'neutral' {
+function volumeTypeColor(
+  type: string,
+): "primary" | "warning" | "success" | "neutral" {
   switch (type) {
-    case 'ConfigMap':
-      return 'primary';
-    case 'Secret':
-      return 'warning';
-    case 'PVC':
-      return 'success';
-    case 'HostPath':
-      return 'warning';
+    case "ConfigMap":
+      return "primary";
+    case "Secret":
+      return "warning";
+    case "PVC":
+      return "success";
+    case "HostPath":
+      return "warning";
     default:
-      return 'neutral';
+      return "neutral";
   }
 }
 
@@ -249,7 +165,7 @@ function volumeTypeColor(type: string): 'primary' | 'warning' | 'success' | 'neu
 
 /** Parse a K8s CPU resource string to millicores. "100m"→100, "0.5"→500, "1"→1000 */
 function parseCpuToMillicores(s: string): number {
-  if (s.endsWith('m')) {
+  if (s.endsWith("m")) {
     return parseFloat(s.slice(0, -1));
   }
   return parseFloat(s) * 1000;
@@ -261,27 +177,16 @@ function parseMemoryToBytes(s: string): number {
   if (!match) return parseFloat(s) || 0;
   const val = parseFloat(match[1]);
   switch (match[2]) {
-    case 'Ki':
-      return val * 1024;
-    case 'Mi':
-      return val * 1024 * 1024;
-    case 'Gi':
-      return val * 1024 * 1024 * 1024;
-    case 'Ti':
-      return val * 1024 * 1024 * 1024 * 1024;
-    case 'k':
-    case 'K':
-      return val * 1000;
-    case 'M':
-      return val * 1000 * 1000;
-    case 'G':
-      return val * 1000 * 1000 * 1000;
-    case 'T':
-      return val * 1000 * 1000 * 1000 * 1000;
-    case '':
-      return val;
-    default:
-      return val;
+    case "Ki": return val * 1024;
+    case "Mi": return val * 1024 * 1024;
+    case "Gi": return val * 1024 * 1024 * 1024;
+    case "Ti": return val * 1024 * 1024 * 1024 * 1024;
+    case "k": case "K": return val * 1000;
+    case "M": return val * 1000 * 1000;
+    case "G": return val * 1000 * 1000 * 1000;
+    case "T": return val * 1000 * 1000 * 1000 * 1000;
+    case "": return val;
+    default: return val;
   }
 }
 
@@ -305,44 +210,44 @@ function formatMemory(bytes: number): string {
 
 const getProbeTarget = (probe: Probe): string => {
   if (probe.httpGet) {
-    return `http-get ${probe.httpGet.host || ''}:${probe.httpGet.port}${probe.httpGet.path || ''}`;
+    return `http-get ${probe.httpGet.host || ""}:${probe.httpGet.port}${probe.httpGet.path || ""}`;
   }
   if (probe.tcpSocket) {
     return `tcp-socket :${probe.tcpSocket.port}`;
   }
   if (probe.exec?.command) {
-    return probe.exec.command.join(' ');
+    return probe.exec.command.join(" ");
   }
   if (probe.grpc) {
     return `grpc :${probe.grpc.port}`;
   }
-  return '';
+  return "";
 };
 
 const probeEntry = (probe: Probe): DetailsCardEntry[] => [
-  { key: 'Probe', value: getProbeTarget(probe), ratio: [5, 7] },
+  { key: "Probe", value: getProbeTarget(probe), ratio: [5, 7] },
   {
-    key: 'Initial Delay',
+    key: "Initial Delay",
     value: `${probe.initialDelaySeconds ?? 0}s`,
     ratio: [5, 7],
   },
   {
-    key: 'Timeout',
+    key: "Timeout",
     value: `${probe.timeoutSeconds ?? 1}s`,
     ratio: [5, 7],
   },
   {
-    key: 'Period',
+    key: "Period",
     value: `${probe.periodSeconds ?? 10}s`,
     ratio: [5, 7],
   },
   {
-    key: 'Success Threshold',
+    key: "Success Threshold",
     value: String(probe.successThreshold ?? 1),
     ratio: [5, 7],
   },
   {
-    key: 'Failure Threshold',
+    key: "Failure Threshold",
     value: String(probe.failureThreshold ?? 3),
     ratio: [5, 7],
   },
@@ -358,20 +263,30 @@ const InfoRow: React.FC<{ icon: string; label: string; value: string }> = ({
   label,
   value,
 }) => (
-  <Grid container spacing={0.5} sx={infoRowSx}>
-    <Grid size={3} sx={infoRowLabelCellSx}>
+  <Grid
+    container
+    spacing={0.5}
+    sx={{ minHeight: 28, alignItems: "flex-start" }}
+  >
+    <Grid
+      size={3}
+      sx={{ display: "flex", alignItems: "center", minHeight: 28 }}
+    >
       <Stack direction="row" gap={0.75} alignItems="center">
         <Icon name={icon} size={14} />
-        <Text sx={fontSize13Sx}>{label}</Text>
+        <Text sx={{ fontSize: 13 }}>{label}</Text>
       </Stack>
     </Grid>
-    <Grid size={9} sx={infoRowValueCellSx}>
+    <Grid
+      size={9}
+      sx={{ display: "flex", alignItems: "center", minHeight: 28 }}
+    >
       <ClipboardText
         value={value}
         truncate={false}
         sx={{
-          color: 'neutral.200',
-          wordBreak: 'break-all',
+          color: "neutral.200",
+          wordBreak: "break-all",
           lineHeight: 1.6,
           fontSize: 13,
           py: 0.25,
@@ -392,35 +307,59 @@ const ResourceBar: React.FC<{
   const barColor =
     usage != null
       ? usage > 80
-        ? 'error.main'
+        ? "error.main"
         : usage > 60
-          ? 'warning.main'
-          : 'success.main'
-      : 'primary.main';
+          ? "warning.main"
+          : "success.main"
+      : "primary.main";
 
   return (
-    <Stack direction="row" spacing={1.5} alignItems="center" sx={resourceBarRowSx}>
-      <Stack direction="row" gap={0.75} alignItems="center" sx={resourceBarLabelSx}>
+    <Stack
+      direction="row"
+      spacing={1.5}
+      alignItems="center"
+      sx={{ minHeight: 32 }}
+    >
+      <Stack
+        direction="row"
+        gap={0.75}
+        alignItems="center"
+        sx={{ minWidth: 85, flexShrink: 0 }}
+      >
         <Icon name={icon} size={14} />
-        <Text sx={fontSize13Sx}>{label}</Text>
+        <Text sx={{ fontSize: 13 }}>{label}</Text>
       </Stack>
-      <Box sx={resourceBarContainerSx}>
-        <Box sx={resourceBarBgSx}>
+      <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+        <Box
+          sx={{
+            width: "100%",
+            height: 10,
+            borderRadius: 5,
+            bgcolor: "action.hover",
+            overflow: "hidden",
+          }}
+        >
           {usage != null && (
             <Box
               sx={{
                 width: `${Math.min(usage, 100)}%`,
-                height: '100%',
+                height: "100%",
                 borderRadius: 5,
                 bgcolor: barColor,
-                transition: 'width 0.3s ease',
+                transition: "width 0.3s ease",
               }}
             />
           )}
         </Box>
       </Box>
       <Text
-        sx={resourceBarTextSx}
+        sx={{
+          fontSize: 12,
+          color: "neutral.300",
+          minWidth: 100,
+          textAlign: "right",
+          flexShrink: 0,
+        }}
         noWrap
       >
         {request} / {limit}
@@ -432,24 +371,12 @@ const ResourceBar: React.FC<{
 // ── Restart / termination info card ──
 const formatTerminated = (t: ContainerStateTerminated) => {
   const parts: { label: string; value: string; color?: string }[] = [];
-  if (t.reason)
-    parts.push({
-      label: 'Reason',
-      value: t.reason,
-      color: t.reason === 'Completed' ? 'success.main' : 'error.main',
-    });
-  if (t.exitCode != null)
-    parts.push({
-      label: 'Exit Code',
-      value: String(t.exitCode),
-      color: t.exitCode === 0 ? 'success.main' : 'error.main',
-    });
-  if (t.signal) parts.push({ label: 'Signal', value: String(t.signal) });
-  if (t.message) parts.push({ label: 'Message', value: t.message });
-  if (t.startedAt)
-    parts.push({ label: 'Started', value: formatRelative(new Date(t.startedAt), new Date()) });
-  if (t.finishedAt)
-    parts.push({ label: 'Finished', value: formatRelative(new Date(t.finishedAt), new Date()) });
+  if (t.reason) parts.push({ label: "Reason", value: t.reason, color: t.reason === "Completed" ? "success.main" : "error.main" });
+  if (t.exitCode != null) parts.push({ label: "Exit Code", value: String(t.exitCode), color: t.exitCode === 0 ? "success.main" : "error.main" });
+  if (t.signal) parts.push({ label: "Signal", value: String(t.signal) });
+  if (t.message) parts.push({ label: "Message", value: t.message });
+  if (t.startedAt) parts.push({ label: "Started", value: formatRelative(new Date(t.startedAt), new Date()) });
+  if (t.finishedAt) parts.push({ label: "Finished", value: formatRelative(new Date(t.finishedAt), new Date()) });
   return parts;
 };
 
@@ -461,45 +388,50 @@ const RestartInfoCard: React.FC<{ status: ContainerStatus }> = ({ status }) => {
   if (!lastTerminated && !waiting) return null;
 
   // Determine severity based on *why* it restarted, not just how many times
-  const isHealthyExit = lastTerminated?.reason === 'Completed' && lastTerminated?.exitCode === 0;
+  const isHealthyExit = lastTerminated?.reason === "Completed" && lastTerminated?.exitCode === 0;
   const isCurrentlyFailing = !!waiting?.reason; // CrashLoopBackOff, etc.
   const hasErrorExit = lastTerminated != null && lastTerminated.exitCode !== 0;
 
-  const accentColor =
-    isCurrentlyFailing || hasErrorExit
-      ? restarts > 10
-        ? 'error.main'
-        : 'warning.main'
-      : isHealthyExit
-        ? 'success.main'
-        : 'info.main';
+  const accentColor = isCurrentlyFailing || hasErrorExit
+    ? (restarts > 10 ? "error.main" : "warning.main")
+    : isHealthyExit
+      ? "success.main"
+      : "info.main";
 
-  const chipColor =
-    isCurrentlyFailing || hasErrorExit
-      ? restarts > 10
-        ? 'danger'
-        : 'warning'
-      : isHealthyExit
-        ? 'success'
-        : 'primary';
+  const chipColor = isCurrentlyFailing || hasErrorExit
+    ? (restarts > 10 ? "danger" : "warning")
+    : isHealthyExit
+      ? "success"
+      : "primary";
 
   return (
     <Box
       sx={{
         borderRadius: 1,
-        border: '1px solid',
-        borderColor: 'divider',
-        bgcolor: 'background.level1',
-        overflow: 'hidden',
-        borderLeft: '3px solid',
+        border: "1px solid",
+        borderColor: "divider",
+        bgcolor: "background.level1",
+        overflow: "hidden",
+        borderLeft: "3px solid",
         borderLeftColor: accentColor,
       }}
     >
       {/* Header */}
-      <Box sx={restartHeaderSx}>
+      <Box
+        sx={{
+          py: 0.5,
+          px: 1,
+          bgcolor: "background.surface",
+          borderBottom: "1px solid",
+          borderColor: "divider",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
         <Stack direction="row" gap={0.5} alignItems="center">
           <Icon name="LuRotateCw" size={14} />
-          <Text sx={fontSize13Sx} weight="semibold">
+          <Text sx={{ fontSize: 13 }} weight="semibold">
             Restart Info
           </Text>
         </Stack>
@@ -507,36 +439,34 @@ const RestartInfoCard: React.FC<{ status: ContainerStatus }> = ({ status }) => {
           size="xs"
           color={chipColor}
           emphasis="soft"
-          sx={chipSx}
-          label={`${restarts} restart${restarts !== 1 ? 's' : ''}`}
+          sx={{ borderRadius: 1 }}
+          label={`${restarts} restart${restarts !== 1 ? "s" : ""}`}
         />
       </Box>
 
-      <Box sx={restartBodySx}>
+      <Box sx={{ py: 0.75, px: 1 }}>
         {/* Current waiting state (e.g. CrashLoopBackOff) */}
         {waiting && (
           <Stack spacing={0.5} sx={{ mb: lastTerminated ? 0.75 : 0 }}>
             <Stack direction="row" spacing={1} alignItems="center">
               <Icon name="LuAlertTriangle" size={14} />
-              <Text sx={fontSize13Sx} weight="semibold">
-                Current State
-              </Text>
+              <Text sx={{ fontSize: 13 }} weight="semibold">Current State</Text>
               <Chip
                 size="xs"
                 color="warning"
                 emphasis="soft"
-                sx={chipSx}
-                label={waiting.reason || 'Waiting'}
+                sx={{ borderRadius: 1 }}
+                label={waiting.reason || "Waiting"}
               />
             </Stack>
             {waiting.message && (
               <Text
                 sx={{
                   fontSize: 12,
-                  color: 'neutral.300',
+                  color: "neutral.300",
                   pl: 2.75,
-                  wordBreak: 'break-all',
-                  fontFamily: 'var(--ov-font-mono, monospace)',
+                  wordBreak: "break-all",
+                  fontFamily: "var(--ov-font-mono, monospace)",
                 }}
               >
                 {waiting.message}
@@ -548,28 +478,33 @@ const RestartInfoCard: React.FC<{ status: ContainerStatus }> = ({ status }) => {
         {/* Last termination details */}
         {lastTerminated && (
           <>
-            {waiting && <Divider sx={waitingDividerSx} />}
+            {waiting && <Divider sx={{ my: 0.75 }} />}
             <Stack spacing={0.25}>
               <Text
                 size="xs"
                 weight="semibold"
-                sx={lastTermLabelSx}
+                sx={{
+                  color: "text.secondary",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                  fontSize: 10,
+                  mb: 0.25,
+                }}
               >
                 Last Termination
               </Text>
               {formatTerminated(lastTerminated).map((entry) => (
-                <Grid container key={entry.label} spacing={0.5} sx={termEntryRowSx}>
-                  <Grid size={4} sx={termLabelCellSx}>
-                    <Text sx={termLabelTextSx}>{entry.label}</Text>
+                <Grid container key={entry.label} spacing={0.5} sx={{ minHeight: 22 }}>
+                  <Grid size={4} sx={{ display: "flex", alignItems: "center" }}>
+                    <Text sx={{ fontSize: 12, color: "text.secondary" }}>{entry.label}</Text>
                   </Grid>
-                  <Grid size={8} sx={termValueCellSx}>
+                  <Grid size={8} sx={{ display: "flex", alignItems: "center" }}>
                     <Text
                       sx={{
                         fontSize: 12,
-                        color: entry.color || 'neutral.200',
-                        fontFamily:
-                          entry.label === 'Message' ? 'var(--ov-font-mono, monospace)' : undefined,
-                        wordBreak: 'break-all',
+                        color: entry.color || "neutral.200",
+                        fontFamily: entry.label === "Message" ? "var(--ov-font-mono, monospace)" : undefined,
+                        wordBreak: "break-all",
                       }}
                     >
                       {entry.value}
@@ -590,78 +525,57 @@ const RestartInfoCard: React.FC<{ status: ContainerStatus }> = ({ status }) => {
 // ────────────────────────────────────────────────────────────────────────────
 
 function formatEnvEntry(
-  env: NonNullable<Container['env']>[number],
+  env: NonNullable<Container["env"]>[number],
   pod?: Pod,
   container?: Container,
-  connectionID?: string,
 ): DetailsCardEntry {
-  const ns = pod?.metadata?.namespace;
-
   if (env.valueFrom) {
     const vf = env.valueFrom;
 
     if (vf.configMapKeyRef) {
-      const cmName = vf.configMapKeyRef.name || '?';
       return {
         key: env.name,
-        value: `${cmName} \u2192 ${vf.configMapKeyRef.key}`,
-        icon: 'LuFileText',
+        value: `${vf.configMapKeyRef.name || "?"} \u2192 ${vf.configMapKeyRef.key}`,
+        icon: "LuFileText",
         ratio: [5, 7],
-        endAdornment:
-          connectionID && cmName !== '?' ? (
-            <ResourceLinkChip
-              connectionID={connectionID}
-              resourceKey="core::v1::ConfigMap"
-              resourceID={cmName}
-              resourceName="ConfigMap"
-              namespace={ns}
-            />
-          ) : (
-            <Chip
-              size="xs"
-              emphasis="soft"
-              color="primary"
-              sx={{ borderRadius: 1, flexShrink: 0 }}
-              label="ConfigMap"
-            />
-          ),
+        endAdornment: (
+          <Chip
+            size="xs"
+            emphasis="soft"
+            color="primary"
+            sx={{ borderRadius: 1, flexShrink: 0 }}
+            label="ConfigMap"
+          />
+        ),
       };
     }
 
     if (vf.secretKeyRef) {
-      const secretName = vf.secretKeyRef.name || '?';
       return {
         key: env.name,
-        value: `${secretName} \u2192 ${vf.secretKeyRef.key}`,
-        icon: 'LuKeyRound',
+        value: `${vf.secretKeyRef.name || "?"} \u2192 ${vf.secretKeyRef.key}`,
+        icon: "LuKeyRound",
         ratio: [5, 7],
-        endAdornment:
-          connectionID && secretName !== '?' ? (
-            <ResourceLinkChip
-              connectionID={connectionID}
-              resourceKey="core::v1::Secret"
-              resourceID={secretName}
-              resourceName="Secret"
-              namespace={ns}
-            />
-          ) : (
-            <Chip
-              size="xs"
-              emphasis="soft"
-              color="warning"
-              sx={{ borderRadius: 1, flexShrink: 0 }}
-              label="Secret"
-            />
-          ),
+        endAdornment: (
+          <Chip
+            size="xs"
+            emphasis="soft"
+            color="warning"
+            sx={{ borderRadius: 1, flexShrink: 0 }}
+            label="Secret"
+          />
+        ),
       };
     }
 
     if (vf.fieldRef) {
-      const resolved = pod ? resolveFieldRef(pod, vf.fieldRef.fieldPath) : undefined;
+      const resolved = pod
+        ? resolveFieldRef(pod, vf.fieldRef.fieldPath)
+        : undefined;
       return {
         key: env.name,
         value: resolved || vf.fieldRef.fieldPath,
-        icon: 'LuLink2',
+        icon: "LuLink2",
         ratio: [5, 7],
         endAdornment: (
           <Chip
@@ -669,7 +583,7 @@ function formatEnvEntry(
             emphasis="soft"
             color="neutral"
             sx={{ borderRadius: 1, flexShrink: 0 }}
-            label={resolved ? vf.fieldRef.fieldPath : 'FieldRef'}
+            label={resolved ? vf.fieldRef.fieldPath : "FieldRef"}
           />
         ),
       };
@@ -682,7 +596,7 @@ function formatEnvEntry(
       return {
         key: env.name,
         value: resolved || vf.resourceFieldRef.resource,
-        icon: 'LuCpu',
+        icon: "LuCpu",
         ratio: [5, 7],
         endAdornment: (
           <Chip
@@ -690,18 +604,18 @@ function formatEnvEntry(
             emphasis="soft"
             color="neutral"
             sx={{ borderRadius: 1, flexShrink: 0 }}
-            label={resolved ? vf.resourceFieldRef.resource : 'Resource'}
+            label={resolved ? vf.resourceFieldRef.resource : "Resource"}
           />
         ),
       };
     }
 
-    return { key: env.name, value: '(ref)', ratio: [5, 7] };
+    return { key: env.name, value: "(ref)", ratio: [5, 7] };
   }
 
   return {
     key: env.name,
-    value: env.value || '',
+    value: env.value || "",
     ratio: [5, 7],
   };
 }
@@ -725,12 +639,16 @@ const ContainerSlice: React.FC<ContainerSliceProps> = ({
   const chipColor = typeChipColor(type);
 
   // ── Resource values ──
-  const cpuReq = container.resources?.requests?.cpu;
-  const cpuLim = container.resources?.limits?.cpu;
-  const memReq = container.resources?.requests?.memory;
-  const memLim = container.resources?.limits?.memory;
-  const storReq = container.resources?.requests?.['ephemeral-storage'];
-  const storLim = container.resources?.limits?.['ephemeral-storage'];
+  const cpuReq = container.resources?.requests?.cpu as string | undefined;
+  const cpuLim = container.resources?.limits?.cpu as string | undefined;
+  const memReq = container.resources?.requests?.memory as string | undefined;
+  const memLim = container.resources?.limits?.memory as string | undefined;
+  const storReq = container.resources?.requests?.[
+    "ephemeral-storage"
+  ] as string | undefined;
+  const storLim = container.resources?.limits?.[
+    "ephemeral-storage"
+  ] as string | undefined;
 
   // ── Compute usage percentages from pod-level metrics ──
   // Use request as denominator (standard for K8s resource planning), fall back to limit.
@@ -751,35 +669,27 @@ const ContainerSlice: React.FC<ContainerSliceProps> = ({
   const memUsageDisplay = podMemoryUsage != null ? formatMemory(podMemoryUsage) : undefined;
 
   const numProbes =
-    +!!container.livenessProbe + +!!container.readinessProbe + +!!container.startupProbe;
+    +!!container.livenessProbe +
+    +!!container.readinessProbe +
+    +!!container.startupProbe;
 
   // ── Environment variables (resolved refs where possible) ──
   const envData: DetailsCardEntry[] | undefined = container.env?.map((env) =>
-    formatEnvEntry(env, pod, container, connectionID),
+    formatEnvEntry(env, pod, container),
   );
 
   // ── Volume mounts (enriched with volume type from pod spec) ──
-  const namespace = pod?.metadata?.namespace;
-  const mountsData: DetailsCardEntry[] | undefined = container.volumeMounts?.map((vm) => {
-    const volType = getVolumeType(volumes, vm.name);
-    const volRef = getVolumeResourceRef(volumes, vm.name);
-    return {
-      key: vm.name,
-      icon: vm.readOnly ? 'LuLock' : 'LuPencil',
-      value:
-        vm.mountPath +
-        (vm.subPath ? `/${vm.subPath}` : '') +
-        (vm.subPathExpr ? ` (${vm.subPathExpr})` : ''),
-      endAdornment:
-        volRef && connectionID ? (
-          <ResourceLinkChip
-            connectionID={connectionID}
-            resourceKey={volRef.resourceKey}
-            resourceID={volRef.resourceName}
-            resourceName={volType || volRef.resourceName}
-            namespace={namespace}
-          />
-        ) : volType ? (
+  const mountsData: DetailsCardEntry[] | undefined =
+    container.volumeMounts?.map((vm) => {
+      const volType = getVolumeType(volumes, vm.name);
+      return {
+        key: vm.name,
+        icon: vm.readOnly ? "LuLock" : "LuPencil",
+        value:
+          vm.mountPath +
+          (vm.subPath ? `/${vm.subPath}` : "") +
+          (vm.subPathExpr ? ` (${vm.subPathExpr})` : ""),
+        endAdornment: volType ? (
           <Chip
             size="xs"
             emphasis="soft"
@@ -788,18 +698,23 @@ const ContainerSlice: React.FC<ContainerSliceProps> = ({
             label={volType}
           />
         ) : undefined,
-    };
-  });
+      };
+    });
 
   return (
-    <Box sx={containerSx}>
+    <Box sx={{ py: 1, px: 1.25 }}>
       {/* ── Header: dot + name + type chip + restart count + status ── */}
-      <Stack direction="row" spacing={1} alignItems="center" sx={headerSx}>
+      <Stack
+        direction="row"
+        spacing={1}
+        alignItems="center"
+        sx={{ mb: 1 }}
+      >
         <Box
           sx={{
             width: 8,
             height: 8,
-            borderRadius: '50%',
+            borderRadius: "50%",
             bgcolor: statusDotColor(status),
             flexShrink: 0,
           }}
@@ -812,36 +727,24 @@ const ContainerSlice: React.FC<ContainerSliceProps> = ({
             size="xs"
             color={chipColor}
             emphasis="soft"
-            sx={chipSx}
+            sx={{ borderRadius: 1 }}
             label={label}
           />
         )}
-        {status &&
-          !!status.restartCount &&
-          (() => {
-            const healthy =
-              status.lastState?.terminated?.reason === 'Completed' &&
-              status.lastState?.terminated?.exitCode === 0;
-            const failing =
-              !!status.state?.waiting?.reason ||
-              (status.lastState?.terminated != null && status.lastState.terminated.exitCode !== 0);
-            const color = failing
-              ? status.restartCount > 10
-                ? 'danger'
-                : 'warning'
-              : healthy
-                ? 'success'
-                : 'primary';
-            return (
-              <Chip
-                size="xs"
-                color={color}
-                emphasis="soft"
-                sx={chipSx}
-                label={`${status.restartCount} restart${status.restartCount !== 1 ? 's' : ''}`}
-              />
-            );
-          })()}
+        {status && !!status.restartCount && (() => {
+          const healthy = status.lastState?.terminated?.reason === "Completed" && status.lastState?.terminated?.exitCode === 0;
+          const failing = !!status.state?.waiting?.reason || (status.lastState?.terminated != null && status.lastState.terminated.exitCode !== 0);
+          const color = failing ? (status.restartCount > 10 ? "danger" : "warning") : healthy ? "success" : "primary";
+          return (
+            <Chip
+              size="xs"
+              color={color}
+              emphasis="soft"
+              sx={{ borderRadius: 1 }}
+              label={`${status.restartCount} restart${status.restartCount !== 1 ? "s" : ""}`}
+            />
+          );
+        })()}
         {status && <ContainerStatusDecorator status={status} />}
       </Stack>
 
@@ -856,56 +759,87 @@ const ContainerSlice: React.FC<ContainerSliceProps> = ({
 
         {/* Image / Command / Args — full width, wrapping text */}
         <Grid size={12}>
-          <Box sx={infoCardSx}>
-            <InfoRow icon="LuImage" label="Image" value={container.image || ''} />
+          <Box
+            sx={{
+              borderRadius: 1,
+              border: "1px solid",
+              borderColor: "divider",
+              bgcolor: "background.level1",
+              overflow: "hidden",
+              p: 1,
+            }}
+          >
+            <InfoRow
+              icon="LuImage"
+              label="Image"
+              value={container.image || ""}
+            />
             {!!container.command?.length && (
               <InfoRow
                 icon="LuTerminalSquare"
                 label="Command"
-                value={container.command.join(' ')}
+                value={container.command.join(" ")}
               />
             )}
             {!!container.args?.length && (
-              <InfoRow icon="LuTerminal" label="Args" value={container.args.join(' ')} />
+              <InfoRow
+                icon="LuTerminal"
+                label="Args"
+                value={container.args.join(" ")}
+              />
             )}
           </Box>
         </Grid>
 
         {/* Resources with utilization bars — full width */}
         <Grid size={12}>
-          <Box sx={resourceCardSx}>
-            <Box sx={resourceCardHeaderSx}>
+          <Box
+            sx={{
+              borderRadius: 1,
+              border: "1px solid",
+              borderColor: "divider",
+              bgcolor: "background.level1",
+              overflow: "hidden",
+            }}
+          >
+            <Box
+              sx={{
+                py: 0.5,
+                px: 1,
+                bgcolor: "background.surface",
+                borderBottom: "1px solid",
+                borderColor: "divider",
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
               <Stack direction="row" gap={0.5} alignItems="center">
                 <Icon name="LuGauge" size={14} />
-                <Text sx={fontSize13Sx} weight="semibold">
+                <Text sx={{ fontSize: 13 }} weight="semibold">
                   Resources
                 </Text>
               </Stack>
             </Box>
-            <Box sx={resourceCardBodySx}>
+            <Box sx={{ py: 0.75, px: 1 }}>
               <ResourceBar
                 label="CPU"
                 icon="LuCpu"
-                request={
-                  cpuUsageDisplay ? `${cpuUsageDisplay} / ${cpuReq || '∞'}` : cpuReq || 'None'
-                }
-                limit={cpuLim || 'None'}
+                request={cpuUsageDisplay ? `${cpuUsageDisplay} / ${cpuReq || "∞"}` : (cpuReq || "None")}
+                limit={cpuLim || "None"}
                 usage={cpuUsagePercent}
               />
               <ResourceBar
                 label="Memory"
                 icon="LuMemoryStick"
-                request={
-                  memUsageDisplay ? `${memUsageDisplay} / ${memReq || '∞'}` : memReq || 'None'
-                }
-                limit={memLim || 'None'}
+                request={memUsageDisplay ? `${memUsageDisplay} / ${memReq || "∞"}` : (memReq || "None")}
+                limit={memLim || "None"}
                 usage={memUsagePercent}
               />
               <ResourceBar
                 label="Storage"
                 icon="LuHardDrive"
-                request={storReq || 'None'}
-                limit={storLim || 'None'}
+                request={storReq || "None"}
+                limit={storLim || "None"}
               />
             </Box>
           </Box>
@@ -958,7 +892,12 @@ const ContainerSlice: React.FC<ContainerSliceProps> = ({
         {/* Environment Variables — full width */}
         {envData && envData.length > 0 && (
           <Grid size={12}>
-            <DetailsCard title="Environment Variables" titleSize="sm" icon="LuKey" data={envData} />
+            <DetailsCard
+              title="Environment Variables"
+              titleSize="sm"
+              icon="LuKey"
+              data={envData}
+            />
           </Grid>
         )}
 

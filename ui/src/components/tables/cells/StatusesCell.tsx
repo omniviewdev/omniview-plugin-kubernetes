@@ -1,15 +1,11 @@
+import React from 'react';
+
 // @omniviewdev/ui
 import { useTheme } from '@mui/material/styles';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Tooltip } from '@omniviewdev/ui/overlays';
+
 import jsonpath from 'jsonpath';
-import React from 'react';
-
-// ---------------------------------------------------------------------------
-// Static styles
-// ---------------------------------------------------------------------------
-
-const statusStackSx = { width: '100%' } as const;
 
 type Status = 'success' | 'warning' | 'danger' | 'neutral';
 
@@ -22,16 +18,11 @@ type Props = {
   hoverMenuComponent?: string;
 };
 
-export const ContainerStatusCell: React.FC<Props> = ({
-  values,
-  statusAccessor,
-  statusMap,
-  hoverMenuComponent,
-}) => {
+export const ContainerStatusCell: React.FC<Props> = ({ values, statusAccessor, statusMap, hoverMenuComponent }) => {
   const theme = useTheme();
 
-  const getColor = (data: string) => {
-    const value = String((jsonpath.query(data, statusAccessor) as string[])[0] ?? '');
+  const getColor = (data: any) => {
+    const value = jsonpath.query(data, statusAccessor)[0];
     const status = statusMap[value] ?? 'neutral';
 
     switch (status) {
@@ -47,15 +38,12 @@ export const ContainerStatusCell: React.FC<Props> = ({
   };
 
   return (
-    <Stack
-      direction="row"
-      sx={statusStackSx}
-      alignItems="center"
-      justifyContent="flex-start"
-      gap={1}
-    >
+    <Stack direction="row" sx={{ width: '100%' }} alignItems='center' justifyContent='flex-start' gap={1}>
       {values.map((status) => (
-        <Tooltip key={status} placement="top-end" content={hoverMenuComponent}>
+        <Tooltip
+          placement="top-end"
+          content={hoverMenuComponent}
+        >
           <div
             color={getColor(status)}
             style={{

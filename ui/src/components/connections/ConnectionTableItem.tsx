@@ -1,23 +1,24 @@
+import React from 'react';
+import { usePluginRouter } from '@omniviewdev/runtime';
+
+import { Avatar, Chip } from '@omniviewdev/ui';
+import { Text } from '@omniviewdev/ui/typography';
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
+
 import {
-  usePluginRouter,
   usePluginContext,
   useConnection,
   useSnackbar,
 } from '@omniviewdev/runtime';
 import { types } from '@omniviewdev/runtime/models';
-import { Avatar, Chip } from '@omniviewdev/ui';
-import { Text } from '@omniviewdev/ui/typography';
-import React from 'react';
 
 import type { EnrichedConnection, ConnectionGroup } from '../../types/clusters';
-import NamedAvatar from '../shared/NamedAvatar';
-
-import ConnectionContextMenu from './ConnectionContextMenu';
-import ConnectionStatusBadge from './ConnectionStatusBadge';
 import FavoriteButton from './FavoriteButton';
 import ProviderIcon from './ProviderIcon';
+import ConnectionStatusBadge from './ConnectionStatusBadge';
+import ConnectionContextMenu from './ConnectionContextMenu';
+import NamedAvatar from '../shared/NamedAvatar';
 
 type Props = {
   enriched: EnrichedConnection;
@@ -31,15 +32,7 @@ type Props = {
   onRecordAccess: () => void;
 };
 
-const rowStyle = { cursor: 'pointer' } as const;
-
-const nameRowSx = { display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 } as const;
-
-const descriptionSx = { color: 'var(--ov-fg-faint)', flexShrink: 1, minWidth: 0 } as const;
-
-const columnValueSx = { color: 'var(--ov-fg-muted)' } as const;
-
-const truncate = (input: string) => (input.length > 60 ? `${input.substring(0, 60)}...` : input);
+const truncate = (input: string) => input.length > 60 ? `${input.substring(0, 60)}...` : input;
 
 const tdSx: React.CSSProperties = {
   padding: '3px 8px',
@@ -58,18 +51,13 @@ const ConnectionTableItem: React.FC<Props> = ({
   onDelete,
   onRecordAccess,
 }) => {
-  const { connection, provider, isFavorite, isConnected, displayName, displayDescription } =
-    enriched;
+  const { connection, provider, isFavorite, isConnected, displayName, displayDescription } = enriched;
   const { id, labels } = connection;
 
   const { meta } = usePluginContext();
   const { navigate } = usePluginRouter();
-  // eslint-disable-next-line @typescript-eslint/unbound-method
   const { showSnackbar } = useSnackbar();
-  const { startConnection, stopConnection } = useConnection({
-    pluginID: meta.id,
-    connectionID: id,
-  });
+  const { startConnection, stopConnection } = useConnection({ pluginID: meta.id, connectionID: id });
   const [connecting, setConnecting] = React.useState(false);
 
   const handleConnectionStatus = (status: types.ConnectionStatus) => {
@@ -108,8 +96,8 @@ const ConnectionTableItem: React.FC<Props> = ({
     }
     setConnecting(true);
     startConnection()
-      .then((status) => handleConnectionStatus(status))
-      .catch((err) => {
+      .then(status => handleConnectionStatus(status))
+      .catch(err => {
         if (err instanceof Error) {
           showSnackbar({
             status: 'error',
@@ -125,8 +113,8 @@ const ConnectionTableItem: React.FC<Props> = ({
     onRecordAccess();
     setConnecting(true);
     startConnection()
-      .then((status) => handleConnectionStatus(status))
-      .catch((err) => {
+      .then(status => handleConnectionStatus(status))
+      .catch(err => {
         if (err instanceof Error) {
           showSnackbar({ status: 'error', message: err.message, icon: 'LuCircleAlert' });
         }
@@ -135,7 +123,7 @@ const ConnectionTableItem: React.FC<Props> = ({
   };
 
   const handleDisconnect = () => {
-    stopConnection().catch((err) => {
+    stopConnection().catch(err => {
       if (err instanceof Error) {
         showSnackbar({ status: 'error', message: err.message, icon: 'LuCircleAlert' });
       }
@@ -143,28 +131,16 @@ const ConnectionTableItem: React.FC<Props> = ({
   };
 
   const handleCopyId = () => {
-    void navigator.clipboard.writeText(id);
+    navigator.clipboard.writeText(id);
     showSnackbar({ status: 'success', message: 'Connection ID copied' });
   };
 
   return (
     <tr
       id={`connection-${id}`}
-      style={rowStyle}
-      onMouseOver={(e) => {
-        (e.currentTarget as HTMLElement).style.backgroundColor =
-          'var(--ov-bg-surface-hover, rgba(255,255,255,0.04))';
-      }}
-      onFocus={(e) => {
-        (e.currentTarget as HTMLElement).style.backgroundColor =
-          'var(--ov-bg-surface-hover, rgba(255,255,255,0.04))';
-      }}
-      onMouseOut={(e) => {
-        (e.currentTarget as HTMLElement).style.backgroundColor = '';
-      }}
-      onBlur={(e) => {
-        (e.currentTarget as HTMLElement).style.backgroundColor = '';
-      }}
+      style={{ cursor: 'pointer' }}
+      onMouseOver={e => { (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--ov-bg-surface-hover, rgba(255,255,255,0.04))'; }}
+      onMouseOut={e => { (e.currentTarget as HTMLElement).style.backgroundColor = ''; }}
     >
       {/* Favorite */}
       <td style={{ ...tdSx, width: 32, padding: '3px 4px', textAlign: 'center' }}>
@@ -172,37 +148,36 @@ const ConnectionTableItem: React.FC<Props> = ({
       </td>
 
       {/* Name */}
-      <td onClick={handleClick} style={{ ...tdSx }}>
-        <Box sx={nameRowSx}>
+      <td
+        onClick={handleClick}
+        style={{ ...tdSx }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
           <ConnectionStatusBadge isConnected={isConnected}>
-            {enriched.avatar ? (
-              <Avatar size="sm" src={enriched.avatar} />
-            ) : (
-              <NamedAvatar value={displayName} color={enriched.avatarColor} />
-            )}
+            {enriched.avatar
+              ? <Avatar size='sm' src={enriched.avatar} />
+              : <NamedAvatar value={displayName} color={enriched.avatarColor} />
+            }
           </ConnectionStatusBadge>
           <ProviderIcon provider={provider} size={14} />
-          <Text weight="semibold" size="sm" noWrap>
-            {displayName}
-          </Text>
+          <Text weight='semibold' size='sm' noWrap>{displayName}</Text>
           {Boolean(displayDescription) && (
-            <Text size="xs" noWrap sx={descriptionSx}>
+            <Text size='xs' noWrap sx={{ color: 'var(--ov-fg-faint)', flexShrink: 1, minWidth: 0 }}>
               {displayDescription}
             </Text>
           )}
-          {enriched.tags.length > 0 &&
-            enriched.tags.map((tag) => (
-              <Chip key={tag} size="xs" emphasis="soft" color="warning" label={tag} />
-            ))}
+          {enriched.tags.length > 0 && enriched.tags.map(tag => (
+            <Chip key={tag} size='xs' emphasis='soft' color='warning' label={tag} />
+          ))}
           {connecting && <CircularProgress size={14} />}
         </Box>
       </td>
 
       {/* Visible label columns */}
-      {visibleColumns.map((col) => (
+      {visibleColumns.map(col => (
         <td key={`${id}-${col}`} onClick={handleClick} style={{ ...tdSx }}>
           {labels?.[col] ? (
-            <Text size="xs" noWrap sx={columnValueSx}>
+            <Text size='xs' noWrap sx={{ color: 'var(--ov-fg-muted)' }}>
               {truncate(String(labels[col]))}
             </Text>
           ) : null}
@@ -210,7 +185,7 @@ const ConnectionTableItem: React.FC<Props> = ({
       ))}
 
       {/* Actions */}
-      <td onClick={(e) => e.stopPropagation()} style={{ ...tdSx, width: 36, textAlign: 'center' }}>
+      <td onClick={e => e.stopPropagation()} style={{ ...tdSx, width: 36, textAlign: 'center' }}>
         <ConnectionContextMenu
           connectionId={id}
           connectionName={displayName}

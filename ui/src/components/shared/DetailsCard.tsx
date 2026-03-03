@@ -1,23 +1,14 @@
+import React from "react";
+
 // @omniviewdev/ui
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
 import { Avatar, ClipboardText } from '@omniviewdev/ui';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
-import React from 'react';
 
 // project imports
-import Icon from './Icon';
-
-const outerBoxSx = {
-  borderRadius: 1,
-  border: '1px solid',
-  borderColor: 'divider',
-  bgcolor: 'background.level1',
-  overflow: 'hidden',
-} as const;
-
-const avatarSx = { maxHeight: 16, maxWidth: 16, borderRadius: 4 } as const;
+import Icon from "./Icon";
 
 export interface DetailsCardEntry {
   key: string;
@@ -32,7 +23,7 @@ export interface DetailsCardEntry {
 
 export interface DetailsCardProps {
   title?: string;
-  titleSize?: 'sm' | 'md' | 'lg';
+  titleSize?: "sm" | "md" | "lg";
   icon?: string | React.ReactNode;
   data: DetailsCardEntry[];
   endAdornment?: React.ReactNode;
@@ -41,36 +32,9 @@ export interface DetailsCardProps {
 }
 
 const sizeConfig = {
-  sm: {
-    fontSize: 13,
-    iconSize: 14,
-    headerPy: 0.5,
-    headerPx: 1,
-    bodyP: 1,
-    bodyFontSize: 13,
-    gap: 0.5,
-    gridSpacing: 0.5,
-  },
-  md: {
-    fontSize: 14,
-    iconSize: 14,
-    headerPy: 0.75,
-    headerPx: 1.25,
-    bodyP: 1.25,
-    bodyFontSize: 13,
-    gap: 0.75,
-    gridSpacing: 0.5,
-  },
-  lg: {
-    fontSize: 16,
-    iconSize: 16,
-    headerPy: 1,
-    headerPx: 1.25,
-    bodyP: 1.25,
-    bodyFontSize: 14,
-    gap: 1,
-    gridSpacing: 0.75,
-  },
+  sm: { fontSize: 13, iconSize: 14, headerPy: 0.5, headerPx: 1, bodyP: 1, bodyFontSize: 13, gap: 0.5, gridSpacing: 0.5 },
+  md: { fontSize: 14, iconSize: 14, headerPy: 0.75, headerPx: 1.25, bodyP: 1.25, bodyFontSize: 13, gap: 0.75, gridSpacing: 0.5 },
+  lg: { fontSize: 16, iconSize: 16, headerPy: 1, headerPx: 1.25, bodyP: 1.25, bodyFontSize: 14, gap: 1, gridSpacing: 0.75 },
 } as const;
 
 /**
@@ -78,7 +42,7 @@ const sizeConfig = {
  */
 export const DetailsCard: React.FC<DetailsCardProps> = ({
   title,
-  titleSize = 'md',
+  titleSize = "md",
   icon,
   data,
   endAdornment,
@@ -88,7 +52,13 @@ export const DetailsCard: React.FC<DetailsCardProps> = ({
 
   return (
     <Box
-      sx={outerBoxSx}
+      sx={{
+        borderRadius: 1,
+        border: '1px solid',
+        borderColor: 'divider',
+        bgcolor: 'background.level1',
+        overflow: 'hidden',
+      }}
     >
       {title && (
         <Box
@@ -104,14 +74,18 @@ export const DetailsCard: React.FC<DetailsCardProps> = ({
             borderColor: 'divider',
           }}
         >
-          <Stack direction="row" gap={cfg.gap} alignItems="center">
+          <Stack
+            direction="row"
+            gap={cfg.gap}
+            alignItems="center"
+          >
             {icon &&
-              (typeof icon === 'string' ? (
-                icon.startsWith('http') ? (
+              (typeof icon === "string" ? (
+                icon.startsWith("http") ? (
                   <Avatar
                     src={icon}
                     size="sm"
-                    sx={avatarSx}
+                    sx={{ maxHeight: 16, maxWidth: 16, borderRadius: 4 }}
                   />
                 ) : (
                   <Icon name={icon} size={cfg.iconSize} />
@@ -127,7 +101,10 @@ export const DetailsCard: React.FC<DetailsCardProps> = ({
         </Box>
       )}
       <Box sx={{ p: cfg.bodyP }}>
-        <Grid container spacing={cfg.gridSpacing}>
+        <Grid
+          container
+          spacing={cfg.gridSpacing}
+        >
           {data.map((entry) => {
             if (entry.value || showUndefined) {
               return (
@@ -135,8 +112,8 @@ export const DetailsCard: React.FC<DetailsCardProps> = ({
                   <Grid size={entry.ratio?.[0] ?? 5}>
                     <Stack direction="row" gap={0.75} alignItems="center">
                       {entry.icon &&
-                        (typeof entry.icon === 'string' ? (
-                          entry.icon.startsWith('http') ? (
+                        (typeof entry.icon === "string" ? (
+                          entry.icon.startsWith("http") ? (
                             <Avatar src={entry.icon} size="sm" />
                           ) : (
                             <Icon name={entry.icon} size={cfg.iconSize} />
@@ -148,16 +125,11 @@ export const DetailsCard: React.FC<DetailsCardProps> = ({
                     </Stack>
                   </Grid>
                   <Grid size={entry.ratio?.[1] ?? 7}>
-                    <Stack
-                      direction="row"
-                      gap={0.75}
-                      alignItems="center"
-                      justifyContent="space-between"
-                    >
+                    <Stack direction="row" gap={0.75} alignItems="center" justifyContent='space-between'>
                       <ClipboardText
                         value={entry.used ? `${entry.used} / ${entry.value}` : entry.value}
                         variant="inherit"
-                        sx={{ color: 'neutral.200', fontSize: cfg.bodyFontSize }}
+                        sx={{ color: "neutral.200", fontSize: cfg.bodyFontSize }}
                       />
                       {entry.endAdornment}
                     </Stack>
@@ -172,6 +144,6 @@ export const DetailsCard: React.FC<DetailsCardProps> = ({
   );
 };
 
-DetailsCard.displayName = 'DetailsCard';
+DetailsCard.displayName = "DetailsCard";
 
 export default DetailsCard;

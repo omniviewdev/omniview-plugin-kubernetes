@@ -1,12 +1,18 @@
-import { ArrowDropDown } from '@mui/icons-material';
+import React, { useState } from 'react';
+
+// @omniviewdev/ui
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
 import LinearProgress from '@mui/material/LinearProgress';
 import Skeleton from '@mui/material/Skeleton';
-import { useResources, InformerResourceState } from '@omniviewdev/runtime';
 import { Alert } from '@omniviewdev/ui/feedback';
 import { Stack } from '@omniviewdev/ui/layout';
-import { Text, Heading } from '@omniviewdev/ui/typography';
+import { Text } from '@omniviewdev/ui/typography';
+import { Heading } from '@omniviewdev/ui/typography';
+
+import { ArrowDropDown } from '@mui/icons-material';
+
+// Tanstack/react-table
 import {
   type ColumnDef,
   type ColumnFiltersState,
@@ -20,122 +26,19 @@ import {
   useReactTable,
   type RowSelectionState,
 } from '@tanstack/react-table';
-import { useVirtualizer } from '@tanstack/react-virtual';
 import get from 'lodash.get';
-import React, { useState } from 'react';
+
+// Project imports
+import MemoizedRow from './MemoizedRow';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { useResources, InformerResourceState } from '@omniviewdev/runtime';
 import { LuCircleAlert } from 'react-icons/lu';
 
-import MemoizedRow from './MemoizedRow';
-
-const skeletonContainerSx = {
-  backgroundColor: 'inherit',
-  width: '100%',
-  borderRadius: '4px',
-  flex: 1,
-  minHeight: 0,
-  border: '1px solid',
-  borderColor: 'divider',
-  overflow: 'hidden',
-} as const;
-
-const skeletonTextSx = { fontSize: '0.75rem' } as const;
-
-const syncingOverlaySx = {
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  height: '100%',
-  width: '100%',
-  gap: 2,
-} as const;
-
-const syncingSpinnerSx = { color: 'var(--ov-accent-fg, #58a6ff)' } as const;
-
-const syncingProgressSx = {
-  width: 200,
-  height: 3,
-  borderRadius: 1.5,
-  bgcolor: 'rgba(255,255,255,0.08)',
-  '& .MuiLinearProgress-bar': {
-    bgcolor: 'var(--ov-accent-fg, #58a6ff)',
-    borderRadius: 1.5,
-  },
-} as const;
-
-const errorContainerSx = {
-  display: 'flex',
-  gap: 2,
-  justifyContent: 'center',
-  flexDirection: 'column',
-  alignItems: 'center',
-  height: '100%',
-  width: '100%',
-  userSelect: 'none',
-} as const;
-
-const errorDetailStackSx = { maxWidth: 560, textAlign: 'center' } as const;
-
-const errorSuggestionListSx = { textAlign: 'left', pl: 2, m: 0 } as const;
-
-const errorSuggestionItemSx = { py: 0.25 } as const;
-
-const errorDetailTextSx = {
-  color: 'text.disabled',
-  fontFamily: 'monospace',
-  mt: 1,
-  p: 1,
-  borderRadius: 1,
-  bgcolor: 'action.hover',
-  wordBreak: 'break-all',
-  maxHeight: 80,
-  overflow: 'auto',
-} as const;
-
-const tableStyle = {
-  display: 'grid',
-  width: '100%',
-  borderCollapse: 'collapse',
-  WebkitUserSelect: 'none',
-} as const;
-
-const theadStyle = {
-  display: 'grid',
-  position: 'sticky',
-  top: 0,
-  zIndex: 1,
-} as const;
-
-const syncingIndicatorSx = {
-  position: 'absolute',
-  top: 0,
-  left: 0,
-  right: 0,
-  height: 2,
-  zIndex: 2,
-  bgcolor: 'transparent',
-  '& .MuiLinearProgress-bar': {
-    bgcolor: 'var(--ov-accent-fg, #58a6ff)',
-  },
-} as const;
-
-const skeletonTableStyle = { display: 'grid', width: '100%', borderCollapse: 'collapse' } as const;
-
-const skeletonTheadStyle = { display: 'grid', position: 'sticky', top: 0, zIndex: 1 } as const;
-
-const skeletonTbodyStyle = { display: 'grid' } as const;
-
-const syncingTextSx = { color: 'var(--ov-fg-muted)' } as const;
-
-const errorHeadingSx = { color: 'danger.main' } as const;
-
-const textSecondarySx = { color: 'text.secondary' } as const;
-
-export type Memoizer = string | string[] | ((data: Record<string, unknown>) => string);
-export type IdAccessor = string | ((data: Record<string, unknown>) => string);
+export type Memoizer = string | string[] | ((data: any) => string);
+export type IdAccessor = string | ((data: any) => string);
 
 export type Props = {
-  columns: Array<ColumnDef<Record<string, unknown>>>;
+  columns: Array<ColumnDef<any>>;
   namespaces?: string[];
   initialColumnVisibility?: VisibilityState;
   idAccessor: IdAccessor;
@@ -147,25 +50,25 @@ export type Props = {
   search?: string;
 };
 
-const idAccessorResolver = (data: Record<string, unknown>, accessor: IdAccessor): string => {
+const idAccessorResolver = (data: any, accessor: IdAccessor): string => {
   switch (typeof accessor) {
     case 'function':
       return accessor(data);
     case 'string':
-      return get(data, accessor) as string;
+      return get(data, accessor);
     default:
       throw new Error('Invalid ID accessor');
   }
 };
 
-// eslint-disable-next-line react-refresh/only-export-components
-export const namespaceFilter: FilterFn<Record<string, unknown>> = (row, columnId, value: string[]) => {
+export const namespaceFilter: FilterFn<any> = (row, columnId, value: string[]) => {
   if (!value?.length) {
     return true;
   }
 
   return value.includes(row.getValue(columnId));
 };
+
 
 const ResourceTableContainer: React.FC<Props> = ({
   columns,
@@ -179,21 +82,17 @@ const ResourceTableContainer: React.FC<Props> = ({
   search,
 }) => {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'name', desc: false }]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([
-    { id: 'namespace', value: [] },
-  ]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([{ id: 'namespace', value: [] }]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   React.useLayoutEffect(() => {
-    const storedColumnVisibility = window.localStorage.getItem(
-      `${pluginID}-${connectionID}-${resourceKey}-column-visibility`,
-    );
+    const storedColumnVisibility = window.localStorage.getItem(`${pluginID}-${connectionID}-${resourceKey}-column-visibility`);
     if (storedColumnVisibility && initialColumnVisibility) {
-      const current = JSON.parse(storedColumnVisibility) as VisibilityState;
+      const current = JSON.parse(storedColumnVisibility);
 
       Object.entries(initialColumnVisibility).forEach(([key, value]) => {
-        if (!Object.hasOwn(current, key)) {
+        if (!current.hasOwnProperty(key)) {
           current[key] = value;
         }
       });
@@ -202,23 +101,16 @@ const ResourceTableContainer: React.FC<Props> = ({
     } else if (initialColumnVisibility) {
       setColumnVisibility(initialColumnVisibility);
     }
-  }, [initialColumnVisibility, connectionID, pluginID, resourceKey]);
+  }, [initialColumnVisibility]);
 
   React.useEffect(() => {
-    const visibility = JSON.stringify(columnVisibility);
+    let visibility = JSON.stringify(columnVisibility);
     if (visibility !== '{}') {
-      window.localStorage.setItem(
-        `${pluginID}-${connectionID}-${resourceKey}-column-visibility`,
-        visibility,
-      );
+      window.localStorage.setItem(`${pluginID}-${connectionID}-${resourceKey}-column-visibility`, visibility);
     }
-  }, [columnVisibility, connectionID, pluginID, resourceKey]);
+  }, [columnVisibility]);
 
-  const { resources, informerState, isSyncing } = useResources({
-    pluginID,
-    connectionID,
-    resourceKey,
-  });
+  const { resources, informerState, isSyncing } = useResources({ pluginID, connectionID, resourceKey });
 
   const table = useReactTable({
     data: resources.data?.result || [],
@@ -230,7 +122,7 @@ const ResourceTableContainer: React.FC<Props> = ({
     getFilteredRowModel: getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
-    getRowId: (row) => idAccessorResolver(row as Record<string, unknown>, idAccessor),
+    getRowId: (row) => idAccessorResolver(row, idAccessor),
     state: {
       sorting,
       columnFilters,
@@ -266,34 +158,33 @@ const ResourceTableContainer: React.FC<Props> = ({
   if (showSkeleton) {
     return (
       <Box
-        sx={skeletonContainerSx}
+        sx={{
+          backgroundColor: 'inherit',
+          width: '100%',
+          borderRadius: '4px',
+          flex: 1,
+          minHeight: 0,
+          border: '1px solid',
+          borderColor: 'divider',
+          overflow: 'hidden',
+        }}
       >
-        <table style={skeletonTableStyle}>
-          <thead style={skeletonTheadStyle}>
+        <table style={{ display: 'grid', width: '100%', borderCollapse: 'collapse' }}>
+          <thead style={{ display: 'grid', position: 'sticky', top: 0, zIndex: 1 }}>
             <tr style={{ display: 'flex', width: '100%' }}>
-              {columns.slice(0, 5).map((col) => (
-                <th key={col.id ?? col.header?.toString()} style={{ flex: 1, padding: '8px 12px' }}>
-                  <Skeleton variant="text" width="60%" sx={skeletonTextSx} />
+              {columns.slice(0, 5).map((_, i) => (
+                <th key={i} style={{ flex: 1, padding: '8px 12px' }}>
+                  <Skeleton variant="text" width="60%" sx={{ fontSize: '0.75rem' }} />
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody style={skeletonTbodyStyle}>
-            {Array.from({ length: 8 }, (_, i) => `skeleton-row-${i}`).map((rowKey, i) => (
-              <tr
-                key={rowKey}
-                style={{ display: 'flex', width: '100%', height: 36, opacity: 1 - i * 0.08 }}
-              >
-                {columns.slice(0, 5).map((col) => (
-                  <td
-                    key={col.id ?? col.header?.toString()}
-                    style={{ flex: 1, padding: '6px 12px', display: 'flex', alignItems: 'center' }}
-                  >
-                    <Skeleton
-                      variant="text"
-                      width={`${50 + Math.random() * 40}%`}
-                      sx={skeletonTextSx}
-                    />
+          <tbody style={{ display: 'grid' }}>
+            {Array.from({ length: 8 }).map((_, i) => (
+              <tr key={i} style={{ display: 'flex', width: '100%', height: 36, opacity: 1 - i * 0.08 }}>
+                {columns.slice(0, 5).map((_, j) => (
+                  <td key={j} style={{ flex: 1, padding: '6px 12px', display: 'flex', alignItems: 'center' }}>
+                    <Skeleton variant="text" width={`${50 + Math.random() * 40}%`} sx={{ fontSize: '0.75rem' }} />
                   </td>
                 ))}
               </tr>
@@ -307,15 +198,32 @@ const ResourceTableContainer: React.FC<Props> = ({
   if (showSyncingOverlay) {
     return (
       <Box
-        sx={syncingOverlaySx}
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100%',
+          width: '100%',
+          gap: 2,
+        }}
       >
-        <CircularProgress size={32} thickness={4} sx={syncingSpinnerSx} />
-        <Text size="sm" sx={syncingTextSx}>
+        <CircularProgress size={32} thickness={4} sx={{ color: 'var(--ov-accent-fg, #58a6ff)' }} />
+        <Text size="sm" sx={{ color: 'var(--ov-fg-muted)' }}>
           Syncing {resourceKey.split('::').pop()}...
         </Text>
         <LinearProgress
           variant="indeterminate"
-          sx={syncingProgressSx}
+          sx={{
+            width: 200,
+            height: 3,
+            borderRadius: 1.5,
+            bgcolor: 'rgba(255,255,255,0.08)',
+            '& .MuiLinearProgress-bar': {
+              bgcolor: 'var(--ov-accent-fg, #58a6ff)',
+              borderRadius: 1.5,
+            },
+          }}
         />
       </Box>
     );
@@ -337,11 +245,7 @@ const ResourceTableContainer: React.FC<Props> = ({
         'The API group may have been removed or is not installed',
         'You may not have permission to discover this API group',
       ];
-    } else if (
-      errstring.includes('forbidden') ||
-      errstring.includes('Forbidden') ||
-      errstring.includes('403')
-    ) {
+    } else if (errstring.includes('forbidden') || errstring.includes('Forbidden') || errstring.includes('403')) {
       title = 'Access denied';
       detail = 'You do not have permission to access this resource.';
       suggestions = [
@@ -349,14 +253,7 @@ const ResourceTableContainer: React.FC<Props> = ({
         'Contact your cluster administrator for access',
         'Verify your kubeconfig context is correct',
       ];
-    } else if (
-      errstring.includes('connection refused') ||
-      errstring.includes('no such host') ||
-      errstring.includes('network') ||
-      errstring.includes('timeout') ||
-      errstring.includes('ETIMEDOUT') ||
-      errstring.includes('ECONNREFUSED')
-    ) {
+    } else if (errstring.includes('connection refused') || errstring.includes('no such host') || errstring.includes('network') || errstring.includes('timeout') || errstring.includes('ETIMEDOUT') || errstring.includes('ECONNREFUSED')) {
       title = 'Connection error';
       detail = 'Unable to reach the cluster API server.';
       suggestions = [
@@ -364,11 +261,7 @@ const ResourceTableContainer: React.FC<Props> = ({
         'Verify your network connection',
         'Check if a VPN or proxy is required',
       ];
-    } else if (
-      errstring.includes('certificate') ||
-      errstring.includes('x509') ||
-      errstring.includes('TLS')
-    ) {
+    } else if (errstring.includes('certificate') || errstring.includes('x509') || errstring.includes('TLS')) {
       title = 'Certificate error';
       detail = 'There was a TLS/certificate issue connecting to the cluster.';
       suggestions = [
@@ -376,11 +269,7 @@ const ResourceTableContainer: React.FC<Props> = ({
         'Your kubeconfig may reference outdated certificates',
         'Check if the CA bundle is configured correctly',
       ];
-    } else if (
-      errstring.includes('unauthorized') ||
-      errstring.includes('Unauthorized') ||
-      errstring.includes('401')
-    ) {
+    } else if (errstring.includes('unauthorized') || errstring.includes('Unauthorized') || errstring.includes('401')) {
       title = 'Authentication failed';
       detail = 'Your credentials were rejected by the cluster.';
       suggestions = [
@@ -392,36 +281,52 @@ const ResourceTableContainer: React.FC<Props> = ({
 
     return (
       <Box
-        sx={errorContainerSx}
-      >
+        sx={{
+          display: 'flex',
+          gap: 2,
+          justifyContent: 'center',
+          flexDirection: 'column',
+          alignItems: 'center',
+          height: '100%',
+          width: '100%',
+          userSelect: 'none',
+        }}>
         <Alert
-          emphasis="soft"
-          size="lg"
+          emphasis='soft'
+          size='lg'
           startAdornment={<LuCircleAlert size={20} />}
-          color="danger"
+          color='danger'
         >
-          <Heading level="h4" sx={errorHeadingSx}>
+          <Heading level='h4' sx={{ color: 'danger.main' }}>
             {title}
           </Heading>
         </Alert>
-        <Stack direction="column" spacing={1} sx={errorDetailStackSx}>
-          <Text size="sm" sx={textSecondarySx}>
+        <Stack direction="column" spacing={1} sx={{ maxWidth: 560, textAlign: 'center' }}>
+          <Text size='sm' sx={{ color: 'text.secondary' }}>
             {detail}
           </Text>
           {suggestions.length > 0 && (
-            <Box component="ul" sx={errorSuggestionListSx}>
+            <Box component="ul" sx={{ textAlign: 'left', pl: 2, m: 0 }}>
               {suggestions.map((s) => (
-                <Box component="li" key={s} sx={errorSuggestionItemSx}>
-                  <Text size="xs" sx={textSecondarySx}>
-                    {s}
-                  </Text>
+                <Box component="li" key={s} sx={{ py: 0.25 }}>
+                  <Text size='xs' sx={{ color: 'text.secondary' }}>{s}</Text>
                 </Box>
               ))}
             </Box>
           )}
           <Text
-            size="xs"
-            sx={errorDetailTextSx}
+            size='xs'
+            sx={{
+              color: 'text.disabled',
+              fontFamily: 'monospace',
+              mt: 1,
+              p: 1,
+              borderRadius: 1,
+              bgcolor: 'action.hover',
+              wordBreak: 'break-all',
+              maxHeight: 80,
+              overflow: 'auto',
+            }}
           >
             {resourceKey}: {errstring || 'Unknown error'}
           </Text>
@@ -456,19 +361,43 @@ const ResourceTableContainer: React.FC<Props> = ({
       {showSyncingIndicator && (
         <LinearProgress
           variant="indeterminate"
-          sx={syncingIndicatorSx}
+          sx={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 2,
+            zIndex: 2,
+            bgcolor: 'transparent',
+            '& .MuiLinearProgress-bar': {
+              bgcolor: 'var(--ov-accent-fg, #58a6ff)',
+            },
+          }}
         />
       )}
       <table
         aria-labelledby={'table-title'}
-        style={tableStyle}
+        style={{
+          display: 'grid',
+          width: '100%',
+          borderCollapse: 'collapse',
+          WebkitUserSelect: 'none',
+        }}
       >
         <thead
-          style={theadStyle}
+          style={{
+            display: 'grid',
+            position: 'sticky',
+            top: 0,
+            zIndex: 1,
+          }}
         >
-          {table.getHeaderGroups().map((headerGroup) => (
-            <tr key={headerGroup.id} style={{ display: 'flex', width: '100%', cursor: 'pointer' }}>
-              {headerGroup.headers.map((header) => (
+          {table.getHeaderGroups().map(headerGroup => (
+            <tr
+              key={headerGroup.id}
+              style={{ display: 'flex', width: '100%', cursor: 'pointer' }}
+            >
+              {headerGroup.headers.map(header => (
                 <th
                   key={header.id}
                   style={{
@@ -476,16 +405,14 @@ const ResourceTableContainer: React.FC<Props> = ({
                     display: 'flex',
                     alignItems: 'center',
                     width: header.getSize() === Number.MAX_SAFE_INTEGER ? 'auto' : header.getSize(),
-                    minWidth:
-                      header.getSize() === Number.MAX_SAFE_INTEGER ? 'auto' : header.getSize(),
-                    maxWidth:
-                      header.getSize() === Number.MAX_SAFE_INTEGER ? 'auto' : header.getSize(),
+                    minWidth: header.getSize() === Number.MAX_SAFE_INTEGER ? 'auto' : header.getSize(),
+                    maxWidth: header.getSize() === Number.MAX_SAFE_INTEGER ? 'auto' : header.getSize(),
                     flex: 1,
                   }}
                 >
-                  {header.column.getCanSort() ? (
-                    <Box
-                      component="button"
+                  {header.column.getCanSort()
+                    ? <Box
+                      component='button'
                       onClick={header.column.getToggleSortingHandler()}
                       sx={{
                         display: 'flex',
@@ -499,18 +426,15 @@ const ResourceTableContainer: React.FC<Props> = ({
                         '& svg': {
                           transition: '0.2s',
                           transform:
-                            (header.column.getIsSorted() as string) === 'desc'
-                              ? 'rotate(180deg)'
-                              : 'rotate(0deg)',
+                            header.column.getIsSorted() as string === 'desc' ? 'rotate(180deg)' : 'rotate(0deg)',
                         },
                       }}
                     >
                       {flexRender(header.column.columnDef.header, header.getContext())}
                       {header.column.getIsSorted() && <ArrowDropDown />}
                     </Box>
-                  ) : (
-                    flexRender(header.column.columnDef.header, header.getContext())
-                  )}
+                    : flexRender(header.column.columnDef.header, header.getContext())
+                  }
                 </th>
               ))}
             </tr>
@@ -523,7 +447,7 @@ const ResourceTableContainer: React.FC<Props> = ({
             position: 'relative',
           }}
         >
-          {virtualizer.getVirtualItems().map((virtualRow) => {
+          {virtualizer.getVirtualItems().map(virtualRow => {
             const row = rows[virtualRow.index];
             return (
               <MemoizedRow
@@ -532,12 +456,12 @@ const ResourceTableContainer: React.FC<Props> = ({
                 connectionID={connectionID}
                 resourceID={row.id}
                 resourceKey={resourceKey}
-                namespace={namespaceAccessor ? (get(row.original, namespaceAccessor) as string | undefined) : undefined}
+                namespace={namespaceAccessor ? get(row.original, namespaceAccessor) : undefined}
                 row={row}
                 memoizer={memoizer}
                 virtualizer={virtualizer}
                 virtualRow={virtualRow}
-                isSelected={!!rowSelection[row.id]}
+                isSelected={rowSelection[row.id]}
                 columnVisibility={JSON.stringify(columnVisibility)}
               />
             );

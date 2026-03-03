@@ -1,14 +1,14 @@
-import { DrawerContext } from '@omniviewdev/runtime';
-import { Stack } from '@omniviewdev/ui/layout';
-import { ReplicationController } from 'kubernetes-types/core/v1';
-import React from 'react';
+import React from "react";
 
 // material-ui
+import { Stack } from "@omniviewdev/ui/layout";
 
 // types
+import { ReplicationController } from "kubernetes-types/core/v1";
 
 // project-imports
-import ObjectMetaSection from '../../../../../shared/ObjectMetaSection';
+import ObjectMetaSection from "../../../../../shared/ObjectMetaSection";
+import { DrawerContext } from "@omniviewdev/runtime";
 
 interface Props {
   ctx: DrawerContext<ReplicationController>;
@@ -24,12 +24,12 @@ export const ReplicationControllerSidebar: React.FC<Props> = ({ ctx }) => {
 
   // compose your component here
   return (
-    <Stack direction="column" width={'100%'} spacing={2}>
+    <Stack direction="column" width={"100%"} spacing={2}>
       <ObjectMetaSection data={ctx.data.metadata} />
       {/** TODO: fill this in with more data */}
     </Stack>
   );
 };
 
-ReplicationControllerSidebar.displayName = 'ReplicationControllerSidebar';
+ReplicationControllerSidebar.displayName = "ReplicationControllerSidebar";
 export default ReplicationControllerSidebar;

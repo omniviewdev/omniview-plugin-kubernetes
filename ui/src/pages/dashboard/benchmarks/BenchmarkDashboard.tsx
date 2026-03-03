@@ -1,14 +1,13 @@
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
-import React from 'react';
-
-import ClusterOverviewCard from './components/ClusterOverviewCard';
+import React from 'React'
+import ClusterOverviewCard from './components/ClusterOverviewCard'
 
 type Props = {
-  connectionID: string;
-  connectionAvatar?: string;
-  data: object;
-};
+  connectionID: string
+  connectionAvatar?: string
+  data: object
+}
 
 const BenchmarkDashboard: React.FC<Props> = ({ data, connectionID, connectionAvatar }) => {
   return (
@@ -26,12 +25,14 @@ const BenchmarkDashboard: React.FC<Props> = ({ data, connectionID, connectionAva
         </Grid>
         <Grid size={12}>
           <div>
-            <pre>{JSON.stringify(data, null, '\t')}</pre>
+            <pre>
+              {JSON.stringify(data, null, '\t')}
+            </pre>
           </div>
         </Grid>
       </Grid>
     </Box>
-  );
-};
+  )
+}
 
-export default BenchmarkDashboard;
+export default BenchmarkDashboard

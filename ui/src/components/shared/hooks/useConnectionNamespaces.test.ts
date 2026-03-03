@@ -1,5 +1,4 @@
 import { renderHook, act } from '@testing-library/react';
-
 import { useConnectionNamespaces } from './useConnectionNamespaces';
 
 describe('useConnectionNamespaces', () => {
@@ -31,14 +30,19 @@ describe('useConnectionNamespaces', () => {
   });
 
   it('reads existing namespaces from localStorage on mount', () => {
-    localStorage.setItem('kubernetes-cluster-1-namespaces', JSON.stringify(['default']));
+    localStorage.setItem(
+      'kubernetes-cluster-1-namespaces',
+      JSON.stringify(['default']),
+    );
 
     const { result } = renderHook(() => useConnectionNamespaces('cluster-1'));
     expect(result.current.namespaces).toEqual(['default']);
   });
 
   it('persists across unmount/remount (simulates route change)', () => {
-    const { result, unmount } = renderHook(() => useConnectionNamespaces('cluster-1'));
+    const { result, unmount } = renderHook(() =>
+      useConnectionNamespaces('cluster-1'),
+    );
 
     act(() => {
       result.current.setNamespaces(['default', 'kube-system']);
@@ -46,16 +50,28 @@ describe('useConnectionNamespaces', () => {
 
     unmount();
 
-    const { result: result2 } = renderHook(() => useConnectionNamespaces('cluster-1'));
+    const { result: result2 } = renderHook(() =>
+      useConnectionNamespaces('cluster-1'),
+    );
     expect(result2.current.namespaces).toEqual(['default', 'kube-system']);
   });
 
   it('maintains independent state per connection', () => {
-    localStorage.setItem('kubernetes-cluster-1-namespaces', JSON.stringify(['default']));
-    localStorage.setItem('kubernetes-cluster-2-namespaces', JSON.stringify(['monitoring']));
+    localStorage.setItem(
+      'kubernetes-cluster-1-namespaces',
+      JSON.stringify(['default']),
+    );
+    localStorage.setItem(
+      'kubernetes-cluster-2-namespaces',
+      JSON.stringify(['monitoring']),
+    );
 
-    const { result: r1 } = renderHook(() => useConnectionNamespaces('cluster-1'));
-    const { result: r2 } = renderHook(() => useConnectionNamespaces('cluster-2'));
+    const { result: r1 } = renderHook(() =>
+      useConnectionNamespaces('cluster-1'),
+    );
+    const { result: r2 } = renderHook(() =>
+      useConnectionNamespaces('cluster-2'),
+    );
 
     expect(r1.current.namespaces).toEqual(['default']);
     expect(r2.current.namespaces).toEqual(['monitoring']);
@@ -88,7 +104,9 @@ describe('useConnectionNamespaces', () => {
     });
 
     act(() => {
-      result.current.setNamespaces(result.current.namespaces.filter((ns) => ns !== 'kube-system'));
+      result.current.setNamespaces(
+        result.current.namespaces.filter((ns) => ns !== 'kube-system'),
+      );
     });
 
     expect(result.current.namespaces).toEqual(['default', 'monitoring']);
@@ -145,15 +163,24 @@ describe('useConnectionNamespaces', () => {
       );
       localStorage.setItem(
         'kubernetes-cluster-1-core::v1::Service-column-filters',
-        JSON.stringify([{ id: 'namespace', value: ['default', 'kube-system', 'monitoring'] }]),
+        JSON.stringify([
+          { id: 'namespace', value: ['default', 'kube-system', 'monitoring'] },
+        ]),
       );
 
       const { result } = renderHook(() => useConnectionNamespaces('cluster-1'));
-      expect(result.current.namespaces).toEqual(['default', 'kube-system', 'monitoring']);
+      expect(result.current.namespaces).toEqual([
+        'default',
+        'kube-system',
+        'monitoring',
+      ]);
     });
 
     it('does not re-migrate after shared key already exists', () => {
-      localStorage.setItem('kubernetes-cluster-1-namespaces', JSON.stringify(['existing']));
+      localStorage.setItem(
+        'kubernetes-cluster-1-namespaces',
+        JSON.stringify(['existing']),
+      );
       localStorage.setItem(
         'kubernetes-cluster-1-core::v1::Pod-column-filters',
         JSON.stringify([{ id: 'namespace', value: ['default', 'kube-system'] }]),
@@ -175,7 +202,10 @@ describe('useConnectionNamespaces', () => {
     });
 
     it('handles malformed localStorage entries gracefully', () => {
-      localStorage.setItem('kubernetes-cluster-1-core::v1::Pod-column-filters', 'not-valid-json');
+      localStorage.setItem(
+        'kubernetes-cluster-1-core::v1::Pod-column-filters',
+        'not-valid-json',
+      );
 
       const { result } = renderHook(() => useConnectionNamespaces('cluster-1'));
       expect(result.current.namespaces).toEqual([]);
@@ -211,7 +241,9 @@ describe('useConnectionNamespaces', () => {
         localStorage.getItem('kubernetes-cluster-1-core::v1::Pod-column-filters')!,
       );
       const deployFilters = JSON.parse(
-        localStorage.getItem('kubernetes-cluster-1-apps::v1::Deployment-column-filters')!,
+        localStorage.getItem(
+          'kubernetes-cluster-1-apps::v1::Deployment-column-filters',
+        )!,
       );
 
       expect(podFilters).toEqual([]);
@@ -245,7 +277,9 @@ describe('useConnectionNamespaces', () => {
       const { result } = renderHook(() => useConnectionNamespaces('cluster-1'));
 
       act(() => {
-        result.current.setNamespaces(result.current.namespaces.filter((ns) => ns !== 'deleted-ns'));
+        result.current.setNamespaces(
+          result.current.namespaces.filter((ns) => ns !== 'deleted-ns'),
+        );
       });
 
       expect(result.current.namespaces).toEqual(['default']);
@@ -270,9 +304,9 @@ describe('useConnectionNamespaces', () => {
         result.current.setNamespaces(['kube-system']);
       });
       expect(result.current.namespaces).toEqual(['kube-system']);
-      expect(JSON.parse(localStorage.getItem('kubernetes-cluster-1-namespaces')!)).toEqual([
-        'kube-system',
-      ]);
+      expect(
+        JSON.parse(localStorage.getItem('kubernetes-cluster-1-namespaces')!),
+      ).toEqual(['kube-system']);
     });
 
     it('handles empty connection ID', () => {
@@ -282,7 +316,9 @@ describe('useConnectionNamespaces', () => {
         result.current.setNamespaces(['default']);
       });
       expect(result.current.namespaces).toEqual(['default']);
-      expect(JSON.parse(localStorage.getItem('kubernetes--namespaces')!)).toEqual(['default']);
+      expect(JSON.parse(localStorage.getItem('kubernetes--namespaces')!)).toEqual([
+        'default',
+      ]);
     });
   });
 });

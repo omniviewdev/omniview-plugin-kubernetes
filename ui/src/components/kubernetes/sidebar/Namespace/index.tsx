@@ -1,11 +1,11 @@
-import { DrawerContext } from '@omniviewdev/runtime';
-import { Namespace } from 'kubernetes-types/core/v1';
-import React from 'react';
+import React from "react";
 
 // types
+import { Namespace } from "kubernetes-types/core/v1";
+import { DrawerContext } from "@omniviewdev/runtime";
 
 // project-imports
-import BaseOverviewPage from '../../../shared/sidebar/pages/overview/BaseOverviewPage';
+import BaseOverviewPage from "../../../shared/sidebar/pages/overview/BaseOverviewPage";
 
 interface Props {
   ctx: DrawerContext<Namespace>;
@@ -22,8 +22,11 @@ export const NamespaceSidebar: React.FC<Props> = ({ ctx }) => {
   const obj = ctx.data;
 
   // compose your component here
-  return <BaseOverviewPage data={obj} />;
+  return (
+    <BaseOverviewPage data={obj} >
+    </BaseOverviewPage>
+  );
 };
 
-NamespaceSidebar.displayName = 'NamespaceSidebar';
+NamespaceSidebar.displayName = "NamespaceSidebar";
 export default NamespaceSidebar;

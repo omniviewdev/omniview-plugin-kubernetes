@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 import { formatTimeDifference } from '../../../../../utils/time';
@@ -38,4 +39,4 @@ const AgeCell: React.FC<{ value: string }> = ({ value }) => {
   return <>{time}</>;
 };
 
-export default AgeCell;
+export default AgeCell

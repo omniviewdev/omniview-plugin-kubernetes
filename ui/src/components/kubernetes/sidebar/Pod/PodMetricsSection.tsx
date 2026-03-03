@@ -1,67 +1,14 @@
-import Box from '@mui/material/Box';
-import CircularProgress from '@mui/material/CircularProgress';
-import Grid from '@mui/material/Grid';
-import { useResourceMetrics } from '@omniviewdev/runtime';
-import { metric } from '@omniviewdev/runtime/models';
-import { MetricsPanel } from '@omniviewdev/ui/charts';
-import type { TimeSeriesDef, ChartTimeRange } from '@omniviewdev/ui/charts';
-import { Stack } from '@omniviewdev/ui/layout';
-import { Text } from '@omniviewdev/ui/typography';
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from "react";
 
-const metricTileBoxSx = {
-  py: 0.75,
-  px: 1,
-  borderRadius: 1,
-  border: '1px solid',
-  borderColor: 'divider',
-  bgcolor: 'background.level1',
-} as const;
-
-const metricTileLabelSx = { color: 'neutral.400', mb: 0.25, display: 'block' } as const;
-
-const metricTileValueSx = { fontVariantNumeric: 'tabular-nums' } as const;
-
-const loadingContainerSx = { display: 'flex', justifyContent: 'center', py: 2 } as const;
-
-const sectionBorderSx = {
-  borderRadius: 1,
-  border: '1px solid',
-  borderColor: 'divider',
-} as const;
-
-const sectionHeaderSx = {
-  py: 0.5,
-  px: 1,
-} as const;
-
-const sectionHeaderWithActionsSx = {
-  py: 0.5,
-  px: 1,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-} as const;
-
-const errorBoxSx = { px: 1, pb: 0.5 } as const;
-
-const errorTextSx = { color: 'danger.400' } as const;
-
-const noMetricsTextSx = { color: 'neutral.500' } as const;
-
-const bodyPaddingSx = { px: 0.5, pb: 1 } as const;
-
-const noMetricsBodySx = { px: 1, pb: 1 } as const;
-
-const tileContainerSx = { px: 0.5 } as const;
-
-const tileHeadingSx = {
-  color: 'neutral.400',
-  textTransform: 'uppercase',
-  letterSpacing: '0.04em',
-  fontSize: '0.6rem',
-  mb: 0.5,
-} as const;
+import Box from "@mui/material/Box";
+import Grid from "@mui/material/Grid";
+import CircularProgress from "@mui/material/CircularProgress";
+import { Stack } from "@omniviewdev/ui/layout";
+import { Text } from "@omniviewdev/ui/typography";
+import { useResourceMetrics } from "@omniviewdev/runtime";
+import { metric } from "@omniviewdev/runtime/models";
+import { MetricsPanel } from "@omniviewdev/ui/charts";
+import type { TimeSeriesDef, ChartTimeRange } from "@omniviewdev/ui/charts";
 
 interface Props {
   connectionID: string;
@@ -98,11 +45,20 @@ const MetricTile: React.FC<{
   label: string;
   value: string;
 }> = ({ label, value }) => (
-  <Box sx={metricTileBoxSx}>
-    <Text size="xs" sx={metricTileLabelSx}>
+  <Box
+    sx={{
+      py: 0.75,
+      px: 1,
+      borderRadius: 1,
+      border: "1px solid",
+      borderColor: "divider",
+      bgcolor: "background.level1",
+    }}
+  >
+    <Text size="xs" sx={{ color: "neutral.400", mb: 0.25, display: "block" }}>
       {label}
     </Text>
-    <Text size="sm" weight="semibold" sx={metricTileValueSx}>
+    <Text size="sm" weight="semibold" sx={{ fontVariantNumeric: "tabular-nums" }}>
       {value}
     </Text>
   </Box>
@@ -110,16 +66,16 @@ const MetricTile: React.FC<{
 
 /** Readable display name for known metric IDs */
 const METRIC_NAMES: Record<string, string> = {
-  cpu_usage: 'CPU (metrics-server)',
-  memory_usage: 'Memory (metrics-server)',
-  prom_cpu_usage_rate: 'CPU Usage Rate',
-  prom_cpu_throttle_rate: 'CPU Throttle',
-  prom_memory_working_set: 'Working Set',
-  prom_memory_rss: 'RSS',
-  prom_network_receive_rate: 'Receive',
-  prom_network_transmit_rate: 'Transmit',
-  prom_fs_usage: 'Filesystem Usage',
-  prom_restart_count: 'Restarts',
+  cpu_usage: "CPU (metrics-server)",
+  memory_usage: "Memory (metrics-server)",
+  prom_cpu_usage_rate: "CPU Usage Rate",
+  prom_cpu_throttle_rate: "CPU Throttle",
+  prom_memory_working_set: "Working Set",
+  prom_memory_rss: "RSS",
+  prom_network_receive_rate: "Receive",
+  prom_network_transmit_rate: "Transmit",
+  prom_fs_usage: "Filesystem Usage",
+  prom_restart_count: "Restarts",
 };
 
 /** Extract current-value metrics from all providers keyed by metric_id */
@@ -162,13 +118,17 @@ function extractTimeSeries(
 }
 
 /** Convert SDK TimeSeries to chart-compatible TimeSeriesDef */
-function toTimeSeriesDef(ts: metric.TimeSeries, label: string, color?: string): TimeSeriesDef {
+function toTimeSeriesDef(
+  ts: metric.TimeSeries,
+  label: string,
+  color?: string,
+): TimeSeriesDef {
   return {
     id: ts.metric_id,
     label,
     // dp.timestamp is a Wails-serialized time.Time (ISO string at runtime)
     data: (ts.data_points ?? []).map((dp) => ({
-      timestamp: new Date(dp.timestamp as unknown as string).getTime(),
+      timestamp: new Date(String(dp.timestamp)).getTime(),
       value: dp.value,
     })),
     color,
@@ -178,11 +138,11 @@ function toTimeSeriesDef(ts: metric.TimeSeries, label: string, color?: string): 
 
 /** Metrics that remain as instant-only tiles */
 const TILE_ONLY_METRICS = [
-  'cpu_usage',
-  'memory_usage',
-  'prom_fs_usage',
-  'prom_cpu_throttle_rate',
-  'prom_restart_count',
+  "cpu_usage",
+  "memory_usage",
+  "prom_fs_usage",
+  "prom_cpu_throttle_rate",
+  "prom_restart_count",
 ];
 
 const PodMetricsSection: React.FC<Props> = ({
@@ -192,18 +152,14 @@ const PodMetricsSection: React.FC<Props> = ({
   resourceNamespace,
   resourceData,
 }) => {
-  const [timeRange, setTimeRange] = useState<ChartTimeRange>(() => ({
+  const [timeRange, setTimeRange] = useState<ChartTimeRange>({
     from: new Date(Date.now() - 60 * 60 * 1000), // 1h ago
     to: new Date(),
-  }));
+  });
 
   // Instant values (shape=0 CURRENT) for tiles and current value annotations
-  const {
-    data: currentData,
-    isLoading: currentLoading,
-    error,
-  } = useResourceMetrics({
-    pluginID: 'kubernetes',
+  const { data: currentData, isLoading: currentLoading, error } = useResourceMetrics({
+    pluginID: "kubernetes",
     connectionID,
     resourceKey,
     resourceID,
@@ -214,7 +170,7 @@ const PodMetricsSection: React.FC<Props> = ({
 
   // Time-series data (shape=1 TIMESERIES) for charts
   const { data: tsData, isLoading: tsLoading } = useResourceMetrics({
-    pluginID: 'kubernetes',
+    pluginID: "kubernetes",
     connectionID,
     resourceKey,
     resourceID,
@@ -224,14 +180,14 @@ const PodMetricsSection: React.FC<Props> = ({
     timeRange: {
       start: timeRange.from,
       end: timeRange.to,
-      step: '',
+      step: "",
     },
     metricIDs: [
-      'prom_cpu_usage_rate',
-      'prom_memory_working_set',
-      'prom_memory_rss',
-      'prom_network_receive_rate',
-      'prom_network_transmit_rate',
+      "prom_cpu_usage_rate",
+      "prom_memory_working_set",
+      "prom_memory_rss",
+      "prom_network_receive_rate",
+      "prom_network_transmit_rate",
     ],
     refreshInterval: 30000,
   });
@@ -245,26 +201,26 @@ const PodMetricsSection: React.FC<Props> = ({
   // Build chart series
   const cpuSeries = useMemo<TimeSeriesDef[]>(() => {
     const s: TimeSeriesDef[] = [];
-    const cpu = tsSeries.get('prom_cpu_usage_rate');
-    if (cpu) s.push(toTimeSeriesDef(cpu, 'CPU Usage', 'var(--ov-accent)'));
+    const cpu = tsSeries.get("prom_cpu_usage_rate");
+    if (cpu) s.push(toTimeSeriesDef(cpu, "CPU Usage", "var(--ov-accent)"));
     return s;
   }, [tsSeries]);
 
   const memorySeries = useMemo<TimeSeriesDef[]>(() => {
     const s: TimeSeriesDef[] = [];
-    const ws = tsSeries.get('prom_memory_working_set');
-    if (ws) s.push(toTimeSeriesDef(ws, 'Working Set', 'var(--ov-accent)'));
-    const rss = tsSeries.get('prom_memory_rss');
-    if (rss) s.push(toTimeSeriesDef(rss, 'RSS', 'var(--ov-accent-secondary, #8b5cf6)'));
+    const ws = tsSeries.get("prom_memory_working_set");
+    if (ws) s.push(toTimeSeriesDef(ws, "Working Set", "var(--ov-accent)"));
+    const rss = tsSeries.get("prom_memory_rss");
+    if (rss) s.push(toTimeSeriesDef(rss, "RSS", "var(--ov-accent-secondary, #8b5cf6)"));
     return s;
   }, [tsSeries]);
 
   const networkSeries = useMemo<TimeSeriesDef[]>(() => {
     const s: TimeSeriesDef[] = [];
-    const rx = tsSeries.get('prom_network_receive_rate');
-    if (rx) s.push(toTimeSeriesDef(rx, 'Receive', '#22c55e'));
-    const tx = tsSeries.get('prom_network_transmit_rate');
-    if (tx) s.push(toTimeSeriesDef(tx, 'Transmit', '#f97316'));
+    const rx = tsSeries.get("prom_network_receive_rate");
+    if (rx) s.push(toTimeSeriesDef(rx, "Receive", "#22c55e"));
+    const tx = tsSeries.get("prom_network_transmit_rate");
+    if (tx) s.push(toTimeSeriesDef(tx, "Transmit", "#f97316"));
     return s;
   }, [tsSeries]);
 
@@ -273,14 +229,13 @@ const PodMetricsSection: React.FC<Props> = ({
   }, []);
 
   // Tile-only metrics
-  const tileMetrics = TILE_ONLY_METRICS.filter((id) => currentMetrics.has(id)).map((id) => ({
-    id,
-    ...currentMetrics.get(id)!,
-  }));
+  const tileMetrics = TILE_ONLY_METRICS
+    .filter((id) => currentMetrics.has(id))
+    .map((id) => ({ id, ...currentMetrics.get(id)! }));
 
   if (isLoading) {
     return (
-      <Box sx={loadingContainerSx}>
+      <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
         <CircularProgress size={20} />
       </Box>
     );
@@ -288,14 +243,18 @@ const PodMetricsSection: React.FC<Props> = ({
 
   if (currentMetrics.size === 0 && !hasTimeSeries && !error) {
     return (
-      <Box sx={sectionBorderSx}>
-        <Box sx={sectionHeaderSx}>
-          <Text weight="semibold" size="sm">
-            Metrics
-          </Text>
+      <Box
+        sx={{
+          borderRadius: 1,
+          border: "1px solid",
+          borderColor: "divider",
+        }}
+      >
+        <Box sx={{ py: 0.5, px: 1 }}>
+          <Text weight="semibold" size="sm">Metrics</Text>
         </Box>
-        <Box sx={noMetricsBodySx}>
-          <Text size="xs" sx={noMetricsTextSx}>
+        <Box sx={{ px: 1, pb: 1 }}>
+          <Text size="xs" sx={{ color: "neutral.500" }}>
             No metrics available. Ensure metrics-server or Prometheus is installed.
           </Text>
         </Box>
@@ -304,24 +263,36 @@ const PodMetricsSection: React.FC<Props> = ({
   }
 
   return (
-    <Box sx={sectionBorderSx}>
+    <Box
+      sx={{
+        borderRadius: 1,
+        border: "1px solid",
+        borderColor: "divider",
+      }}
+    >
       {/* Header */}
-      <Box sx={sectionHeaderWithActionsSx}>
-        <Text weight="semibold" size="sm">
-          Metrics
-        </Text>
+      <Box
+        sx={{
+          py: 0.5,
+          px: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <Text weight="semibold" size="sm">Metrics</Text>
         {(currentLoading || tsLoading) && <CircularProgress size={12} />}
       </Box>
 
       {error && (
-        <Box sx={errorBoxSx}>
-          <Text size="xs" sx={errorTextSx}>
-            {error.message || 'Failed to load metrics'}
+        <Box sx={{ px: 1, pb: 0.5 }}>
+          <Text size="xs" sx={{ color: "danger.400" }}>
+            {error.message || "Failed to load metrics"}
           </Text>
         </Box>
       )}
 
-      <Box sx={bodyPaddingSx}>
+      <Box sx={{ px: 0.5, pb: 1 }}>
         <Stack spacing={0.75}>
           {/* Time-series charts */}
           {hasTimeSeries && (
@@ -372,11 +343,17 @@ const PodMetricsSection: React.FC<Props> = ({
 
           {/* Instant-only tiles */}
           {tileMetrics.length > 0 && (
-            <Box sx={tileContainerSx}>
+            <Box sx={{ px: 0.5 }}>
               <Text
                 size="xs"
                 weight="semibold"
-                sx={tileHeadingSx}
+                sx={{
+                  color: "neutral.400",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                  fontSize: "0.6rem",
+                  mb: 0.5,
+                }}
               >
                 Current Values
               </Text>
