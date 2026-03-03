@@ -8,7 +8,7 @@ import {
   useResourceMutations,
   useRightDrawer,
 } from '@omniviewdev/runtime';
-import { type ColumnDef } from '@tanstack/react-table';
+import { type ColumnDef, type FilterFn } from '@tanstack/react-table';
 import { Pod } from 'kubernetes-types/core/v1';
 import { Condition, OwnerReference } from 'kubernetes-types/meta/v1';
 import React from 'react';
@@ -22,6 +22,7 @@ import PodSidebar from '../../../sidebar/Pod';
 import ConditionsCell from '../../shared/cells/ConditionsCell';
 import { CopyableCell } from '../../shared/cells/CopyableCell';
 import { withNamespacedResourceColumns } from '../../shared/columns';
+import { inclusionFilter, ownerRefFilter } from '../../shared/filters';
 
 import ContainerPhaseCell from './cells/ContainerPhaseCell';
 import ContainerStatusCell from './cells/ContainerStatusCell';
@@ -111,6 +112,7 @@ const PodTable: React.FC = () => {
             id: 'controlledBy',
             header: 'Controlled By',
             accessorKey: 'metadata.ownerReferences',
+            filterFn: ownerRefFilter as FilterFn<Pod>,
             cell: ({ getValue, row }) => {
               const refs = getValue() as Array<OwnerReference> | undefined;
               if (refs == null || refs.length === 0) {
@@ -147,6 +149,7 @@ const PodTable: React.FC = () => {
             id: 'node',
             header: 'Node',
             accessorKey: 'spec.nodeName',
+            filterFn: inclusionFilter as FilterFn<Pod>,
             size: 150,
             cell: ({ getValue }) => (
               <ResourceLinkCell
@@ -494,6 +497,11 @@ const PodTable: React.FC = () => {
         idAccessor="metadata.uid"
         memoizer={'metadata.uid,metadata.resourceVersion,status.phase'}
         drawer={drawer}
+        toolbarFilters={[
+          { columnId: 'node', placeholder: 'All Nodes', accessor: (r: Pod) => r?.spec?.nodeName },
+          { columnId: 'controlledBy', placeholder: 'All Controllers', accessor: (r: Pod) => r?.metadata?.ownerReferences?.[0]?.name },
+          { columnId: 'namespace', placeholder: 'All Namespaces', accessor: (r: Pod) => r?.metadata?.namespace },
+        ]}
       />
     </PodMetricsContext.Provider>
   );

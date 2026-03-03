@@ -4,7 +4,7 @@ import {
   useResourceMutations,
   useRightDrawer,
 } from '@omniviewdev/runtime';
-import { ColumnDef } from '@tanstack/react-table';
+import { ColumnDef, FilterFn } from '@tanstack/react-table';
 import { PersistentVolumeClaim } from 'kubernetes-types/core/v1';
 import React from 'react';
 import { LuHardDrive, LuTrash } from 'react-icons/lu';
@@ -15,6 +15,7 @@ import ResourceTable from '../../../../shared/table/ResourceTable';
 import { ChipListCell } from '../../shared/cells/ChipList';
 import { CopyableCell } from '../../shared/cells/CopyableCell';
 import { withNamespacedResourceColumns } from '../../shared/columns';
+import { inclusionFilter } from '../../shared/filters';
 
 import PersistentVolumeClaimSidebar from './Sidebar';
 
@@ -42,6 +43,7 @@ const PersistentVolumeClaimTable: React.FC = () => {
             id: 'status',
             header: 'Status',
             accessorFn: (row) => row.status?.phase ?? 'Pending',
+            filterFn: inclusionFilter as FilterFn<PersistentVolumeClaim>,
             size: 100,
           },
           {
@@ -81,6 +83,7 @@ const PersistentVolumeClaimTable: React.FC = () => {
             id: 'storageClass',
             header: 'Storage Class',
             accessorFn: (row) => row.spec?.storageClassName ?? '—',
+            filterFn: inclusionFilter as FilterFn<PersistentVolumeClaim>,
             size: 160,
             cell: CopyableCell,
             meta: {
@@ -156,6 +159,19 @@ const PersistentVolumeClaimTable: React.FC = () => {
       idAccessor="metadata.uid"
       memoizer="metadata.uid,metadata.resourceVersion"
       drawer={drawer}
+      toolbarFilters={[
+        {
+          columnId: 'status',
+          placeholder: 'All Phases',
+          accessor: (r: PersistentVolumeClaim) => r?.status?.phase ?? 'Pending',
+        },
+        {
+          columnId: 'storageClass',
+          placeholder: 'All Storage Classes',
+          accessor: (r: PersistentVolumeClaim) => r?.spec?.storageClassName ?? '—',
+        },
+        { columnId: 'namespace', placeholder: 'All Namespaces', accessor: (r: PersistentVolumeClaim) => r?.metadata?.namespace },
+      ]}
     />
   );
 };

@@ -4,7 +4,7 @@ import {
   useResourceMutations,
   useRightDrawer,
 } from '@omniviewdev/runtime';
-import { ColumnDef } from '@tanstack/react-table';
+import { ColumnDef, FilterFn } from '@tanstack/react-table';
 import { PersistentVolume } from 'kubernetes-types/core/v1';
 import React from 'react';
 import { LuBox, LuTrash } from 'react-icons/lu';
@@ -15,6 +15,7 @@ import ResourceTable from '../../../../shared/table/ResourceTable';
 import ResourceLinkCell from '../../corev1/Pod/cells/ResourceLinkCell';
 import { CopyableCell } from '../../shared/cells/CopyableCell';
 import { withClusterResourceColumns } from '../../shared/columns';
+import { inclusionFilter } from '../../shared/filters';
 
 import PersistentVolumeSidebar from './Sidebar';
 
@@ -56,6 +57,7 @@ const PersistentVolumeTable: React.FC = () => {
             id: 'storageClass',
             header: 'Storage Class',
             accessorFn: (row) => row.spec?.storageClassName ?? '—',
+            filterFn: inclusionFilter as FilterFn<PersistentVolume>,
             size: 150,
             cell: CopyableCell,
           },
@@ -87,6 +89,7 @@ const PersistentVolumeTable: React.FC = () => {
             id: 'phase',
             header: 'Status',
             accessorFn: (row) => row.status?.phase ?? 'Unknown',
+            filterFn: inclusionFilter as FilterFn<PersistentVolume>,
             size: 100,
           },
           {
@@ -156,6 +159,18 @@ const PersistentVolumeTable: React.FC = () => {
       idAccessor="metadata.uid"
       memoizer="metadata.uid,metadata.resourceVersion,status.phase"
       drawer={drawer}
+      toolbarFilters={[
+        {
+          columnId: 'phase',
+          placeholder: 'All Phases',
+          accessor: (r: PersistentVolume) => r?.status?.phase ?? 'Unknown',
+        },
+        {
+          columnId: 'storageClass',
+          placeholder: 'All Storage Classes',
+          accessor: (r: PersistentVolume) => r?.spec?.storageClassName ?? '—',
+        },
+      ]}
     />
   );
 };

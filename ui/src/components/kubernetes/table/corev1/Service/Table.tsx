@@ -4,7 +4,7 @@ import {
   useResourceMutations,
   useRightDrawer,
 } from '@omniviewdev/runtime';
-import { ColumnDef } from '@tanstack/react-table';
+import { ColumnDef, FilterFn } from '@tanstack/react-table';
 import { Service } from 'kubernetes-types/core/v1';
 import React from 'react';
 import { LuNetwork, LuTrash } from 'react-icons/lu';
@@ -15,6 +15,7 @@ import ResourceTable from '../../../../shared/table/ResourceTable';
 import { ChipListCell } from '../../shared/cells/ChipList';
 import { CopyableCell } from '../../shared/cells/CopyableCell';
 import { withNamespacedResourceColumns } from '../../shared/columns';
+import { inclusionFilter } from '../../shared/filters';
 
 import ServiceSidebar from './Sidebar';
 
@@ -35,6 +36,7 @@ const ServiceTable: React.FC = () => {
             id: 'type',
             header: 'Type',
             accessorFn: (row) => row.spec?.type ?? 'ClusterIP',
+            filterFn: inclusionFilter as FilterFn<Service>,
             size: 120,
             cell: CopyableCell,
           },
@@ -172,6 +174,10 @@ const ServiceTable: React.FC = () => {
       idAccessor="metadata.uid"
       memoizer="metadata.uid,metadata.resourceVersion,spec.ports"
       drawer={drawer}
+      toolbarFilters={[
+        { columnId: 'type', placeholder: 'All Types', accessor: (r: Service) => r?.spec?.type ?? 'ClusterIP' },
+        { columnId: 'namespace', placeholder: 'All Namespaces', accessor: (r: Service) => r?.metadata?.namespace },
+      ]}
     />
   );
 };

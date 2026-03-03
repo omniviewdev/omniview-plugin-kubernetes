@@ -1,7 +1,7 @@
 import { ColumnDef } from '@tanstack/react-table';
 
 import { NamespaceCell } from '../cells/NamespaceCell';
-import { namespaceFilter } from '../filters';
+import { inclusionFilter } from '../filters';
 
 export const namespaceColumn = <
   T extends { metadata?: { namespace?: string } },
@@ -11,7 +11,7 @@ export const namespaceColumn = <
   accessorKey: 'metadata.namespace',
   enableSorting: true,
   enableHiding: true,
-  filterFn: namespaceFilter,
+  filterFn: inclusionFilter,
   size: 150,
   minSize: 80,
   maxSize: 400,

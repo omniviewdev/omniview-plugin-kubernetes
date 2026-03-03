@@ -32,6 +32,7 @@ import ColumnFilter from '../../tables/ColumnFilter';
 import { useDynamicResourceColumns } from '../../tables/ColumnFilter/useDynamicResourceColumns';
 import { DebouncedInput } from '../../tables/DebouncedInput';
 import NamespaceSelect from '../../tables/NamespaceSelect';
+import ResourceFilterSelect from '../../tables/ResourceFilterSelect';
 import { useConnectionNamespaces } from '../hooks/useConnectionNamespaces';
 import { useStoredState } from '../hooks/useStoredState';
 
@@ -186,6 +187,16 @@ const StyledTable = styled('table')`
   }
 `;
 
+export type ToolbarFilterDef = {
+  /** TanStack column ID this filter targets. */
+  columnId: string;
+  /** Placeholder shown when nothing is selected (e.g. "All Nodes"). */
+  placeholder: string;
+  /** Extracts the filterable string value from a raw data row for building dropdown options. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  accessor: (row: any) => string | undefined;
+};
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Generic component that accepts multiple row data types (Pod, HelmChart, etc.)
 export type Props<T = any> = {
   connectionID: string;
@@ -200,6 +211,13 @@ export type Props<T = any> = {
   toolbarActions?: React.ReactNode;
   /** Show a "Create" button in the toolbar. Defaults to true. */
   createEnabled?: boolean;
+  /**
+   * Per-resource filter dropdowns rendered in the toolbar. When provided, these
+   * replace the default NamespaceSelect with N dropdowns in the given order
+   * (left → right). A filter with columnId "namespace" routes its state through
+   * the shared useConnectionNamespaces hook so all tables stay in sync.
+   */
+  toolbarFilters?: ToolbarFilterDef[];
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Empty array used as fallback for resources.data?.result which is any[]
@@ -214,6 +232,7 @@ const ResourceTableContainer: React.FC<Props> = ({
   hideNamespaceSelector,
   toolbarActions,
   createEnabled = true,
+  toolbarFilters,
 }) => {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'name', desc: false }]);
   const [columnVisibility, setColumnVisibility] = useStoredState<VisibilityState>(
@@ -234,6 +253,12 @@ const ResourceTableContainer: React.FC<Props> = ({
   // Shared per-connection namespace selection
   const { namespaces: sharedNamespaces, setNamespaces: setSharedNamespaces } =
     useConnectionNamespaces(connectionID);
+
+  // Per-resource filter values for non-namespace toolbar filters
+  const [extraFilterValues, setExtraFilterValues] = useStoredState<Record<string, string[]>>(
+    `kubernetes-${connectionID}-${resourceKey}-toolbar-filter-values`,
+    {},
+  );
 
   /** Filtering behavior */
   const [filterAnchor, setFilterAnchor] = React.useState<undefined | HTMLElement>(undefined);
@@ -279,16 +304,29 @@ const ResourceTableContainer: React.FC<Props> = ({
   // Auto-detect whether this resource has a namespace column
   const hasNamespaceColumn = allColumns.some((col) => col.id === 'namespace');
 
-  // Merge shared namespace selection into column filters for TanStack
+  // Merge shared namespace selection + toolbar extra filters into TanStack column filters
   const effectiveColumnFilters = useMemo<ColumnFiltersState>(() => {
-    if (!hasNamespaceColumn || sharedNamespaces.length === 0) {
-      // Strip any stale namespace entries from per-resource filters
-      return columnFilters.filter((f) => f.id !== 'namespace');
+    // Start with per-resource filters, excluding namespace (managed by shared hook)
+    let filters = columnFilters.filter((f) => f.id !== 'namespace');
+
+    // Inject shared namespace filter
+    if (hasNamespaceColumn && sharedNamespaces.length > 0) {
+      filters = [...filters, { id: 'namespace', value: sharedNamespaces }];
     }
-    // Replace/inject namespace filter with shared selection
-    const withoutNs = columnFilters.filter((f) => f.id !== 'namespace');
-    return [...withoutNs, { id: 'namespace', value: sharedNamespaces }];
-  }, [columnFilters, sharedNamespaces, hasNamespaceColumn]);
+
+    // Inject toolbar extra filter values (skip namespace — already handled above)
+    for (const [colId, values] of Object.entries(extraFilterValues)) {
+      if (colId === 'namespace' || !values.length) continue;
+
+      // Restrict merging to only those extraFilterValues whose colId is currently defined in the active toolbar filters
+      if (toolbarFilters && !toolbarFilters.some((f) => f.columnId === colId)) continue;
+
+      filters = filters.filter((f) => f.id !== colId);
+      filters.push({ id: colId, value: values });
+    }
+
+    return filters;
+  }, [columnFilters, sharedNamespaces, hasNamespaceColumn, extraFilterValues, toolbarFilters]);
 
   // Intercept onColumnFiltersChange to redirect namespace changes to the shared hook
   const handleColumnFiltersChange = React.useCallback(
@@ -490,13 +528,36 @@ const ResourceTableContainer: React.FC<Props> = ({
                 <CreateResourceButton connectionID={connectionID} resourceKey={resourceKey} />
               )}
               {toolbarActions}
-              {hasNamespaceColumn && !hideNamespaceSelector && (
-                <NamespaceSelect
-                  connectionID={connectionID}
-                  selected={sharedNamespaces}
-                  setNamespaces={setSharedNamespaces}
-                />
-              )}
+              {toolbarFilters && toolbarFilters.length > 0
+                ? toolbarFilters.map((filter) =>
+                    filter.columnId === 'namespace' ? (
+                      <NamespaceSelect
+                        key={filter.columnId}
+                        connectionID={connectionID}
+                        selected={sharedNamespaces}
+                        setNamespaces={setSharedNamespaces}
+                      />
+                    ) : (
+                      <ResourceFilterSelect
+                        key={filter.columnId}
+                        data={resources.data?.result || defaultData}
+                        accessor={filter.accessor}
+                        value={extraFilterValues[filter.columnId] ?? []}
+                        onChange={(values) =>
+                          setExtraFilterValues((prev) => ({ ...prev, [filter.columnId]: values }))
+                        }
+                        placeholder={filter.placeholder}
+                      />
+                    ),
+                  )
+                : hasNamespaceColumn &&
+                  !hideNamespaceSelector && (
+                    <NamespaceSelect
+                      connectionID={connectionID}
+                      selected={sharedNamespaces}
+                      setNamespaces={setSharedNamespaces}
+                    />
+                  )}
               {hasResizedColumns && (
                 <Tooltip title="Reset column widths" placement="bottom">
                   <IconButton

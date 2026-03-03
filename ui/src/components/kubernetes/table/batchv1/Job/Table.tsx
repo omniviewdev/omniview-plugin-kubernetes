@@ -6,7 +6,7 @@ import {
   useResourceMutations,
   useRightDrawer,
 } from '@omniviewdev/runtime';
-import { ColumnDef } from '@tanstack/react-table';
+import { ColumnDef, FilterFn } from '@tanstack/react-table';
 import { Job } from 'kubernetes-types/batch/v1';
 import { Condition, OwnerReference } from 'kubernetes-types/meta/v1';
 import React from 'react';
@@ -19,6 +19,7 @@ import ResourceLinkCell from '../../corev1/Pod/cells/ResourceLinkCell';
 import AgeCell from '../../shared/cells/AgeCell';
 import ConditionsCell from '../../shared/cells/ConditionsCell';
 import { withNamespacedResourceColumns } from '../../shared/columns';
+import { ownerRefFilter } from '../../shared/filters';
 
 import JobSidebar from './Sidebar';
 
@@ -167,6 +168,7 @@ This field is beta-level. It can be used when the \`JobPodFailurePolicy\` featur
             id: 'controlledBy',
             header: 'Controlled By',
             accessorKey: 'metadata.ownerReferences',
+            filterFn: ownerRefFilter as FilterFn<Job>,
             size: 150,
             cell: ({ getValue }) => {
               const refs = getValue() as Array<OwnerReference> | undefined;
@@ -305,6 +307,10 @@ This field is beta-level. It can be used when the \`JobPodFailurePolicy\` featur
       idAccessor="metadata.uid"
       memoizer="metadata.uid,metadata.resourceVersion,status.completionTime"
       drawer={drawer}
+      toolbarFilters={[
+        { columnId: 'controlledBy', placeholder: 'All Controllers', accessor: (r: Job) => r?.metadata?.ownerReferences?.[0]?.name },
+        { columnId: 'namespace', placeholder: 'All Namespaces', accessor: (r: Job) => r?.metadata?.namespace },
+      ]}
     />
   );
 };

@@ -15,12 +15,12 @@ type Props = {
 };
 
 export const ChipListCell = ({ getValue }: { getValue: () => unknown }) => {
-  const val = getValue() as string[] | undefined;
-  if (!val) {
+  const val = getValue();
+  if (!Array.isArray(val) || val.length === 0) {
     return null;
   }
 
-  return <ChipList values={val} />;
+  return <ChipList values={val as string[]} />;
 };
 
 const ChipList: React.FC<Props> = ({ values }) => {

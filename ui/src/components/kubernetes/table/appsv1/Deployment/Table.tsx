@@ -9,7 +9,7 @@ import {
   useRightDrawer,
   useStreamAction,
 } from '@omniviewdev/runtime';
-import { ColumnDef } from '@tanstack/react-table';
+import { ColumnDef, FilterFn } from '@tanstack/react-table';
 import { Deployment } from 'kubernetes-types/apps/v1';
 import { Condition } from 'kubernetes-types/meta/v1';
 import React from 'react';
@@ -22,6 +22,7 @@ import ResourceTable from '../../../../shared/table/ResourceTable';
 import ScaleModal from '../../../actions/ScaleModal';
 import ConditionsCell from '../../shared/cells/ConditionsCell';
 import { withNamespacedResourceColumns } from '../../shared/columns';
+import { inclusionFilter } from '../../shared/filters';
 
 import DeploymentSidebar from './Sidebar';
 
@@ -121,6 +122,7 @@ const DeploymentTable: React.FC = () => {
             id: 'strategy',
             header: 'Strategy',
             accessorFn: (row) => row.spec?.strategy?.type ?? 'RollingUpdate',
+            filterFn: inclusionFilter as FilterFn<Deployment>,
             size: 120,
           },
           {
@@ -364,6 +366,14 @@ const DeploymentTable: React.FC = () => {
         idAccessor="metadata.uid"
         memoizer="metadata.uid,metadata.resourceVersion,status.observedGeneration"
         drawer={drawer}
+        toolbarFilters={[
+          {
+            columnId: 'strategy',
+            placeholder: 'All Strategies',
+            accessor: (r: Deployment) => r?.spec?.strategy?.type ?? 'RollingUpdate',
+          },
+          { columnId: 'namespace', placeholder: 'All Namespaces', accessor: (r: Deployment) => r?.metadata?.namespace },
+        ]}
       />
       {scaleTarget && (
         <ScaleModal

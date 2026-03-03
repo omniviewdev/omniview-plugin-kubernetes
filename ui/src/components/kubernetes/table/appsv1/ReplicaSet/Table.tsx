@@ -216,6 +216,9 @@ const ReplicaSetTable: React.FC = () => {
       idAccessor="metadata.uid"
       memoizer="metadata.uid,metadata.resourceVersion,status.observedGeneration"
       drawer={drawer}
+      toolbarFilters={[
+        { columnId: 'namespace', placeholder: 'All Namespaces', accessor: (r: ReplicaSet) => r?.metadata?.namespace },
+      ]}
     />
   );
 };

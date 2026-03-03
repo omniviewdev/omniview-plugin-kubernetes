@@ -5,7 +5,7 @@ import {
   useRightDrawer,
 } from '@omniviewdev/runtime';
 import { Stack } from '@omniviewdev/ui/layout';
-import { ColumnDef } from '@tanstack/react-table';
+import { ColumnDef, FilterFn } from '@tanstack/react-table';
 import { Ingress } from 'kubernetes-types/networking/v1';
 import React from 'react';
 import { LuRoute, LuTrash } from 'react-icons/lu';
@@ -18,6 +18,7 @@ import ResourceLinkCell from '../../corev1/Pod/cells/ResourceLinkCell';
 import { ChipListCell } from '../../shared/cells/ChipList';
 import { CopyableCell } from '../../shared/cells/CopyableCell';
 import { withNamespacedResourceColumns } from '../../shared/columns';
+import { inclusionFilter } from '../../shared/filters';
 
 const hideScrollbarSx = {
   scrollbarWidth: 'none',
@@ -43,6 +44,7 @@ const IngressTable: React.FC = () => {
             id: 'ingressClass',
             header: 'Ingress Class',
             accessorFn: (row) => row.spec?.ingressClassName ?? '—',
+            filterFn: inclusionFilter as FilterFn<Ingress>,
             size: 150,
             cell: CopyableCell,
           },
@@ -176,6 +178,14 @@ const IngressTable: React.FC = () => {
       idAccessor="metadata.uid"
       memoizer="metadata.uid,metadata.resourceVersion,spec.rules"
       drawer={drawer}
+      toolbarFilters={[
+        {
+          columnId: 'ingressClass',
+          placeholder: 'All Classes',
+          accessor: (r: Ingress) => r?.spec?.ingressClassName || '—',
+        },
+        { columnId: 'namespace', placeholder: 'All Namespaces', accessor: (r: Ingress) => r?.metadata?.namespace },
+      ]}
     />
   );
 };
