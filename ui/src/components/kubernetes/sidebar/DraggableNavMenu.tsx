@@ -81,7 +81,7 @@ function SortableItem({
   expandedState,
   onToggleExpanded,
   isEditing,
-  parentId,
+  parentId: _parentId,
   onChildReorder,
 }: {
   item: NavMenuItemType;
