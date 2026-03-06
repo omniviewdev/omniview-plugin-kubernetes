@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/omniview/kubernetes/pkg/plugin/exec"
+	"github.com/omniview/kubernetes/pkg/plugin/klogconfig"
 	pluginlogs "github.com/omniview/kubernetes/pkg/plugin/logs"
 	pluginmetric "github.com/omniview/kubernetes/pkg/plugin/metric"
 	"github.com/omniview/kubernetes/pkg/plugin/networker"
@@ -22,25 +23,20 @@ import (
 )
 
 func init() {
-	// 1) Initialize klog’s flags
+	// 1) Initialize klog's flags
 	klog.InitFlags(nil)
 
-	// 2) Don’t use logtostderr — go-plugin’s GRPCStdio replaces os.Stderr
-	//    after init, so klog writes to the replaced fd which isn’t captured
-	//    reliably. Instead, route klog through Go’s std log writer which
-	//    caches the original os.Stderr before replacement.
-	flag.Set("logtostderr", "false")
+	// 2) Configure safe defaults before parsing flags.
+	if err := klogconfig.ConfigureDefaults(flag.CommandLine); err != nil {
+		log.Printf("failed to configure klog defaults: %v", err)
+	}
 
-	// 3) Set the verbosity level (6 gives you List/Watch errors, retries, etc)
-	flag.Set("v", "6")
-
-	// 4) Parse all flags (this must come *after* setting the flag defaults)
+	// 3) Parse all flags (this must come after setting defaults)
 	flag.Parse()
 
-	// 5) Redirect klog output through Go’s standard log package. The std log
-	//    package cached os.Stderr at init time (before go-plugin replaces it),
-	//    so writes through log.Writer() go to the Cmd.Stderr pipe which the
-	//    engine reliably captures.
+	// 4) Redirect klog output through Go's standard log package. The std log
+	// package caches os.Stderr at init time (before go-plugin may replace it),
+	// so writes through log.Writer() are reliably captured by the engine.
 	klog.SetOutput(log.Writer())
 }
 
@@ -63,6 +59,7 @@ func main() {
 					DefaultPath:  "~/.kube",
 				},
 			},
+			klogconfig.Setting(),
 			{
 				ID:          "shell",
 				Label:       "Shell",
@@ -112,6 +109,10 @@ func main() {
 			},
 		},
 	})
+
+	if err := klogconfig.ApplyFromProvider(flag.CommandLine, plugin.SettingsProvider); err != nil {
+		log.Printf("failed to apply client log level setting: %v", err)
+	}
 
 	// Register the capabilities
 	resource.Register(plugin)
