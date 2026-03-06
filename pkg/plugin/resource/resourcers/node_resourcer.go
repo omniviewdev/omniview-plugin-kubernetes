@@ -302,9 +302,12 @@ func (n *NodeResourcer) executeDrain(
 			if force {
 				// Force-delete the pod.
 				zero := int64(0)
-				_ = client.KubeClient.CoreV1().Pods(pod.Namespace).Delete(ctx, pod.Name, metav1.DeleteOptions{
+				if delErr := client.KubeClient.CoreV1().Pods(pod.Namespace).Delete(ctx, pod.Name, metav1.DeleteOptions{
 					GracePeriodSeconds: &zero,
-				})
+				}); delErr != nil {
+					evictErrors = append(evictErrors, fmt.Sprintf("%s/%s: force-delete failed: %v", pod.Namespace, pod.Name, delErr))
+					continue
+				}
 			} else {
 				evictErrors = append(evictErrors, fmt.Sprintf("%s/%s: %v", pod.Namespace, pod.Name, err))
 				continue

@@ -27,7 +27,11 @@ func Register(plugin *sdk.Plugin) {
 	helmSvc := helm.NewHelmService()
 	helmDefs := helm.HelmResourceDefinitions()
 	for meta, res := range helm.HelmResourcers(logger, helmSvc) {
-		def := helmDefs[meta.String()]
+		def, ok := helmDefs[meta.String()]
+		if !ok {
+			logger.Warnf("no helm definition found for %s, skipping registration", meta.String())
+			continue
+		}
 		registrations = append(registrations, resource.ResourceRegistration[clients.ClientSet]{
 			Meta:       meta,
 			Resourcer:  res,

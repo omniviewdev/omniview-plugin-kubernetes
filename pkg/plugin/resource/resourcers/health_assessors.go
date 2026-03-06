@@ -38,6 +38,13 @@ func (n *NodeResourcer) AssessHealth(_ context.Context, _ *clients.ClientSet, _ 
 
 	health := &resource.ResourceHealth{Status: resource.HealthUnknown}
 
+	isReady := false
+	isNotReady := false
+	var notReadyMsg string
+	hasPressure := false
+	var pressureType string
+	var pressureMsg string
+
 	for _, c := range node.Status.Conditions {
 		lt := c.LastTransitionTime.Time
 		health.Conditions = append(health.Conditions, resource.HealthCondition{
@@ -51,20 +58,33 @@ func (n *NodeResourcer) AssessHealth(_ context.Context, _ *clients.ClientSet, _ 
 		switch c.Type {
 		case corev1.NodeReady:
 			if c.Status == corev1.ConditionTrue {
-				health.Status = resource.HealthHealthy
-				health.Reason = "Ready"
+				isReady = true
 			} else {
-				health.Status = resource.HealthUnhealthy
-				health.Reason = "NotReady"
-				health.Message = c.Message
+				isNotReady = true
+				notReadyMsg = c.Message
 			}
 		case corev1.NodeMemoryPressure, corev1.NodeDiskPressure, corev1.NodePIDPressure:
-			if c.Status == corev1.ConditionTrue && health.Status == resource.HealthHealthy {
-				health.Status = resource.HealthDegraded
-				health.Reason = string(c.Type)
-				health.Message = c.Message
+			if c.Status == corev1.ConditionTrue {
+				hasPressure = true
+				pressureType = string(c.Type)
+				pressureMsg = c.Message
 			}
 		}
+	}
+
+	// Determine final status with priority: NotReady > Pressure > Ready
+	switch {
+	case isNotReady:
+		health.Status = resource.HealthUnhealthy
+		health.Reason = "NotReady"
+		health.Message = notReadyMsg
+	case hasPressure:
+		health.Status = resource.HealthDegraded
+		health.Reason = pressureType
+		health.Message = pressureMsg
+	case isReady:
+		health.Status = resource.HealthHealthy
+		health.Reason = "Ready"
 	}
 
 	return health, nil

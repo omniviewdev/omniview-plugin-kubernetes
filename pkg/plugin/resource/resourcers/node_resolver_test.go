@@ -61,5 +61,5 @@ func TestNodeResourcer_ResolveRelationships_NoPods(t *testing.T) {
 
 	rels, err := resourcer.ResolveRelationships(context.Background(), cs, nodeMeta(), "node-1", "")
 	require.NoError(t, err)
-	assert.Nil(t, rels)
+	assert.Empty(t, rels)
 }

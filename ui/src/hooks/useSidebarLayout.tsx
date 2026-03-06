@@ -100,7 +100,7 @@ const getStateBadge = (
   const state = states[toResourceKey(navId)];
   if (state === WatchState.SYNCING || state === WatchState.IDLE)
     return SYNCING_BADGE;
-  if (state === WatchState.ERROR) return ERROR_BADGE;
+  if (state === WatchState.ERROR || state === WatchState.FAILED || state === WatchState.FORBIDDEN) return ERROR_BADGE;
   return undefined;
 };
 
@@ -116,7 +116,7 @@ const getGroupBadge = (
     const state = states[toResourceKey(child.id)];
     if (state === WatchState.SYNCING || state === WatchState.IDLE)
       hasSyncing = true;
-    if (state === WatchState.ERROR) hasError = true;
+    if (state === WatchState.ERROR || state === WatchState.FAILED || state === WatchState.FORBIDDEN) hasError = true;
   }
   if (hasError) return ERROR_BADGE;
   if (hasSyncing) return SYNCING_BADGE;

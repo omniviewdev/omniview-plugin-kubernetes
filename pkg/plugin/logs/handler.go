@@ -25,8 +25,14 @@ func PodLogHandler(ctx *types.PluginContext, req logs.LogStreamRequest) (io.Read
 	// may point to the parent resource rather than the actual pod.
 	pod := req.Labels["pod"]
 	namespace := req.Labels["namespace"]
-	if pod == "" {
-		pod, namespace = extractPodIdentity(req.ResourceData)
+	if pod == "" || namespace == "" {
+		rpod, rns := extractPodIdentity(req.ResourceData)
+		if pod == "" {
+			pod = rpod
+		}
+		if namespace == "" {
+			namespace = rns
+		}
 	}
 
 	if pod == "" {

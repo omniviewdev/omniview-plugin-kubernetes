@@ -126,6 +126,23 @@ func (p *kubeConnectionProvider) CheckConnection(_ context.Context, conn *types.
 		}, nil
 	}
 
+	if client.DiscoveryClient == nil {
+		return types.ConnectionStatus{
+			Connection: conn,
+			Status:     types.ConnectionStatusError,
+			Details:    "DiscoveryClient is not initialized",
+			Error:      "DiscoveryClient is nil",
+		}, nil
+	}
+	if client.DynamicInformerFactory == nil {
+		return types.ConnectionStatus{
+			Connection: conn,
+			Status:     types.ConnectionStatusError,
+			Details:    "DynamicInformerFactory is not initialized",
+			Error:      "DynamicInformerFactory is nil",
+		}, nil
+	}
+
 	result := types.ConnectionStatus{
 		Connection: conn,
 		Status:     types.ConnectionStatusUnknown,
@@ -253,7 +270,7 @@ func (p *kubeConnectionProvider) WatchConnections(ctx context.Context) (<-chan [
 			if err := w.Add(expandedPath); err != nil {
 				log.Printf("watch add (file) %q failed: %v (will rely on dir watch)", expandedPath, err)
 			} else {
-				ws.files[path] = struct{}{}
+				ws.files[expandedPath] = struct{}{}
 			}
 		}
 	}
@@ -313,7 +330,8 @@ func (p *kubeConnectionProvider) WatchConnections(ctx context.Context) (<-chan [
 
 			case ev := <-w.Events:
 				for _, p := range kubeconfigs {
-					if filepath.Dir(p) == filepath.Dir(ev.Name) || p == ev.Name {
+					ep, _ := sdkutils.ExpandTilde(p)
+					if filepath.Dir(ep) == filepath.Dir(ev.Name) || ep == ev.Name {
 						addWatch(p)
 					}
 				}
@@ -345,8 +363,11 @@ func (p *kubeConnectionProvider) RefreshClient(ctx context.Context, client *clie
 		return fmt.Errorf("failed to refresh client: %w", err)
 	}
 
-	// Shut down old namespace factories before replacing the dynamic client.
+	// Shut down old informer factories before replacing clients.
 	client.ShutdownNamespaceFactories()
+	if client.DynamicInformerFactory != nil {
+		client.DynamicInformerFactory.Shutdown()
+	}
 
 	client.Clientset = fresh.Clientset
 	client.KubeClient = fresh.Clientset

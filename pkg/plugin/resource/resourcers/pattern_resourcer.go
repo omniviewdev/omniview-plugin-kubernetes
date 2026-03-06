@@ -205,6 +205,18 @@ func (s *KubernetesPatternResourcer) Update(
 	if err != nil {
 		return nil, err
 	}
+
+	// Preserve resourceVersion from the existing object so the update succeeds.
+	if existingMeta, ok := existing.Object["metadata"].(map[string]interface{}); ok {
+		if rv, ok := existingMeta["resourceVersion"]; ok {
+			objMeta, ok := obj["metadata"].(map[string]interface{})
+			if !ok {
+				objMeta = make(map[string]interface{})
+				obj["metadata"] = objMeta
+			}
+			objMeta["resourceVersion"] = rv
+		}
+	}
 	existing.Object = obj
 
 	updated, err := lister.Update(ctx, existing, v1.UpdateOptions{})

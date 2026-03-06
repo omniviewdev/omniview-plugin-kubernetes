@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
@@ -111,15 +112,25 @@ func (s *StatefulSetResourcer) ResolveRelationships(
 	}
 
 	// PVC relationships from volumeClaimTemplates.
+	// StatefulSet PVC names follow the pattern: <template-name>-<statefulset-name>-<ordinal>
 	if len(sts.Spec.VolumeClaimTemplates) > 0 {
-		targets := make([]resource.ResourceRef, 0, len(sts.Spec.VolumeClaimTemplates))
-		for _, vct := range sts.Spec.VolumeClaimTemplates {
-			targets = append(targets, makeRef("core::v1::PersistentVolumeClaim", vct.Name, namespace))
+		replicas := int32(1)
+		if sts.Spec.Replicas != nil {
+			replicas = *sts.Spec.Replicas
 		}
-		rels = append(rels, resource.ResolvedRelationship{
-			Descriptor: descriptors[1], // RelUses → PVC
-			Targets:    targets,
-		})
+		var targets []resource.ResourceRef
+		for _, vct := range sts.Spec.VolumeClaimTemplates {
+			for i := int32(0); i < replicas; i++ {
+				pvcName := fmt.Sprintf("%s-%s-%d", vct.Name, id, i)
+				targets = append(targets, makeRef("core::v1::PersistentVolumeClaim", pvcName, namespace))
+			}
+		}
+		if len(targets) > 0 {
+			rels = append(rels, resource.ResolvedRelationship{
+				Descriptor: descriptors[1], // RelUses → PVC
+				Targets:    targets,
+			})
+		}
 	}
 
 	// ConfigMap relationships from volumes.
@@ -350,6 +361,9 @@ func (s *StatefulSetResourcer) executeScale(
 	replicas, ok := input.Params["replicas"].(float64)
 	if !ok {
 		return nil, fmt.Errorf("replicas parameter is required and must be a number")
+	}
+	if replicas != math.Trunc(replicas) || replicas < 0 || replicas > math.MaxInt32 {
+		return nil, fmt.Errorf("replicas must be a non-negative whole number")
 	}
 
 	replicaCount := int32(replicas)

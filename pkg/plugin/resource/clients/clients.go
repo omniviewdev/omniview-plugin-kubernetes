@@ -89,10 +89,14 @@ func (cs *ClientSet) GetOrCreateNamespaceFactory(ns string) dynamicinformer.Dyna
 // ShutdownNamespaceFactories stops all per-namespace informer factories.
 func (cs *ClientSet) ShutdownNamespaceFactories() {
 	cs.nsFactoriesMu.Lock()
-	defer cs.nsFactoriesMu.Unlock()
-
+	snapshot := make(map[string]dynamicinformer.DynamicSharedInformerFactory, len(cs.nsFactories))
 	for ns, f := range cs.nsFactories {
+		snapshot[ns] = f
+	}
+	cs.nsFactories = make(map[string]dynamicinformer.DynamicSharedInformerFactory)
+	cs.nsFactoriesMu.Unlock()
+
+	for _, f := range snapshot {
 		f.Shutdown()
-		delete(cs.nsFactories, ns)
 	}
 }

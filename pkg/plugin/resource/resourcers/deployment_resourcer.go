@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
@@ -368,6 +369,9 @@ func (d *DeploymentResourcer) executeScale(
 	replicas, ok := input.Params["replicas"].(float64)
 	if !ok {
 		return nil, fmt.Errorf("replicas parameter is required and must be a number")
+	}
+	if replicas != math.Trunc(replicas) || replicas < 0 || replicas > math.MaxInt32 {
+		return nil, fmt.Errorf("replicas must be a non-negative whole number")
 	}
 
 	replicaCount := int32(replicas)

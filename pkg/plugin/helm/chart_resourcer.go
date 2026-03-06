@@ -195,7 +195,7 @@ func (r *ChartResourcer) List(
 			// Use the latest (first) version for list display.
 			data, err := marshalMap(chartVersionToMap(repoName, versions[0]))
 			if err != nil {
-				continue
+				return nil, fmt.Errorf("failed to marshal chart %s/%s: %w", repoName, versions[0].Name, err)
 			}
 			charts = append(charts, data)
 		}

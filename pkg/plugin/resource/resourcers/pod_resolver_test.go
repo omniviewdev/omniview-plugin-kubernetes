@@ -136,8 +136,8 @@ func TestPodResourcer_ResolveRelationships_NoVolumes(t *testing.T) {
 	rels, err := resourcer.ResolveRelationships(ctx, cs, podMeta(), "bare-pod", "default")
 	require.NoError(t, err)
 
-	// Should have Node + ServiceAccount (default SA is "default" which is empty string → skipped)
-	// Node only.
+	// ServiceAccount name "default" is treated as the implicit default and skipped,
+	// so only the Node relationship is expected.
 	require.Len(t, rels, 1)
 	assert.Equal(t, "core::v1::Node", rels[0].Descriptor.TargetResourceKey)
 }

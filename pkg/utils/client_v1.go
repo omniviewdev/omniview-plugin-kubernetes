@@ -23,6 +23,9 @@ func KubeClientsFromConnection(conn *types.Connection) (*kubeauth.KubeClientBund
 	if !ok {
 		return nil, errors.New("kubeconfig is required and must be a string")
 	}
+	if kubeconfigPath == "" {
+		return nil, errors.New("kubeconfig is required and must be a non-empty string")
+	}
 
 	return kubeauth.LoadKubeClients(kubeconfigPath, conn.ID)
 }

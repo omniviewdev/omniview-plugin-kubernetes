@@ -104,10 +104,11 @@ func TestStatefulSetResourcer_ResolveRelationships(t *testing.T) {
 	require.Len(t, rels[0].Targets, 1)
 	assert.Equal(t, "my-sts-0", rels[0].Targets[0].ID)
 
-	// PVC
+	// PVC — names follow <template>-<sts>-<ordinal> pattern
 	assert.Equal(t, "core::v1::PersistentVolumeClaim", rels[1].Descriptor.TargetResourceKey)
-	require.Len(t, rels[1].Targets, 1)
-	assert.Equal(t, "data", rels[1].Targets[0].ID)
+	require.Len(t, rels[1].Targets, 2)
+	assert.Equal(t, "data-my-sts-0", rels[1].Targets[0].ID)
+	assert.Equal(t, "data-my-sts-1", rels[1].Targets[1].ID)
 
 	// ConfigMap
 	assert.Equal(t, "core::v1::ConfigMap", rels[2].Descriptor.TargetResourceKey)

@@ -333,14 +333,16 @@ func TestIntegration_Health_Deployment(t *testing.T) {
 
 	// Degraded deployment: partial availability.
 	dep.Status.AvailableReplicas = 1
-	data, _ = json.Marshal(dep)
+	data, err = json.Marshal(dep)
+	require.NoError(t, err)
 	health = h.GetHealth("test-conn", "apps::v1::Deployment", data)
 	require.NotNil(t, health)
 	assert.Equal(t, resource.HealthDegraded, health.Status)
 
 	// Unhealthy deployment: no replicas available.
 	dep.Status.AvailableReplicas = 0
-	data, _ = json.Marshal(dep)
+	data, err = json.Marshal(dep)
+	require.NoError(t, err)
 	health = h.GetHealth("test-conn", "apps::v1::Deployment", data)
 	require.NotNil(t, health)
 	assert.Equal(t, resource.HealthUnhealthy, health.Status)

@@ -807,11 +807,16 @@ func (r *ReleaseResourcer) executeDryRunInstall(
 		return nil, fmt.Errorf("dry-run install failed: %w", err)
 	}
 
+	notes := ""
+	if rel != nil && rel.Info != nil {
+		notes = rel.Info.Notes
+	}
+
 	return &resource.ActionResult{
 		Success: true,
 		Data: map[string]interface{}{
 			"manifest": rel.Manifest,
-			"notes":    rel.Info.Notes,
+			"notes":    notes,
 		},
 		Message: "Dry-run install completed",
 	}, nil
@@ -872,16 +877,16 @@ func (r *ReleaseResourcer) executeDiffRevisions(
 	rev1 := int(rev1F)
 	rev2 := int(rev2F)
 
-	get := action.NewGet(cfg)
-
-	get.Version = rev1
-	rel1, err := get.Run(input.ID)
+	get1 := action.NewGet(cfg)
+	get1.Version = rev1
+	rel1, err := get1.Run(input.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get revision %d: %w", rev1, err)
 	}
 
-	get.Version = rev2
-	rel2, err := get.Run(input.ID)
+	get2 := action.NewGet(cfg)
+	get2.Version = rev2
+	rel2, err := get2.Run(input.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get revision %d: %w", rev2, err)
 	}

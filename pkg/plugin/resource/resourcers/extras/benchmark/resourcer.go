@@ -52,7 +52,7 @@ func (s *ClusterBenchmarker) List(
 		return nil, err
 	}
 
-	return &resource.ListResult{Result: []json.RawMessage{jsonData}}, nil
+	return &resource.ListResult{Result: []json.RawMessage{jsonData}, Success: true}, nil
 }
 
 func (s *ClusterBenchmarker) Find(

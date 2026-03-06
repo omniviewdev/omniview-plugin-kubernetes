@@ -242,11 +242,6 @@ func (r *RepoResourcer) Delete(
 	return &resource.DeleteResult{Result: data, Success: true}, nil
 }
 
-// RepoActionResourcer implements ActionResourcer for repos.
-type RepoActionResourcer struct {
-	inner *RepoResourcer
-}
-
 var _ resource.ActionResourcer[clients.ClientSet] = (*RepoResourcerWithActions)(nil)
 
 // RepoResourcerWithActions combines RepoResourcer with action support.

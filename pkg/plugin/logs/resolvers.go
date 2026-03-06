@@ -317,12 +317,35 @@ func processPodWatchEvents(
 				}
 
 			case watch.Deleted:
+				prev := knownSources[pod.Name]
 				delete(knownSources, pod.Name)
-				for _, src := range sources {
+				// Emit removals for all previously tracked sources, preferring
+				// full Source data from the current payload when available.
+				for id := range prev {
+					src := logs.LogSource{ID: id}
+					if _, ok := currentIDs[id]; ok {
+						for _, s := range sources {
+							if s.ID == id {
+								src = s
+								break
+							}
+						}
+					}
 					select {
 					case eventCh <- logs.SourceEvent{Type: logs.SourceRemoved, Source: src}:
 					case <-ctx.Done():
 						return
+					}
+				}
+				// Also emit for any sources in the current payload not in prev
+				// (rare but defensive).
+				for _, src := range sources {
+					if _, ok := prev[src.ID]; !ok {
+						select {
+						case eventCh <- logs.SourceEvent{Type: logs.SourceRemoved, Source: src}:
+						case <-ctx.Done():
+							return
+						}
 					}
 				}
 			}

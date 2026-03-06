@@ -194,7 +194,7 @@ func (p *PodResourcer) AssessHealth(_ context.Context, _ *clients.ClientSet, _ r
 	}
 
 	// Check container statuses for CrashLoopBackOff or restarts
-	for _, cs := range pod.Status.ContainerStatuses {
+	assessContainerStatus := func(cs corev1.ContainerStatus) {
 		if cs.State.Waiting != nil {
 			switch cs.State.Waiting.Reason {
 			case "CrashLoopBackOff":
@@ -218,6 +218,13 @@ func (p *PodResourcer) AssessHealth(_ context.Context, _ *clients.ClientSet, _ r
 			health.Reason = "HighRestarts"
 			health.Message = fmt.Sprintf("Container %s has restarted %d times", cs.Name, cs.RestartCount)
 		}
+	}
+
+	for _, cs := range pod.Status.InitContainerStatuses {
+		assessContainerStatus(cs)
+	}
+	for _, cs := range pod.Status.ContainerStatuses {
+		assessContainerStatus(cs)
 	}
 
 	// Conditions
