@@ -7,8 +7,7 @@ import (
 	"time"
 
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
-	pkgtypes "github.com/omniviewdev/plugin-sdk/pkg/resource/types"
-	"github.com/omniviewdev/plugin-sdk/pkg/types"
+	resource "github.com/omniviewdev/plugin-sdk/pkg/v1/resource"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
@@ -29,8 +28,10 @@ type NodeResourcer struct {
 
 // Compile-time interface checks.
 var (
-	_ pkgtypes.Resourcer[clients.ClientSet]       = (*NodeResourcer)(nil)
-	_ pkgtypes.ActionResourcer[clients.ClientSet]  = (*NodeResourcer)(nil)
+	_ resource.Resourcer[clients.ClientSet]            = (*NodeResourcer)(nil)
+	_ resource.ActionResourcer[clients.ClientSet]       = (*NodeResourcer)(nil)
+	_ resource.RelationshipDeclarer                     = (*NodeResourcer)(nil)
+	_ resource.RelationshipResolver[clients.ClientSet]  = (*NodeResourcer)(nil)
 )
 
 // NewNodeResourcer creates a NodeResourcer for core::v1::Node.
@@ -38,73 +39,138 @@ func NewNodeResourcer(logger *zap.SugaredLogger) *NodeResourcer {
 	base := NewKubernetesResourcerBase[MetaAccessor](
 		logger,
 		corev1.SchemeGroupVersion.WithResource("nodes"),
+		WithRelationships([]resource.RelationshipDescriptor{
+			{
+				Type:              resource.RelRunsOn,
+				TargetResourceKey: "core::v1::Pod",
+				Label:             "runs",
+				InverseLabel:      "runs on",
+				Cardinality:       "one-to-many",
+			},
+		}),
 	)
 	return &NodeResourcer{
-		KubernetesResourcerBase: base.(*KubernetesResourcerBase[MetaAccessor]),
+		KubernetesResourcerBase: base,
 		log:                     logger.Named("NodeResourcer"),
 	}
+}
+
+// ResolveRelationships resolves runtime relationship instances for a Node.
+func (n *NodeResourcer) ResolveRelationships(
+	ctx context.Context,
+	client *clients.ClientSet,
+	_ resource.ResourceMeta,
+	id string,
+	_ string,
+) ([]resource.ResolvedRelationship, error) {
+	podList, err := client.KubeClient.CoreV1().Pods("").List(ctx, metav1.ListOptions{
+		FieldSelector: fields.SelectorFromSet(fields.Set{"spec.nodeName": id}).String(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list pods on node %s: %w", id, err)
+	}
+
+	if len(podList.Items) == 0 {
+		return nil, nil
+	}
+
+	targets := make([]resource.ResourceRef, 0, len(podList.Items))
+	for _, pod := range podList.Items {
+		targets = append(targets, makeRef("core::v1::Pod", pod.Name, pod.Namespace))
+	}
+
+	return []resource.ResolvedRelationship{
+		{
+			Descriptor: n.DeclareRelationships()[0], // RelRunsOn → Pod
+			Targets:    targets,
+		},
+	}, nil
 }
 
 // ====================== ACTION INTERFACE ====================== //
 
 func (n *NodeResourcer) GetActions(
-	_ *types.PluginContext,
+	_ context.Context,
 	_ *clients.ClientSet,
-	_ pkgtypes.ResourceMeta,
-) ([]pkgtypes.ActionDescriptor, error) {
-	return []pkgtypes.ActionDescriptor{
+	_ resource.ResourceMeta,
+) ([]resource.ActionDescriptor, error) {
+	return []resource.ActionDescriptor{
 		{
 			ID:          "cordon",
 			Label:       "Cordon Node",
 			Description: "Mark the node as unschedulable",
 			Icon:        "LuShieldBan",
-			Scope:       pkgtypes.ActionScopeInstance,
+			Scope:       resource.ActionScopeInstance,
 		},
 		{
 			ID:          "uncordon",
 			Label:       "Uncordon Node",
 			Description: "Mark the node as schedulable",
 			Icon:        "LuShieldCheck",
-			Scope:       pkgtypes.ActionScopeInstance,
+			Scope:       resource.ActionScopeInstance,
 		},
 		{
 			ID:          "drain",
 			Label:       "Drain Node",
 			Description: "Safely evict all pods from the node",
 			Icon:        "LuArrowDownToLine",
-			Scope:       pkgtypes.ActionScopeInstance,
+			Scope:       resource.ActionScopeInstance,
+			Dangerous:   true,
+			ParamsSchema: &resource.Schema{
+				Properties: map[string]resource.SchemaProperty{
+					"gracePeriodSeconds": {Type: resource.SchemaInteger, Default: 30, Description: "Seconds to wait for graceful termination"},
+					"ignoreDaemonSets":  {Type: resource.SchemaBoolean, Default: true, Description: "Ignore DaemonSet-managed pods"},
+					"deleteEmptyDirData": {Type: resource.SchemaBoolean, Default: true, Description: "Delete pods using emptyDir volumes"},
+					"force":             {Type: resource.SchemaBoolean, Default: false, Description: "Force-delete pods that fail eviction"},
+				},
+			},
 		},
 		{
 			ID:          "add-taint",
 			Label:       "Add Taint",
 			Description: "Add a taint to the node",
 			Icon:        "LuTag",
-			Scope:       pkgtypes.ActionScopeInstance,
+			Scope:       resource.ActionScopeInstance,
+			ParamsSchema: &resource.Schema{
+				Properties: map[string]resource.SchemaProperty{
+					"key":    {Type: resource.SchemaString, Description: "Taint key"},
+					"value":  {Type: resource.SchemaString, Description: "Taint value"},
+					"effect": {Type: resource.SchemaString, Enum: []string{"NoSchedule", "PreferNoSchedule", "NoExecute"}, Description: "Taint effect"},
+				},
+				Required: []string{"key", "effect"},
+			},
 		},
 		{
 			ID:          "remove-taint",
 			Label:       "Remove Taint",
 			Description: "Remove a taint from the node",
 			Icon:        "LuTagX",
-			Scope:       pkgtypes.ActionScopeInstance,
+			Scope:       resource.ActionScopeInstance,
+			ParamsSchema: &resource.Schema{
+				Properties: map[string]resource.SchemaProperty{
+					"key":    {Type: resource.SchemaString, Description: "Taint key to remove"},
+					"effect": {Type: resource.SchemaString, Enum: []string{"NoSchedule", "PreferNoSchedule", "NoExecute"}, Description: "Taint effect to match (optional)"},
+				},
+				Required: []string{"key"},
+			},
 		},
 		{
 			ID:          "get-conditions",
 			Label:       "Get Conditions",
 			Description: "Get node status conditions",
 			Icon:        "LuHeartPulse",
-			Scope:       pkgtypes.ActionScopeInstance,
+			Scope:       resource.ActionScopeInstance,
 		},
 	}, nil
 }
 
 func (n *NodeResourcer) ExecuteAction(
-	ctx *types.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	_ pkgtypes.ResourceMeta,
+	_ resource.ResourceMeta,
 	actionID string,
-	input pkgtypes.ActionInput,
-) (*pkgtypes.ActionResult, error) {
+	input resource.ActionInput,
+) (*resource.ActionResult, error) {
 	switch actionID {
 	case "cordon":
 		return n.executeCordon(ctx, client, input, true)
@@ -124,12 +190,12 @@ func (n *NodeResourcer) ExecuteAction(
 }
 
 func (n *NodeResourcer) StreamAction(
-	_ *types.PluginContext,
+	_ context.Context,
 	_ *clients.ClientSet,
-	_ pkgtypes.ResourceMeta,
+	_ resource.ResourceMeta,
 	_ string,
-	_ pkgtypes.ActionInput,
-	_ chan pkgtypes.ActionEvent,
+	_ resource.ActionInput,
+	_ chan<- resource.ActionEvent,
 ) error {
 	return fmt.Errorf("streaming actions not supported for nodes")
 }
@@ -138,14 +204,14 @@ func (n *NodeResourcer) StreamAction(
 
 // executeCordon patches spec.unschedulable on the node.
 func (n *NodeResourcer) executeCordon(
-	ctx *types.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	input pkgtypes.ActionInput,
+	input resource.ActionInput,
 	unschedulable bool,
-) (*pkgtypes.ActionResult, error) {
+) (*resource.ActionResult, error) {
 	patch := fmt.Sprintf(`{"spec":{"unschedulable":%t}}`, unschedulable)
 	_, err := client.KubeClient.CoreV1().Nodes().Patch(
-		ctx.Context, input.ID, k8stypes.StrategicMergePatchType,
+		ctx, input.ID, k8stypes.StrategicMergePatchType,
 		[]byte(patch), metav1.PatchOptions{},
 	)
 	if err != nil {
@@ -156,7 +222,7 @@ func (n *NodeResourcer) executeCordon(
 	if !unschedulable {
 		verb = "uncordoned"
 	}
-	return &pkgtypes.ActionResult{
+	return &resource.ActionResult{
 		Success: true,
 		Message: fmt.Sprintf("Node %s %s", input.ID, verb),
 	}, nil
@@ -164,10 +230,10 @@ func (n *NodeResourcer) executeCordon(
 
 // executeDrain evicts all non-DaemonSet, non-mirror pods from the node, then cordons it.
 func (n *NodeResourcer) executeDrain(
-	ctx *types.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	input pkgtypes.ActionInput,
-) (*pkgtypes.ActionResult, error) {
+	input resource.ActionInput,
+) (*resource.ActionResult, error) {
 	// Parse optional params.
 	gracePeriod := int64(30)
 	if v, ok := input.Params["gracePeriodSeconds"].(float64); ok {
@@ -186,7 +252,7 @@ func (n *NodeResourcer) executeDrain(
 	// Step 1: Cordon the node.
 	cordonPatch := `{"spec":{"unschedulable":true}}`
 	_, err := client.KubeClient.CoreV1().Nodes().Patch(
-		ctx.Context, input.ID, k8stypes.StrategicMergePatchType,
+		ctx, input.ID, k8stypes.StrategicMergePatchType,
 		[]byte(cordonPatch), metav1.PatchOptions{},
 	)
 	if err != nil {
@@ -194,7 +260,7 @@ func (n *NodeResourcer) executeDrain(
 	}
 
 	// Step 2: List pods on this node.
-	podList, err := client.KubeClient.CoreV1().Pods("").List(ctx.Context, metav1.ListOptions{
+	podList, err := client.KubeClient.CoreV1().Pods("").List(ctx, metav1.ListOptions{
 		FieldSelector: fields.SelectorFromSet(fields.Set{"spec.nodeName": input.ID}).String(),
 	})
 	if err != nil {
@@ -232,11 +298,11 @@ func (n *NodeResourcer) executeDrain(
 				GracePeriodSeconds: &gracePeriod,
 			},
 		}
-		if err := client.KubeClient.PolicyV1().Evictions(pod.Namespace).Evict(ctx.Context, eviction); err != nil {
+		if err := client.KubeClient.PolicyV1().Evictions(pod.Namespace).Evict(ctx, eviction); err != nil {
 			if force {
 				// Force-delete the pod.
 				zero := int64(0)
-				_ = client.KubeClient.CoreV1().Pods(pod.Namespace).Delete(ctx.Context, pod.Name, metav1.DeleteOptions{
+				_ = client.KubeClient.CoreV1().Pods(pod.Namespace).Delete(ctx, pod.Name, metav1.DeleteOptions{
 					GracePeriodSeconds: &zero,
 				})
 			} else {
@@ -254,7 +320,7 @@ func (n *NodeResourcer) executeDrain(
 		msg += fmt.Sprintf(", %d failed", len(evictErrors))
 	}
 
-	return &pkgtypes.ActionResult{
+	return &resource.ActionResult{
 		Success: len(evictErrors) == 0,
 		Message: msg,
 		Data: map[string]interface{}{
@@ -276,10 +342,10 @@ func isDaemonSetPod(pod *corev1.Pod) bool {
 
 // executeAddTaint appends a taint to the node's spec.taints.
 func (n *NodeResourcer) executeAddTaint(
-	ctx *types.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	input pkgtypes.ActionInput,
-) (*pkgtypes.ActionResult, error) {
+	input resource.ActionInput,
+) (*resource.ActionResult, error) {
 	key, _ := input.Params["key"].(string)
 	value, _ := input.Params["value"].(string)
 	effect, _ := input.Params["effect"].(string)
@@ -292,7 +358,7 @@ func (n *NodeResourcer) executeAddTaint(
 	}
 
 	// Get the current node to read existing taints.
-	node, err := client.KubeClient.CoreV1().Nodes().Get(ctx.Context, input.ID, metav1.GetOptions{})
+	node, err := client.KubeClient.CoreV1().Nodes().Get(ctx, input.ID, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get node %s: %w", input.ID, err)
 	}
@@ -300,7 +366,7 @@ func (n *NodeResourcer) executeAddTaint(
 	// Check for duplicate.
 	for _, t := range node.Spec.Taints {
 		if t.Key == key && string(t.Effect) == effect {
-			return &pkgtypes.ActionResult{
+			return &resource.ActionResult{
 				Success: true,
 				Message: fmt.Sprintf("Taint %s:%s already exists on node %s", key, effect, input.ID),
 			}, nil
@@ -321,14 +387,14 @@ func (n *NodeResourcer) executeAddTaint(
 
 	patch := fmt.Sprintf(`{"spec":{"taints":%s}}`, taintsJSON)
 	_, err = client.KubeClient.CoreV1().Nodes().Patch(
-		ctx.Context, input.ID, k8stypes.StrategicMergePatchType,
+		ctx, input.ID, k8stypes.StrategicMergePatchType,
 		[]byte(patch), metav1.PatchOptions{},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to add taint to node %s: %w", input.ID, err)
 	}
 
-	return &pkgtypes.ActionResult{
+	return &resource.ActionResult{
 		Success: true,
 		Message: fmt.Sprintf("Taint %s=%s:%s added to node %s", key, value, effect, input.ID),
 	}, nil
@@ -336,10 +402,10 @@ func (n *NodeResourcer) executeAddTaint(
 
 // executeRemoveTaint removes a taint matching key+effect from the node.
 func (n *NodeResourcer) executeRemoveTaint(
-	ctx *types.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	input pkgtypes.ActionInput,
-) (*pkgtypes.ActionResult, error) {
+	input resource.ActionInput,
+) (*resource.ActionResult, error) {
 	key, _ := input.Params["key"].(string)
 	effect, _ := input.Params["effect"].(string)
 
@@ -347,7 +413,7 @@ func (n *NodeResourcer) executeRemoveTaint(
 		return nil, fmt.Errorf("taint key is required")
 	}
 
-	node, err := client.KubeClient.CoreV1().Nodes().Get(ctx.Context, input.ID, metav1.GetOptions{})
+	node, err := client.KubeClient.CoreV1().Nodes().Get(ctx, input.ID, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get node %s: %w", input.ID, err)
 	}
@@ -363,7 +429,7 @@ func (n *NodeResourcer) executeRemoveTaint(
 	}
 
 	if !removed {
-		return &pkgtypes.ActionResult{
+		return &resource.ActionResult{
 			Success: true,
 			Message: fmt.Sprintf("Taint %s not found on node %s", key, input.ID),
 		}, nil
@@ -377,14 +443,14 @@ func (n *NodeResourcer) executeRemoveTaint(
 	// Use MergePatch (not strategic merge) so that the full taints array is replaced.
 	patch := fmt.Sprintf(`{"spec":{"taints":%s}}`, taintsJSON)
 	_, err = client.KubeClient.CoreV1().Nodes().Patch(
-		ctx.Context, input.ID, k8stypes.MergePatchType,
+		ctx, input.ID, k8stypes.MergePatchType,
 		[]byte(patch), metav1.PatchOptions{},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to remove taint from node %s: %w", input.ID, err)
 	}
 
-	return &pkgtypes.ActionResult{
+	return &resource.ActionResult{
 		Success: true,
 		Message: fmt.Sprintf("Taint %s removed from node %s", key, input.ID),
 	}, nil
@@ -392,11 +458,11 @@ func (n *NodeResourcer) executeRemoveTaint(
 
 // executeGetConditions returns the node's status conditions in a structured format.
 func (n *NodeResourcer) executeGetConditions(
-	ctx *types.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	input pkgtypes.ActionInput,
-) (*pkgtypes.ActionResult, error) {
-	node, err := client.KubeClient.CoreV1().Nodes().Get(ctx.Context, input.ID, metav1.GetOptions{})
+	input resource.ActionInput,
+) (*resource.ActionResult, error) {
+	node, err := client.KubeClient.CoreV1().Nodes().Get(ctx, input.ID, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get node %s: %w", input.ID, err)
 	}
@@ -413,7 +479,7 @@ func (n *NodeResourcer) executeGetConditions(
 		})
 	}
 
-	return &pkgtypes.ActionResult{
+	return &resource.ActionResult{
 		Success: true,
 		Data: map[string]interface{}{
 			"conditions": conditions,

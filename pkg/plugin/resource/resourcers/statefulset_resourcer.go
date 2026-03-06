@@ -1,12 +1,13 @@
 package resourcers
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
-	pkgtypes "github.com/omniviewdev/plugin-sdk/pkg/resource/types"
-	"github.com/omniviewdev/plugin-sdk/pkg/types"
+	resource "github.com/omniviewdev/plugin-sdk/pkg/v1/resource"
 	"go.uber.org/zap"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,8 +24,10 @@ type StatefulSetResourcer struct {
 
 // Compile-time interface checks.
 var (
-	_ pkgtypes.Resourcer[clients.ClientSet]       = (*StatefulSetResourcer)(nil)
-	_ pkgtypes.ActionResourcer[clients.ClientSet]  = (*StatefulSetResourcer)(nil)
+	_ resource.Resourcer[clients.ClientSet]            = (*StatefulSetResourcer)(nil)
+	_ resource.ActionResourcer[clients.ClientSet]       = (*StatefulSetResourcer)(nil)
+	_ resource.RelationshipDeclarer                     = (*StatefulSetResourcer)(nil)
+	_ resource.RelationshipResolver[clients.ClientSet]  = (*StatefulSetResourcer)(nil)
 )
 
 // NewStatefulSetResourcer creates a StatefulSetResourcer for apps::v1::StatefulSet.
@@ -32,27 +35,135 @@ func NewStatefulSetResourcer(logger *zap.SugaredLogger) *StatefulSetResourcer {
 	base := NewKubernetesResourcerBase[MetaAccessor](
 		logger,
 		appsv1.SchemeGroupVersion.WithResource("statefulsets"),
+		WithRelationships([]resource.RelationshipDescriptor{
+			{
+				Type:              resource.RelOwns,
+				TargetResourceKey: "core::v1::Pod",
+				Label:             "owns",
+				InverseLabel:      "owned by",
+				Cardinality:       "one-to-many",
+				Extractor:         &resource.RelationshipExtractor{Method: "ownerRef", OwnerRefKind: "StatefulSet"},
+			},
+			{
+				Type:              resource.RelUses,
+				TargetResourceKey: "core::v1::PersistentVolumeClaim",
+				Label:             "uses",
+				InverseLabel:      "used by",
+				Cardinality:       "one-to-many",
+				Extractor:         &resource.RelationshipExtractor{Method: "fieldPath", FieldPath: "spec.volumeClaimTemplates[*].metadata.name"},
+			},
+			{
+				Type:              resource.RelUses,
+				TargetResourceKey: "core::v1::ConfigMap",
+				Label:             "uses",
+				InverseLabel:      "used by",
+				Cardinality:       "many-to-many",
+				Extractor:         &resource.RelationshipExtractor{Method: "fieldPath", FieldPath: "spec.template.spec.volumes[*].configMap.name"},
+			},
+			{
+				Type:              resource.RelUses,
+				TargetResourceKey: "core::v1::Secret",
+				Label:             "uses",
+				InverseLabel:      "used by",
+				Cardinality:       "many-to-many",
+				Extractor:         &resource.RelationshipExtractor{Method: "fieldPath", FieldPath: "spec.template.spec.volumes[*].secret.secretName"},
+			},
+		}),
 	)
 	return &StatefulSetResourcer{
-		KubernetesResourcerBase: base.(*KubernetesResourcerBase[MetaAccessor]),
+		KubernetesResourcerBase: base,
 		log:                     logger.Named("StatefulSetResourcer"),
 	}
+}
+
+// ResolveRelationships resolves runtime relationship instances for a StatefulSet.
+func (s *StatefulSetResourcer) ResolveRelationships(
+	ctx context.Context,
+	client *clients.ClientSet,
+	meta resource.ResourceMeta,
+	id string,
+	namespace string,
+) ([]resource.ResolvedRelationship, error) {
+	result, err := s.Get(ctx, client, meta, resource.GetInput{ID: id, Namespace: namespace})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get statefulset %s: %w", id, err)
+	}
+
+	var sts appsv1.StatefulSet
+	if err := json.Unmarshal(result.Result, &sts); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal statefulset: %w", err)
+	}
+
+	var rels []resource.ResolvedRelationship
+	descriptors := s.DeclareRelationships()
+
+	// Pod relationships via ownerRef.
+	pods, err := listPodsByOwner(ctx, client, namespace, "StatefulSet", id, string(sts.UID))
+	if err == nil && len(pods) > 0 {
+		targets := make([]resource.ResourceRef, 0, len(pods))
+		for _, pod := range pods {
+			targets = append(targets, makeRef("core::v1::Pod", pod.Name, namespace))
+		}
+		rels = append(rels, resource.ResolvedRelationship{
+			Descriptor: descriptors[0], // RelOwns → Pod
+			Targets:    targets,
+		})
+	}
+
+	// PVC relationships from volumeClaimTemplates.
+	if len(sts.Spec.VolumeClaimTemplates) > 0 {
+		targets := make([]resource.ResourceRef, 0, len(sts.Spec.VolumeClaimTemplates))
+		for _, vct := range sts.Spec.VolumeClaimTemplates {
+			targets = append(targets, makeRef("core::v1::PersistentVolumeClaim", vct.Name, namespace))
+		}
+		rels = append(rels, resource.ResolvedRelationship{
+			Descriptor: descriptors[1], // RelUses → PVC
+			Targets:    targets,
+		})
+	}
+
+	// ConfigMap relationships from volumes.
+	if cms := extractVolumeConfigMaps(sts.Spec.Template.Spec); len(cms) > 0 {
+		targets := make([]resource.ResourceRef, 0, len(cms))
+		for _, name := range cms {
+			targets = append(targets, makeRef("core::v1::ConfigMap", name, namespace))
+		}
+		rels = append(rels, resource.ResolvedRelationship{
+			Descriptor: descriptors[2], // RelUses → ConfigMap
+			Targets:    targets,
+		})
+	}
+
+	// Secret relationships from volumes.
+	if secrets := extractVolumeSecrets(sts.Spec.Template.Spec); len(secrets) > 0 {
+		targets := make([]resource.ResourceRef, 0, len(secrets))
+		for _, name := range secrets {
+			targets = append(targets, makeRef("core::v1::Secret", name, namespace))
+		}
+		rels = append(rels, resource.ResolvedRelationship{
+			Descriptor: descriptors[3], // RelUses → Secret
+			Targets:    targets,
+		})
+	}
+
+	return rels, nil
 }
 
 // ====================== ACTION INTERFACE ====================== //
 
 func (s *StatefulSetResourcer) GetActions(
-	_ *types.PluginContext,
+	_ context.Context,
 	_ *clients.ClientSet,
-	_ pkgtypes.ResourceMeta,
-) ([]pkgtypes.ActionDescriptor, error) {
-	return []pkgtypes.ActionDescriptor{
+	_ resource.ResourceMeta,
+) ([]resource.ActionDescriptor, error) {
+	return []resource.ActionDescriptor{
 		{
 			ID:          "restart",
 			Label:       "Rollout Restart",
 			Description: "Restart all pods in this statefulset via a rolling update",
 			Icon:        "LuRefreshCw",
-			Scope:       pkgtypes.ActionScopeInstance,
+			Scope:       resource.ActionScopeInstance,
+			Dangerous:   true,
 			Streaming:   true,
 		},
 		{
@@ -60,18 +171,24 @@ func (s *StatefulSetResourcer) GetActions(
 			Label:       "Scale",
 			Description: "Change the number of replicas",
 			Icon:        "LuScaling",
-			Scope:       pkgtypes.ActionScopeInstance,
+			Scope:       resource.ActionScopeInstance,
+			ParamsSchema: &resource.Schema{
+				Properties: map[string]resource.SchemaProperty{
+					"replicas": {Type: resource.SchemaInteger, Minimum: resource.PtrFloat64(0), Description: "Desired number of replicas"},
+				},
+				Required: []string{"replicas"},
+			},
 		},
 	}, nil
 }
 
 func (s *StatefulSetResourcer) ExecuteAction(
-	ctx *types.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	_ pkgtypes.ResourceMeta,
+	_ resource.ResourceMeta,
 	actionID string,
-	input pkgtypes.ActionInput,
-) (*pkgtypes.ActionResult, error) {
+	input resource.ActionInput,
+) (*resource.ActionResult, error) {
 	switch actionID {
 	case "restart":
 		return s.executeRestart(ctx, client, input)
@@ -83,12 +200,12 @@ func (s *StatefulSetResourcer) ExecuteAction(
 }
 
 func (s *StatefulSetResourcer) StreamAction(
-	ctx *types.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	_ pkgtypes.ResourceMeta,
+	_ resource.ResourceMeta,
 	actionID string,
-	input pkgtypes.ActionInput,
-	stream chan pkgtypes.ActionEvent,
+	input resource.ActionInput,
+	stream chan<- resource.ActionEvent,
 ) error {
 	switch actionID {
 	case "restart":
@@ -101,33 +218,33 @@ func (s *StatefulSetResourcer) StreamAction(
 // ====================== ACTION IMPLEMENTATIONS ====================== //
 
 func (s *StatefulSetResourcer) executeRestart(
-	ctx *types.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	input pkgtypes.ActionInput,
-) (*pkgtypes.ActionResult, error) {
+	input resource.ActionInput,
+) (*resource.ActionResult, error) {
 	patch := fmt.Sprintf(
 		`{"spec":{"template":{"metadata":{"annotations":{"kubectl.kubernetes.io/restartedAt":"%s"}}}}}`,
 		time.Now().Format(time.RFC3339),
 	)
 	_, err := client.KubeClient.AppsV1().StatefulSets(input.Namespace).Patch(
-		ctx.Context, input.ID, k8stypes.StrategicMergePatchType,
+		ctx, input.ID, k8stypes.StrategicMergePatchType,
 		[]byte(patch), metav1.PatchOptions{},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to restart statefulset %s: %w", input.ID, err)
 	}
 
-	return &pkgtypes.ActionResult{
+	return &resource.ActionResult{
 		Success: true,
 		Message: fmt.Sprintf("Rollout restart initiated for statefulset %s", input.ID),
 	}, nil
 }
 
 func (s *StatefulSetResourcer) streamRestart(
-	ctx *types.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	input pkgtypes.ActionInput,
-	stream chan pkgtypes.ActionEvent,
+	input resource.ActionInput,
+	stream chan<- resource.ActionEvent,
 ) error {
 	defer close(stream)
 
@@ -136,29 +253,29 @@ func (s *StatefulSetResourcer) streamRestart(
 		time.Now().Format(time.RFC3339),
 	)
 	_, err := client.KubeClient.AppsV1().StatefulSets(input.Namespace).Patch(
-		ctx.Context, input.ID, k8stypes.StrategicMergePatchType,
+		ctx, input.ID, k8stypes.StrategicMergePatchType,
 		[]byte(patch), metav1.PatchOptions{},
 	)
 	if err != nil {
-		stream <- pkgtypes.ActionEvent{
+		stream <- resource.ActionEvent{
 			Type: "error",
 			Data: map[string]interface{}{"message": fmt.Sprintf("failed to restart: %v", err)},
 		}
 		return err
 	}
 
-	stream <- pkgtypes.ActionEvent{
+	stream <- resource.ActionEvent{
 		Type: "progress",
 		Data: map[string]interface{}{"message": "Rollout restart initiated"},
 	}
 
 	watcher, err := client.KubeClient.AppsV1().StatefulSets(input.Namespace).Watch(
-		ctx.Context, metav1.ListOptions{
+		ctx, metav1.ListOptions{
 			FieldSelector: fmt.Sprintf("metadata.name=%s", input.ID),
 		},
 	)
 	if err != nil {
-		stream <- pkgtypes.ActionEvent{
+		stream <- resource.ActionEvent{
 			Type: "error",
 			Data: map[string]interface{}{"message": fmt.Sprintf("failed to watch statefulset: %v", err)},
 		}
@@ -170,18 +287,18 @@ func (s *StatefulSetResourcer) streamRestart(
 	for {
 		select {
 		case <-timeout:
-			stream <- pkgtypes.ActionEvent{
+			stream <- resource.ActionEvent{
 				Type: "error",
 				Data: map[string]interface{}{"message": "rollout restart timed out after 5 minutes"},
 			}
 			return fmt.Errorf("rollout restart timed out")
 
-		case <-ctx.Context.Done():
-			return ctx.Context.Err()
+		case <-ctx.Done():
+			return ctx.Err()
 
 		case event, ok := <-watcher.ResultChan():
 			if !ok {
-				stream <- pkgtypes.ActionEvent{
+				stream <- resource.ActionEvent{
 					Type: "error",
 					Data: map[string]interface{}{"message": "watch channel closed unexpectedly"},
 				}
@@ -200,7 +317,7 @@ func (s *StatefulSetResourcer) streamRestart(
 				desired = *sts.Spec.Replicas
 			}
 
-			stream <- pkgtypes.ActionEvent{
+			stream <- resource.ActionEvent{
 				Type: "progress",
 				Data: map[string]interface{}{
 					"ready":   sts.Status.ReadyReplicas,
@@ -213,7 +330,7 @@ func (s *StatefulSetResourcer) streamRestart(
 			if sts.Status.UpdatedReplicas == desired &&
 				sts.Status.ReadyReplicas == desired &&
 				sts.Status.Replicas == desired {
-				stream <- pkgtypes.ActionEvent{
+				stream <- resource.ActionEvent{
 					Type: "complete",
 					Data: map[string]interface{}{
 						"message": fmt.Sprintf("StatefulSet %s successfully restarted", input.ID),
@@ -226,10 +343,10 @@ func (s *StatefulSetResourcer) streamRestart(
 }
 
 func (s *StatefulSetResourcer) executeScale(
-	ctx *types.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	input pkgtypes.ActionInput,
-) (*pkgtypes.ActionResult, error) {
+	input resource.ActionInput,
+) (*resource.ActionResult, error) {
 	replicas, ok := input.Params["replicas"].(float64)
 	if !ok {
 		return nil, fmt.Errorf("replicas parameter is required and must be a number")
@@ -238,14 +355,14 @@ func (s *StatefulSetResourcer) executeScale(
 	replicaCount := int32(replicas)
 	patch := fmt.Sprintf(`{"spec":{"replicas":%d}}`, replicaCount)
 	_, err := client.KubeClient.AppsV1().StatefulSets(input.Namespace).Patch(
-		ctx.Context, input.ID, k8stypes.StrategicMergePatchType,
+		ctx, input.ID, k8stypes.StrategicMergePatchType,
 		[]byte(patch), metav1.PatchOptions{},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scale statefulset %s: %w", input.ID, err)
 	}
 
-	return &pkgtypes.ActionResult{
+	return &resource.ActionResult{
 		Success: true,
 		Message: fmt.Sprintf("StatefulSet %s scaled to %d replicas", input.ID, replicaCount),
 	}, nil

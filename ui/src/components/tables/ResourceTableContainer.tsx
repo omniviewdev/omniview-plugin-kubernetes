@@ -3,7 +3,7 @@ import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
 import LinearProgress from '@mui/material/LinearProgress';
 import Skeleton from '@mui/material/Skeleton';
-import { useResources, InformerResourceState } from '@omniviewdev/runtime';
+import { useResources, WatchState } from '@omniviewdev/runtime';
 import { Alert } from '@omniviewdev/ui/feedback';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text, Heading } from '@omniviewdev/ui/typography';
@@ -214,7 +214,7 @@ const ResourceTableContainer: React.FC<Props> = ({
     }
   }, [columnVisibility, connectionID, pluginID, resourceKey]);
 
-  const { resources, informerState, isSyncing } = useResources({
+  const { resources, watchState, isSyncing } = useResources({
     pluginID,
     connectionID,
     resourceKey,
@@ -256,9 +256,9 @@ const ResourceTableContainer: React.FC<Props> = ({
     overscan: 10,
   });
 
-  // Derive loading states from informer
+  // Derive loading states from watch
   const isInitialLoad = !resources.data && !resources.isError;
-  const showSkeleton = isInitialLoad || informerState === InformerResourceState.Pending;
+  const showSkeleton = isInitialLoad || watchState === WatchState.IDLE;
   const showSyncingOverlay = isSyncing && (resources.data?.result?.length ?? 0) === 0;
   const showSyncingIndicator = isSyncing && (resources.data?.result?.length ?? 0) > 0;
 

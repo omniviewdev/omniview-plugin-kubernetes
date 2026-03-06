@@ -1,12 +1,13 @@
 package resourcers
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
-	pkgtypes "github.com/omniviewdev/plugin-sdk/pkg/resource/types"
-	"github.com/omniviewdev/plugin-sdk/pkg/types"
+	resource "github.com/omniviewdev/plugin-sdk/pkg/v1/resource"
 	"go.uber.org/zap"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,8 +24,10 @@ type DaemonSetResourcer struct {
 
 // Compile-time interface checks.
 var (
-	_ pkgtypes.Resourcer[clients.ClientSet]       = (*DaemonSetResourcer)(nil)
-	_ pkgtypes.ActionResourcer[clients.ClientSet]  = (*DaemonSetResourcer)(nil)
+	_ resource.Resourcer[clients.ClientSet]            = (*DaemonSetResourcer)(nil)
+	_ resource.ActionResourcer[clients.ClientSet]       = (*DaemonSetResourcer)(nil)
+	_ resource.RelationshipDeclarer                     = (*DaemonSetResourcer)(nil)
+	_ resource.RelationshipResolver[clients.ClientSet]  = (*DaemonSetResourcer)(nil)
 )
 
 // NewDaemonSetResourcer creates a DaemonSetResourcer for apps::v1::DaemonSet.
@@ -32,39 +35,127 @@ func NewDaemonSetResourcer(logger *zap.SugaredLogger) *DaemonSetResourcer {
 	base := NewKubernetesResourcerBase[MetaAccessor](
 		logger,
 		appsv1.SchemeGroupVersion.WithResource("daemonsets"),
+		WithRelationships([]resource.RelationshipDescriptor{
+			{
+				Type:              resource.RelOwns,
+				TargetResourceKey: "core::v1::Pod",
+				Label:             "owns",
+				InverseLabel:      "owned by",
+				Cardinality:       "one-to-many",
+				Extractor:         &resource.RelationshipExtractor{Method: "ownerRef", OwnerRefKind: "DaemonSet"},
+			},
+			{
+				Type:              resource.RelUses,
+				TargetResourceKey: "core::v1::ConfigMap",
+				Label:             "uses",
+				InverseLabel:      "used by",
+				Cardinality:       "many-to-many",
+				Extractor:         &resource.RelationshipExtractor{Method: "fieldPath", FieldPath: "spec.template.spec.volumes[*].configMap.name"},
+			},
+			{
+				Type:              resource.RelUses,
+				TargetResourceKey: "core::v1::Secret",
+				Label:             "uses",
+				InverseLabel:      "used by",
+				Cardinality:       "many-to-many",
+				Extractor:         &resource.RelationshipExtractor{Method: "fieldPath", FieldPath: "spec.template.spec.volumes[*].secret.secretName"},
+			},
+		}),
 	)
 	return &DaemonSetResourcer{
-		KubernetesResourcerBase: base.(*KubernetesResourcerBase[MetaAccessor]),
+		KubernetesResourcerBase: base,
 		log:                     logger.Named("DaemonSetResourcer"),
 	}
+}
+
+// ResolveRelationships resolves runtime relationship instances for a DaemonSet.
+func (d *DaemonSetResourcer) ResolveRelationships(
+	ctx context.Context,
+	client *clients.ClientSet,
+	meta resource.ResourceMeta,
+	id string,
+	namespace string,
+) ([]resource.ResolvedRelationship, error) {
+	result, err := d.Get(ctx, client, meta, resource.GetInput{ID: id, Namespace: namespace})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get daemonset %s: %w", id, err)
+	}
+
+	var ds appsv1.DaemonSet
+	if err := json.Unmarshal(result.Result, &ds); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal daemonset: %w", err)
+	}
+
+	var rels []resource.ResolvedRelationship
+	descriptors := d.DeclareRelationships()
+
+	// Pod relationships via ownerRef.
+	pods, err := listPodsByOwner(ctx, client, namespace, "DaemonSet", id, string(ds.UID))
+	if err == nil && len(pods) > 0 {
+		targets := make([]resource.ResourceRef, 0, len(pods))
+		for _, pod := range pods {
+			targets = append(targets, makeRef("core::v1::Pod", pod.Name, namespace))
+		}
+		rels = append(rels, resource.ResolvedRelationship{
+			Descriptor: descriptors[0], // RelOwns → Pod
+			Targets:    targets,
+		})
+	}
+
+	// ConfigMap relationships from volumes.
+	if cms := extractVolumeConfigMaps(ds.Spec.Template.Spec); len(cms) > 0 {
+		targets := make([]resource.ResourceRef, 0, len(cms))
+		for _, name := range cms {
+			targets = append(targets, makeRef("core::v1::ConfigMap", name, namespace))
+		}
+		rels = append(rels, resource.ResolvedRelationship{
+			Descriptor: descriptors[1], // RelUses → ConfigMap
+			Targets:    targets,
+		})
+	}
+
+	// Secret relationships from volumes.
+	if secrets := extractVolumeSecrets(ds.Spec.Template.Spec); len(secrets) > 0 {
+		targets := make([]resource.ResourceRef, 0, len(secrets))
+		for _, name := range secrets {
+			targets = append(targets, makeRef("core::v1::Secret", name, namespace))
+		}
+		rels = append(rels, resource.ResolvedRelationship{
+			Descriptor: descriptors[2], // RelUses → Secret
+			Targets:    targets,
+		})
+	}
+
+	return rels, nil
 }
 
 // ====================== ACTION INTERFACE ====================== //
 
 func (d *DaemonSetResourcer) GetActions(
-	_ *types.PluginContext,
+	_ context.Context,
 	_ *clients.ClientSet,
-	_ pkgtypes.ResourceMeta,
-) ([]pkgtypes.ActionDescriptor, error) {
-	return []pkgtypes.ActionDescriptor{
+	_ resource.ResourceMeta,
+) ([]resource.ActionDescriptor, error) {
+	return []resource.ActionDescriptor{
 		{
 			ID:          "restart",
 			Label:       "Rollout Restart",
 			Description: "Restart all pods in this daemonset via a rolling update",
 			Icon:        "LuRefreshCw",
-			Scope:       pkgtypes.ActionScopeInstance,
+			Scope:       resource.ActionScopeInstance,
+			Dangerous:   true,
 			Streaming:   true,
 		},
 	}, nil
 }
 
 func (d *DaemonSetResourcer) ExecuteAction(
-	ctx *types.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	_ pkgtypes.ResourceMeta,
+	_ resource.ResourceMeta,
 	actionID string,
-	input pkgtypes.ActionInput,
-) (*pkgtypes.ActionResult, error) {
+	input resource.ActionInput,
+) (*resource.ActionResult, error) {
 	switch actionID {
 	case "restart":
 		return d.executeRestart(ctx, client, input)
@@ -74,12 +165,12 @@ func (d *DaemonSetResourcer) ExecuteAction(
 }
 
 func (d *DaemonSetResourcer) StreamAction(
-	ctx *types.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	_ pkgtypes.ResourceMeta,
+	_ resource.ResourceMeta,
 	actionID string,
-	input pkgtypes.ActionInput,
-	stream chan pkgtypes.ActionEvent,
+	input resource.ActionInput,
+	stream chan<- resource.ActionEvent,
 ) error {
 	switch actionID {
 	case "restart":
@@ -92,33 +183,33 @@ func (d *DaemonSetResourcer) StreamAction(
 // ====================== ACTION IMPLEMENTATIONS ====================== //
 
 func (d *DaemonSetResourcer) executeRestart(
-	ctx *types.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	input pkgtypes.ActionInput,
-) (*pkgtypes.ActionResult, error) {
+	input resource.ActionInput,
+) (*resource.ActionResult, error) {
 	patch := fmt.Sprintf(
 		`{"spec":{"template":{"metadata":{"annotations":{"kubectl.kubernetes.io/restartedAt":"%s"}}}}}`,
 		time.Now().Format(time.RFC3339),
 	)
 	_, err := client.KubeClient.AppsV1().DaemonSets(input.Namespace).Patch(
-		ctx.Context, input.ID, k8stypes.StrategicMergePatchType,
+		ctx, input.ID, k8stypes.StrategicMergePatchType,
 		[]byte(patch), metav1.PatchOptions{},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to restart daemonset %s: %w", input.ID, err)
 	}
 
-	return &pkgtypes.ActionResult{
+	return &resource.ActionResult{
 		Success: true,
 		Message: fmt.Sprintf("Rollout restart initiated for daemonset %s", input.ID),
 	}, nil
 }
 
 func (d *DaemonSetResourcer) streamRestart(
-	ctx *types.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	input pkgtypes.ActionInput,
-	stream chan pkgtypes.ActionEvent,
+	input resource.ActionInput,
+	stream chan<- resource.ActionEvent,
 ) error {
 	defer close(stream)
 
@@ -127,29 +218,29 @@ func (d *DaemonSetResourcer) streamRestart(
 		time.Now().Format(time.RFC3339),
 	)
 	_, err := client.KubeClient.AppsV1().DaemonSets(input.Namespace).Patch(
-		ctx.Context, input.ID, k8stypes.StrategicMergePatchType,
+		ctx, input.ID, k8stypes.StrategicMergePatchType,
 		[]byte(patch), metav1.PatchOptions{},
 	)
 	if err != nil {
-		stream <- pkgtypes.ActionEvent{
+		stream <- resource.ActionEvent{
 			Type: "error",
 			Data: map[string]interface{}{"message": fmt.Sprintf("failed to restart: %v", err)},
 		}
 		return err
 	}
 
-	stream <- pkgtypes.ActionEvent{
+	stream <- resource.ActionEvent{
 		Type: "progress",
 		Data: map[string]interface{}{"message": "Rollout restart initiated"},
 	}
 
 	watcher, err := client.KubeClient.AppsV1().DaemonSets(input.Namespace).Watch(
-		ctx.Context, metav1.ListOptions{
+		ctx, metav1.ListOptions{
 			FieldSelector: fmt.Sprintf("metadata.name=%s", input.ID),
 		},
 	)
 	if err != nil {
-		stream <- pkgtypes.ActionEvent{
+		stream <- resource.ActionEvent{
 			Type: "error",
 			Data: map[string]interface{}{"message": fmt.Sprintf("failed to watch daemonset: %v", err)},
 		}
@@ -161,18 +252,18 @@ func (d *DaemonSetResourcer) streamRestart(
 	for {
 		select {
 		case <-timeout:
-			stream <- pkgtypes.ActionEvent{
+			stream <- resource.ActionEvent{
 				Type: "error",
 				Data: map[string]interface{}{"message": "rollout restart timed out after 5 minutes"},
 			}
 			return fmt.Errorf("rollout restart timed out")
 
-		case <-ctx.Context.Done():
-			return ctx.Context.Err()
+		case <-ctx.Done():
+			return ctx.Err()
 
 		case event, ok := <-watcher.ResultChan():
 			if !ok {
-				stream <- pkgtypes.ActionEvent{
+				stream <- resource.ActionEvent{
 					Type: "error",
 					Data: map[string]interface{}{"message": "watch channel closed unexpectedly"},
 				}
@@ -188,7 +279,7 @@ func (d *DaemonSetResourcer) streamRestart(
 
 			desired := ds.Status.DesiredNumberScheduled
 
-			stream <- pkgtypes.ActionEvent{
+			stream <- resource.ActionEvent{
 				Type: "progress",
 				Data: map[string]interface{}{
 					"ready":   ds.Status.NumberReady,
@@ -201,7 +292,7 @@ func (d *DaemonSetResourcer) streamRestart(
 			if ds.Status.UpdatedNumberScheduled == desired &&
 				ds.Status.NumberReady == desired &&
 				ds.Status.NumberAvailable == desired {
-				stream <- pkgtypes.ActionEvent{
+				stream <- resource.ActionEvent{
 					Type: "complete",
 					Data: map[string]interface{}{
 						"message": fmt.Sprintf("DaemonSet %s successfully restarted", input.ID),

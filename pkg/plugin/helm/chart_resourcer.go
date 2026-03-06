@@ -1,6 +1,8 @@
 package helm
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -8,8 +10,7 @@ import (
 	"time"
 
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
-	"github.com/omniviewdev/plugin-sdk/pkg/resource/types"
-	pkgtypes "github.com/omniviewdev/plugin-sdk/pkg/types"
+	resource "github.com/omniviewdev/plugin-sdk/pkg/v1/resource"
 	"go.uber.org/zap"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
@@ -24,8 +25,8 @@ type ChartResourcer struct {
 }
 
 var (
-	_ types.Resourcer[clients.ClientSet]      = (*ChartResourcerWithActions)(nil)
-	_ types.ActionResourcer[clients.ClientSet] = (*ChartResourcerWithActions)(nil)
+	_ resource.Resourcer[clients.ClientSet]      = (*ChartResourcerWithActions)(nil)
+	_ resource.ActionResourcer[clients.ClientSet] = (*ChartResourcerWithActions)(nil)
 )
 
 // NewChartResourcer creates a new ChartResourcer.
@@ -110,11 +111,11 @@ func chartVersionToMap(repoName string, cv *repo.ChartVersion) map[string]interf
 }
 
 func (r *ChartResourcer) Get(
-	_ *pkgtypes.PluginContext,
+	_ context.Context,
 	_ *clients.ClientSet,
-	_ types.ResourceMeta,
-	input types.GetInput,
-) (*types.GetResult, error) {
+	_ resource.ResourceMeta,
+	input resource.GetInput,
+) (*resource.GetResult, error) {
 	parts := strings.SplitN(input.ID, "/", 2)
 	if len(parts) != 2 {
 		return nil, fmt.Errorf("chart ID must be in the form repo/chart, got %q", input.ID)
@@ -167,80 +168,82 @@ func (r *ChartResourcer) Get(
 	result["versions"] = allVersions
 	result["totalVersions"] = len(allVersions)
 
-	return &types.GetResult{
-		Result:  result,
-		Success: true,
-	}, nil
+	data, err := marshalMap(result)
+	if err != nil {
+		return nil, err
+	}
+	return &resource.GetResult{Result: data, Success: true}, nil
 }
 
 func (r *ChartResourcer) List(
-	_ *pkgtypes.PluginContext,
+	_ context.Context,
 	_ *clients.ClientSet,
-	_ types.ResourceMeta,
-	_ types.ListInput,
-) (*types.ListResult, error) {
+	_ resource.ResourceMeta,
+	_ resource.ListInput,
+) (*resource.ListResult, error) {
 	indexes, err := loadAllIndexes()
 	if err != nil {
 		return nil, err
 	}
 
-	var charts []map[string]interface{}
+	var charts []json.RawMessage
 	for repoName, idx := range indexes {
 		for _, versions := range idx.Entries {
 			if len(versions) == 0 {
 				continue
 			}
 			// Use the latest (first) version for list display.
-			charts = append(charts, chartVersionToMap(repoName, versions[0]))
+			data, err := marshalMap(chartVersionToMap(repoName, versions[0]))
+			if err != nil {
+				continue
+			}
+			charts = append(charts, data)
 		}
 	}
 
-	return &types.ListResult{
-		Result:  charts,
-		Success: true,
-	}, nil
+	return &resource.ListResult{Result: charts, Success: true}, nil
 }
 
 func (r *ChartResourcer) Find(
-	ctx *pkgtypes.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	meta types.ResourceMeta,
-	_ types.FindInput,
-) (*types.FindResult, error) {
-	listResult, err := r.List(ctx, client, meta, types.ListInput{})
+	meta resource.ResourceMeta,
+	_ resource.FindInput,
+) (*resource.FindResult, error) {
+	listResult, err := r.List(ctx, client, meta, resource.ListInput{})
 	if err != nil {
 		return nil, err
 	}
-	return &types.FindResult{
+	return &resource.FindResult{
 		Result:  listResult.Result,
 		Success: listResult.Success,
 	}, nil
 }
 
 func (r *ChartResourcer) Create(
-	_ *pkgtypes.PluginContext,
+	_ context.Context,
 	_ *clients.ClientSet,
-	_ types.ResourceMeta,
-	_ types.CreateInput,
-) (*types.CreateResult, error) {
+	_ resource.ResourceMeta,
+	_ resource.CreateInput,
+) (*resource.CreateResult, error) {
 	return nil, fmt.Errorf("creating charts is not supported")
 }
 
 func (r *ChartResourcer) Update(
-	_ *pkgtypes.PluginContext,
+	_ context.Context,
 	_ *clients.ClientSet,
-	_ types.ResourceMeta,
-	_ types.UpdateInput,
-) (*types.UpdateResult, error) {
+	_ resource.ResourceMeta,
+	_ resource.UpdateInput,
+) (*resource.UpdateResult, error) {
 	return nil, fmt.Errorf("updating charts is not supported")
 }
 
 func (r *ChartResourcer) Delete(
-	_ *pkgtypes.PluginContext,
+	_ context.Context,
 	_ *clients.ClientSet,
-	_ types.ResourceMeta,
-	_ types.DeleteInput,
-) (*types.DeleteResult, error) {
+	_ resource.ResourceMeta,
+	_ resource.DeleteInput,
+) (*resource.DeleteResult, error) {
 	return nil, fmt.Errorf("deleting charts is not supported")
 }
 
@@ -257,49 +260,58 @@ func NewChartResourcerWithActions(logger *zap.SugaredLogger) *ChartResourcerWith
 }
 
 func (r *ChartResourcerWithActions) GetActions(
-	_ *pkgtypes.PluginContext,
+	_ context.Context,
 	_ *clients.ClientSet,
-	_ types.ResourceMeta,
-) ([]types.ActionDescriptor, error) {
-	return []types.ActionDescriptor{
+	_ resource.ResourceMeta,
+) ([]resource.ActionDescriptor, error) {
+	versionParams := &resource.Schema{
+		Properties: map[string]resource.SchemaProperty{
+			"version": {Type: resource.SchemaString, Description: "Chart version (defaults to latest)"},
+		},
+	}
+
+	return []resource.ActionDescriptor{
 		{
-			ID:          "get-values",
-			Label:       "Get Default Values",
-			Description: "Get the default values.yaml for this chart",
-			Icon:        "LuFileText",
-			Scope:       types.ActionScopeInstance,
+			ID:           "get-values",
+			Label:        "Get Default Values",
+			Description:  "Get the default values.yaml for this chart",
+			Icon:         "LuFileText",
+			Scope:        resource.ActionScopeInstance,
+			ParamsSchema: versionParams,
 		},
 		{
-			ID:          "get-readme",
-			Label:       "Get README",
-			Description: "Get the README for this chart",
-			Icon:        "LuBookOpen",
-			Scope:       types.ActionScopeInstance,
+			ID:           "get-readme",
+			Label:        "Get README",
+			Description:  "Get the README for this chart",
+			Icon:         "LuBookOpen",
+			Scope:        resource.ActionScopeInstance,
+			ParamsSchema: versionParams,
 		},
 		{
 			ID:          "get-versions",
 			Label:       "Get All Versions",
 			Description: "Get all available versions of this chart",
 			Icon:        "LuList",
-			Scope:       types.ActionScopeInstance,
+			Scope:       resource.ActionScopeInstance,
 		},
 		{
-			ID:          "get-chart-detail",
-			Label:       "Get Chart Detail",
-			Description: "Get values, readme, versions, and dependencies for a chart in one call",
-			Icon:        "LuInfo",
-			Scope:       types.ActionScopeInstance,
+			ID:           "get-chart-detail",
+			Label:        "Get Chart Detail",
+			Description:  "Get values, readme, versions, and dependencies for a chart in one call",
+			Icon:         "LuInfo",
+			Scope:        resource.ActionScopeInstance,
+			ParamsSchema: versionParams,
 		},
 	}, nil
 }
 
 func (r *ChartResourcerWithActions) ExecuteAction(
-	_ *pkgtypes.PluginContext,
+	_ context.Context,
 	_ *clients.ClientSet,
-	_ types.ResourceMeta,
+	_ resource.ResourceMeta,
 	actionID string,
-	input types.ActionInput,
-) (*types.ActionResult, error) {
+	input resource.ActionInput,
+) (*resource.ActionResult, error) {
 	parts := strings.SplitN(input.ID, "/", 2)
 	if len(parts) != 2 {
 		return nil, fmt.Errorf("chart ID must be in the form repo/chart, got %q", input.ID)
@@ -320,7 +332,7 @@ func (r *ChartResourcerWithActions) ExecuteAction(
 	}
 }
 
-func (r *ChartResourcerWithActions) executeGetValues(repoName, chartName string, input types.ActionInput) (*types.ActionResult, error) {
+func (r *ChartResourcerWithActions) executeGetValues(repoName, chartName string, input resource.ActionInput) (*resource.ActionResult, error) {
 	chartRef := repoName + "/" + chartName
 
 	settings := cli.New()
@@ -345,7 +357,7 @@ func (r *ChartResourcerWithActions) executeGetValues(repoName, chartName string,
 		}
 	}
 
-	return &types.ActionResult{
+	return &resource.ActionResult{
 		Success: true,
 		Data: map[string]interface{}{
 			"values": values,
@@ -353,7 +365,7 @@ func (r *ChartResourcerWithActions) executeGetValues(repoName, chartName string,
 	}, nil
 }
 
-func (r *ChartResourcerWithActions) executeGetReadme(repoName, chartName string, input types.ActionInput) (*types.ActionResult, error) {
+func (r *ChartResourcerWithActions) executeGetReadme(repoName, chartName string, input resource.ActionInput) (*resource.ActionResult, error) {
 	chartRef := repoName + "/" + chartName
 
 	settings := cli.New()
@@ -378,7 +390,7 @@ func (r *ChartResourcerWithActions) executeGetReadme(repoName, chartName string,
 		}
 	}
 
-	return &types.ActionResult{
+	return &resource.ActionResult{
 		Success: true,
 		Data: map[string]interface{}{
 			"readme": readme,
@@ -386,7 +398,7 @@ func (r *ChartResourcerWithActions) executeGetReadme(repoName, chartName string,
 	}, nil
 }
 
-func (r *ChartResourcerWithActions) executeGetVersions(repoName, chartName string) (*types.ActionResult, error) {
+func (r *ChartResourcerWithActions) executeGetVersions(repoName, chartName string) (*resource.ActionResult, error) {
 	indexes, err := loadAllIndexes()
 	if err != nil {
 		return nil, err
@@ -431,7 +443,7 @@ func (r *ChartResourcerWithActions) executeGetVersions(repoName, chartName strin
 		allVersions = append(allVersions, entry)
 	}
 
-	return &types.ActionResult{
+	return &resource.ActionResult{
 		Success: true,
 		Data: map[string]interface{}{
 			"versions": allVersions,
@@ -440,7 +452,7 @@ func (r *ChartResourcerWithActions) executeGetVersions(repoName, chartName strin
 	}, nil
 }
 
-func (r *ChartResourcerWithActions) executeGetChartDetail(repoName, chartName string, input types.ActionInput) (*types.ActionResult, error) {
+func (r *ChartResourcerWithActions) executeGetChartDetail(repoName, chartName string, input resource.ActionInput) (*resource.ActionResult, error) {
 	chartRef := repoName + "/" + chartName
 
 	settings := cli.New()
@@ -501,7 +513,7 @@ func (r *ChartResourcerWithActions) executeGetChartDetail(repoName, chartName st
 		return nil, err
 	}
 
-	return &types.ActionResult{
+	return &resource.ActionResult{
 		Success: true,
 		Data: map[string]interface{}{
 			"values":       values,
@@ -514,12 +526,12 @@ func (r *ChartResourcerWithActions) executeGetChartDetail(repoName, chartName st
 }
 
 func (r *ChartResourcerWithActions) StreamAction(
-	_ *pkgtypes.PluginContext,
+	_ context.Context,
 	_ *clients.ClientSet,
-	_ types.ResourceMeta,
+	_ resource.ResourceMeta,
 	_ string,
-	_ types.ActionInput,
-	_ chan types.ActionEvent,
+	_ resource.ActionInput,
+	_ chan<- resource.ActionEvent,
 ) error {
 	return fmt.Errorf("streaming actions not supported for charts")
 }

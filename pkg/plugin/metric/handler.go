@@ -10,7 +10,7 @@ import (
 	metricsv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 	metricsclientset "k8s.io/metrics/pkg/client/clientset/versioned"
 
-	sdkmetric "github.com/omniviewdev/plugin-sdk/pkg/metric"
+	sdkmetric "github.com/omniviewdev/plugin-sdk/pkg/v1/metric"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
 
 	"github.com/omniview/kubernetes/pkg/utils"

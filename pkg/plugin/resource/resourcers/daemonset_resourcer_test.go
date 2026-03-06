@@ -5,8 +5,7 @@ import (
 	"testing"
 
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
-	pkgtypes "github.com/omniviewdev/plugin-sdk/pkg/resource/types"
-	"github.com/omniviewdev/plugin-sdk/pkg/types"
+	resource "github.com/omniviewdev/plugin-sdk/pkg/v1/resource"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -24,12 +23,6 @@ func newAppsDaemonSetClientSet(objects ...runtime.Object) *clients.ClientSet {
 	fakeClient := fake.NewSimpleClientset(objects...)
 	return &clients.ClientSet{
 		KubeClient: fakeClient,
-	}
-}
-
-func daemonSetPluginCtx() *types.PluginContext {
-	return &types.PluginContext{
-		Context: context.Background(),
 	}
 }
 
@@ -56,12 +49,12 @@ func testDaemonSet(name, ns string, opts ...func(*appsv1.DaemonSet)) *appsv1.Dae
 
 func TestDaemonSetResourcer_GetActions(t *testing.T) {
 	r := newTestDaemonSetResourcer()
-	actions, err := r.GetActions(daemonSetPluginCtx(), nil, pkgtypes.ResourceMeta{})
+	actions, err := r.GetActions(context.Background(), nil, resource.ResourceMeta{})
 	require.NoError(t, err)
 	require.Len(t, actions, 1)
 
 	assert.Equal(t, "restart", actions[0].ID)
-	assert.Equal(t, pkgtypes.ActionScopeInstance, actions[0].Scope)
+	assert.Equal(t, resource.ActionScopeInstance, actions[0].Scope)
 	assert.True(t, actions[0].Streaming)
 }
 
@@ -72,7 +65,7 @@ func TestDaemonSetResourcer_Restart(t *testing.T) {
 	cs := newAppsDaemonSetClientSet(ds)
 	r := newTestDaemonSetResourcer()
 
-	result, err := r.ExecuteAction(daemonSetPluginCtx(), cs, pkgtypes.ResourceMeta{}, "restart", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "restart", resource.ActionInput{
 		ID:        "fluentd",
 		Namespace: "kube-system",
 	})
@@ -91,7 +84,7 @@ func TestDaemonSetResourcer_Restart_NotFound(t *testing.T) {
 	cs := newAppsDaemonSetClientSet()
 	r := newTestDaemonSetResourcer()
 
-	result, err := r.ExecuteAction(daemonSetPluginCtx(), cs, pkgtypes.ResourceMeta{}, "restart", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "restart", resource.ActionInput{
 		ID:        "nonexistent",
 		Namespace: "default",
 	})
@@ -107,7 +100,7 @@ func TestDaemonSetResourcer_UnknownAction(t *testing.T) {
 	cs := newAppsDaemonSetClientSet()
 	r := newTestDaemonSetResourcer()
 
-	result, err := r.ExecuteAction(daemonSetPluginCtx(), cs, pkgtypes.ResourceMeta{}, "foo", pkgtypes.ActionInput{})
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "foo", resource.ActionInput{})
 
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -118,9 +111,9 @@ func TestDaemonSetResourcer_UnknownAction(t *testing.T) {
 
 func TestDaemonSetResourcer_StreamAction_UnsupportedAction(t *testing.T) {
 	r := newTestDaemonSetResourcer()
-	stream := make(chan pkgtypes.ActionEvent, 10)
+	stream := make(chan resource.ActionEvent, 10)
 
-	err := r.StreamAction(daemonSetPluginCtx(), nil, pkgtypes.ResourceMeta{}, "foo", pkgtypes.ActionInput{}, stream)
+	err := r.StreamAction(context.Background(), nil, resource.ResourceMeta{}, "foo", resource.ActionInput{}, stream)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "streaming not supported")
@@ -129,16 +122,16 @@ func TestDaemonSetResourcer_StreamAction_UnsupportedAction(t *testing.T) {
 func TestDaemonSetResourcer_StreamAction_Restart_NotFound(t *testing.T) {
 	cs := newAppsDaemonSetClientSet()
 	r := newTestDaemonSetResourcer()
-	stream := make(chan pkgtypes.ActionEvent, 10)
+	stream := make(chan resource.ActionEvent, 10)
 
-	err := r.StreamAction(daemonSetPluginCtx(), cs, pkgtypes.ResourceMeta{}, "restart", pkgtypes.ActionInput{
+	err := r.StreamAction(context.Background(), cs, resource.ResourceMeta{}, "restart", resource.ActionInput{
 		ID:        "nonexistent",
 		Namespace: "default",
 	}, stream)
 
 	require.Error(t, err)
 
-	var events []pkgtypes.ActionEvent
+	var events []resource.ActionEvent
 	for ev := range stream {
 		events = append(events, ev)
 	}

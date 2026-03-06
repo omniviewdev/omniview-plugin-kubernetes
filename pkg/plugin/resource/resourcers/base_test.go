@@ -2,19 +2,19 @@ package resourcers
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	pkgtypes "github.com/omniviewdev/plugin-sdk/pkg/resource/types"
+	resource "github.com/omniviewdev/plugin-sdk/pkg/v1/resource"
 )
 
 func newBaseResourcer() *KubernetesResourcerBase[MetaAccessor] {
 	logger := zap.NewNop().Sugar()
-	r := NewKubernetesResourcerBase[MetaAccessor](logger, testGVR)
-	return r.(*KubernetesResourcerBase[MetaAccessor])
+	return NewKubernetesResourcerBase[MetaAccessor](logger, testGVR)
 }
 
 // ===================== Get =====================
@@ -23,7 +23,7 @@ func TestBase_Get_UnsyncedInformer_Namespaced(t *testing.T) {
 	cs := newFakeClientSet(defaultGVRListKinds(), newTestPod("nginx", "default"))
 	r := newBaseResourcer()
 
-	result, err := r.Get(testPluginContext(), cs, pkgtypes.ResourceMeta{}, pkgtypes.GetInput{
+	result, err := r.Get(context.Background(), cs, resource.ResourceMeta{}, resource.GetInput{
 		ID:        "nginx",
 		Namespace: "default",
 	})
@@ -31,7 +31,10 @@ func TestBase_Get_UnsyncedInformer_Namespaced(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.True(t, result.Success)
-	assert.Equal(t, "nginx", result.Result["metadata"].(map[string]interface{})["name"])
+
+	var resultMap map[string]interface{}
+	require.NoError(t, json.Unmarshal(result.Result, &resultMap))
+	assert.Equal(t, "nginx", resultMap["metadata"].(map[string]interface{})["name"])
 }
 
 func TestBase_Get_UnsyncedInformer_ClusterScoped(t *testing.T) {
@@ -39,7 +42,7 @@ func TestBase_Get_UnsyncedInformer_ClusterScoped(t *testing.T) {
 	cs := newFakeClientSet(defaultGVRListKinds(), node)
 	r := newBaseResourcer()
 
-	result, err := r.Get(testPluginContext(), cs, pkgtypes.ResourceMeta{}, pkgtypes.GetInput{
+	result, err := r.Get(context.Background(), cs, resource.ResourceMeta{}, resource.GetInput{
 		ID:        "node-1",
 		Namespace: "",
 	})
@@ -47,7 +50,10 @@ func TestBase_Get_UnsyncedInformer_ClusterScoped(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.True(t, result.Success)
-	assert.Equal(t, "node-1", result.Result["metadata"].(map[string]interface{})["name"])
+
+	var resultMap map[string]interface{}
+	require.NoError(t, json.Unmarshal(result.Result, &resultMap))
+	assert.Equal(t, "node-1", resultMap["metadata"].(map[string]interface{})["name"])
 }
 
 func TestBase_Get_SyncedInformer_Namespaced(t *testing.T) {
@@ -57,7 +63,7 @@ func TestBase_Get_SyncedInformer_Namespaced(t *testing.T) {
 	cs := newSyncedClientSet(ctx, testGVR, defaultGVRListKinds(), newTestPod("redis", "staging"))
 	r := newBaseResourcer()
 
-	result, err := r.Get(testPluginContext(), cs, pkgtypes.ResourceMeta{}, pkgtypes.GetInput{
+	result, err := r.Get(context.Background(), cs, resource.ResourceMeta{}, resource.GetInput{
 		ID:        "redis",
 		Namespace: "staging",
 	})
@@ -65,7 +71,10 @@ func TestBase_Get_SyncedInformer_Namespaced(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.True(t, result.Success)
-	assert.Equal(t, "redis", result.Result["metadata"].(map[string]interface{})["name"])
+
+	var resultMap map[string]interface{}
+	require.NoError(t, json.Unmarshal(result.Result, &resultMap))
+	assert.Equal(t, "redis", resultMap["metadata"].(map[string]interface{})["name"])
 }
 
 func TestBase_Get_SyncedInformer_ClusterScoped(t *testing.T) {
@@ -75,7 +84,7 @@ func TestBase_Get_SyncedInformer_ClusterScoped(t *testing.T) {
 	cs := newSyncedClientSet(ctx, testGVR, defaultGVRListKinds(), newTestPod("global-pod", ""))
 	r := newBaseResourcer()
 
-	result, err := r.Get(testPluginContext(), cs, pkgtypes.ResourceMeta{}, pkgtypes.GetInput{
+	result, err := r.Get(context.Background(), cs, resource.ResourceMeta{}, resource.GetInput{
 		ID:        "global-pod",
 		Namespace: "",
 	})
@@ -83,14 +92,17 @@ func TestBase_Get_SyncedInformer_ClusterScoped(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.True(t, result.Success)
-	assert.Equal(t, "global-pod", result.Result["metadata"].(map[string]interface{})["name"])
+
+	var resultMap map[string]interface{}
+	require.NoError(t, json.Unmarshal(result.Result, &resultMap))
+	assert.Equal(t, "global-pod", resultMap["metadata"].(map[string]interface{})["name"])
 }
 
 func TestBase_Get_NotFound(t *testing.T) {
 	cs := newFakeClientSet(defaultGVRListKinds()) // no objects
 	r := newBaseResourcer()
 
-	result, err := r.Get(testPluginContext(), cs, pkgtypes.ResourceMeta{}, pkgtypes.GetInput{
+	result, err := r.Get(context.Background(), cs, resource.ResourceMeta{}, resource.GetInput{
 		ID:        "nonexistent",
 		Namespace: "default",
 	})
@@ -108,7 +120,7 @@ func TestBase_List_Empty(t *testing.T) {
 	cs := newSyncedClientSet(ctx, testGVR, defaultGVRListKinds()) // no objects
 	r := newBaseResourcer()
 
-	result, err := r.List(testPluginContext(), cs, pkgtypes.ResourceMeta{}, pkgtypes.ListInput{})
+	result, err := r.List(context.Background(), cs, resource.ResourceMeta{}, resource.ListInput{})
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -127,7 +139,7 @@ func TestBase_List_MultipleResources(t *testing.T) {
 	)
 	r := newBaseResourcer()
 
-	result, err := r.List(testPluginContext(), cs, pkgtypes.ResourceMeta{}, pkgtypes.ListInput{})
+	result, err := r.List(context.Background(), cs, resource.ResourceMeta{}, resource.ListInput{})
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -137,7 +149,9 @@ func TestBase_List_MultipleResources(t *testing.T) {
 	// Collect names from results
 	names := make(map[string]bool)
 	for _, item := range result.Result {
-		meta := item["metadata"].(map[string]interface{})
+		var m map[string]interface{}
+		require.NoError(t, json.Unmarshal(item, &m))
+		meta := m["metadata"].(map[string]interface{})
 		names[meta["name"].(string)] = true
 	}
 	assert.True(t, names["pod-a"])
@@ -157,7 +171,7 @@ func TestBase_Find_ReturnsAll(t *testing.T) {
 	)
 	r := newBaseResourcer()
 
-	result, err := r.Find(testPluginContext(), cs, pkgtypes.ResourceMeta{}, pkgtypes.FindInput{})
+	result, err := r.Find(context.Background(), cs, resource.ResourceMeta{}, resource.FindInput{})
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -171,42 +185,51 @@ func TestBase_Create_Success(t *testing.T) {
 	cs := newFakeClientSet(defaultGVRListKinds())
 	r := newBaseResourcer()
 
-	input := pkgtypes.CreateInput{
-		Namespace: "default",
-		Input: map[string]interface{}{
-			"apiVersion": "v1",
-			"kind":       "Pod",
-			"metadata": map[string]interface{}{
-				"name":      "new-pod",
-				"namespace": "default",
-			},
+	inputData, err := json.Marshal(map[string]interface{}{
+		"apiVersion": "v1",
+		"kind":       "Pod",
+		"metadata": map[string]interface{}{
+			"name":      "new-pod",
+			"namespace": "default",
 		},
+	})
+	require.NoError(t, err)
+
+	input := resource.CreateInput{
+		Namespace: "default",
+		Input:     json.RawMessage(inputData),
 	}
 
-	result, err := r.Create(testPluginContext(), cs, pkgtypes.ResourceMeta{}, input)
+	result, err := r.Create(context.Background(), cs, resource.ResourceMeta{}, input)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	assert.Equal(t, "new-pod", result.Result["metadata"].(map[string]interface{})["name"])
+
+	var resultMap map[string]interface{}
+	require.NoError(t, json.Unmarshal(result.Result, &resultMap))
+	assert.Equal(t, "new-pod", resultMap["metadata"].(map[string]interface{})["name"])
 }
 
 func TestBase_Create_AlreadyExists(t *testing.T) {
 	cs := newFakeClientSet(defaultGVRListKinds(), newTestPod("existing", "default"))
 	r := newBaseResourcer()
 
-	input := pkgtypes.CreateInput{
-		Namespace: "default",
-		Input: map[string]interface{}{
-			"apiVersion": "v1",
-			"kind":       "Pod",
-			"metadata": map[string]interface{}{
-				"name":      "existing",
-				"namespace": "default",
-			},
+	inputData, err := json.Marshal(map[string]interface{}{
+		"apiVersion": "v1",
+		"kind":       "Pod",
+		"metadata": map[string]interface{}{
+			"name":      "existing",
+			"namespace": "default",
 		},
+	})
+	require.NoError(t, err)
+
+	input := resource.CreateInput{
+		Namespace: "default",
+		Input:     json.RawMessage(inputData),
 	}
 
-	result, err := r.Create(testPluginContext(), cs, pkgtypes.ResourceMeta{}, input)
+	result, err := r.Create(context.Background(), cs, resource.ResourceMeta{}, input)
 
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -219,26 +242,31 @@ func TestBase_Update_Success(t *testing.T) {
 	cs := newFakeClientSet(defaultGVRListKinds(), newTestPod("update-me", "default"))
 	r := newBaseResourcer()
 
-	input := pkgtypes.UpdateInput{
+	inputData, err := json.Marshal(map[string]interface{}{
+		"apiVersion": "v1",
+		"kind":       "Pod",
+		"metadata": map[string]interface{}{
+			"name":      "update-me",
+			"namespace": "default",
+			"labels":    map[string]interface{}{"updated": "true"},
+		},
+	})
+	require.NoError(t, err)
+
+	input := resource.UpdateInput{
 		ID:        "update-me",
 		Namespace: "default",
-		Input: map[string]interface{}{
-			"apiVersion": "v1",
-			"kind":       "Pod",
-			"metadata": map[string]interface{}{
-				"name":      "update-me",
-				"namespace": "default",
-				"labels":    map[string]interface{}{"updated": "true"},
-			},
-		},
+		Input:     json.RawMessage(inputData),
 	}
 
-	result, err := r.Update(testPluginContext(), cs, pkgtypes.ResourceMeta{}, input)
+	result, err := r.Update(context.Background(), cs, resource.ResourceMeta{}, input)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	meta := result.Result["metadata"].(map[string]interface{})
+	var resultMap map[string]interface{}
+	require.NoError(t, json.Unmarshal(result.Result, &resultMap))
+	meta := resultMap["metadata"].(map[string]interface{})
 	assert.Equal(t, "update-me", meta["name"])
 	labels := meta["labels"].(map[string]interface{})
 	assert.Equal(t, "true", labels["updated"])
@@ -248,17 +276,20 @@ func TestBase_Update_NotFound(t *testing.T) {
 	cs := newFakeClientSet(defaultGVRListKinds()) // no objects
 	r := newBaseResourcer()
 
-	input := pkgtypes.UpdateInput{
+	inputData, err := json.Marshal(map[string]interface{}{
+		"apiVersion": "v1",
+		"kind":       "Pod",
+		"metadata":   map[string]interface{}{"name": "ghost", "namespace": "default"},
+	})
+	require.NoError(t, err)
+
+	input := resource.UpdateInput{
 		ID:        "ghost",
 		Namespace: "default",
-		Input: map[string]interface{}{
-			"apiVersion": "v1",
-			"kind":       "Pod",
-			"metadata":   map[string]interface{}{"name": "ghost", "namespace": "default"},
-		},
+		Input:     json.RawMessage(inputData),
 	}
 
-	result, err := r.Update(testPluginContext(), cs, pkgtypes.ResourceMeta{}, input)
+	result, err := r.Update(context.Background(), cs, resource.ResourceMeta{}, input)
 
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -271,21 +302,23 @@ func TestBase_Delete_Success(t *testing.T) {
 	cs := newFakeClientSet(defaultGVRListKinds(), newTestPod("doomed", "default"))
 	r := newBaseResourcer()
 
-	input := pkgtypes.DeleteInput{
+	input := resource.DeleteInput{
 		ID:        "doomed",
 		Namespace: "default",
 	}
 
-	result, err := r.Delete(testPluginContext(), cs, pkgtypes.ResourceMeta{}, input)
+	result, err := r.Delete(context.Background(), cs, resource.ResourceMeta{}, input)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	meta := result.Result["metadata"].(map[string]interface{})
+	var resultMap map[string]interface{}
+	require.NoError(t, json.Unmarshal(result.Result, &resultMap))
+	meta := resultMap["metadata"].(map[string]interface{})
 	assert.Equal(t, "doomed", meta["name"])
 
-	// Verify it's actually gone — a second Get should fail
-	_, err = r.Get(testPluginContext(), cs, pkgtypes.ResourceMeta{}, pkgtypes.GetInput{
+	// Verify it's actually gone -- a second Get should fail
+	_, err = r.Get(context.Background(), cs, resource.ResourceMeta{}, resource.GetInput{
 		ID:        "doomed",
 		Namespace: "default",
 	})
@@ -296,12 +329,12 @@ func TestBase_Delete_NotFound(t *testing.T) {
 	cs := newFakeClientSet(defaultGVRListKinds()) // no objects
 	r := newBaseResourcer()
 
-	input := pkgtypes.DeleteInput{
+	input := resource.DeleteInput{
 		ID:        "phantom",
 		Namespace: "default",
 	}
 
-	result, err := r.Delete(testPluginContext(), cs, pkgtypes.ResourceMeta{}, input)
+	result, err := r.Delete(context.Background(), cs, resource.ResourceMeta{}, input)
 
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -314,12 +347,15 @@ func TestBase_Create_SetsSuccessTrue(t *testing.T) {
 	cs := newFakeClientSet(defaultGVRListKinds())
 	r := newBaseResourcer()
 
-	result, err := r.Create(testPluginContext(), cs, pkgtypes.ResourceMeta{}, pkgtypes.CreateInput{
+	inputData, err := json.Marshal(map[string]interface{}{
+		"apiVersion": "v1", "kind": "Pod",
+		"metadata": map[string]interface{}{"name": "test", "namespace": "default"},
+	})
+	require.NoError(t, err)
+
+	result, err := r.Create(context.Background(), cs, resource.ResourceMeta{}, resource.CreateInput{
 		Namespace: "default",
-		Input: map[string]interface{}{
-			"apiVersion": "v1", "kind": "Pod",
-			"metadata": map[string]interface{}{"name": "test", "namespace": "default"},
-		},
+		Input:     json.RawMessage(inputData),
 	})
 
 	require.NoError(t, err)
@@ -330,12 +366,15 @@ func TestBase_Update_SetsSuccessTrue(t *testing.T) {
 	cs := newFakeClientSet(defaultGVRListKinds(), newTestPod("target", "default"))
 	r := newBaseResourcer()
 
-	result, err := r.Update(testPluginContext(), cs, pkgtypes.ResourceMeta{}, pkgtypes.UpdateInput{
+	inputData, err := json.Marshal(map[string]interface{}{
+		"apiVersion": "v1", "kind": "Pod",
+		"metadata": map[string]interface{}{"name": "target", "namespace": "default"},
+	})
+	require.NoError(t, err)
+
+	result, err := r.Update(context.Background(), cs, resource.ResourceMeta{}, resource.UpdateInput{
 		ID: "target", Namespace: "default",
-		Input: map[string]interface{}{
-			"apiVersion": "v1", "kind": "Pod",
-			"metadata": map[string]interface{}{"name": "target", "namespace": "default"},
-		},
+		Input: json.RawMessage(inputData),
 	})
 
 	require.NoError(t, err)
@@ -346,7 +385,7 @@ func TestBase_Delete_SetsSuccessTrue(t *testing.T) {
 	cs := newFakeClientSet(defaultGVRListKinds(), newTestPod("target", "default"))
 	r := newBaseResourcer()
 
-	result, err := r.Delete(testPluginContext(), cs, pkgtypes.ResourceMeta{}, pkgtypes.DeleteInput{
+	result, err := r.Delete(context.Background(), cs, resource.ResourceMeta{}, resource.DeleteInput{
 		ID: "target", Namespace: "default",
 	})
 
@@ -363,7 +402,7 @@ func TestBase_List_UnsyncedInformer(t *testing.T) {
 	)
 	r := newBaseResourcer()
 
-	result, err := r.List(testPluginContext(), cs, pkgtypes.ResourceMeta{}, pkgtypes.ListInput{})
+	result, err := r.List(context.Background(), cs, resource.ResourceMeta{}, resource.ListInput{})
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -377,7 +416,7 @@ func TestBase_Find_UnsyncedInformer(t *testing.T) {
 	)
 	r := newBaseResourcer()
 
-	result, err := r.Find(testPluginContext(), cs, pkgtypes.ResourceMeta{}, pkgtypes.FindInput{})
+	result, err := r.Find(context.Background(), cs, resource.ResourceMeta{}, resource.FindInput{})
 
 	require.NoError(t, err)
 	require.NotNil(t, result)

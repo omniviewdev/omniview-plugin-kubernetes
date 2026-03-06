@@ -1,8 +1,7 @@
 package logs
 
 import (
-	"github.com/omniviewdev/plugin-sdk/pkg/logs"
-	"github.com/omniviewdev/plugin-sdk/pkg/resource/types"
+	"github.com/omniviewdev/plugin-sdk/pkg/v1/logs"
 	"github.com/omniviewdev/plugin-sdk/pkg/sdk"
 )
 
@@ -15,7 +14,7 @@ func Register(plugin *sdk.Plugin) {
 				Resource:      "core::v1::Pod",
 				Handler:       PodLogHandler,
 				SourceBuilder: PodSourceBuilder,
-				TargetBuilder: types.ActionTargetBuilder{
+				TargetBuilder: logs.ActionTargetBuilder{
 					Paths: []string{
 						"$.spec.containers[*]",
 						"$.spec.initContainers[*]",

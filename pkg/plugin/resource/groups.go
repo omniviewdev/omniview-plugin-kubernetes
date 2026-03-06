@@ -1,9 +1,9 @@
 package resource
 
-import "github.com/omniviewdev/plugin-sdk/pkg/resource/types"
+import resource "github.com/omniviewdev/plugin-sdk/pkg/v1/resource"
 
 //nolint:gochecknoglobals // this is a map of resources to their GVK
-var ResourceGroups = []types.ResourceGroup{
+var ResourceGroups = []resource.ResourceGroup{
 	{
 		ID:   "admissionregistration",
 		Name: "Admission Registration",

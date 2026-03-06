@@ -1,6 +1,6 @@
 import Box from '@mui/material/Box';
 import Tooltip from '@mui/material/Tooltip';
-import { Link, useInformerState,
+import { Link, useWatchState,
   useConnection,
   useResourceTypes,
   useResourceGroups,
@@ -85,7 +85,7 @@ export default function ClusterResourcesPage(): React.ReactElement {
     },
     [setSavedExpandedState],
   );
-  const { isFullySynced, summary } = useInformerState({ pluginID: 'kubernetes', connectionID: id });
+  const { isFullySynced, summary } = useWatchState({ pluginID: 'kubernetes', connectionID: id });
 
   // Fetch and register OpenAPI schemas with the host's Monaco schema registry
   const { schemas: editorSchemas } = useEditorSchemas({ pluginID: 'kubernetes', connectionID: id });

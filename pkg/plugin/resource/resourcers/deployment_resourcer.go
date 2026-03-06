@@ -1,12 +1,13 @@
 package resourcers
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
-	pkgtypes "github.com/omniviewdev/plugin-sdk/pkg/resource/types"
-	"github.com/omniviewdev/plugin-sdk/pkg/types"
+	resource "github.com/omniviewdev/plugin-sdk/pkg/v1/resource"
 	"go.uber.org/zap"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,8 +24,10 @@ type DeploymentResourcer struct {
 
 // Compile-time interface checks.
 var (
-	_ pkgtypes.Resourcer[clients.ClientSet]       = (*DeploymentResourcer)(nil)
-	_ pkgtypes.ActionResourcer[clients.ClientSet]  = (*DeploymentResourcer)(nil)
+	_ resource.Resourcer[clients.ClientSet]            = (*DeploymentResourcer)(nil)
+	_ resource.ActionResourcer[clients.ClientSet]       = (*DeploymentResourcer)(nil)
+	_ resource.RelationshipDeclarer                     = (*DeploymentResourcer)(nil)
+	_ resource.RelationshipResolver[clients.ClientSet]  = (*DeploymentResourcer)(nil)
 )
 
 // NewDeploymentResourcer creates a DeploymentResourcer for apps::v1::Deployment.
@@ -32,27 +35,130 @@ func NewDeploymentResourcer(logger *zap.SugaredLogger) *DeploymentResourcer {
 	base := NewKubernetesResourcerBase[MetaAccessor](
 		logger,
 		appsv1.SchemeGroupVersion.WithResource("deployments"),
+		WithRelationships([]resource.RelationshipDescriptor{
+			{
+				Type:              resource.RelManages,
+				TargetResourceKey: "apps::v1::ReplicaSet",
+				Label:             "manages",
+				InverseLabel:      "managed by",
+				Cardinality:       "one-to-many",
+				Extractor:         &resource.RelationshipExtractor{Method: "ownerRef", OwnerRefKind: "Deployment"},
+			},
+			{
+				Type:              resource.RelUses,
+				TargetResourceKey: "core::v1::ConfigMap",
+				Label:             "uses",
+				InverseLabel:      "used by",
+				Cardinality:       "many-to-many",
+				Extractor:         &resource.RelationshipExtractor{Method: "fieldPath", FieldPath: "spec.template.spec.volumes[*].configMap.name"},
+			},
+			{
+				Type:              resource.RelUses,
+				TargetResourceKey: "core::v1::Secret",
+				Label:             "uses",
+				InverseLabel:      "used by",
+				Cardinality:       "many-to-many",
+				Extractor:         &resource.RelationshipExtractor{Method: "fieldPath", FieldPath: "spec.template.spec.volumes[*].secret.secretName"},
+			},
+		}),
 	)
 	return &DeploymentResourcer{
-		KubernetesResourcerBase: base.(*KubernetesResourcerBase[MetaAccessor]),
+		KubernetesResourcerBase: base,
 		log:                     logger.Named("DeploymentResourcer"),
 	}
+}
+
+// ResolveRelationships resolves runtime relationship instances for a Deployment.
+func (d *DeploymentResourcer) ResolveRelationships(
+	ctx context.Context,
+	client *clients.ClientSet,
+	meta resource.ResourceMeta,
+	id string,
+	namespace string,
+) ([]resource.ResolvedRelationship, error) {
+	result, err := d.Get(ctx, client, meta, resource.GetInput{ID: id, Namespace: namespace})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get deployment %s: %w", id, err)
+	}
+
+	var dep appsv1.Deployment
+	if err := json.Unmarshal(result.Result, &dep); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal deployment: %w", err)
+	}
+
+	var rels []resource.ResolvedRelationship
+	descriptors := d.DeclareRelationships()
+
+	// ReplicaSet relationships via label selector.
+	if dep.Spec.Selector != nil {
+		selector, err := metav1.LabelSelectorAsSelector(dep.Spec.Selector)
+		if err == nil {
+			rsList, err := client.KubeClient.AppsV1().ReplicaSets(namespace).List(ctx, metav1.ListOptions{
+				LabelSelector: selector.String(),
+			})
+			if err == nil && len(rsList.Items) > 0 {
+				targets := make([]resource.ResourceRef, 0, len(rsList.Items))
+				for _, rs := range rsList.Items {
+					// Only include ReplicaSets owned by this Deployment.
+					for _, ref := range rs.OwnerReferences {
+						if ref.Kind == "Deployment" && ref.Name == id {
+							targets = append(targets, makeRef("apps::v1::ReplicaSet", rs.Name, namespace))
+							break
+						}
+					}
+				}
+				if len(targets) > 0 {
+					rels = append(rels, resource.ResolvedRelationship{
+						Descriptor: descriptors[0], // RelManages → ReplicaSet
+						Targets:    targets,
+					})
+				}
+			}
+		}
+	}
+
+	// ConfigMap relationships from volumes.
+	if cms := extractVolumeConfigMaps(dep.Spec.Template.Spec); len(cms) > 0 {
+		targets := make([]resource.ResourceRef, 0, len(cms))
+		for _, name := range cms {
+			targets = append(targets, makeRef("core::v1::ConfigMap", name, namespace))
+		}
+		rels = append(rels, resource.ResolvedRelationship{
+			Descriptor: descriptors[1], // RelUses → ConfigMap
+			Targets:    targets,
+		})
+	}
+
+	// Secret relationships from volumes.
+	if secrets := extractVolumeSecrets(dep.Spec.Template.Spec); len(secrets) > 0 {
+		targets := make([]resource.ResourceRef, 0, len(secrets))
+		for _, name := range secrets {
+			targets = append(targets, makeRef("core::v1::Secret", name, namespace))
+		}
+		rels = append(rels, resource.ResolvedRelationship{
+			Descriptor: descriptors[2], // RelUses → Secret
+			Targets:    targets,
+		})
+	}
+
+	return rels, nil
 }
 
 // ====================== ACTION INTERFACE ====================== //
 
 func (d *DeploymentResourcer) GetActions(
-	_ *types.PluginContext,
+	_ context.Context,
 	_ *clients.ClientSet,
-	_ pkgtypes.ResourceMeta,
-) ([]pkgtypes.ActionDescriptor, error) {
-	return []pkgtypes.ActionDescriptor{
+	_ resource.ResourceMeta,
+) ([]resource.ActionDescriptor, error) {
+	return []resource.ActionDescriptor{
 		{
 			ID:          "restart",
 			Label:       "Rollout Restart",
 			Description: "Restart all pods in this deployment via a rolling update",
 			Icon:        "LuRefreshCw",
-			Scope:       pkgtypes.ActionScopeInstance,
+			Scope:       resource.ActionScopeInstance,
+			Dangerous:   true,
 			Streaming:   true,
 		},
 		{
@@ -60,32 +166,38 @@ func (d *DeploymentResourcer) GetActions(
 			Label:       "Scale",
 			Description: "Change the number of replicas",
 			Icon:        "LuScaling",
-			Scope:       pkgtypes.ActionScopeInstance,
+			Scope:       resource.ActionScopeInstance,
+			ParamsSchema: &resource.Schema{
+				Properties: map[string]resource.SchemaProperty{
+					"replicas": {Type: resource.SchemaInteger, Minimum: resource.PtrFloat64(0), Description: "Desired number of replicas"},
+				},
+				Required: []string{"replicas"},
+			},
 		},
 		{
 			ID:          "pause",
 			Label:       "Pause Rollout",
 			Description: "Pause the current rollout",
 			Icon:        "LuPause",
-			Scope:       pkgtypes.ActionScopeInstance,
+			Scope:       resource.ActionScopeInstance,
 		},
 		{
 			ID:          "resume",
 			Label:       "Resume Rollout",
 			Description: "Resume a paused rollout",
 			Icon:        "LuPlay",
-			Scope:       pkgtypes.ActionScopeInstance,
+			Scope:       resource.ActionScopeInstance,
 		},
 	}, nil
 }
 
 func (d *DeploymentResourcer) ExecuteAction(
-	ctx *types.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	_ pkgtypes.ResourceMeta,
+	_ resource.ResourceMeta,
 	actionID string,
-	input pkgtypes.ActionInput,
-) (*pkgtypes.ActionResult, error) {
+	input resource.ActionInput,
+) (*resource.ActionResult, error) {
 	switch actionID {
 	case "restart":
 		return d.executeRestart(ctx, client, input)
@@ -101,12 +213,12 @@ func (d *DeploymentResourcer) ExecuteAction(
 }
 
 func (d *DeploymentResourcer) StreamAction(
-	ctx *types.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	_ pkgtypes.ResourceMeta,
+	_ resource.ResourceMeta,
 	actionID string,
-	input pkgtypes.ActionInput,
-	stream chan pkgtypes.ActionEvent,
+	input resource.ActionInput,
+	stream chan<- resource.ActionEvent,
 ) error {
 	switch actionID {
 	case "restart":
@@ -120,23 +232,23 @@ func (d *DeploymentResourcer) StreamAction(
 
 // executeRestart patches the pod template annotation to trigger a rolling restart.
 func (d *DeploymentResourcer) executeRestart(
-	ctx *types.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	input pkgtypes.ActionInput,
-) (*pkgtypes.ActionResult, error) {
+	input resource.ActionInput,
+) (*resource.ActionResult, error) {
 	patch := fmt.Sprintf(
 		`{"spec":{"template":{"metadata":{"annotations":{"kubectl.kubernetes.io/restartedAt":"%s"}}}}}`,
 		time.Now().Format(time.RFC3339),
 	)
 	_, err := client.KubeClient.AppsV1().Deployments(input.Namespace).Patch(
-		ctx.Context, input.ID, k8stypes.StrategicMergePatchType,
+		ctx, input.ID, k8stypes.StrategicMergePatchType,
 		[]byte(patch), metav1.PatchOptions{},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to restart deployment %s: %w", input.ID, err)
 	}
 
-	return &pkgtypes.ActionResult{
+	return &resource.ActionResult{
 		Success: true,
 		Message: fmt.Sprintf("Rollout restart initiated for deployment %s", input.ID),
 	}, nil
@@ -144,10 +256,10 @@ func (d *DeploymentResourcer) executeRestart(
 
 // streamRestart patches the annotation then watches for rollout completion.
 func (d *DeploymentResourcer) streamRestart(
-	ctx *types.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	input pkgtypes.ActionInput,
-	stream chan pkgtypes.ActionEvent,
+	input resource.ActionInput,
+	stream chan<- resource.ActionEvent,
 ) error {
 	defer close(stream)
 
@@ -157,30 +269,30 @@ func (d *DeploymentResourcer) streamRestart(
 		time.Now().Format(time.RFC3339),
 	)
 	_, err := client.KubeClient.AppsV1().Deployments(input.Namespace).Patch(
-		ctx.Context, input.ID, k8stypes.StrategicMergePatchType,
+		ctx, input.ID, k8stypes.StrategicMergePatchType,
 		[]byte(patch), metav1.PatchOptions{},
 	)
 	if err != nil {
-		stream <- pkgtypes.ActionEvent{
+		stream <- resource.ActionEvent{
 			Type: "error",
 			Data: map[string]interface{}{"message": fmt.Sprintf("failed to restart: %v", err)},
 		}
 		return err
 	}
 
-	stream <- pkgtypes.ActionEvent{
+	stream <- resource.ActionEvent{
 		Type: "progress",
 		Data: map[string]interface{}{"message": "Rollout restart initiated"},
 	}
 
 	// Watch the deployment for rollout completion.
 	watcher, err := client.KubeClient.AppsV1().Deployments(input.Namespace).Watch(
-		ctx.Context, metav1.ListOptions{
+		ctx, metav1.ListOptions{
 			FieldSelector: fmt.Sprintf("metadata.name=%s", input.ID),
 		},
 	)
 	if err != nil {
-		stream <- pkgtypes.ActionEvent{
+		stream <- resource.ActionEvent{
 			Type: "error",
 			Data: map[string]interface{}{"message": fmt.Sprintf("failed to watch deployment: %v", err)},
 		}
@@ -192,18 +304,18 @@ func (d *DeploymentResourcer) streamRestart(
 	for {
 		select {
 		case <-timeout:
-			stream <- pkgtypes.ActionEvent{
+			stream <- resource.ActionEvent{
 				Type: "error",
 				Data: map[string]interface{}{"message": "rollout restart timed out after 5 minutes"},
 			}
 			return fmt.Errorf("rollout restart timed out")
 
-		case <-ctx.Context.Done():
-			return ctx.Context.Err()
+		case <-ctx.Done():
+			return ctx.Err()
 
 		case event, ok := <-watcher.ResultChan():
 			if !ok {
-				stream <- pkgtypes.ActionEvent{
+				stream <- resource.ActionEvent{
 					Type: "error",
 					Data: map[string]interface{}{"message": "watch channel closed unexpectedly"},
 				}
@@ -222,7 +334,7 @@ func (d *DeploymentResourcer) streamRestart(
 				desired = *dep.Spec.Replicas
 			}
 
-			stream <- pkgtypes.ActionEvent{
+			stream <- resource.ActionEvent{
 				Type: "progress",
 				Data: map[string]interface{}{
 					"ready":   dep.Status.AvailableReplicas,
@@ -235,7 +347,7 @@ func (d *DeploymentResourcer) streamRestart(
 			if dep.Status.UpdatedReplicas == desired &&
 				dep.Status.AvailableReplicas == desired &&
 				dep.Status.Replicas == desired {
-				stream <- pkgtypes.ActionEvent{
+				stream <- resource.ActionEvent{
 					Type: "complete",
 					Data: map[string]interface{}{
 						"message": fmt.Sprintf("Deployment %s successfully restarted", input.ID),
@@ -249,10 +361,10 @@ func (d *DeploymentResourcer) streamRestart(
 
 // executeScale patches spec.replicas on the deployment.
 func (d *DeploymentResourcer) executeScale(
-	ctx *types.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	input pkgtypes.ActionInput,
-) (*pkgtypes.ActionResult, error) {
+	input resource.ActionInput,
+) (*resource.ActionResult, error) {
 	replicas, ok := input.Params["replicas"].(float64)
 	if !ok {
 		return nil, fmt.Errorf("replicas parameter is required and must be a number")
@@ -261,14 +373,14 @@ func (d *DeploymentResourcer) executeScale(
 	replicaCount := int32(replicas)
 	patch := fmt.Sprintf(`{"spec":{"replicas":%d}}`, replicaCount)
 	_, err := client.KubeClient.AppsV1().Deployments(input.Namespace).Patch(
-		ctx.Context, input.ID, k8stypes.StrategicMergePatchType,
+		ctx, input.ID, k8stypes.StrategicMergePatchType,
 		[]byte(patch), metav1.PatchOptions{},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scale deployment %s: %w", input.ID, err)
 	}
 
-	return &pkgtypes.ActionResult{
+	return &resource.ActionResult{
 		Success: true,
 		Message: fmt.Sprintf("Deployment %s scaled to %d replicas", input.ID, replicaCount),
 	}, nil
@@ -276,14 +388,14 @@ func (d *DeploymentResourcer) executeScale(
 
 // executePauseResume patches spec.paused on the deployment.
 func (d *DeploymentResourcer) executePauseResume(
-	ctx *types.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	input pkgtypes.ActionInput,
+	input resource.ActionInput,
 	paused bool,
-) (*pkgtypes.ActionResult, error) {
+) (*resource.ActionResult, error) {
 	patch := fmt.Sprintf(`{"spec":{"paused":%t}}`, paused)
 	_, err := client.KubeClient.AppsV1().Deployments(input.Namespace).Patch(
-		ctx.Context, input.ID, k8stypes.StrategicMergePatchType,
+		ctx, input.ID, k8stypes.StrategicMergePatchType,
 		[]byte(patch), metav1.PatchOptions{},
 	)
 	if err != nil {
@@ -298,7 +410,7 @@ func (d *DeploymentResourcer) executePauseResume(
 	if !paused {
 		verb = "resumed"
 	}
-	return &pkgtypes.ActionResult{
+	return &resource.ActionResult{
 		Success: true,
 		Message: fmt.Sprintf("Deployment %s rollout %s", input.ID, verb),
 	}, nil

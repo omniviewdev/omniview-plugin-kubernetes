@@ -1,12 +1,12 @@
 package helm
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
-	"github.com/omniviewdev/plugin-sdk/pkg/resource/types"
-	pkgtypes "github.com/omniviewdev/plugin-sdk/pkg/types"
+	resource "github.com/omniviewdev/plugin-sdk/pkg/v1/resource"
 	"go.uber.org/zap"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
@@ -23,9 +23,8 @@ type ReleaseResourcer struct {
 
 // Compile-time checks.
 var (
-	_ types.Resourcer[clients.ClientSet]      = (*ReleaseResourcer)(nil)
-	_ types.ActionResourcer[clients.ClientSet] = (*ReleaseResourcer)(nil)
-	_ types.SchemaResourcer[clients.ClientSet] = (*ReleaseResourcer)(nil)
+	_ resource.Resourcer[clients.ClientSet]      = (*ReleaseResourcer)(nil)
+	_ resource.ActionResourcer[clients.ClientSet] = (*ReleaseResourcer)(nil)
 )
 
 // NewReleaseResourcer creates a new ReleaseResourcer.
@@ -37,17 +36,18 @@ func NewReleaseResourcer(logger *zap.SugaredLogger, svc *HelmService) *ReleaseRe
 }
 
 func (r *ReleaseResourcer) getConfig(
-	ctx *pkgtypes.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
 	namespace string,
 ) (*action.Configuration, error) {
-	if ctx.Connection == nil {
+	conn := resource.ConnectionFromContext(ctx)
+	if conn == nil {
 		return nil, fmt.Errorf("no connection in context")
 	}
 	if namespace == "" {
 		namespace = "default"
 	}
-	return r.helmService.GetActionConfig(ctx.Connection.ID, client.RESTConfig, namespace)
+	return r.helmService.GetActionConfig(conn.ID, client.RESTConfig, namespace)
 }
 
 // releaseToMap converts a Helm release to a map for the SDK.
@@ -63,14 +63,23 @@ func releaseToMap(rel *release.Release) map[string]interface{} {
 	return result
 }
 
+// marshalMap marshals a map to json.RawMessage.
+func marshalMap(m map[string]interface{}) (json.RawMessage, error) {
+	data, err := json.Marshal(m)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal result: %w", err)
+	}
+	return data, nil
+}
+
 // ================================= CRUD ================================= //
 
 func (r *ReleaseResourcer) Get(
-	ctx *pkgtypes.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	_ types.ResourceMeta,
-	input types.GetInput,
-) (*types.GetResult, error) {
+	_ resource.ResourceMeta,
+	input resource.GetInput,
+) (*resource.GetResult, error) {
 	cfg, err := r.getConfig(ctx, client, input.Namespace)
 	if err != nil {
 		return nil, err
@@ -82,25 +91,26 @@ func (r *ReleaseResourcer) Get(
 		return nil, fmt.Errorf("failed to get release %s: %w", input.ID, err)
 	}
 
-	return &types.GetResult{
-		Result:  releaseToMap(rel),
-		Success: true,
-	}, nil
+	data, err := marshalMap(releaseToMap(rel))
+	if err != nil {
+		return nil, err
+	}
+	return &resource.GetResult{Result: data, Success: true}, nil
 }
 
 func (r *ReleaseResourcer) List(
-	ctx *pkgtypes.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	_ types.ResourceMeta,
-	input types.ListInput,
-) (*types.ListResult, error) {
+	_ resource.ResourceMeta,
+	input resource.ListInput,
+) (*resource.ListResult, error) {
 	// List across all requested namespaces, or all namespaces if none specified.
 	namespaces := input.Namespaces
 	if len(namespaces) == 0 {
 		namespaces = []string{""}
 	}
 
-	var allReleases []map[string]interface{}
+	var allReleases []json.RawMessage
 	for _, ns := range namespaces {
 		cfg, err := r.getConfig(ctx, client, ns)
 		if err != nil {
@@ -119,49 +129,57 @@ func (r *ReleaseResourcer) List(
 		}
 
 		for _, rel := range releases {
-			allReleases = append(allReleases, releaseToMap(rel))
+			data, err := marshalMap(releaseToMap(rel))
+			if err != nil {
+				r.log.Warnw("failed to marshal release", "name", rel.Name, "error", err)
+				continue
+			}
+			allReleases = append(allReleases, data)
 		}
 	}
 
-	return &types.ListResult{
-		Result:  allReleases,
-		Success: true,
-	}, nil
+	return &resource.ListResult{Result: allReleases, Success: true}, nil
 }
 
 func (r *ReleaseResourcer) Find(
-	ctx *pkgtypes.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	meta types.ResourceMeta,
-	input types.FindInput,
-) (*types.FindResult, error) {
-	// Find is like List with filtering — delegate to List for now.
-	listResult, err := r.List(ctx, client, meta, types.ListInput{
+	meta resource.ResourceMeta,
+	input resource.FindInput,
+) (*resource.FindResult, error) {
+	// Find is like List with filtering -- delegate to List for now.
+	listResult, err := r.List(ctx, client, meta, resource.ListInput{
 		Namespaces: input.Namespaces,
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &types.FindResult{
+	return &resource.FindResult{
 		Result:  listResult.Result,
 		Success: listResult.Success,
 	}, nil
 }
 
 func (r *ReleaseResourcer) Create(
-	ctx *pkgtypes.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	_ types.ResourceMeta,
-	input types.CreateInput,
-) (*types.CreateResult, error) {
+	_ resource.ResourceMeta,
+	input resource.CreateInput,
+) (*resource.CreateResult, error) {
+	// Unmarshal input from json.RawMessage.
+	var inputMap map[string]interface{}
+	if err := json.Unmarshal(input.Input, &inputMap); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal create input: %w", err)
+	}
+
 	cfg, err := r.getConfig(ctx, client, input.Namespace)
 	if err != nil {
 		return nil, err
 	}
 
-	chartRef, _ := input.Input["chart"].(string)
-	releaseName, _ := input.Input["name"].(string)
-	valuesYAML, _ := input.Input["values"].(map[string]interface{})
+	chartRef, _ := inputMap["chart"].(string)
+	releaseName, _ := inputMap["name"].(string)
+	valuesYAML, _ := inputMap["values"].(map[string]interface{})
 
 	if chartRef == "" {
 		return nil, fmt.Errorf("chart reference is required")
@@ -191,28 +209,29 @@ func (r *ReleaseResourcer) Create(
 		return nil, fmt.Errorf("failed to install release: %w", err)
 	}
 
-	return &types.CreateResult{
-		Result:  releaseToMap(rel),
-		Success: true,
-	}, nil
+	data, err := marshalMap(releaseToMap(rel))
+	if err != nil {
+		return nil, err
+	}
+	return &resource.CreateResult{Result: data, Success: true}, nil
 }
 
 func (r *ReleaseResourcer) Update(
-	_ *pkgtypes.PluginContext,
+	_ context.Context,
 	_ *clients.ClientSet,
-	_ types.ResourceMeta,
-	_ types.UpdateInput,
-) (*types.UpdateResult, error) {
-	// Update is not directly supported — use the "upgrade" action instead.
+	_ resource.ResourceMeta,
+	_ resource.UpdateInput,
+) (*resource.UpdateResult, error) {
+	// Update is not directly supported -- use the "upgrade" action instead.
 	return nil, fmt.Errorf("use the 'upgrade' action to update a release")
 }
 
 func (r *ReleaseResourcer) Delete(
-	ctx *pkgtypes.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	_ types.ResourceMeta,
-	input types.DeleteInput,
-) (*types.DeleteResult, error) {
+	_ resource.ResourceMeta,
+	input resource.DeleteInput,
+) (*resource.DeleteResult, error) {
 	cfg, err := r.getConfig(ctx, client, input.Namespace)
 	if err != nil {
 		return nil, err
@@ -224,114 +243,180 @@ func (r *ReleaseResourcer) Delete(
 		return nil, fmt.Errorf("failed to uninstall release %s: %w", input.ID, err)
 	}
 
-	return &types.DeleteResult{
-		Result:  releaseToMap(resp.Release),
-		Success: true,
-	}, nil
+	data, err := marshalMap(releaseToMap(resp.Release))
+	if err != nil {
+		return nil, err
+	}
+	return &resource.DeleteResult{Result: data, Success: true}, nil
 }
 
 // ================================= ACTIONS ================================= //
 
 func (r *ReleaseResourcer) GetActions(
-	_ *pkgtypes.PluginContext,
+	_ context.Context,
 	_ *clients.ClientSet,
-	_ types.ResourceMeta,
-) ([]types.ActionDescriptor, error) {
-	return []types.ActionDescriptor{
+	_ resource.ResourceMeta,
+) ([]resource.ActionDescriptor, error) {
+	chartVersionParams := &resource.Schema{
+		Properties: map[string]resource.SchemaProperty{
+			"chart":        {Type: resource.SchemaString, Description: "Chart reference (e.g. repo/chart)"},
+			"values":       {Type: resource.SchemaObject, Description: "Override values"},
+			"version":      {Type: resource.SchemaString, Description: "Chart version constraint"},
+			"reuse_values": {Type: resource.SchemaBoolean, Default: false, Description: "Reuse existing values from the release"},
+		},
+		Required: []string{"chart"},
+	}
+
+	installParams := &resource.Schema{
+		Properties: map[string]resource.SchemaProperty{
+			"chart":     {Type: resource.SchemaString, Description: "Chart reference (e.g. repo/chart)"},
+			"name":      {Type: resource.SchemaString, Description: "Release name"},
+			"namespace": {Type: resource.SchemaString, Description: "Target namespace"},
+			"values":    {Type: resource.SchemaObject, Description: "Override values"},
+			"version":   {Type: resource.SchemaString, Description: "Chart version constraint"},
+		},
+		Required: []string{"chart", "name"},
+	}
+
+	dryRunInstallParams := &resource.Schema{
+		Properties: map[string]resource.SchemaProperty{
+			"chart":     {Type: resource.SchemaString, Description: "Chart reference (e.g. repo/chart)"},
+			"name":      {Type: resource.SchemaString, Description: "Release name"},
+			"namespace": {Type: resource.SchemaString, Description: "Target namespace"},
+			"values":    {Type: resource.SchemaObject, Description: "Override values"},
+			"version":   {Type: resource.SchemaString, Description: "Chart version constraint"},
+		},
+		Required: []string{"chart"},
+	}
+
+	return []resource.ActionDescriptor{
 		{
-			ID:          "upgrade",
-			Label:       "Upgrade Release",
-			Description: "Upgrade an installed release with new chart or values",
-			Icon:        "LuArrowUpCircle",
-			Scope:       types.ActionScopeInstance,
+			ID:           "upgrade",
+			Label:        "Upgrade Release",
+			Description:  "Upgrade an installed release with new chart or values",
+			Icon:         "LuArrowUpCircle",
+			Scope:        resource.ActionScopeInstance,
+			Dangerous:    true,
+			ParamsSchema: chartVersionParams,
 		},
 		{
 			ID:          "rollback",
 			Label:       "Rollback Release",
 			Description: "Rollback a release to a previous revision",
 			Icon:        "LuUndo2",
-			Scope:       types.ActionScopeInstance,
+			Scope:       resource.ActionScopeInstance,
+			Dangerous:   true,
+			ParamsSchema: &resource.Schema{
+				Properties: map[string]resource.SchemaProperty{
+					"revision": {Type: resource.SchemaInteger, Minimum: resource.PtrFloat64(0), Description: "Revision number to rollback to (0 = previous)"},
+				},
+			},
 		},
 		{
 			ID:          "get-values",
 			Label:       "Get Values",
 			Description: "Get the computed values for a release",
 			Icon:        "LuFileText",
-			Scope:       types.ActionScopeInstance,
+			Scope:       resource.ActionScopeInstance,
+			ParamsSchema: &resource.Schema{
+				Properties: map[string]resource.SchemaProperty{
+					"all": {Type: resource.SchemaBoolean, Default: false, Description: "Return all computed values (including defaults)"},
+				},
+			},
 		},
 		{
 			ID:          "get-manifest",
 			Label:       "Get Manifest",
 			Description: "Get the rendered manifest for a release",
 			Icon:        "LuFileCode",
-			Scope:       types.ActionScopeInstance,
+			Scope:       resource.ActionScopeInstance,
+			ParamsSchema: &resource.Schema{
+				Properties: map[string]resource.SchemaProperty{
+					"revision": {Type: resource.SchemaInteger, Minimum: resource.PtrFloat64(1), Description: "Specific revision to get manifest for"},
+				},
+			},
 		},
 		{
 			ID:          "get-notes",
 			Label:       "Get Notes",
 			Description: "Get the release notes",
 			Icon:        "LuStickyNote",
-			Scope:       types.ActionScopeInstance,
+			Scope:       resource.ActionScopeInstance,
 		},
 		{
 			ID:          "get-hooks",
 			Label:       "Get Hooks",
 			Description: "Get the release hooks",
 			Icon:        "LuAnchor",
-			Scope:       types.ActionScopeInstance,
+			Scope:       resource.ActionScopeInstance,
 		},
 		{
 			ID:          "get-history",
 			Label:       "Get History",
 			Description: "Get the revision history for a release",
 			Icon:        "LuHistory",
-			Scope:       types.ActionScopeInstance,
+			Scope:       resource.ActionScopeInstance,
+			ParamsSchema: &resource.Schema{
+				Properties: map[string]resource.SchemaProperty{
+					"max": {Type: resource.SchemaInteger, Minimum: resource.PtrFloat64(1), Description: "Maximum number of revisions to return"},
+				},
+			},
 		},
 		{
-			ID:          "install",
-			Label:       "Install Chart",
-			Description: "Install a chart as a new release",
-			Icon:        "LuDownload",
-			Scope:       types.ActionScopeType,
+			ID:           "install",
+			Label:        "Install Chart",
+			Description:  "Install a chart as a new release",
+			Icon:         "LuDownload",
+			Scope:        resource.ActionScopeType,
+			ParamsSchema: installParams,
 		},
 		{
-			ID:          "dry-run-install",
-			Label:       "Dry Run Install",
-			Description: "Preview what an install would render without applying",
-			Icon:        "LuEye",
-			Scope:       types.ActionScopeType,
+			ID:           "dry-run-install",
+			Label:        "Dry Run Install",
+			Description:  "Preview what an install would render without applying",
+			Icon:         "LuEye",
+			Scope:        resource.ActionScopeType,
+			ParamsSchema: dryRunInstallParams,
 		},
 		{
-			ID:          "dry-run-upgrade",
-			Label:       "Dry Run Upgrade",
-			Description: "Preview what an upgrade would render without applying",
-			Icon:        "LuEye",
-			Scope:       types.ActionScopeInstance,
+			ID:           "dry-run-upgrade",
+			Label:        "Dry Run Upgrade",
+			Description:  "Preview what an upgrade would render without applying",
+			Icon:         "LuEye",
+			Scope:        resource.ActionScopeInstance,
+			ParamsSchema: chartVersionParams,
 		},
 		{
 			ID:          "diff-revisions",
 			Label:       "Diff Revisions",
 			Description: "Compare manifests between two revisions",
 			Icon:        "LuGitCompare",
-			Scope:       types.ActionScopeInstance,
+			Scope:       resource.ActionScopeInstance,
+			ParamsSchema: &resource.Schema{
+				Properties: map[string]resource.SchemaProperty{
+					"revision1": {Type: resource.SchemaInteger, Minimum: resource.PtrFloat64(1), Description: "First revision to compare"},
+					"revision2": {Type: resource.SchemaInteger, Minimum: resource.PtrFloat64(1), Description: "Second revision to compare"},
+				},
+				Required: []string{"revision1", "revision2"},
+			},
 		},
 		{
 			ID:          "test",
 			Label:       "Test Release",
 			Description: "Run test hooks for a release",
 			Icon:        "LuFlaskConical",
-			Scope:       types.ActionScopeInstance,
+			Scope:       resource.ActionScopeInstance,
 		},
 	}, nil
 }
 
 func (r *ReleaseResourcer) ExecuteAction(
-	ctx *pkgtypes.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	_ types.ResourceMeta,
+	_ resource.ResourceMeta,
 	actionID string,
-	input types.ActionInput,
-) (*types.ActionResult, error) {
+	input resource.ActionInput,
+) (*resource.ActionResult, error) {
 	cfg, err := r.getConfig(ctx, client, input.Namespace)
 	if err != nil {
 		return nil, err
@@ -368,12 +453,12 @@ func (r *ReleaseResourcer) ExecuteAction(
 }
 
 func (r *ReleaseResourcer) StreamAction(
-	_ *pkgtypes.PluginContext,
+	_ context.Context,
 	_ *clients.ClientSet,
-	_ types.ResourceMeta,
+	_ resource.ResourceMeta,
 	_ string,
-	_ types.ActionInput,
-	_ chan types.ActionEvent,
+	_ resource.ActionInput,
+	_ chan<- resource.ActionEvent,
 ) error {
 	return fmt.Errorf("streaming actions not yet implemented for releases")
 }
@@ -381,11 +466,11 @@ func (r *ReleaseResourcer) StreamAction(
 // ================================= SCHEMA ================================= //
 
 // GetEditorSchemas extracts values.schema.json from installed Helm chart releases.
+// Implements resource.SchemaProvider[clients.ClientSet] at the connection level.
 func (r *ReleaseResourcer) GetEditorSchemas(
-	ctx *pkgtypes.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	_ types.ResourceMeta,
-) ([]types.EditorSchema, error) {
+) ([]resource.EditorSchema, error) {
 	cfg, err := r.getConfig(ctx, client, "")
 	if err != nil {
 		return nil, err
@@ -400,20 +485,26 @@ func (r *ReleaseResourcer) GetEditorSchemas(
 		return nil, fmt.Errorf("failed to list releases for schema extraction: %w", err)
 	}
 
-	var schemas []types.EditorSchema
+	conn := resource.ConnectionFromContext(ctx)
+	connID := ""
+	if conn != nil {
+		connID = conn.ID
+	}
+
+	var schemas []resource.EditorSchema
 	for _, rel := range releases {
 		if rel.Chart == nil {
 			continue
 		}
 		for _, f := range rel.Chart.Raw {
 			if f.Name == "values.schema.json" {
-				schemas = append(schemas, types.EditorSchema{
+				schemas = append(schemas, resource.EditorSchema{
 					ResourceKey: "helm::v1::Release",
 					FileMatch:   fmt.Sprintf("**/helm::v1::Release/%s.yaml", rel.Name),
 					Content:     f.Data,
 					Language:    "yaml",
 					URI: fmt.Sprintf("helm://%s/%s/%s/values-schema",
-						ctx.Connection.ID,
+						connID,
 						rel.Chart.Metadata.Name,
 						rel.Chart.Metadata.Version,
 					),
@@ -430,8 +521,8 @@ func (r *ReleaseResourcer) GetEditorSchemas(
 
 func (r *ReleaseResourcer) executeUpgrade(
 	cfg *action.Configuration,
-	input types.ActionInput,
-) (*types.ActionResult, error) {
+	input resource.ActionInput,
+) (*resource.ActionResult, error) {
 	chartRef, _ := input.Params["chart"].(string)
 	values, _ := input.Params["values"].(map[string]interface{})
 	reuseValues, _ := input.Params["reuse_values"].(bool)
@@ -462,7 +553,7 @@ func (r *ReleaseResourcer) executeUpgrade(
 		return nil, fmt.Errorf("failed to upgrade release: %w", err)
 	}
 
-	return &types.ActionResult{
+	return &resource.ActionResult{
 		Success: true,
 		Data:    releaseToMap(rel),
 		Message: fmt.Sprintf("Release %s upgraded to revision %d", rel.Name, rel.Version),
@@ -471,8 +562,8 @@ func (r *ReleaseResourcer) executeUpgrade(
 
 func (r *ReleaseResourcer) executeRollback(
 	cfg *action.Configuration,
-	input types.ActionInput,
-) (*types.ActionResult, error) {
+	input resource.ActionInput,
+) (*resource.ActionResult, error) {
 	revisionF, _ := input.Params["revision"].(float64)
 	revision := int(revisionF)
 
@@ -483,7 +574,7 @@ func (r *ReleaseResourcer) executeRollback(
 		return nil, fmt.Errorf("failed to rollback release: %w", err)
 	}
 
-	return &types.ActionResult{
+	return &resource.ActionResult{
 		Success: true,
 		Message: fmt.Sprintf("Release %s rolled back to revision %d", input.ID, revision),
 	}, nil
@@ -491,8 +582,8 @@ func (r *ReleaseResourcer) executeRollback(
 
 func (r *ReleaseResourcer) executeGetValues(
 	cfg *action.Configuration,
-	input types.ActionInput,
-) (*types.ActionResult, error) {
+	input resource.ActionInput,
+) (*resource.ActionResult, error) {
 	getValues := action.NewGetValues(cfg)
 	allValues, _ := input.Params["all"].(bool)
 	getValues.AllValues = allValues
@@ -502,16 +593,18 @@ func (r *ReleaseResourcer) executeGetValues(
 		return nil, fmt.Errorf("failed to get values: %w", err)
 	}
 
-	return &types.ActionResult{
+	return &resource.ActionResult{
 		Success: true,
-		Data:    values,
+		Data: map[string]interface{}{
+			"values": values,
+		},
 	}, nil
 }
 
 func (r *ReleaseResourcer) executeGetManifest(
 	cfg *action.Configuration,
-	input types.ActionInput,
-) (*types.ActionResult, error) {
+	input resource.ActionInput,
+) (*resource.ActionResult, error) {
 	get := action.NewGet(cfg)
 
 	// Support fetching a specific revision's manifest.
@@ -524,7 +617,7 @@ func (r *ReleaseResourcer) executeGetManifest(
 		return nil, fmt.Errorf("failed to get release: %w", err)
 	}
 
-	return &types.ActionResult{
+	return &resource.ActionResult{
 		Success: true,
 		Data: map[string]interface{}{
 			"manifest": rel.Manifest,
@@ -534,8 +627,8 @@ func (r *ReleaseResourcer) executeGetManifest(
 
 func (r *ReleaseResourcer) executeGetNotes(
 	cfg *action.Configuration,
-	input types.ActionInput,
-) (*types.ActionResult, error) {
+	input resource.ActionInput,
+) (*resource.ActionResult, error) {
 	get := action.NewGet(cfg)
 	rel, err := get.Run(input.ID)
 	if err != nil {
@@ -547,7 +640,7 @@ func (r *ReleaseResourcer) executeGetNotes(
 		notes = rel.Info.Notes
 	}
 
-	return &types.ActionResult{
+	return &resource.ActionResult{
 		Success: true,
 		Data: map[string]interface{}{
 			"notes": notes,
@@ -557,8 +650,8 @@ func (r *ReleaseResourcer) executeGetNotes(
 
 func (r *ReleaseResourcer) executeGetHooks(
 	cfg *action.Configuration,
-	input types.ActionInput,
-) (*types.ActionResult, error) {
+	input resource.ActionInput,
+) (*resource.ActionResult, error) {
 	get := action.NewGet(cfg)
 	rel, err := get.Run(input.ID)
 	if err != nil {
@@ -581,7 +674,7 @@ func (r *ReleaseResourcer) executeGetHooks(
 		hooks = append(hooks, h)
 	}
 
-	return &types.ActionResult{
+	return &resource.ActionResult{
 		Success: true,
 		Data: map[string]interface{}{
 			"hooks": hooks,
@@ -591,8 +684,8 @@ func (r *ReleaseResourcer) executeGetHooks(
 
 func (r *ReleaseResourcer) executeGetHistory(
 	cfg *action.Configuration,
-	input types.ActionInput,
-) (*types.ActionResult, error) {
+	input resource.ActionInput,
+) (*resource.ActionResult, error) {
 	history := action.NewHistory(cfg)
 	maxF, ok := input.Params["max"].(float64)
 	if ok && maxF > 0 {
@@ -609,7 +702,7 @@ func (r *ReleaseResourcer) executeGetHistory(
 		revisions = append(revisions, releaseToMap(rel))
 	}
 
-	return &types.ActionResult{
+	return &resource.ActionResult{
 		Success: true,
 		Data: map[string]interface{}{
 			"revisions": revisions,
@@ -619,8 +712,8 @@ func (r *ReleaseResourcer) executeGetHistory(
 
 func (r *ReleaseResourcer) executeInstall(
 	cfg *action.Configuration,
-	input types.ActionInput,
-) (*types.ActionResult, error) {
+	input resource.ActionInput,
+) (*resource.ActionResult, error) {
 	chartRef, _ := input.Params["chart"].(string)
 	releaseName, _ := input.Params["name"].(string)
 	namespace, _ := input.Params["namespace"].(string)
@@ -663,7 +756,7 @@ func (r *ReleaseResourcer) executeInstall(
 		return nil, fmt.Errorf("failed to install release: %w", err)
 	}
 
-	return &types.ActionResult{
+	return &resource.ActionResult{
 		Success: true,
 		Data:    releaseToMap(rel),
 		Message: fmt.Sprintf("Release %s installed in namespace %s", rel.Name, rel.Namespace),
@@ -672,8 +765,8 @@ func (r *ReleaseResourcer) executeInstall(
 
 func (r *ReleaseResourcer) executeDryRunInstall(
 	cfg *action.Configuration,
-	input types.ActionInput,
-) (*types.ActionResult, error) {
+	input resource.ActionInput,
+) (*resource.ActionResult, error) {
 	chartRef, _ := input.Params["chart"].(string)
 	releaseName, _ := input.Params["name"].(string)
 	namespace, _ := input.Params["namespace"].(string)
@@ -714,7 +807,7 @@ func (r *ReleaseResourcer) executeDryRunInstall(
 		return nil, fmt.Errorf("dry-run install failed: %w", err)
 	}
 
-	return &types.ActionResult{
+	return &resource.ActionResult{
 		Success: true,
 		Data: map[string]interface{}{
 			"manifest": rel.Manifest,
@@ -726,8 +819,8 @@ func (r *ReleaseResourcer) executeDryRunInstall(
 
 func (r *ReleaseResourcer) executeDryRunUpgrade(
 	cfg *action.Configuration,
-	input types.ActionInput,
-) (*types.ActionResult, error) {
+	input resource.ActionInput,
+) (*resource.ActionResult, error) {
 	chartRef, _ := input.Params["chart"].(string)
 	values, _ := input.Params["values"].(map[string]interface{})
 	reuseValues, _ := input.Params["reuse_values"].(bool)
@@ -761,7 +854,7 @@ func (r *ReleaseResourcer) executeDryRunUpgrade(
 		return nil, fmt.Errorf("dry-run upgrade failed: %w", err)
 	}
 
-	return &types.ActionResult{
+	return &resource.ActionResult{
 		Success: true,
 		Data: map[string]interface{}{
 			"manifest": rel.Manifest,
@@ -772,8 +865,8 @@ func (r *ReleaseResourcer) executeDryRunUpgrade(
 
 func (r *ReleaseResourcer) executeDiffRevisions(
 	cfg *action.Configuration,
-	input types.ActionInput,
-) (*types.ActionResult, error) {
+	input resource.ActionInput,
+) (*resource.ActionResult, error) {
 	rev1F, _ := input.Params["revision1"].(float64)
 	rev2F, _ := input.Params["revision2"].(float64)
 	rev1 := int(rev1F)
@@ -793,7 +886,7 @@ func (r *ReleaseResourcer) executeDiffRevisions(
 		return nil, fmt.Errorf("failed to get revision %d: %w", rev2, err)
 	}
 
-	return &types.ActionResult{
+	return &resource.ActionResult{
 		Success: true,
 		Data: map[string]interface{}{
 			"revision1": map[string]interface{}{
@@ -810,8 +903,8 @@ func (r *ReleaseResourcer) executeDiffRevisions(
 
 func (r *ReleaseResourcer) executeTest(
 	cfg *action.Configuration,
-	input types.ActionInput,
-) (*types.ActionResult, error) {
+	input resource.ActionInput,
+) (*resource.ActionResult, error) {
 	test := action.NewReleaseTesting(cfg)
 
 	rel, err := test.Run(input.ID)
@@ -833,7 +926,7 @@ func (r *ReleaseResourcer) executeTest(
 		})
 	}
 
-	return &types.ActionResult{
+	return &resource.ActionResult{
 		Success: true,
 		Data: map[string]interface{}{
 			"hooks": hooks,

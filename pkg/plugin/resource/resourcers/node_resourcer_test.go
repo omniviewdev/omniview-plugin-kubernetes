@@ -6,8 +6,7 @@ import (
 	"time"
 
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
-	pkgtypes "github.com/omniviewdev/plugin-sdk/pkg/resource/types"
-	"github.com/omniviewdev/plugin-sdk/pkg/types"
+	resource "github.com/omniviewdev/plugin-sdk/pkg/v1/resource"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -27,12 +26,6 @@ func newNodeClientSet(objects ...runtime.Object) *clients.ClientSet {
 	fakeClient := fake.NewSimpleClientset(objects...)
 	return &clients.ClientSet{
 		KubeClient: fakeClient,
-	}
-}
-
-func nodePluginCtx() *types.PluginContext {
-	return &types.PluginContext{
-		Context: context.Background(),
 	}
 }
 
@@ -104,7 +97,7 @@ func withMirrorAnnotation(pod *corev1.Pod) {
 
 func TestNodeResourcer_GetActions(t *testing.T) {
 	r := newTestNodeResourcer()
-	actions, err := r.GetActions(nodePluginCtx(), nil, pkgtypes.ResourceMeta{})
+	actions, err := r.GetActions(context.Background(), nil, resource.ResourceMeta{})
 	require.NoError(t, err)
 	require.Len(t, actions, 6)
 
@@ -120,7 +113,7 @@ func TestNodeResourcer_GetActions(t *testing.T) {
 	assert.Contains(t, ids, "get-conditions")
 
 	for _, a := range actions {
-		assert.Equal(t, pkgtypes.ActionScopeInstance, a.Scope)
+		assert.Equal(t, resource.ActionScopeInstance, a.Scope)
 		assert.NotEmpty(t, a.Label)
 		assert.NotEmpty(t, a.Description)
 	}
@@ -133,7 +126,7 @@ func TestNodeResourcer_Cordon(t *testing.T) {
 	cs := newNodeClientSet(node)
 	r := newTestNodeResourcer()
 
-	result, err := r.ExecuteAction(nodePluginCtx(), cs, pkgtypes.ResourceMeta{}, "cordon", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "cordon", resource.ActionInput{
 		ID: "worker-1",
 	})
 
@@ -153,7 +146,7 @@ func TestNodeResourcer_Cordon_AlreadyCordoned(t *testing.T) {
 	cs := newNodeClientSet(node)
 	r := newTestNodeResourcer()
 
-	result, err := r.ExecuteAction(nodePluginCtx(), cs, pkgtypes.ResourceMeta{}, "cordon", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "cordon", resource.ActionInput{
 		ID: "worker-1",
 	})
 
@@ -171,7 +164,7 @@ func TestNodeResourcer_Cordon_NotFound(t *testing.T) {
 	cs := newNodeClientSet() // no nodes
 	r := newTestNodeResourcer()
 
-	result, err := r.ExecuteAction(nodePluginCtx(), cs, pkgtypes.ResourceMeta{}, "cordon", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "cordon", resource.ActionInput{
 		ID: "nonexistent",
 	})
 
@@ -187,7 +180,7 @@ func TestNodeResourcer_Uncordon(t *testing.T) {
 	cs := newNodeClientSet(node)
 	r := newTestNodeResourcer()
 
-	result, err := r.ExecuteAction(nodePluginCtx(), cs, pkgtypes.ResourceMeta{}, "uncordon", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "uncordon", resource.ActionInput{
 		ID: "worker-1",
 	})
 
@@ -211,7 +204,7 @@ func TestNodeResourcer_Drain_EvictsPods(t *testing.T) {
 	cs := newNodeClientSet(node, pod1, pod2)
 	r := newTestNodeResourcer()
 
-	result, err := r.ExecuteAction(nodePluginCtx(), cs, pkgtypes.ResourceMeta{}, "drain", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "drain", resource.ActionInput{
 		ID: "drain-node",
 		Params: map[string]interface{}{
 			"gracePeriodSeconds": float64(30),
@@ -235,7 +228,7 @@ func TestNodeResourcer_Drain_SkipsDaemonSetPods(t *testing.T) {
 	cs := newNodeClientSet(node, dsPod)
 	r := newTestNodeResourcer()
 
-	result, err := r.ExecuteAction(nodePluginCtx(), cs, pkgtypes.ResourceMeta{}, "drain", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "drain", resource.ActionInput{
 		ID: "drain-node",
 		Params: map[string]interface{}{
 			"ignoreDaemonSets": true,
@@ -254,7 +247,7 @@ func TestNodeResourcer_Drain_SkipsMirrorPods(t *testing.T) {
 	cs := newNodeClientSet(node, mirrorPod)
 	r := newTestNodeResourcer()
 
-	result, err := r.ExecuteAction(nodePluginCtx(), cs, pkgtypes.ResourceMeta{}, "drain", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "drain", resource.ActionInput{
 		ID: "drain-node",
 	})
 
@@ -271,7 +264,7 @@ func TestNodeResourcer_Drain_SkipsSucceededPods(t *testing.T) {
 	cs := newNodeClientSet(node, donePod)
 	r := newTestNodeResourcer()
 
-	result, err := r.ExecuteAction(nodePluginCtx(), cs, pkgtypes.ResourceMeta{}, "drain", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "drain", resource.ActionInput{
 		ID: "drain-node",
 	})
 
@@ -285,7 +278,7 @@ func TestNodeResourcer_Drain_NotFound(t *testing.T) {
 	cs := newNodeClientSet() // no nodes
 	r := newTestNodeResourcer()
 
-	result, err := r.ExecuteAction(nodePluginCtx(), cs, pkgtypes.ResourceMeta{}, "drain", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "drain", resource.ActionInput{
 		ID: "nonexistent",
 	})
 
@@ -301,7 +294,7 @@ func TestNodeResourcer_AddTaint(t *testing.T) {
 	cs := newNodeClientSet(node)
 	r := newTestNodeResourcer()
 
-	result, err := r.ExecuteAction(nodePluginCtx(), cs, pkgtypes.ResourceMeta{}, "add-taint", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "add-taint", resource.ActionInput{
 		ID: "taint-node",
 		Params: map[string]interface{}{
 			"key":    "dedicated",
@@ -330,7 +323,7 @@ func TestNodeResourcer_AddTaint_Duplicate(t *testing.T) {
 	cs := newNodeClientSet(node)
 	r := newTestNodeResourcer()
 
-	result, err := r.ExecuteAction(nodePluginCtx(), cs, pkgtypes.ResourceMeta{}, "add-taint", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "add-taint", resource.ActionInput{
 		ID: "taint-node",
 		Params: map[string]interface{}{
 			"key":    "dedicated",
@@ -355,7 +348,7 @@ func TestNodeResourcer_AddTaint_MissingKey(t *testing.T) {
 	cs := newNodeClientSet(node)
 	r := newTestNodeResourcer()
 
-	result, err := r.ExecuteAction(nodePluginCtx(), cs, pkgtypes.ResourceMeta{}, "add-taint", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "add-taint", resource.ActionInput{
 		ID: "taint-node",
 		Params: map[string]interface{}{
 			"effect": "NoSchedule",
@@ -372,7 +365,7 @@ func TestNodeResourcer_AddTaint_MissingEffect(t *testing.T) {
 	cs := newNodeClientSet(node)
 	r := newTestNodeResourcer()
 
-	result, err := r.ExecuteAction(nodePluginCtx(), cs, pkgtypes.ResourceMeta{}, "add-taint", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "add-taint", resource.ActionInput{
 		ID: "taint-node",
 		Params: map[string]interface{}{
 			"key": "dedicated",
@@ -388,7 +381,7 @@ func TestNodeResourcer_AddTaint_NodeNotFound(t *testing.T) {
 	cs := newNodeClientSet()
 	r := newTestNodeResourcer()
 
-	result, err := r.ExecuteAction(nodePluginCtx(), cs, pkgtypes.ResourceMeta{}, "add-taint", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "add-taint", resource.ActionInput{
 		ID: "nonexistent",
 		Params: map[string]interface{}{
 			"key":    "foo",
@@ -410,7 +403,7 @@ func TestNodeResourcer_RemoveTaint(t *testing.T) {
 	cs := newNodeClientSet(node)
 	r := newTestNodeResourcer()
 
-	result, err := r.ExecuteAction(nodePluginCtx(), cs, pkgtypes.ResourceMeta{}, "remove-taint", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "remove-taint", resource.ActionInput{
 		ID: "taint-node",
 		Params: map[string]interface{}{
 			"key":    "dedicated",
@@ -437,7 +430,7 @@ func TestNodeResourcer_RemoveTaint_ByKeyOnly(t *testing.T) {
 	cs := newNodeClientSet(node)
 	r := newTestNodeResourcer()
 
-	result, err := r.ExecuteAction(nodePluginCtx(), cs, pkgtypes.ResourceMeta{}, "remove-taint", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "remove-taint", resource.ActionInput{
 		ID: "taint-node",
 		Params: map[string]interface{}{
 			"key": "foo",
@@ -459,7 +452,7 @@ func TestNodeResourcer_RemoveTaint_NotFound(t *testing.T) {
 	cs := newNodeClientSet(node)
 	r := newTestNodeResourcer()
 
-	result, err := r.ExecuteAction(nodePluginCtx(), cs, pkgtypes.ResourceMeta{}, "remove-taint", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "remove-taint", resource.ActionInput{
 		ID: "taint-node",
 		Params: map[string]interface{}{
 			"key":    "nonexistent",
@@ -478,7 +471,7 @@ func TestNodeResourcer_RemoveTaint_MissingKey(t *testing.T) {
 	cs := newNodeClientSet(node)
 	r := newTestNodeResourcer()
 
-	result, err := r.ExecuteAction(nodePluginCtx(), cs, pkgtypes.ResourceMeta{}, "remove-taint", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "remove-taint", resource.ActionInput{
 		ID:     "taint-node",
 		Params: map[string]interface{}{},
 	})
@@ -500,7 +493,7 @@ func TestNodeResourcer_GetConditions(t *testing.T) {
 	cs := newNodeClientSet(node)
 	r := newTestNodeResourcer()
 
-	result, err := r.ExecuteAction(nodePluginCtx(), cs, pkgtypes.ResourceMeta{}, "get-conditions", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "get-conditions", resource.ActionInput{
 		ID: "cond-node",
 	})
 
@@ -522,7 +515,7 @@ func TestNodeResourcer_GetConditions_NodeNotFound(t *testing.T) {
 	cs := newNodeClientSet()
 	r := newTestNodeResourcer()
 
-	result, err := r.ExecuteAction(nodePluginCtx(), cs, pkgtypes.ResourceMeta{}, "get-conditions", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "get-conditions", resource.ActionInput{
 		ID: "ghost",
 	})
 
@@ -537,7 +530,7 @@ func TestNodeResourcer_UnknownAction(t *testing.T) {
 	cs := newNodeClientSet()
 	r := newTestNodeResourcer()
 
-	result, err := r.ExecuteAction(nodePluginCtx(), cs, pkgtypes.ResourceMeta{}, "invalid", pkgtypes.ActionInput{})
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "invalid", resource.ActionInput{})
 
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -549,7 +542,7 @@ func TestNodeResourcer_UnknownAction(t *testing.T) {
 func TestNodeResourcer_StreamAction_NotSupported(t *testing.T) {
 	r := newTestNodeResourcer()
 
-	err := r.StreamAction(nodePluginCtx(), nil, pkgtypes.ResourceMeta{}, "cordon", pkgtypes.ActionInput{}, nil)
+	err := r.StreamAction(context.Background(), nil, resource.ResourceMeta{}, "cordon", resource.ActionInput{}, nil)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "streaming actions not supported")

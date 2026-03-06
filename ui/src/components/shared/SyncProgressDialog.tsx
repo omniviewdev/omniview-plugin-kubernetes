@@ -5,12 +5,12 @@ import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import IconButton from '@mui/material/IconButton';
 import LinearProgress from '@mui/material/LinearProgress';
-import { useInformerState, InformerResourceState } from '@omniviewdev/runtime';
+import { useWatchState, WatchState } from '@omniviewdev/runtime';
 import { ResourceClient } from '@omniviewdev/runtime/api';
 import { Button } from '@omniviewdev/ui/buttons';
 import { Text } from '@omniviewdev/ui/typography';
 import React from 'react';
-import { LuCircleCheck, LuCircleAlert, LuCircleSlash, LuX } from 'react-icons/lu';
+import { LuCircleCheck, LuCircleAlert, LuCircleSlash, LuShieldAlert, LuX } from 'react-icons/lu';
 
 import { useStableObject } from '../../hooks/useStableRef';
 import { parseResourceKey, formatGroup } from '../../utils/resourceKey';
@@ -93,40 +93,48 @@ interface SyncProgressDialogProps {
   connectionID: string;
 }
 
-type ResourceItem = { key: string; kind: string; state: InformerResourceState; count: number };
+type ResourceItem = { key: string; kind: string; state: WatchState; count: number };
 
 /** Whether a state is terminal (done — won't change further) */
-const isTerminal = (s: InformerResourceState) =>
-  s === InformerResourceState.Synced ||
-  s === InformerResourceState.Error ||
-  s === InformerResourceState.Cancelled;
+const isTerminal = (s: WatchState) =>
+  s === WatchState.SYNCED ||
+  s === WatchState.ERROR ||
+  s === WatchState.STOPPED ||
+  s === WatchState.FAILED ||
+  s === WatchState.FORBIDDEN ||
+  s === WatchState.SKIPPED;
 
-function StateIcon({ state }: { state: InformerResourceState }) {
+function StateIcon({ state }: { state: WatchState }) {
   switch (state) {
-    case InformerResourceState.Pending:
+    case WatchState.IDLE:
       return <CircularProgress size={14} thickness={5} sx={pendingSpinnerSx} />;
-    case InformerResourceState.Syncing:
-      return (
-        <CircularProgress size={14} thickness={5} sx={syncingSpinnerSx} />
-      );
-    case InformerResourceState.Synced:
+    case WatchState.SYNCING:
+      return <CircularProgress size={14} thickness={5} sx={syncingSpinnerSx} />;
+    case WatchState.SYNCED:
       return <LuCircleCheck size={14} color="#3fb950" />;
-    case InformerResourceState.Error:
+    case WatchState.ERROR:
+    case WatchState.FAILED:
       return <LuCircleAlert size={14} color="#f85149" />;
-    case InformerResourceState.Cancelled:
+    case WatchState.FORBIDDEN:
+      return <LuShieldAlert size={14} color="#d29922" />;
+    case WatchState.STOPPED:
+    case WatchState.SKIPPED:
       return <LuCircleSlash size={14} color="var(--ov-fg-faint)" />;
     default:
-      return null;
+      return <LuCircleSlash size={14} color="var(--ov-fg-faint)" />;
   }
 }
 
 /** Per-group progress summary */
 const GroupProgress = React.memo(function GroupProgress({ items }: { items: ResourceItem[] }) {
-  const total = items.length;
-  const done = items.filter((i) => isTerminal(i.state)).length;
-  const allDone = done === total;
-  const hasError = items.some((i) => i.state === InformerResourceState.Error);
-  const percent = total > 0 ? Math.round((done / total) * 100) : 0;
+  const watched = items.filter((i) => i.state !== WatchState.SKIPPED);
+  const skipped = items.length - watched.length;
+  const total = watched.length;
+  const done = watched.filter((i) => isTerminal(i.state)).length;
+  const allDone = total > 0 && done === total;
+  const allSkipped = total === 0 && skipped > 0;
+  const hasError = watched.some((i) => i.state === WatchState.ERROR || i.state === WatchState.FAILED);
+  const percent = total > 0 ? Math.round((done / total) * 100) : allSkipped ? 100 : 0;
 
   return (
     <Box sx={groupProgressWrapperSx}>
@@ -139,7 +147,7 @@ const GroupProgress = React.memo(function GroupProgress({ items }: { items: Reso
           borderRadius: 1.5,
           bgcolor: 'rgba(255,255,255,0.08)',
           '& .MuiLinearProgress-bar': {
-            bgcolor: hasError ? '#f85149' : allDone ? '#3fb950' : 'var(--ov-accent-fg, #58a6ff)',
+            bgcolor: hasError ? '#f85149' : (allDone || allSkipped) ? '#3fb950' : 'var(--ov-accent-fg, #58a6ff)',
             borderRadius: 1.5,
           },
         }}
@@ -148,7 +156,7 @@ const GroupProgress = React.memo(function GroupProgress({ items }: { items: Reso
         size="xs"
         sx={groupProgressCountSx}
       >
-        {done}/{total}
+        {allSkipped ? `${skipped} skipped` : `${done}/${total}`}
       </Text>
     </Box>
   );
@@ -169,25 +177,27 @@ function SyncProgressDialogInner({
   pluginID,
   connectionID,
 }: SyncProgressDialogProps) {
-  const { summary, syncProgress, isFullySynced } = useInformerState({ pluginID, connectionID });
+  const { summary } = useWatchState({ pluginID, connectionID });
 
   const resources = useStableObject(summary.data?.resources ?? {});
   const resourceCounts = useStableObject(summary.data?.resourceCounts ?? {});
-  const totalResources = summary.data?.totalResources ?? 0;
 
-  // Count resources that have reached a terminal state (synced, error, cancelled)
-  const doneCount = React.useMemo(() => {
-    let count = 0;
+  // Count resources by category: watched (attempted) vs skipped/inaccessible
+  const { watchedTotal, watchedDone, skippedCount } = React.useMemo(() => {
+    let watched = 0;
+    let done = 0;
+    let skipped = 0;
     for (const state of Object.values(resources)) {
-      if (
-        state === InformerResourceState.Synced ||
-        state === InformerResourceState.Error ||
-        state === InformerResourceState.Cancelled
-      ) {
-        count++;
+      if (state === WatchState.SKIPPED) {
+        skipped++;
+        continue;
+      }
+      watched++;
+      if (isTerminal(state)) {
+        done++;
       }
     }
-    return count;
+    return { watchedTotal: watched, watchedDone: done, skippedCount: skipped };
   }, [resources]);
 
   // Group resources by API group, sorted with Core first
@@ -214,14 +224,15 @@ function SyncProgressDialogInner({
     });
   }, [resources, resourceCounts]);
 
-  const percent = Math.round(syncProgress * 100);
+  const watchedAllDone = watchedTotal > 0 && watchedDone === watchedTotal;
+  const percent = watchedTotal > 0 ? Math.round((watchedDone / watchedTotal) * 100) : 0;
 
   const handleRetry = React.useCallback(
     async (resourceKey: string) => {
       try {
-        await ResourceClient.EnsureInformerForResource(pluginID, connectionID, resourceKey);
+        await ResourceClient.EnsureResourceWatch(pluginID, connectionID, resourceKey);
       } catch (err) {
-        console.error('Failed to retry informer:', err);
+        console.error('Failed to retry watch:', err);
       }
     },
     [pluginID, connectionID],
@@ -242,16 +253,16 @@ function SyncProgressDialogInner({
       {/* Header */}
       <Box sx={headerSx}>
         <Box sx={headerLeftSx}>
-          {!isFullySynced && (
+          {!watchedAllDone && (
             <CircularProgress
               size={16}
               thickness={5}
               sx={syncingSpinnerSx}
             />
           )}
-          {isFullySynced && <LuCircleCheck size={16} color="#3fb950" />}
+          {watchedAllDone && <LuCircleCheck size={16} color="#3fb950" />}
           <Text weight="semibold" size="sm">
-            {isFullySynced ? `Synced "${clusterName}"` : `Syncing "${clusterName}"`}
+            {watchedAllDone ? `Synced "${clusterName}"` : `Syncing "${clusterName}"`}
           </Text>
         </Box>
         <IconButton size="small" onClick={onClose} sx={closeButtonSx}>
@@ -271,16 +282,21 @@ function SyncProgressDialogInner({
               borderRadius: 3,
               bgcolor: 'rgba(255,255,255,0.08)',
               '& .MuiLinearProgress-bar': {
-                bgcolor: isFullySynced ? '#3fb950' : 'var(--ov-accent-fg, #58a6ff)',
+                bgcolor: watchedAllDone ? '#3fb950' : 'var(--ov-accent-fg, #58a6ff)',
                 borderRadius: 3,
                 transition: 'transform 0.3s ease',
               },
             }}
           />
           <Text size="xs" sx={progressPercentSx}>
-            {percent}%&ensp;{doneCount}/{totalResources}
+            {percent}%&ensp;{watchedDone}/{watchedTotal}
           </Text>
         </Box>
+        {skippedCount > 0 && (
+          <Text size="xs" sx={{ color: 'var(--ov-fg-faint)', mt: 0.25 }}>
+            {skippedCount} resource{skippedCount !== 1 ? 's' : ''} skipped (unavailable on this cluster)
+          </Text>
+        )}
       </Box>
 
       {/* Resource list */}
@@ -309,27 +325,29 @@ function SyncProgressDialogInner({
                   py: 0.5,
                   borderBottom: '1px solid rgba(255,255,255,0.04)',
                   '&:last-child': { borderBottom: 'none' },
-                  opacity: state === InformerResourceState.Cancelled ? 0.4 : 1,
+                  opacity: (state === WatchState.STOPPED || state === WatchState.SKIPPED || state === WatchState.IDLE) ? 0.4 : 1,
                 }}
               >
                 <StateIcon state={state} />
                 <Text size="xs" sx={kindTextSx}>
                   {kind}
                 </Text>
-                {state === InformerResourceState.Cancelled && (
-                  <Text size="xs" sx={skippedTextSx}>
-                    skipped
+                {state === WatchState.FORBIDDEN && (
+                  <Text size="xs" sx={{ color: '#d29922', fontStyle: 'italic' }}>
+                    No access
                   </Text>
                 )}
-                {state === InformerResourceState.Synced && count > 0 && (
-                  <Text
-                    size="xs"
-                    sx={countTextSx}
-                  >
+                {(state === WatchState.STOPPED || state === WatchState.SKIPPED) && (
+                  <Text size="xs" sx={skippedTextSx}>
+                    Skipped
+                  </Text>
+                )}
+                {state === WatchState.SYNCED && count > 0 && (
+                  <Text size="xs" sx={countTextSx}>
                     {count}
                   </Text>
                 )}
-                {state === InformerResourceState.Error && (
+                {(state === WatchState.ERROR || state === WatchState.FAILED) && (
                   <Button
                     emphasis="soft"
                     size="sm"

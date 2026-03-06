@@ -24,7 +24,7 @@ export const formatGroup = (group: string): string => {
 };
 
 /**
- * Convert a nav item ID (e.g. "core_v1_Pod") to an informer resource key (e.g. "core::v1::Pod").
+ * Convert a nav item ID (e.g. "core_v1_Pod") to a watch resource key (e.g. "core::v1::Pod").
  * Nav IDs always have exactly 3 underscore-separated segments: group_version_kind.
  */
 export const toResourceKey = (navId: string): string => {

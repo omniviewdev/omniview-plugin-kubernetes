@@ -1,5 +1,5 @@
 id: kubernetes
-version: 0.0.1-alpha.21
+version: 0.1.1
 name: Kubernetes
 icon: SiKubernetes
 description: Kubernetes is an open-source system for automating deployment, scaling, and management of containerized applications.

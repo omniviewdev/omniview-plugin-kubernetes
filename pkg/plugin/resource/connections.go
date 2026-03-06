@@ -12,7 +12,6 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
-	"github.com/omniview/kubernetes/pkg/plugin/helm"
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	"github.com/omniview/kubernetes/pkg/utils/kubeauth"
 	corev1 "k8s.io/api/core/v1"
@@ -24,7 +23,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
-	resourcetypes "github.com/omniviewdev/plugin-sdk/pkg/resource/types"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
 	"github.com/omniviewdev/plugin-sdk/pkg/utils"
 )
@@ -525,79 +523,5 @@ func enrichAKSLabels(labels map[string]interface{}, authInfo *clientcmdapi.AuthI
 	}
 }
 
-func processGroupVersion(gv string) (string, string) {
-	parts := strings.Split(gv, "/")
-
-	if len(parts) == 1 {
-		return "core", parts[0]
-	}
-
-	group := parts[0]
-	version := parts[1]
-
-	if strings.HasSuffix(group, ".k8s.io") {
-		// if group ends in .k8s.io, remove it
-		group = strings.TrimSuffix(group, ".k8s.io")
-
-		// if group still has dots, remove them except in our weird cases
-		if strings.Contains(group, ".") {
-			// split by dot, and combine in reverse order without dot
-			parts := strings.Split(group, ".")
-
-			if strings.HasPrefix(group, "internal.") {
-				group = ""
-				for i := len(parts) - 1; i >= 0; i-- {
-					group += parts[i]
-				}
-			} else {
-				// take the first part of the group
-				group = parts[0]
-			}
-		}
-	}
-
-	return group, version
-}
-
-// staticResourceMetas are resource types that are not discoverable via the
-// K8s API server but should be available for every connection.
-var staticResourceMetas = []resourcetypes.ResourceMeta{
-	helm.ReleaseMeta,
-	helm.RepoMeta,
-	helm.ChartMeta,
-}
-
-func DiscoveryFunc(
-	ctx *types.PluginContext,
-	client *clients.DiscoveryClient,
-) ([]resourcetypes.ResourceMeta, error) {
-	// TODO: not sure if we wnat preferred or not, but I could see a use case for getting all supported
-	groups, err := client.DiscoveryClient.ServerPreferredResources()
-	if err != nil {
-		return nil, err
-	}
-
-	// guestimate about 5 resources per group
-	response := make([]resourcetypes.ResourceMeta, 0, len(groups)*5)
-
-	for _, grouplist := range groups {
-		group, version := processGroupVersion(grouplist.GroupVersion)
-
-		for _, resource := range grouplist.APIResources {
-			response = append(response, resourcetypes.ResourceMeta{
-				Group:   group,
-				Version: version,
-				Kind:    resource.Kind,
-			})
-		}
-	}
-
-	// Append non-K8s resource types that are statically registered (e.g. Helm).
-	// These aren't discoverable via the K8s API server but are available for
-	// every connection.
-	for _, meta := range staticResourceMetas {
-		response = append(response, meta)
-	}
-
-	return response, nil
-}
+// NOTE: DiscoveryFunc and staticResourceMetas removed — discovery is now handled
+// by kubeDiscoveryProvider in discovery_provider.go.

@@ -1,9 +1,9 @@
 package resourcers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 
@@ -15,308 +15,230 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	pkgtypes "github.com/omniviewdev/plugin-sdk/pkg/resource/types"
-	"github.com/omniviewdev/plugin-sdk/pkg/types"
+	resource "github.com/omniviewdev/plugin-sdk/pkg/v1/resource"
 )
 
-// KubernetesPatternResourcer provides a fallback resourcer for arbitrary Kubernetes resources
-// that don't have a dedicated static resourcer. It constructs API paths dynamically from the
-// ResourceMeta parameter and is registered as a wildcard pattern resourcer.
+// Compile-time check.
+var _ resource.Resourcer[clients.ClientSet] = (*KubernetesPatternResourcer)(nil)
+
+// KubernetesPatternResourcer provides a fallback resourcer for arbitrary Kubernetes resources.
 type KubernetesPatternResourcer struct {
 	sync.RWMutex
-	// Logger
 	log *zap.SugaredLogger
 }
 
-// NewKubernetesPatternResourcer creates a new instance of KubernetesPatternResourcer for interacting
-// with arbitrary resources in a Kubernetes cluster.
-func NewKubernetesPatternResourcer(
-	logger *zap.SugaredLogger,
-) pkgtypes.Resourcer[clients.ClientSet] {
-	// Create a new instance of the service
-	service := KubernetesPatternResourcer{
+// NewKubernetesPatternResourcer creates a new pattern resourcer.
+func NewKubernetesPatternResourcer(logger *zap.SugaredLogger) *KubernetesPatternResourcer {
+	return &KubernetesPatternResourcer{
 		RWMutex: sync.RWMutex{},
 		log:     logger.With("service", "PatternResourcerService"),
 	}
-
-	return &service
 }
 
-func parseList(list *unstructured.UnstructuredList) ([]map[string]interface{}, error) {
-	result := make([]map[string]interface{}, 0, len(list.Items))
+func parseListV1(list *unstructured.UnstructuredList) ([]json.RawMessage, error) {
+	result := make([]json.RawMessage, 0, len(list.Items))
 	for _, r := range list.Items {
-		obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&r)
+		data, err := json.Marshal(r.Object)
 		if err != nil {
 			return nil, err
 		}
-		result = append(result, obj)
+		result = append(result, data)
 	}
 	return result, nil
 }
 
-func parseSingleFromList(list *unstructured.UnstructuredList) (map[string]interface{}, error) {
-	if len(list.Items) != 1 {
-		b, err := json.MarshalIndent(list, "", "  ")
-		if err != nil {
-			fmt.Println("error:", err)
-		}
-		log.Println("Error parsing single from list: ", string(b))
-		return nil, fmt.Errorf("expected one item in list, got %d", len(list.Items))
-	}
-	obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&list.Items[0])
-	if err != nil {
-		return nil, err
-	}
-
-	return obj, nil
-}
-
-// resourceName returns the pluralized, lowercase resource name from a ResourceMeta Kind.
-func resourceName(meta pkgtypes.ResourceMeta) string {
+// resourceNameV1 returns the pluralized, lowercase resource name from a ResourceMeta Kind.
+func resourceNameV1(meta resource.ResourceMeta) string {
 	return flect.Pluralize(strings.ToLower(meta.Kind))
 }
 
-// gvrFromMeta constructs a GroupVersionResource from ResourceMeta, using the
-// same pluralization that Get/List/Find use so that read and write paths
-// operate on the same Kubernetes API resource.
-func gvrFromMeta(meta pkgtypes.ResourceMeta) schema.GroupVersionResource {
+// gvrFromMetaV1 constructs a GroupVersionResource from v1 ResourceMeta.
+func gvrFromMetaV1(meta resource.ResourceMeta) schema.GroupVersionResource {
+	group := meta.Group
+	if group == "core" {
+		group = ""
+	}
 	return schema.GroupVersionResource{
-		Group:    meta.Group,
+		Group:    group,
 		Version:  meta.Version,
-		Resource: resourceName(meta),
+		Resource: resourceNameV1(meta),
 	}
 }
 
-// apiBasePath returns the REST API base path for the given group and version.
-// Core API resources (group="") use /api/v1, while named groups use /apis/{group}/{version}.
-func apiBasePath(group, version string) string {
-	if group == "" {
+func apiBasePathV1(group, version string) string {
+	if group == "" || group == "core" {
 		return fmt.Sprintf("/api/%s", version)
 	}
 	return fmt.Sprintf("/apis/%s/%s", group, version)
 }
 
-// ============================ ACTION METHODS ============================ //.
-
-// Get returns a resource, given a resource meta.
 func (s *KubernetesPatternResourcer) Get(
-	ctx *types.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	meta pkgtypes.ResourceMeta,
-	input pkgtypes.GetInput,
-) (*pkgtypes.GetResult, error) {
-	base := apiBasePath(meta.Group, meta.Version)
-	resource := resourceName(meta)
+	meta resource.ResourceMeta,
+	input resource.GetInput,
+) (*resource.GetResult, error) {
+	base := apiBasePathV1(meta.Group, meta.Version)
+	resName := resourceNameV1(meta)
 
 	var abspath string
 	if input.Namespace != "" {
-		abspath = fmt.Sprintf("%s/namespaces/%s/%s/%s", base, input.Namespace, resource, input.ID)
+		abspath = fmt.Sprintf("%s/namespaces/%s/%s/%s", base, input.Namespace, resName, input.ID)
 	} else {
-		abspath = fmt.Sprintf("%s/%s/%s", base, resource, input.ID)
+		abspath = fmt.Sprintf("%s/%s/%s", base, resName, input.ID)
 	}
 
-	log.Println("abspath: ", abspath)
-
-	result := client.
-		Clientset.
-		RESTClient().
-		Get().
-		AbsPath(abspath).
-		Do(ctx.Context)
-
+	result := client.Clientset.RESTClient().Get().AbsPath(abspath).Do(ctx)
 	retBytes, err := result.Raw()
 	if err != nil {
-		log.Println("Error getting resource: ", err)
 		return nil, err
 	}
 	uncastObj, err := runtime.Decode(unstructured.UnstructuredJSONScheme, retBytes)
 	if err != nil {
-		log.Println("Error getting resource: ", err)
 		return nil, err
 	}
 
 	obj, ok := uncastObj.(*unstructured.Unstructured)
 	if !ok {
-		err = fmt.Errorf("expected unstructured.Unstructured, got %T", uncastObj)
-		log.Println("Error getting resource: ", err)
-		return nil, err
+		return nil, fmt.Errorf("expected unstructured.Unstructured, got %T", uncastObj)
 	}
 
-	return &pkgtypes.GetResult{Success: true, Result: obj.Object}, nil
+	data, err := json.Marshal(obj.Object)
+	if err != nil {
+		return nil, err
+	}
+	return &resource.GetResult{Success: true, Result: data}, nil
 }
 
-// List returns a map of resources for the provided cluster contexts.
 func (s *KubernetesPatternResourcer) List(
-	ctx *types.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	meta pkgtypes.ResourceMeta,
-	_ pkgtypes.ListInput,
-) (*pkgtypes.ListResult, error) {
-	base := apiBasePath(meta.Group, meta.Version)
-	resource := resourceName(meta)
+	meta resource.ResourceMeta,
+	_ resource.ListInput,
+) (*resource.ListResult, error) {
+	base := apiBasePathV1(meta.Group, meta.Version)
+	resName := resourceNameV1(meta)
 
-	result := client.
-		Clientset.
-		RESTClient().
-		Get().
-		AbsPath(fmt.Sprintf("%s/%s", base, resource)).
-		Do(ctx.Context)
+	result := client.Clientset.RESTClient().Get().
+		AbsPath(fmt.Sprintf("%s/%s", base, resName)).Do(ctx)
 
 	retBytes, err := result.Raw()
 	if err != nil {
-		log.Println("Error listing resources: ", err)
 		return nil, err
 	}
 	uncastObj, err := runtime.Decode(unstructured.UnstructuredJSONScheme, retBytes)
 	if err != nil {
-		log.Println("Error listing resources: ", err)
 		return nil, err
 	}
 
 	resources, ok := uncastObj.(*unstructured.UnstructuredList)
 	if ok {
-		resultObj, err := parseList(resources)
+		resultObj, err := parseListV1(resources)
 		if err != nil {
-			log.Println("Error listing resources: ", err)
 			return nil, err
 		}
-		return &pkgtypes.ListResult{Success: true, Result: resultObj}, nil
+		return &resource.ListResult{Success: true, Result: resultObj}, nil
 	}
 
 	resources, err = uncastObj.(*unstructured.Unstructured).ToList()
 	if err != nil {
-		log.Println("Error listing resources: ", err)
 		return nil, err
 	}
-	resultObj, err := parseList(resources)
+	resultObj, err := parseListV1(resources)
 	if err != nil {
-		log.Println("Error listing resources: ", err)
 		return nil, err
 	}
-
-	return &pkgtypes.ListResult{Success: true, Result: resultObj}, nil
+	return &resource.ListResult{Success: true, Result: resultObj}, nil
 }
 
-// Find returns a resource by name and namespace.
-// TODO - implement, for now this just does list
 func (s *KubernetesPatternResourcer) Find(
-	ctx *types.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	meta pkgtypes.ResourceMeta,
-	_ pkgtypes.FindInput,
-) (*pkgtypes.FindResult, error) {
-	base := apiBasePath(meta.Group, meta.Version)
-	resource := resourceName(meta)
-
-	result := client.
-		Clientset.
-		RESTClient().
-		Get().
-		AbsPath(fmt.Sprintf("%s/%s", base, resource)).
-		Do(ctx.Context)
-
-	retBytes, err := result.Raw()
+	meta resource.ResourceMeta,
+	_ resource.FindInput,
+) (*resource.FindResult, error) {
+	listResult, err := s.List(ctx, client, meta, resource.ListInput{})
 	if err != nil {
-		log.Println("Error listing resources: ", err)
 		return nil, err
 	}
-	uncastObj, err := runtime.Decode(unstructured.UnstructuredJSONScheme, retBytes)
-	if err != nil {
-		log.Println("Error listing resources: ", err)
-		return nil, err
-	}
-
-	resources, ok := uncastObj.(*unstructured.UnstructuredList)
-	if ok {
-		resultObj, err := parseList(resources)
-		if err != nil {
-			log.Println("Error listing resources: ", err)
-			return nil, err
-		}
-		return &pkgtypes.FindResult{Success: true, Result: resultObj}, nil
-	}
-
-	resources, err = uncastObj.(*unstructured.Unstructured).ToList()
-	if err != nil {
-		log.Println("Error listing resources: ", err)
-		return nil, err
-	}
-	resultObj, err := parseList(resources)
-	if err != nil {
-		log.Println("Error listing resources: ", err)
-		return nil, err
-	}
-
-	return &pkgtypes.FindResult{Success: true, Result: resultObj}, nil
+	return &resource.FindResult{Success: listResult.Success, Result: listResult.Result}, nil
 }
 
-// Create creates a new resource in the given resource namespace.
 func (s *KubernetesPatternResourcer) Create(
-	ctx *types.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	meta pkgtypes.ResourceMeta,
-	input pkgtypes.CreateInput,
-) (*pkgtypes.CreateResult, error) {
-	result := new(pkgtypes.CreateResult)
-	lister := client.DynamicClient.Resource(gvrFromMeta(meta)).Namespace(input.Namespace)
-	object := &unstructured.Unstructured{
-		Object: input.Input,
+	meta resource.ResourceMeta,
+	input resource.CreateInput,
+) (*resource.CreateResult, error) {
+	var obj map[string]interface{}
+	if err := json.Unmarshal(input.Input, &obj); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal create input: %w", err)
 	}
-	created, err := lister.Create(ctx.Context, object, v1.CreateOptions{})
+
+	object := &unstructured.Unstructured{Object: obj}
+	lister := client.DynamicClient.Resource(gvrFromMetaV1(meta)).Namespace(input.Namespace)
+	created, err := lister.Create(ctx, object, v1.CreateOptions{})
 	if err != nil {
 		return nil, err
 	}
-	result.Success = true
-	result.Result = created.Object
-	return result, nil
+
+	data, err := json.Marshal(created.Object)
+	if err != nil {
+		return nil, err
+	}
+	return &resource.CreateResult{Success: true, Result: data}, nil
 }
 
 func (s *KubernetesPatternResourcer) Update(
-	ctx *types.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	meta pkgtypes.ResourceMeta,
-	input pkgtypes.UpdateInput,
-) (*pkgtypes.UpdateResult, error) {
-	result := new(pkgtypes.UpdateResult)
-	// first get the resource
-	lister := client.DynamicClient.Resource(gvrFromMeta(meta)).Namespace(input.Namespace)
-	resource, err := lister.Get(ctx.Context, input.ID, v1.GetOptions{})
+	meta resource.ResourceMeta,
+	input resource.UpdateInput,
+) (*resource.UpdateResult, error) {
+	var obj map[string]interface{}
+	if err := json.Unmarshal(input.Input, &obj); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal update input: %w", err)
+	}
+
+	lister := client.DynamicClient.Resource(gvrFromMetaV1(meta)).Namespace(input.Namespace)
+	existing, err := lister.Get(ctx, input.ID, v1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	existing.Object = obj
+
+	updated, err := lister.Update(ctx, existing, v1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
 
-	// update and resubmit
-	resource.Object = input.Input
-	updated, err := lister.Update(ctx.Context, resource, v1.UpdateOptions{})
+	data, err := json.Marshal(updated.Object)
 	if err != nil {
 		return nil, err
 	}
-	result.Success = true
-	result.Result = updated.Object
-	return result, nil
+	return &resource.UpdateResult{Success: true, Result: data}, nil
 }
 
 func (s *KubernetesPatternResourcer) Delete(
-	ctx *types.PluginContext,
+	ctx context.Context,
 	client *clients.ClientSet,
-	meta pkgtypes.ResourceMeta,
-	input pkgtypes.DeleteInput,
-) (*pkgtypes.DeleteResult, error) {
-	result := new(pkgtypes.DeleteResult)
-	lister := client.DynamicClient.Resource(gvrFromMeta(meta)).Namespace(input.Namespace)
+	meta resource.ResourceMeta,
+	input resource.DeleteInput,
+) (*resource.DeleteResult, error) {
+	lister := client.DynamicClient.Resource(gvrFromMetaV1(meta)).Namespace(input.Namespace)
 
-	// first, get the resource for the delete so we can return back to the client
-	resource, err := lister.Get(ctx.Context, input.ID, v1.GetOptions{})
+	existing, err := lister.Get(ctx, input.ID, v1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
-	result.Result = resource.Object
 
-	// delete the resource
-	if err = lister.Delete(ctx.Context, input.ID, v1.DeleteOptions{}); err != nil {
+	if err = lister.Delete(ctx, input.ID, v1.DeleteOptions{}); err != nil {
 		return nil, err
 	}
 
-	result.Success = true
-	return result, nil
+	data, err := json.Marshal(existing.Object)
+	if err != nil {
+		return nil, err
+	}
+	return &resource.DeleteResult{Success: true, Result: data}, nil
 }

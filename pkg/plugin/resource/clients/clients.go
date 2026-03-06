@@ -1,17 +1,14 @@
 package clients
 
 import (
-	"fmt"
+	"sync"
 	"time"
 
-	"github.com/omniview/kubernetes/pkg/utils"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-
-	pkgtypes "github.com/omniviewdev/plugin-sdk/pkg/types"
 )
 
 const (
@@ -26,41 +23,76 @@ type ClientSet struct {
 	DynamicClient          dynamic.Interface
 	DynamicInformerFactory dynamicinformer.DynamicSharedInformerFactory
 	RESTConfig             *rest.Config
+	factoryStartOnce sync.Once
+	factoryStopCh    chan struct{}
+
+	// nsFactories holds per-namespace informer factories for scoped watching.
+	nsFactories   map[string]dynamicinformer.DynamicSharedInformerFactory
+	nsFactoriesMu sync.Mutex
 }
 
-// CreateClient creates a new client for interacting with the API server for a given cluster, given a
-// path to the kubeconfig file and the context to use.
-func CreateClient(ctx *pkgtypes.PluginContext) (*ClientSet, error) {
-	clients, err := utils.KubeClientsFromContext(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return &ClientSet{
-		Clientset:              clients.Clientset,
-		KubeClient:             clients.Clientset,
-		DiscoveryClient:        clients.Discovery,
-		DynamicClient:          clients.Dynamic,
-		DynamicInformerFactory: clients.InformerFactory,
-		RESTConfig:             clients.RestConfig,
-	}, nil
+// EnsureFactoryStarted idempotently starts the DynamicInformerFactory.
+// factory.Start() only starts informers already registered via ForResource(),
+// so callers should register their informer BEFORE calling this method.
+// Start() is safe to call repeatedly — it skips already-running informers.
+//
+// The factory uses a dedicated stop channel managed by the ClientSet lifecycle
+// (closed by Shutdown/StopFactory). This ensures that individual resource
+// watch goroutines being cancelled does NOT stop the shared factory — only an
+// explicit shutdown or client destruction does.
+func (cs *ClientSet) EnsureFactoryStarted() {
+	cs.factoryStartOnce.Do(func() {
+		cs.factoryStopCh = make(chan struct{})
+	})
+	cs.DynamicInformerFactory.Start(cs.factoryStopCh)
 }
 
-// RefreshClient re-reads the kubeconfig and replaces all client components
-// in-place so that cached pointers pick up fresh credentials.
-func RefreshClient(ctx *pkgtypes.PluginContext, client *ClientSet) error {
-	fresh, err := utils.KubeClientsFromContext(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to refresh client: %w", err)
+// StopFactory closes the factory stop channel, signaling all informers to stop.
+// Safe to call multiple times. Called by DestroyClient before Shutdown().
+func (cs *ClientSet) StopFactory() {
+	cs.factoryStartOnce.Do(func() {
+		cs.factoryStopCh = make(chan struct{})
+	})
+	select {
+	case <-cs.factoryStopCh:
+		// already closed
+	default:
+		close(cs.factoryStopCh)
 	}
-	client.Clientset = fresh.Clientset
-	client.KubeClient = fresh.Clientset
-	client.DiscoveryClient = fresh.Discovery
-	client.DynamicClient = fresh.Dynamic
-	client.RESTConfig = fresh.RestConfig
-	client.DynamicInformerFactory = dynamicinformer.NewDynamicSharedInformerFactory(
-		fresh.Dynamic,
+}
+
+// GetOrCreateNamespaceFactory returns a DynamicSharedInformerFactory scoped to a
+// single namespace. Factories are created lazily and cached for reuse.
+// The returned factory is NOT started — callers must call Start() after registering
+// informers via ForResource().
+func (cs *ClientSet) GetOrCreateNamespaceFactory(ns string) dynamicinformer.DynamicSharedInformerFactory {
+	cs.nsFactoriesMu.Lock()
+	defer cs.nsFactoriesMu.Unlock()
+
+	if cs.nsFactories == nil {
+		cs.nsFactories = make(map[string]dynamicinformer.DynamicSharedInformerFactory)
+	}
+	if f, ok := cs.nsFactories[ns]; ok {
+		return f
+	}
+
+	f := dynamicinformer.NewFilteredDynamicSharedInformerFactory(
+		cs.DynamicClient,
 		DefaultResyncPeriod,
+		ns,
+		nil,
 	)
-	return nil
+	cs.nsFactories[ns] = f
+	return f
+}
+
+// ShutdownNamespaceFactories stops all per-namespace informer factories.
+func (cs *ClientSet) ShutdownNamespaceFactories() {
+	cs.nsFactoriesMu.Lock()
+	defer cs.nsFactoriesMu.Unlock()
+
+	for ns, f := range cs.nsFactories {
+		f.Shutdown()
+		delete(cs.nsFactories, ns)
+	}
 }

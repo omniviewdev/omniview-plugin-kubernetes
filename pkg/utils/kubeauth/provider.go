@@ -41,6 +41,11 @@ func LoadKubeClients(kubeconfigPath string, kubeContext string) (*KubeClientBund
 		return nil, err
 	}
 
+	// Raise rate limits from default (5 QPS / 10 burst) to avoid cascading
+	// timeouts when starting many informers concurrently.
+	restConfig.QPS = 50
+	restConfig.Burst = 100
+
 	clientset, err := strategy.NewForConfig(restConfig)
 	if err != nil {
 		log.Printf("failed to build clientset config: %s", err.Error())
@@ -59,7 +64,7 @@ func LoadKubeClients(kubeconfigPath string, kubeContext string) (*KubeClientBund
 		return nil, err
 	}
 
-	informerFactory := dynamicinformer.NewDynamicSharedInformerFactory(dyn, 0)
+	informerFactory := dynamicinformer.NewDynamicSharedInformerFactory(dyn, DefaultResyncPeriod)
 
 	return &KubeClientBundle{
 		Clientset:       clientset,

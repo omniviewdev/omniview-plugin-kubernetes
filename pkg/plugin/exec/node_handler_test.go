@@ -15,7 +15,7 @@ import (
 
 	"github.com/omniview/kubernetes/pkg/plugin/resource/resourcers"
 	"github.com/omniview/kubernetes/pkg/utils/kubeauth"
-	"github.com/omniviewdev/plugin-sdk/pkg/exec"
+	"github.com/omniviewdev/plugin-sdk/pkg/v1/exec"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
 )
 

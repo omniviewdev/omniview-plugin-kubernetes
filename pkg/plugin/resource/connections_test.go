@@ -12,38 +12,6 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
-// --- processGroupVersion ---
-
-func TestProcessGroupVersion(t *testing.T) {
-	tests := []struct {
-		name          string
-		input         string
-		expectedGroup string
-		expectedVer   string
-	}{
-		{"core v1", "v1", "core", "v1"},
-		{"apps/v1", "apps/v1", "apps", "v1"},
-		{"batch/v1", "batch/v1", "batch", "v1"},
-		{"networking.k8s.io/v1", "networking.k8s.io/v1", "networking", "v1"},
-		{"storage.k8s.io/v1", "storage.k8s.io/v1", "storage", "v1"},
-		{"rbac.authorization.k8s.io/v1", "rbac.authorization.k8s.io/v1", "rbac", "v1"},
-		{"internal.apiserver.k8s.io/v1alpha1", "internal.apiserver.k8s.io/v1alpha1", "apiserverinternal", "v1alpha1"},
-		{"flowcontrol.apiserver.k8s.io/v1", "flowcontrol.apiserver.k8s.io/v1", "flowcontrol", "v1"},
-		{"admissionregistration.k8s.io/v1", "admissionregistration.k8s.io/v1", "admissionregistration", "v1"},
-		{"autoscaling/v2", "autoscaling/v2", "autoscaling", "v2"},
-		{"policy/v1", "policy/v1", "policy", "v1"},
-		{"v1beta1 core", "v1beta1", "core", "v1beta1"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			group, version := processGroupVersion(tt.input)
-			assert.Equal(t, tt.expectedGroup, group)
-			assert.Equal(t, tt.expectedVer, version)
-		})
-	}
-}
-
 // --- enrichConnectionLabels ---
 
 func TestEnrichConnectionLabels_DefaultAuth(t *testing.T) {

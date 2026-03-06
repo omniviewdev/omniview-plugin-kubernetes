@@ -14,8 +14,7 @@ import (
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
 
-	"github.com/omniviewdev/plugin-sdk/pkg/exec"
-	sdkresource "github.com/omniviewdev/plugin-sdk/pkg/resource/types"
+	"github.com/omniviewdev/plugin-sdk/pkg/v1/exec"
 	"github.com/omniviewdev/plugin-sdk/pkg/sdk"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
 )
@@ -29,7 +28,7 @@ func Register(plugin *sdk.Plugin) {
 				Resource:       "core::v1::Pod",
 				TTYHandler:     PodHandler,
 				DefaultCommand: []string{"/bin/bash"},
-				TargetBuilder: sdkresource.ActionTargetBuilder{
+				TargetBuilder: exec.ActionTargetBuilder{
 					Paths: []string{"$.spec.containers[*]"},
 					Selectors: map[string]string{
 						"container": "$.name",

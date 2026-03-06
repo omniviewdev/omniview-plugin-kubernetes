@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	sdkexec "github.com/omniviewdev/plugin-sdk/pkg/exec"
+	sdkexec "github.com/omniviewdev/plugin-sdk/pkg/v1/exec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

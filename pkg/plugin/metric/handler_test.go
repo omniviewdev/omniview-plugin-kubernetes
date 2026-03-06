@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	sdkmetric "github.com/omniviewdev/plugin-sdk/pkg/metric"
+	sdkmetric "github.com/omniviewdev/plugin-sdk/pkg/v1/metric"
 	metricsv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 
 	"k8s.io/apimachinery/pkg/api/resource"

@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
-	"github.com/omniviewdev/plugin-sdk/pkg/types"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -53,20 +52,6 @@ func newSyncedClientSet(ctx context.Context, gvr schema.GroupVersionResource, gv
 	cs.DynamicInformerFactory.Start(ctx.Done())
 	cs.DynamicInformerFactory.WaitForCacheSync(ctx.Done())
 	return cs
-}
-
-// testPluginContext creates a minimal PluginContext with a background context.
-func testPluginContext() *types.PluginContext {
-	return &types.PluginContext{
-		Context: context.Background(),
-	}
-}
-
-// testPluginContextWithCancel creates a PluginContext with a cancellable context.
-func testPluginContextWithCancel(ctx context.Context) *types.PluginContext {
-	return &types.PluginContext{
-		Context: ctx,
-	}
 }
 
 // defaultGVRListKinds returns the GVR-to-ListKind mapping for the standard test GVR (pods).

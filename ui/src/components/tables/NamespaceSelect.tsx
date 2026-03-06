@@ -24,7 +24,7 @@ type Props = {
 
 /**
  * Renders a select for choosing namespaces.
- * Uses useResources to subscribe to namespace informer events for live updates.
+ * Uses useResources to subscribe to namespace watch events for live updates.
  */
 const NamespaceSelect: React.FC<Props> = ({ connectionID, selected, setNamespaces }) => {
   const { resources } = useResources({

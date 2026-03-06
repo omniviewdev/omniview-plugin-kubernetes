@@ -2,13 +2,13 @@ package helm
 
 import (
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
-	"github.com/omniviewdev/plugin-sdk/pkg/resource/types"
+	resource "github.com/omniviewdev/plugin-sdk/pkg/v1/resource"
 	"go.uber.org/zap"
 )
 
 var (
 	// ReleaseMeta is the resource meta for helm::v1::Release.
-	ReleaseMeta = types.ResourceMeta{
+	ReleaseMeta = resource.ResourceMeta{
 		Group:       "helm",
 		Version:     "v1",
 		Kind:        "Release",
@@ -16,7 +16,7 @@ var (
 	}
 
 	// RepoMeta is the resource meta for helm::v1::Repository.
-	RepoMeta = types.ResourceMeta{
+	RepoMeta = resource.ResourceMeta{
 		Group:       "helm",
 		Version:     "v1",
 		Kind:        "Repository",
@@ -24,7 +24,7 @@ var (
 	}
 
 	// ChartMeta is the resource meta for helm::v1::Chart.
-	ChartMeta = types.ResourceMeta{
+	ChartMeta = resource.ResourceMeta{
 		Group:       "helm",
 		Version:     "v1",
 		Kind:        "Chart",
@@ -33,8 +33,8 @@ var (
 )
 
 // HelmResourceGroup returns the resource group for Helm resources.
-func HelmResourceGroup() types.ResourceGroup {
-	return types.ResourceGroup{
+func HelmResourceGroup() resource.ResourceGroup {
+	return resource.ResourceGroup{
 		ID:   "helm",
 		Name: "Helm",
 		Icon: "SiHelm",
@@ -42,22 +42,16 @@ func HelmResourceGroup() types.ResourceGroup {
 }
 
 // HelmResourceDefinitions returns the resource definitions for Helm resources.
-func HelmResourceDefinitions() map[string]types.ResourceDefinition {
-	return map[string]types.ResourceDefinition{
+func HelmResourceDefinitions() map[string]resource.ResourceDefinition {
+	return map[string]resource.ResourceDefinition{
 		ReleaseMeta.String(): {
 			IDAccessor:        "name",
 			NamespaceAccessor: "namespace",
 			MemoizerAccessor:  "name",
-			SupportedOperations: []types.OperationType{
-				types.OperationTypeGet,
-				types.OperationTypeList,
-				types.OperationTypeCreate,
-				types.OperationTypeDelete,
-			},
-			ColumnDefs: []types.ColumnDef{
+			ColumnDefs: []resource.ColumnDefinition{
 				{
-					ID:       "name",
-					Header:   "Name",
+					ID:        "name",
+					Header:    "Name",
 					Accessors: "name",
 				},
 				{
@@ -85,34 +79,28 @@ func HelmResourceDefinitions() map[string]types.ResourceDefinition {
 					Header:    "Status",
 					Accessors: "info.status",
 					ColorMap: map[string]string{
-						"deployed":        "success",
-						"failed":          "danger",
-						"pending-install": "warning",
-						"pending-upgrade": "warning",
+						"deployed":         "success",
+						"failed":           "danger",
+						"pending-install":  "warning",
+						"pending-upgrade":  "warning",
 						"pending-rollback": "warning",
-						"superseded":      "neutral",
-						"uninstalling":    "warning",
-						"uninstalled":     "neutral",
+						"superseded":       "neutral",
+						"uninstalling":     "warning",
+						"uninstalled":      "neutral",
 					},
 				},
 				{
 					ID:        "updated",
 					Header:    "Updated",
 					Accessors: "info.last_deployed",
-					Formatter: types.CellValueFormatterAge,
+					Formatter: "AGE",
 				},
 			},
 		},
 		RepoMeta.String(): {
 			IDAccessor:       "name",
 			MemoizerAccessor: "name",
-			SupportedOperations: []types.OperationType{
-				types.OperationTypeGet,
-				types.OperationTypeList,
-				types.OperationTypeCreate,
-				types.OperationTypeDelete,
-			},
-			ColumnDefs: []types.ColumnDef{
+			ColumnDefs: []resource.ColumnDefinition{
 				{
 					ID:        "name",
 					Header:    "Name",
@@ -128,11 +116,7 @@ func HelmResourceDefinitions() map[string]types.ResourceDefinition {
 		ChartMeta.String(): {
 			IDAccessor:       "id",
 			MemoizerAccessor: "id",
-			SupportedOperations: []types.OperationType{
-				types.OperationTypeGet,
-				types.OperationTypeList,
-			},
-			ColumnDefs: []types.ColumnDef{
+			ColumnDefs: []resource.ColumnDefinition{
 				{
 					ID:        "name",
 					Header:    "Name",
@@ -164,8 +148,8 @@ func HelmResourceDefinitions() map[string]types.ResourceDefinition {
 }
 
 // HelmResourcers returns the resourcer implementations for Helm resources.
-func HelmResourcers(logger *zap.SugaredLogger, svc *HelmService) map[types.ResourceMeta]types.Resourcer[clients.ClientSet] {
-	return map[types.ResourceMeta]types.Resourcer[clients.ClientSet]{
+func HelmResourcers(logger *zap.SugaredLogger, svc *HelmService) map[resource.ResourceMeta]resource.Resourcer[clients.ClientSet] {
+	return map[resource.ResourceMeta]resource.Resourcer[clients.ClientSet]{
 		ReleaseMeta: NewReleaseResourcer(logger, svc),
 		RepoMeta:    NewRepoResourcerWithActions(logger),
 		ChartMeta:   NewChartResourcerWithActions(logger),

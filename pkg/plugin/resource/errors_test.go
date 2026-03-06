@@ -13,7 +13,7 @@ import (
 
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 
-	resourcetypes "github.com/omniviewdev/plugin-sdk/pkg/resource/types"
+	sdkresource "github.com/omniviewdev/plugin-sdk/pkg/v1/resource"
 )
 
 // helper to create a Kubernetes StatusError with a given code and message.
@@ -32,7 +32,7 @@ func TestClassifyResourceError_Forbidden(t *testing.T) {
 	result := classifyResourceError(err)
 	require.NotNil(t, result)
 
-	var opErr *resourcetypes.ResourceOperationError
+	var opErr *sdkresource.ResourceOperationError
 	require.True(t, errors.As(result, &opErr))
 	assert.Equal(t, "FORBIDDEN", opErr.Code)
 	assert.Equal(t, "Access denied", opErr.Title)
@@ -46,7 +46,7 @@ func TestClassifyResourceError_Unauthorized(t *testing.T) {
 	result := classifyResourceError(err)
 	require.NotNil(t, result)
 
-	var opErr *resourcetypes.ResourceOperationError
+	var opErr *sdkresource.ResourceOperationError
 	require.True(t, errors.As(result, &opErr))
 	assert.Equal(t, "UNAUTHORIZED", opErr.Code)
 	assert.Equal(t, "Authentication failed", opErr.Title)
@@ -58,7 +58,7 @@ func TestClassifyResourceError_NotFound(t *testing.T) {
 	result := classifyResourceError(err)
 	require.NotNil(t, result)
 
-	var opErr *resourcetypes.ResourceOperationError
+	var opErr *sdkresource.ResourceOperationError
 	require.True(t, errors.As(result, &opErr))
 	assert.Equal(t, "NOT_FOUND", opErr.Code)
 	assert.Equal(t, "Resource not found", opErr.Title)
@@ -70,7 +70,7 @@ func TestClassifyResourceError_Timeout408(t *testing.T) {
 	result := classifyResourceError(err)
 	require.NotNil(t, result)
 
-	var opErr *resourcetypes.ResourceOperationError
+	var opErr *sdkresource.ResourceOperationError
 	require.True(t, errors.As(result, &opErr))
 	assert.Equal(t, "TIMEOUT", opErr.Code)
 }
@@ -81,7 +81,7 @@ func TestClassifyResourceError_Timeout504(t *testing.T) {
 	result := classifyResourceError(err)
 	require.NotNil(t, result)
 
-	var opErr *resourcetypes.ResourceOperationError
+	var opErr *sdkresource.ResourceOperationError
 	require.True(t, errors.As(result, &opErr))
 	assert.Equal(t, "TIMEOUT", opErr.Code)
 }
@@ -92,7 +92,7 @@ func TestClassifyResourceError_Conflict(t *testing.T) {
 	result := classifyResourceError(err)
 	require.NotNil(t, result)
 
-	var opErr *resourcetypes.ResourceOperationError
+	var opErr *sdkresource.ResourceOperationError
 	require.True(t, errors.As(result, &opErr))
 	assert.Equal(t, "CONFLICT", opErr.Code)
 	assert.Equal(t, "Resource conflict", opErr.Title)
@@ -120,7 +120,7 @@ func TestClassifyResourceError_ConnectionError(t *testing.T) {
 	result := classifyResourceError(err)
 	require.NotNil(t, result)
 
-	var opErr *resourcetypes.ResourceOperationError
+	var opErr *sdkresource.ResourceOperationError
 	require.True(t, errors.As(result, &opErr))
 	assert.Equal(t, "CONNECTION_ERROR", opErr.Code)
 	assert.Equal(t, "Connection error", opErr.Title)
@@ -138,7 +138,7 @@ func TestClassifyResourceError_WrappedConnectionError(t *testing.T) {
 	result := classifyResourceError(wrapped)
 	require.NotNil(t, result)
 
-	var opErr *resourcetypes.ResourceOperationError
+	var opErr *sdkresource.ResourceOperationError
 	require.True(t, errors.As(result, &opErr))
 	assert.Equal(t, "CONNECTION_ERROR", opErr.Code)
 }
@@ -151,7 +151,7 @@ func TestClassifyResourceError_CertificateInvalid(t *testing.T) {
 	result := classifyResourceError(err)
 	require.NotNil(t, result)
 
-	var opErr *resourcetypes.ResourceOperationError
+	var opErr *sdkresource.ResourceOperationError
 	require.True(t, errors.As(result, &opErr))
 	assert.Equal(t, "CERTIFICATE_ERROR", opErr.Code)
 	assert.Equal(t, "Certificate error", opErr.Title)
@@ -163,7 +163,7 @@ func TestClassifyResourceError_UnknownAuthority(t *testing.T) {
 	result := classifyResourceError(err)
 	require.NotNil(t, result)
 
-	var opErr *resourcetypes.ResourceOperationError
+	var opErr *sdkresource.ResourceOperationError
 	require.True(t, errors.As(result, &opErr))
 	assert.Equal(t, "CERTIFICATE_ERROR", opErr.Code)
 }
@@ -175,7 +175,7 @@ func TestClassifyResourceError_WrappedCertError(t *testing.T) {
 	result := classifyResourceError(wrapped)
 	require.NotNil(t, result)
 
-	var opErr *resourcetypes.ResourceOperationError
+	var opErr *sdkresource.ResourceOperationError
 	require.True(t, errors.As(result, &opErr))
 	assert.Equal(t, "CERTIFICATE_ERROR", opErr.Code)
 }
@@ -193,7 +193,7 @@ func TestClassifyResourceError_PreservesOriginalError(t *testing.T) {
 	result := classifyResourceError(original)
 	require.NotNil(t, result)
 
-	var opErr *resourcetypes.ResourceOperationError
+	var opErr *sdkresource.ResourceOperationError
 	require.True(t, errors.As(result, &opErr))
 	assert.True(t, errors.Is(opErr, original),
 		"ResourceOperationError.Err should wrap the original error")
@@ -207,7 +207,7 @@ func TestClassifyResourceError_StatusCodePriority(t *testing.T) {
 	result := classifyResourceError(err)
 	require.NotNil(t, result)
 
-	var opErr *resourcetypes.ResourceOperationError
+	var opErr *sdkresource.ResourceOperationError
 	require.True(t, errors.As(result, &opErr))
 	assert.Equal(t, "FORBIDDEN", opErr.Code, "K8s StatusError should take priority")
 }

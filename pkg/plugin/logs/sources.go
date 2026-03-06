@@ -3,7 +3,7 @@ package logs
 import (
 	"fmt"
 
-	"github.com/omniviewdev/plugin-sdk/pkg/logs"
+	"github.com/omniviewdev/plugin-sdk/pkg/v1/logs"
 
 	corev1 "k8s.io/api/core/v1"
 )

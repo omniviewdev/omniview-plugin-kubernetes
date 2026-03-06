@@ -5,8 +5,7 @@ import (
 	"testing"
 
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
-	pkgtypes "github.com/omniviewdev/plugin-sdk/pkg/resource/types"
-	"github.com/omniviewdev/plugin-sdk/pkg/types"
+	resource "github.com/omniviewdev/plugin-sdk/pkg/v1/resource"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -24,12 +23,6 @@ func newAppsStatefulSetClientSet(objects ...runtime.Object) *clients.ClientSet {
 	fakeClient := fake.NewSimpleClientset(objects...)
 	return &clients.ClientSet{
 		KubeClient: fakeClient,
-	}
-}
-
-func statefulSetPluginCtx() *types.PluginContext {
-	return &types.PluginContext{
-		Context: context.Background(),
 	}
 }
 
@@ -57,7 +50,7 @@ func testStatefulSet(name, ns string, replicas int32, opts ...func(*appsv1.State
 
 func TestStatefulSetResourcer_GetActions(t *testing.T) {
 	r := newTestStatefulSetResourcer()
-	actions, err := r.GetActions(statefulSetPluginCtx(), nil, pkgtypes.ResourceMeta{})
+	actions, err := r.GetActions(context.Background(), nil, resource.ResourceMeta{})
 	require.NoError(t, err)
 	require.Len(t, actions, 2)
 
@@ -65,7 +58,7 @@ func TestStatefulSetResourcer_GetActions(t *testing.T) {
 	assert.Equal(t, "scale", actions[1].ID)
 
 	for _, a := range actions {
-		assert.Equal(t, pkgtypes.ActionScopeInstance, a.Scope)
+		assert.Equal(t, resource.ActionScopeInstance, a.Scope)
 	}
 	assert.True(t, actions[0].Streaming, "restart should be streaming")
 	assert.False(t, actions[1].Streaming, "scale should not be streaming")
@@ -78,7 +71,7 @@ func TestStatefulSetResourcer_Restart(t *testing.T) {
 	cs := newAppsStatefulSetClientSet(sts)
 	r := newTestStatefulSetResourcer()
 
-	result, err := r.ExecuteAction(statefulSetPluginCtx(), cs, pkgtypes.ResourceMeta{}, "restart", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "restart", resource.ActionInput{
 		ID:        "redis",
 		Namespace: "default",
 	})
@@ -97,7 +90,7 @@ func TestStatefulSetResourcer_Restart_NotFound(t *testing.T) {
 	cs := newAppsStatefulSetClientSet()
 	r := newTestStatefulSetResourcer()
 
-	result, err := r.ExecuteAction(statefulSetPluginCtx(), cs, pkgtypes.ResourceMeta{}, "restart", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "restart", resource.ActionInput{
 		ID:        "nonexistent",
 		Namespace: "default",
 	})
@@ -114,7 +107,7 @@ func TestStatefulSetResourcer_Scale(t *testing.T) {
 	cs := newAppsStatefulSetClientSet(sts)
 	r := newTestStatefulSetResourcer()
 
-	result, err := r.ExecuteAction(statefulSetPluginCtx(), cs, pkgtypes.ResourceMeta{}, "scale", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "scale", resource.ActionInput{
 		ID:        "redis",
 		Namespace: "default",
 		Params:    map[string]interface{}{"replicas": float64(3)},
@@ -135,7 +128,7 @@ func TestStatefulSetResourcer_Scale_ToZero(t *testing.T) {
 	cs := newAppsStatefulSetClientSet(sts)
 	r := newTestStatefulSetResourcer()
 
-	result, err := r.ExecuteAction(statefulSetPluginCtx(), cs, pkgtypes.ResourceMeta{}, "scale", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "scale", resource.ActionInput{
 		ID:        "redis",
 		Namespace: "default",
 		Params:    map[string]interface{}{"replicas": float64(0)},
@@ -154,7 +147,7 @@ func TestStatefulSetResourcer_Scale_MissingParam(t *testing.T) {
 	cs := newAppsStatefulSetClientSet(sts)
 	r := newTestStatefulSetResourcer()
 
-	result, err := r.ExecuteAction(statefulSetPluginCtx(), cs, pkgtypes.ResourceMeta{}, "scale", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "scale", resource.ActionInput{
 		ID:        "redis",
 		Namespace: "default",
 		Params:    map[string]interface{}{},
@@ -169,7 +162,7 @@ func TestStatefulSetResourcer_Scale_NotFound(t *testing.T) {
 	cs := newAppsStatefulSetClientSet()
 	r := newTestStatefulSetResourcer()
 
-	result, err := r.ExecuteAction(statefulSetPluginCtx(), cs, pkgtypes.ResourceMeta{}, "scale", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "scale", resource.ActionInput{
 		ID:        "nonexistent",
 		Namespace: "default",
 		Params:    map[string]interface{}{"replicas": float64(3)},
@@ -186,7 +179,7 @@ func TestStatefulSetResourcer_UnknownAction(t *testing.T) {
 	cs := newAppsStatefulSetClientSet()
 	r := newTestStatefulSetResourcer()
 
-	result, err := r.ExecuteAction(statefulSetPluginCtx(), cs, pkgtypes.ResourceMeta{}, "foo", pkgtypes.ActionInput{})
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "foo", resource.ActionInput{})
 
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -197,9 +190,9 @@ func TestStatefulSetResourcer_UnknownAction(t *testing.T) {
 
 func TestStatefulSetResourcer_StreamAction_UnsupportedAction(t *testing.T) {
 	r := newTestStatefulSetResourcer()
-	stream := make(chan pkgtypes.ActionEvent, 10)
+	stream := make(chan resource.ActionEvent, 10)
 
-	err := r.StreamAction(statefulSetPluginCtx(), nil, pkgtypes.ResourceMeta{}, "scale", pkgtypes.ActionInput{}, stream)
+	err := r.StreamAction(context.Background(), nil, resource.ResourceMeta{}, "scale", resource.ActionInput{}, stream)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "streaming not supported")
@@ -208,16 +201,16 @@ func TestStatefulSetResourcer_StreamAction_UnsupportedAction(t *testing.T) {
 func TestStatefulSetResourcer_StreamAction_Restart_NotFound(t *testing.T) {
 	cs := newAppsStatefulSetClientSet()
 	r := newTestStatefulSetResourcer()
-	stream := make(chan pkgtypes.ActionEvent, 10)
+	stream := make(chan resource.ActionEvent, 10)
 
-	err := r.StreamAction(statefulSetPluginCtx(), cs, pkgtypes.ResourceMeta{}, "restart", pkgtypes.ActionInput{
+	err := r.StreamAction(context.Background(), cs, resource.ResourceMeta{}, "restart", resource.ActionInput{
 		ID:        "nonexistent",
 		Namespace: "default",
 	}, stream)
 
 	require.Error(t, err)
 
-	var events []pkgtypes.ActionEvent
+	var events []resource.ActionEvent
 	for ev := range stream {
 		events = append(events, ev)
 	}

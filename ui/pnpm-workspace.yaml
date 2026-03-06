@@ -1,0 +1,4 @@
+overrides:
+  '@omniviewdev/runtime': link:../../omniview/packages/omniviewdev-runtime
+  '@omniviewdev/ui': link:../../omniview/packages/omniviewdev-ui
+  '@omniviewdev/vite-plugin': link:../../omniview/packages/omniviewdev-vite-plugin

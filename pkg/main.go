@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"log"
 
 	"github.com/omniview/kubernetes/pkg/plugin/exec"
 	pluginlogs "github.com/omniview/kubernetes/pkg/plugin/logs"
@@ -24,14 +25,23 @@ func init() {
 	// 1) Initialize klog’s flags
 	klog.InitFlags(nil)
 
-	// 2) Send logs to stderr (so you see them in your console)
-	flag.Set("logtostderr", "true")
+	// 2) Don’t use logtostderr — go-plugin’s GRPCStdio replaces os.Stderr
+	//    after init, so klog writes to the replaced fd which isn’t captured
+	//    reliably. Instead, route klog through Go’s std log writer which
+	//    caches the original os.Stderr before replacement.
+	flag.Set("logtostderr", "false")
 
 	// 3) Set the verbosity level (6 gives you List/Watch errors, retries, etc)
 	flag.Set("v", "6")
 
 	// 4) Parse all flags (this must come *after* setting the flag defaults)
 	flag.Parse()
+
+	// 5) Redirect klog output through Go’s standard log package. The std log
+	//    package cached os.Stderr at init time (before go-plugin replaces it),
+	//    so writes through log.Writer() go to the Cmd.Stderr pipe which the
+	//    engine reliably captures.
+	klog.SetOutput(log.Writer())
 }
 
 func main() {

@@ -7,8 +7,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/watch"
 
-	"github.com/omniviewdev/plugin-sdk/pkg/logs"
+	"github.com/omniviewdev/plugin-sdk/pkg/v1/logs"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
 
 	"github.com/omniview/kubernetes/pkg/utils"
@@ -237,7 +238,7 @@ func watchPodsAsSourceEvents(
 	defer close(eventCh)
 
 	watcher, err := clients.Clientset.CoreV1().Pods(namespace).Watch(
-		context.Background(),
+		ctx.Context,
 		metav1.ListOptions{LabelSelector: selector.String()},
 	)
 	if err != nil {
@@ -245,9 +246,24 @@ func watchPodsAsSourceEvents(
 	}
 	defer watcher.Stop()
 
+	processPodWatchEvents(ctx.Context, watcher, target, eventCh)
+}
+
+// processPodWatchEvents reads from a K8s watch and emits SourceAdded/SourceRemoved
+// events. It tracks known sources per pod and diffs on MODIFIED to detect new
+// or removed containers (e.g. ephemeral debug containers).
+func processPodWatchEvents(
+	ctx context.Context,
+	watcher watch.Interface,
+	target string,
+	eventCh chan<- logs.SourceEvent,
+) {
+	// Track known sources per pod for diffing on MODIFIED
+	knownSources := make(map[string]map[string]struct{}) // pod name → set of source IDs
+
 	for {
 		select {
-		case <-ctx.Context.Done():
+		case <-ctx.Done():
 			return
 		case event, ok := <-watcher.ResultChan():
 			if !ok {
@@ -260,12 +276,54 @@ func watchPodsAsSourceEvents(
 			}
 
 			sources := podToSources(*pod, target)
-			for _, src := range sources {
-				switch event.Type {
-				case "ADDED":
-					eventCh <- logs.SourceEvent{Type: logs.SourceAdded, Source: src}
-				case "DELETED":
-					eventCh <- logs.SourceEvent{Type: logs.SourceRemoved, Source: src}
+			currentIDs := make(map[string]struct{}, len(sources))
+			for _, s := range sources {
+				currentIDs[s.ID] = struct{}{}
+			}
+
+			switch event.Type {
+			case watch.Added:
+				knownSources[pod.Name] = currentIDs
+				for _, src := range sources {
+					select {
+					case eventCh <- logs.SourceEvent{Type: logs.SourceAdded, Source: src}:
+					case <-ctx.Done():
+						return
+					}
+				}
+
+			case watch.Modified:
+				prev := knownSources[pod.Name]
+				knownSources[pod.Name] = currentIDs
+				// Emit added for new sources
+				for _, src := range sources {
+					if _, existed := prev[src.ID]; !existed {
+						select {
+						case eventCh <- logs.SourceEvent{Type: logs.SourceAdded, Source: src}:
+						case <-ctx.Done():
+							return
+						}
+					}
+				}
+				// Emit removed for sources that disappeared
+				for id := range prev {
+					if _, exists := currentIDs[id]; !exists {
+						select {
+						case eventCh <- logs.SourceEvent{Type: logs.SourceRemoved, Source: logs.LogSource{ID: id}}:
+						case <-ctx.Done():
+							return
+						}
+					}
+				}
+
+			case watch.Deleted:
+				delete(knownSources, pod.Name)
+				for _, src := range sources {
+					select {
+					case eventCh <- logs.SourceEvent{Type: logs.SourceRemoved, Source: src}:
+					case <-ctx.Done():
+						return
+					}
 				}
 			}
 		}

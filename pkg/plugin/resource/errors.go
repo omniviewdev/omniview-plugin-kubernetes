@@ -7,7 +7,7 @@ import (
 
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 
-	resourcetypes "github.com/omniviewdev/plugin-sdk/pkg/resource/types"
+	sdkresource "github.com/omniviewdev/plugin-sdk/pkg/v1/resource"
 )
 
 // classifyResourceError inspects a Kubernetes API error and returns a structured
@@ -22,7 +22,7 @@ func classifyResourceError(err error) error {
 
 		switch {
 		case code == 403:
-			return &resourcetypes.ResourceOperationError{
+			return &sdkresource.ResourceOperationError{
 				Err:     err,
 				Code:    "FORBIDDEN",
 				Title:   "Access denied",
@@ -33,7 +33,7 @@ func classifyResourceError(err error) error {
 				},
 			}
 		case code == 401:
-			return &resourcetypes.ResourceOperationError{
+			return &sdkresource.ResourceOperationError{
 				Err:     err,
 				Code:    "UNAUTHORIZED",
 				Title:   "Authentication failed",
@@ -44,7 +44,7 @@ func classifyResourceError(err error) error {
 				},
 			}
 		case code == 404:
-			return &resourcetypes.ResourceOperationError{
+			return &sdkresource.ResourceOperationError{
 				Err:     err,
 				Code:    "NOT_FOUND",
 				Title:   "Resource not found",
@@ -55,7 +55,7 @@ func classifyResourceError(err error) error {
 				},
 			}
 		case code == 408 || code == 504:
-			return &resourcetypes.ResourceOperationError{
+			return &sdkresource.ResourceOperationError{
 				Err:     err,
 				Code:    "TIMEOUT",
 				Title:   "Request timed out",
@@ -66,7 +66,7 @@ func classifyResourceError(err error) error {
 				},
 			}
 		case code == 409:
-			return &resourcetypes.ResourceOperationError{
+			return &sdkresource.ResourceOperationError{
 				Err:     err,
 				Code:    "CONFLICT",
 				Title:   "Resource conflict",
@@ -82,7 +82,7 @@ func classifyResourceError(err error) error {
 	// Check for network-level errors.
 	var opErr *net.OpError
 	if errors.As(err, &opErr) {
-		return &resourcetypes.ResourceOperationError{
+		return &sdkresource.ResourceOperationError{
 			Err:     err,
 			Code:    "CONNECTION_ERROR",
 			Title:   "Connection error",
@@ -99,7 +99,7 @@ func classifyResourceError(err error) error {
 	var certInvalidErr x509.CertificateInvalidError
 	var unknownAuthErr x509.UnknownAuthorityError
 	if errors.As(err, &certInvalidErr) || errors.As(err, &unknownAuthErr) {
-		return &resourcetypes.ResourceOperationError{
+		return &sdkresource.ResourceOperationError{
 			Err:     err,
 			Code:    "CERTIFICATE_ERROR",
 			Title:   "Certificate error",

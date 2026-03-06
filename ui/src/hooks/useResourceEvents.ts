@@ -52,7 +52,7 @@ function formatAge(timestamp?: string): string {
  * Reusable hook that fetches Kubernetes Events scoped to a specific resource.
  *
  * Uses the existing `useResources` hook to pull `core::v1::Event` from the
- * informer cache, then filters client-side by `involvedObject.kind` + `name`.
+ * watch cache, then filters client-side by `involvedObject.kind` + `name`.
  */
 export function useResourceEvents({
   pluginID,

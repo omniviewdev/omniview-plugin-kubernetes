@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	sdkmetric "github.com/omniviewdev/plugin-sdk/pkg/metric"
+	sdkmetric "github.com/omniviewdev/plugin-sdk/pkg/v1/metric"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
 	pkgsettings "github.com/omniviewdev/plugin-sdk/settings"
 

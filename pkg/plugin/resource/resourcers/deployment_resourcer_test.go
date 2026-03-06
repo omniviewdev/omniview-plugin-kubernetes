@@ -5,8 +5,7 @@ import (
 	"testing"
 
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
-	pkgtypes "github.com/omniviewdev/plugin-sdk/pkg/resource/types"
-	"github.com/omniviewdev/plugin-sdk/pkg/types"
+	resource "github.com/omniviewdev/plugin-sdk/pkg/v1/resource"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -25,12 +24,6 @@ func newAppsDeploymentClientSet(objects ...runtime.Object) *clients.ClientSet {
 	fakeClient := fake.NewSimpleClientset(objects...)
 	return &clients.ClientSet{
 		KubeClient: fakeClient,
-	}
-}
-
-func deploymentPluginCtx() *types.PluginContext {
-	return &types.PluginContext{
-		Context: context.Background(),
 	}
 }
 
@@ -71,7 +64,7 @@ func corev1PodTemplateSpec(name string) corev1.PodTemplateSpec {
 
 func TestDeploymentResourcer_GetActions(t *testing.T) {
 	r := newTestDeploymentResourcer()
-	actions, err := r.GetActions(deploymentPluginCtx(), nil, pkgtypes.ResourceMeta{})
+	actions, err := r.GetActions(context.Background(), nil, resource.ResourceMeta{})
 	require.NoError(t, err)
 	require.Len(t, actions, 4)
 
@@ -85,7 +78,7 @@ func TestDeploymentResourcer_GetActions(t *testing.T) {
 	assert.Equal(t, "resume", ids[3])
 
 	for _, a := range actions {
-		assert.Equal(t, pkgtypes.ActionScopeInstance, a.Scope)
+		assert.Equal(t, resource.ActionScopeInstance, a.Scope)
 	}
 	assert.True(t, actions[0].Streaming, "restart should be streaming")
 	assert.False(t, actions[1].Streaming, "scale should not be streaming")
@@ -100,7 +93,7 @@ func TestDeploymentResourcer_Restart(t *testing.T) {
 	cs := newAppsDeploymentClientSet(dep)
 	r := newTestDeploymentResourcer()
 
-	result, err := r.ExecuteAction(deploymentPluginCtx(), cs, pkgtypes.ResourceMeta{}, "restart", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "restart", resource.ActionInput{
 		ID:        "nginx",
 		Namespace: "default",
 	})
@@ -120,7 +113,7 @@ func TestDeploymentResourcer_Restart_NotFound(t *testing.T) {
 	cs := newAppsDeploymentClientSet()
 	r := newTestDeploymentResourcer()
 
-	result, err := r.ExecuteAction(deploymentPluginCtx(), cs, pkgtypes.ResourceMeta{}, "restart", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "restart", resource.ActionInput{
 		ID:        "nonexistent",
 		Namespace: "default",
 	})
@@ -137,7 +130,7 @@ func TestDeploymentResourcer_Scale(t *testing.T) {
 	cs := newAppsDeploymentClientSet(dep)
 	r := newTestDeploymentResourcer()
 
-	result, err := r.ExecuteAction(deploymentPluginCtx(), cs, pkgtypes.ResourceMeta{}, "scale", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "scale", resource.ActionInput{
 		ID:        "nginx",
 		Namespace: "default",
 		Params:    map[string]interface{}{"replicas": float64(5)},
@@ -158,7 +151,7 @@ func TestDeploymentResourcer_Scale_ToZero(t *testing.T) {
 	cs := newAppsDeploymentClientSet(dep)
 	r := newTestDeploymentResourcer()
 
-	result, err := r.ExecuteAction(deploymentPluginCtx(), cs, pkgtypes.ResourceMeta{}, "scale", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "scale", resource.ActionInput{
 		ID:        "nginx",
 		Namespace: "default",
 		Params:    map[string]interface{}{"replicas": float64(0)},
@@ -178,7 +171,7 @@ func TestDeploymentResourcer_Scale_MissingParam(t *testing.T) {
 	cs := newAppsDeploymentClientSet(dep)
 	r := newTestDeploymentResourcer()
 
-	result, err := r.ExecuteAction(deploymentPluginCtx(), cs, pkgtypes.ResourceMeta{}, "scale", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "scale", resource.ActionInput{
 		ID:        "nginx",
 		Namespace: "default",
 		Params:    map[string]interface{}{},
@@ -193,7 +186,7 @@ func TestDeploymentResourcer_Scale_NotFound(t *testing.T) {
 	cs := newAppsDeploymentClientSet()
 	r := newTestDeploymentResourcer()
 
-	result, err := r.ExecuteAction(deploymentPluginCtx(), cs, pkgtypes.ResourceMeta{}, "scale", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "scale", resource.ActionInput{
 		ID:        "nonexistent",
 		Namespace: "default",
 		Params:    map[string]interface{}{"replicas": float64(5)},
@@ -211,7 +204,7 @@ func TestDeploymentResourcer_Pause(t *testing.T) {
 	cs := newAppsDeploymentClientSet(dep)
 	r := newTestDeploymentResourcer()
 
-	result, err := r.ExecuteAction(deploymentPluginCtx(), cs, pkgtypes.ResourceMeta{}, "pause", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "pause", resource.ActionInput{
 		ID:        "nginx",
 		Namespace: "default",
 	})
@@ -230,7 +223,7 @@ func TestDeploymentResourcer_Pause_NotFound(t *testing.T) {
 	cs := newAppsDeploymentClientSet()
 	r := newTestDeploymentResourcer()
 
-	result, err := r.ExecuteAction(deploymentPluginCtx(), cs, pkgtypes.ResourceMeta{}, "pause", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "pause", resource.ActionInput{
 		ID:        "nonexistent",
 		Namespace: "default",
 	})
@@ -247,7 +240,7 @@ func TestDeploymentResourcer_Resume(t *testing.T) {
 	cs := newAppsDeploymentClientSet(dep)
 	r := newTestDeploymentResourcer()
 
-	result, err := r.ExecuteAction(deploymentPluginCtx(), cs, pkgtypes.ResourceMeta{}, "resume", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "resume", resource.ActionInput{
 		ID:        "nginx",
 		Namespace: "default",
 	})
@@ -262,7 +255,7 @@ func TestDeploymentResourcer_Resume_NotFound(t *testing.T) {
 	cs := newAppsDeploymentClientSet()
 	r := newTestDeploymentResourcer()
 
-	result, err := r.ExecuteAction(deploymentPluginCtx(), cs, pkgtypes.ResourceMeta{}, "resume", pkgtypes.ActionInput{
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "resume", resource.ActionInput{
 		ID:        "nonexistent",
 		Namespace: "default",
 	})
@@ -278,7 +271,7 @@ func TestDeploymentResourcer_UnknownAction(t *testing.T) {
 	cs := newAppsDeploymentClientSet()
 	r := newTestDeploymentResourcer()
 
-	result, err := r.ExecuteAction(deploymentPluginCtx(), cs, pkgtypes.ResourceMeta{}, "foo", pkgtypes.ActionInput{})
+	result, err := r.ExecuteAction(context.Background(), cs, resource.ResourceMeta{}, "foo", resource.ActionInput{})
 
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -289,9 +282,9 @@ func TestDeploymentResourcer_UnknownAction(t *testing.T) {
 
 func TestDeploymentResourcer_StreamAction_UnsupportedAction(t *testing.T) {
 	r := newTestDeploymentResourcer()
-	stream := make(chan pkgtypes.ActionEvent, 10)
+	stream := make(chan resource.ActionEvent, 10)
 
-	err := r.StreamAction(deploymentPluginCtx(), nil, pkgtypes.ResourceMeta{}, "scale", pkgtypes.ActionInput{}, stream)
+	err := r.StreamAction(context.Background(), nil, resource.ResourceMeta{}, "scale", resource.ActionInput{}, stream)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "streaming not supported for action: scale")
@@ -300,9 +293,9 @@ func TestDeploymentResourcer_StreamAction_UnsupportedAction(t *testing.T) {
 func TestDeploymentResourcer_StreamAction_Restart_NotFound(t *testing.T) {
 	cs := newAppsDeploymentClientSet()
 	r := newTestDeploymentResourcer()
-	stream := make(chan pkgtypes.ActionEvent, 10)
+	stream := make(chan resource.ActionEvent, 10)
 
-	err := r.StreamAction(deploymentPluginCtx(), cs, pkgtypes.ResourceMeta{}, "restart", pkgtypes.ActionInput{
+	err := r.StreamAction(context.Background(), cs, resource.ResourceMeta{}, "restart", resource.ActionInput{
 		ID:        "nonexistent",
 		Namespace: "default",
 	}, stream)
@@ -310,7 +303,7 @@ func TestDeploymentResourcer_StreamAction_Restart_NotFound(t *testing.T) {
 	require.Error(t, err)
 
 	// Stream should have received an error event and be closed.
-	var events []pkgtypes.ActionEvent
+	var events []resource.ActionEvent
 	for ev := range stream {
 		events = append(events, ev)
 	}
