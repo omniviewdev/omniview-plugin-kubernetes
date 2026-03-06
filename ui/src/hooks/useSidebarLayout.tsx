@@ -417,7 +417,10 @@ const calculateModernLayout = (
           label: 'Custom Resource Definitions',
           icon: ICON_BLOCKS,
           children: crdSorted,
-          badge: getGroupBadge(crdSorted, watchStates),
+          badge: getGroupBadge(
+            crdSorted.flatMap((g) => g.children ?? []),
+            watchStates,
+          ),
         },
       ],
     },

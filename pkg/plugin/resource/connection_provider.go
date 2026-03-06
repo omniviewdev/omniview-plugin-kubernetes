@@ -200,6 +200,12 @@ func (p *kubeConnectionProvider) CheckConnection(_ context.Context, conn *types.
 
 // GetNamespaces returns the available namespaces for the connection.
 func (p *kubeConnectionProvider) GetNamespaces(_ context.Context, client *clients.ClientSet) ([]string, error) {
+	if client == nil {
+		return nil, fmt.Errorf("client is required")
+	}
+	if client.DynamicInformerFactory == nil {
+		return nil, fmt.Errorf("DynamicInformerFactory is not initialized")
+	}
 	lister := client.DynamicInformerFactory.
 		ForResource(corev1.SchemeGroupVersion.WithResource("namespaces")).
 		Lister()
@@ -363,7 +369,8 @@ func (p *kubeConnectionProvider) RefreshClient(ctx context.Context, client *clie
 		return fmt.Errorf("failed to refresh client: %w", err)
 	}
 
-	// Shut down old informer factories before replacing clients.
+	// Stop and shut down old informer factories before replacing clients.
+	client.StopFactory()
 	client.ShutdownNamespaceFactories()
 	if client.DynamicInformerFactory != nil {
 		client.DynamicInformerFactory.Shutdown()

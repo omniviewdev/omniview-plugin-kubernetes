@@ -221,6 +221,17 @@ func (d *DaemonSetResourcer) AssessHealth(_ context.Context, _ *clients.ClientSe
 		health.Message = fmt.Sprintf("0/%d nodes ready", desired)
 	}
 
+	for _, c := range ds.Status.Conditions {
+		lt := c.LastTransitionTime.Time
+		health.Conditions = append(health.Conditions, resource.HealthCondition{
+			Type:               string(c.Type),
+			Status:             string(c.Status),
+			Reason:             c.Reason,
+			Message:            c.Message,
+			LastTransitionTime: &lt,
+		})
+	}
+
 	return health, nil
 }
 

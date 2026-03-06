@@ -227,7 +227,7 @@ func (p *PodResourcer) AssessHealth(_ context.Context, _ *clients.ClientSet, _ r
 		assessContainerStatus(cs)
 	}
 
-	// Conditions
+	// Conditions — also use the Ready condition to inform overall health.
 	for _, c := range pod.Status.Conditions {
 		lt := c.LastTransitionTime.Time
 		health.Conditions = append(health.Conditions, resource.HealthCondition{
@@ -237,6 +237,15 @@ func (p *PodResourcer) AssessHealth(_ context.Context, _ *clients.ClientSet, _ r
 			Message:            c.Message,
 			LastTransitionTime: &lt,
 		})
+
+		if c.Type == corev1.PodReady && c.Status != corev1.ConditionTrue && health.Status != resource.HealthUnhealthy {
+			health.Status = resource.HealthDegraded
+			health.Reason = c.Reason
+			if health.Reason == "" {
+				health.Reason = "NotReady"
+			}
+			health.Message = c.Message
+		}
 	}
 
 	if pod.Status.StartTime != nil {

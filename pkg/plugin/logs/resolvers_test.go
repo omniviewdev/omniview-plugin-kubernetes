@@ -19,7 +19,7 @@ import (
 func runProcessPodWatchEvents(ctx context.Context, watcher watch.Interface, target string, eventCh chan logs.SourceEvent) {
 	go func() {
 		defer close(eventCh)
-		processPodWatchEvents(ctx, watcher, target, eventCh)
+		processPodWatchEvents(ctx, watcher, target, nil, eventCh)
 	}()
 }
 
@@ -200,7 +200,7 @@ func TestProcessPodWatchEvents_ContextCancellation(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		processPodWatchEvents(ctx, fw, "", eventCh)
+		processPodWatchEvents(ctx, fw, "", nil, eventCh)
 		close(done)
 	}()
 

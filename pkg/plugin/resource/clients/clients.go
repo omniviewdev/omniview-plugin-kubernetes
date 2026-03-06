@@ -24,6 +24,7 @@ type ClientSet struct {
 	DynamicInformerFactory dynamicinformer.DynamicSharedInformerFactory
 	RESTConfig             *rest.Config
 	factoryStartOnce sync.Once
+	factoryStopOnce  sync.Once
 	factoryStopCh    chan struct{}
 
 	// nsFactories holds per-namespace informer factories for scoped watching.
@@ -50,15 +51,11 @@ func (cs *ClientSet) EnsureFactoryStarted() {
 // StopFactory closes the factory stop channel, signaling all informers to stop.
 // Safe to call multiple times. Called by DestroyClient before Shutdown().
 func (cs *ClientSet) StopFactory() {
-	cs.factoryStartOnce.Do(func() {
-		cs.factoryStopCh = make(chan struct{})
+	cs.factoryStopOnce.Do(func() {
+		if cs.factoryStopCh != nil {
+			close(cs.factoryStopCh)
+		}
 	})
-	select {
-	case <-cs.factoryStopCh:
-		// already closed
-	default:
-		close(cs.factoryStopCh)
-	}
 }
 
 // GetOrCreateNamespaceFactory returns a DynamicSharedInformerFactory scoped to a

@@ -218,9 +218,19 @@ func resolvePodsToSources(
 	result := &logs.SourceResolverResult{Sources: sources}
 
 	if opts.Watch {
+		// Seed known sources from the initial list so the watcher doesn't
+		// re-emit SourceAdded for pods already included in the snapshot.
+		initialKnown := make(map[string]map[string]struct{}, len(pods.Items))
+		for _, pod := range pods.Items {
+			ids := make(map[string]struct{})
+			for _, s := range podToSources(pod, opts.Target) {
+				ids[s.ID] = struct{}{}
+			}
+			initialKnown[pod.Name] = ids
+		}
 		eventCh := make(chan logs.SourceEvent, 16)
 		result.Events = eventCh
-		go watchPodsAsSourceEvents(ctx, clients, namespace, selector, opts.Target, eventCh)
+		go watchPodsAsSourceEvents(ctx, clients, namespace, selector, opts.Target, initialKnown, eventCh)
 	}
 
 	return result, nil
@@ -233,6 +243,7 @@ func watchPodsAsSourceEvents(
 	namespace string,
 	selector labels.Selector,
 	target string,
+	initialKnown map[string]map[string]struct{},
 	eventCh chan<- logs.SourceEvent,
 ) {
 	defer close(eventCh)
@@ -246,7 +257,7 @@ func watchPodsAsSourceEvents(
 	}
 	defer watcher.Stop()
 
-	processPodWatchEvents(ctx.Context, watcher, target, eventCh)
+	processPodWatchEvents(ctx.Context, watcher, target, initialKnown, eventCh)
 }
 
 // processPodWatchEvents reads from a K8s watch and emits SourceAdded/SourceRemoved
@@ -256,10 +267,15 @@ func processPodWatchEvents(
 	ctx context.Context,
 	watcher watch.Interface,
 	target string,
+	initialKnown map[string]map[string]struct{},
 	eventCh chan<- logs.SourceEvent,
 ) {
-	// Track known sources per pod for diffing on MODIFIED
-	knownSources := make(map[string]map[string]struct{}) // pod name → set of source IDs
+	// Track known sources per pod for diffing on MODIFIED.
+	// Seed from the initial list so we don't re-emit already-known sources.
+	knownSources := initialKnown
+	if knownSources == nil {
+		knownSources = make(map[string]map[string]struct{})
+	}
 
 	for {
 		select {

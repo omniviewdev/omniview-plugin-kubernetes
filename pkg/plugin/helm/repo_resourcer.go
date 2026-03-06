@@ -105,7 +105,7 @@ func (r *RepoResourcer) List(
 	for _, entry := range f.Repositories {
 		data, err := marshalMap(repoEntryToMap(entry))
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("failed to marshal repo entry %s: %w", entry.Name, err)
 		}
 		result = append(result, data)
 	}
@@ -477,10 +477,16 @@ func (r *RepoResourcerWithActions) validateOCIRegistry(
 ) error {
 	// Strip oci:// prefix to get the registry host.
 	host := strings.TrimPrefix(url, "oci://")
+	if host == "" {
+		return fmt.Errorf("invalid OCI URL %q: registry host is empty", url)
+	}
 	// Remove any trailing path components to get just the registry host for login.
 	// e.g. "ghcr.io/my-org/charts" -> "ghcr.io"
 	parts := strings.SplitN(host, "/", 2)
 	registryHost := parts[0]
+	if registryHost == "" {
+		return fmt.Errorf("invalid OCI URL %q: registry host is empty", url)
+	}
 
 	// Build client options.
 	clientOpts := []registry.ClientOption{}

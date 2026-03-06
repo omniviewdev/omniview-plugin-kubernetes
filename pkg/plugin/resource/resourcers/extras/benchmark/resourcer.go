@@ -26,7 +26,7 @@ func (cb *ClusterBenchmarker) Get(
 	_ resource.ResourceMeta,
 	_ resource.GetInput,
 ) (*resource.GetResult, error) {
-	return nil, nil
+	return &resource.GetResult{}, nil
 }
 
 // List returns a map of resources for the provided cluster contexts.

@@ -22,17 +22,24 @@ import (
 	"k8s.io/klog/v2"
 )
 
-func init() {
-	// 1) Initialize klog's flags
-	klog.InitFlags(nil)
+// klogFS is a dedicated FlagSet for klog flags, keeping them isolated from the
+// global flag.CommandLine so flag.Parse() is never called on the global set
+// (which can exit the process on unknown args from the plugin host).
+var klogFS = flag.NewFlagSet("klog", flag.ContinueOnError)
 
-	// 2) Configure safe defaults before parsing flags.
-	if err := klogconfig.ConfigureDefaults(flag.CommandLine); err != nil {
+func init() {
+	// 1) Initialize klog's flags on our local FlagSet.
+	klog.InitFlags(klogFS)
+
+	// 2) Configure safe defaults.
+	if err := klogconfig.ConfigureDefaults(klogFS); err != nil {
 		log.Printf("failed to configure klog defaults: %v", err)
 	}
 
-	// 3) Parse all flags (this must come after setting defaults)
-	flag.Parse()
+	// 3) Parse the local FlagSet (not the global one).
+	if err := klogFS.Parse(nil); err != nil {
+		log.Printf("failed to parse klog flags: %v", err)
+	}
 
 	// 4) Redirect klog output through Go's standard log package. The std log
 	// package caches os.Stderr at init time (before go-plugin may replace it),
@@ -110,7 +117,7 @@ func main() {
 		},
 	})
 
-	if err := klogconfig.ApplyFromProvider(flag.CommandLine, plugin.SettingsProvider); err != nil {
+	if err := klogconfig.ApplyFromProvider(klogFS, plugin.SettingsProvider); err != nil {
 		log.Printf("failed to apply client log level setting: %v", err)
 	}
 
