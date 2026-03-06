@@ -10,24 +10,75 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// extractVolumeConfigMaps returns ConfigMap names referenced by PodSpec volumes.
+// extractVolumeConfigMaps returns ConfigMap names referenced by PodSpec volumes,
+// env, envFrom across all containers and init containers.
 func extractVolumeConfigMaps(spec corev1.PodSpec) []string {
+	seen := make(map[string]struct{})
 	var names []string
+	add := func(name string) {
+		if name == "" {
+			return
+		}
+		if _, ok := seen[name]; !ok {
+			seen[name] = struct{}{}
+			names = append(names, name)
+		}
+	}
+
 	for _, v := range spec.Volumes {
-		if v.ConfigMap != nil && v.ConfigMap.Name != "" {
-			names = append(names, v.ConfigMap.Name)
+		if v.ConfigMap != nil {
+			add(v.ConfigMap.Name)
+		}
+	}
+	for _, c := range append(spec.InitContainers, spec.Containers...) {
+		for _, e := range c.Env {
+			if e.ValueFrom != nil && e.ValueFrom.ConfigMapKeyRef != nil {
+				add(e.ValueFrom.ConfigMapKeyRef.Name)
+			}
+		}
+		for _, ef := range c.EnvFrom {
+			if ef.ConfigMapRef != nil {
+				add(ef.ConfigMapRef.Name)
+			}
 		}
 	}
 	return names
 }
 
-// extractVolumeSecrets returns Secret names referenced by PodSpec volumes.
+// extractVolumeSecrets returns Secret names referenced by PodSpec volumes,
+// env, envFrom, imagePullSecrets across all containers and init containers.
 func extractVolumeSecrets(spec corev1.PodSpec) []string {
+	seen := make(map[string]struct{})
 	var names []string
-	for _, v := range spec.Volumes {
-		if v.Secret != nil && v.Secret.SecretName != "" {
-			names = append(names, v.Secret.SecretName)
+	add := func(name string) {
+		if name == "" {
+			return
 		}
+		if _, ok := seen[name]; !ok {
+			seen[name] = struct{}{}
+			names = append(names, name)
+		}
+	}
+
+	for _, v := range spec.Volumes {
+		if v.Secret != nil {
+			add(v.Secret.SecretName)
+		}
+	}
+	for _, c := range append(spec.InitContainers, spec.Containers...) {
+		for _, e := range c.Env {
+			if e.ValueFrom != nil && e.ValueFrom.SecretKeyRef != nil {
+				add(e.ValueFrom.SecretKeyRef.Name)
+			}
+		}
+		for _, ef := range c.EnvFrom {
+			if ef.SecretRef != nil {
+				add(ef.SecretRef.Name)
+			}
+		}
+	}
+	for _, ips := range spec.ImagePullSecrets {
+		add(ips.Name)
 	}
 	return names
 }
@@ -63,6 +114,15 @@ func listPodsByOwner(
 		}
 	}
 	return result, nil
+}
+
+// descriptorByTarget builds a lookup map from TargetResourceKey to descriptor.
+func descriptorByTarget(descriptors []resource.RelationshipDescriptor) map[string]resource.RelationshipDescriptor {
+	m := make(map[string]resource.RelationshipDescriptor, len(descriptors))
+	for _, d := range descriptors {
+		m[d.TargetResourceKey] = d
+	}
+	return m
 }
 
 // makeRef creates a ResourceRef with standard fields.

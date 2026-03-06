@@ -106,12 +106,12 @@ func (p *PodResourcer) ResolveRelationships(
 	}
 
 	var rels []resource.ResolvedRelationship
-	descriptors := p.DeclareRelationships()
+	byTarget := descriptorByTarget(p.DeclareRelationships())
 
 	// Node relationship.
 	if pod.Spec.NodeName != "" {
 		rels = append(rels, resource.ResolvedRelationship{
-			Descriptor: descriptors[0], // RelRunsOn → Node
+			Descriptor: byTarget["core::v1::Node"],
 			Targets:    []resource.ResourceRef{makeRef("core::v1::Node", pod.Spec.NodeName, "")},
 		})
 	}
@@ -123,7 +123,7 @@ func (p *PodResourcer) ResolveRelationships(
 			targets = append(targets, makeRef("core::v1::PersistentVolumeClaim", name, namespace))
 		}
 		rels = append(rels, resource.ResolvedRelationship{
-			Descriptor: descriptors[1], // RelUses → PVC
+			Descriptor: byTarget["core::v1::PersistentVolumeClaim"],
 			Targets:    targets,
 		})
 	}
@@ -135,7 +135,7 @@ func (p *PodResourcer) ResolveRelationships(
 			targets = append(targets, makeRef("core::v1::ConfigMap", name, namespace))
 		}
 		rels = append(rels, resource.ResolvedRelationship{
-			Descriptor: descriptors[2], // RelUses → ConfigMap
+			Descriptor: byTarget["core::v1::ConfigMap"],
 			Targets:    targets,
 		})
 	}
@@ -147,7 +147,7 @@ func (p *PodResourcer) ResolveRelationships(
 			targets = append(targets, makeRef("core::v1::Secret", name, namespace))
 		}
 		rels = append(rels, resource.ResolvedRelationship{
-			Descriptor: descriptors[3], // RelUses → Secret
+			Descriptor: byTarget["core::v1::Secret"],
 			Targets:    targets,
 		})
 	}
@@ -155,7 +155,7 @@ func (p *PodResourcer) ResolveRelationships(
 	// ServiceAccount relationship.
 	if pod.Spec.ServiceAccountName != "" {
 		rels = append(rels, resource.ResolvedRelationship{
-			Descriptor: descriptors[4], // RelUses → ServiceAccount
+			Descriptor: byTarget["core::v1::ServiceAccount"],
 			Targets:    []resource.ResourceRef{makeRef("core::v1::ServiceAccount", pod.Spec.ServiceAccountName, namespace)},
 		})
 	}
@@ -256,9 +256,19 @@ func (p *PodResourcer) AssessHealth(_ context.Context, _ *clients.ClientSet, _ r
 	return health, nil
 }
 
-// GetEvents returns Kubernetes events for a Pod.
+// GetEvents returns Kubernetes events for a Pod, filtered by UID to avoid
+// matching events from previous pod instances with the same name.
 func (p *PodResourcer) GetEvents(ctx context.Context, client *clients.ClientSet, _ resource.ResourceMeta, id string, namespace string, limit int32) ([]resource.ResourceEvent, error) {
-	fieldSelector := fmt.Sprintf("involvedObject.name=%s,involvedObject.kind=Pod", id)
+	if client == nil || client.KubeClient == nil {
+		return nil, fmt.Errorf("client is required for event retrieval")
+	}
+
+	pod, err := client.KubeClient.CoreV1().Pods(namespace).Get(ctx, id, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pod %s for UID lookup: %w", id, err)
+	}
+
+	fieldSelector := fmt.Sprintf("involvedObject.name=%s,involvedObject.kind=Pod,involvedObject.uid=%s", id, pod.UID)
 	return getK8sEvents(ctx, client, namespace, fieldSelector, limit)
 }
 

@@ -96,7 +96,7 @@ func (s *StatefulSetResourcer) ResolveRelationships(
 	}
 
 	var rels []resource.ResolvedRelationship
-	descriptors := s.DeclareRelationships()
+	byTarget := descriptorByTarget(s.DeclareRelationships())
 
 	// Pod relationships via ownerRef.
 	pods, err := listPodsByOwner(ctx, client, namespace, "StatefulSet", id, string(sts.UID))
@@ -106,7 +106,7 @@ func (s *StatefulSetResourcer) ResolveRelationships(
 			targets = append(targets, makeRef("core::v1::Pod", pod.Name, namespace))
 		}
 		rels = append(rels, resource.ResolvedRelationship{
-			Descriptor: descriptors[0], // RelOwns → Pod
+			Descriptor: byTarget["core::v1::Pod"],
 			Targets:    targets,
 		})
 	}
@@ -127,7 +127,7 @@ func (s *StatefulSetResourcer) ResolveRelationships(
 		}
 		if len(targets) > 0 {
 			rels = append(rels, resource.ResolvedRelationship{
-				Descriptor: descriptors[1], // RelUses → PVC
+				Descriptor: byTarget["core::v1::PersistentVolumeClaim"],
 				Targets:    targets,
 			})
 		}
@@ -140,7 +140,7 @@ func (s *StatefulSetResourcer) ResolveRelationships(
 			targets = append(targets, makeRef("core::v1::ConfigMap", name, namespace))
 		}
 		rels = append(rels, resource.ResolvedRelationship{
-			Descriptor: descriptors[2], // RelUses → ConfigMap
+			Descriptor: byTarget["core::v1::ConfigMap"],
 			Targets:    targets,
 		})
 	}
@@ -152,7 +152,7 @@ func (s *StatefulSetResourcer) ResolveRelationships(
 			targets = append(targets, makeRef("core::v1::Secret", name, namespace))
 		}
 		rels = append(rels, resource.ResolvedRelationship{
-			Descriptor: descriptors[3], // RelUses → Secret
+			Descriptor: byTarget["core::v1::Secret"],
 			Targets:    targets,
 		})
 	}

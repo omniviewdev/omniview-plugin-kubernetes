@@ -17,9 +17,13 @@ import (
 // runProcessPodWatchEvents runs processPodWatchEvents in a goroutine and
 // closes eventCh when it returns (mirroring watchPodsAsSourceEvents behavior).
 func runProcessPodWatchEvents(ctx context.Context, watcher watch.Interface, target string, initialKnown map[string]map[string]struct{}, eventCh chan logs.SourceEvent) {
+	known := initialKnown
+	if known == nil {
+		known = make(map[string]map[string]struct{})
+	}
 	go func() {
 		defer close(eventCh)
-		processPodWatchEvents(ctx, watcher, target, initialKnown, eventCh)
+		processPodWatchEvents(ctx, watcher, target, known, eventCh)
 	}()
 }
 
@@ -231,7 +235,7 @@ func TestProcessPodWatchEvents_ContextCancellation(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		processPodWatchEvents(ctx, fw, "", nil, eventCh)
+		processPodWatchEvents(ctx, fw, "", make(map[string]map[string]struct{}), eventCh)
 		close(done)
 	}()
 

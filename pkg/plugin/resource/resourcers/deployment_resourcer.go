@@ -88,7 +88,7 @@ func (d *DeploymentResourcer) ResolveRelationships(
 	}
 
 	var rels []resource.ResolvedRelationship
-	descriptors := d.DeclareRelationships()
+	byTarget := descriptorByTarget(d.DeclareRelationships())
 
 	// ReplicaSet relationships via label selector.
 	if dep.Spec.Selector != nil {
@@ -110,7 +110,7 @@ func (d *DeploymentResourcer) ResolveRelationships(
 				}
 				if len(targets) > 0 {
 					rels = append(rels, resource.ResolvedRelationship{
-						Descriptor: descriptors[0], // RelManages → ReplicaSet
+						Descriptor: byTarget["apps::v1::ReplicaSet"],
 						Targets:    targets,
 					})
 				}
@@ -125,7 +125,7 @@ func (d *DeploymentResourcer) ResolveRelationships(
 			targets = append(targets, makeRef("core::v1::ConfigMap", name, namespace))
 		}
 		rels = append(rels, resource.ResolvedRelationship{
-			Descriptor: descriptors[1], // RelUses → ConfigMap
+			Descriptor: byTarget["core::v1::ConfigMap"],
 			Targets:    targets,
 		})
 	}
@@ -137,7 +137,7 @@ func (d *DeploymentResourcer) ResolveRelationships(
 			targets = append(targets, makeRef("core::v1::Secret", name, namespace))
 		}
 		rels = append(rels, resource.ResolvedRelationship{
-			Descriptor: descriptors[2], // RelUses → Secret
+			Descriptor: byTarget["core::v1::Secret"],
 			Targets:    targets,
 		})
 	}

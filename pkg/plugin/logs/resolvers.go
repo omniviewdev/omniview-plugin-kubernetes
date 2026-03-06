@@ -3,6 +3,8 @@ package logs
 import (
 	"context"
 	"fmt"
+	"log"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -237,6 +239,8 @@ func resolvePodsToSources(
 }
 
 // watchPodsAsSourceEvents watches for pod changes and emits source events.
+// It wraps the watch in a relist/re-watch loop so that transient failures
+// (closed connections, expired resourceVersions) are retried with backoff.
 func watchPodsAsSourceEvents(
 	ctx *types.PluginContext,
 	clients *kubeauth.KubeClientBundle,
@@ -249,51 +253,157 @@ func watchPodsAsSourceEvents(
 ) {
 	defer close(eventCh)
 
-	watcher, err := clients.Clientset.CoreV1().Pods(namespace).Watch(
-		ctx.Context,
-		metav1.ListOptions{
-			LabelSelector:   selector.String(),
-			ResourceVersion: resourceVersion,
-		},
-	)
-	if err != nil {
-		return
+	knownSources := initialKnown
+	if knownSources == nil {
+		knownSources = make(map[string]map[string]struct{})
 	}
-	defer watcher.Stop()
+	rv := resourceVersion
 
-	processPodWatchEvents(ctx.Context, watcher, target, initialKnown, eventCh)
+	const (
+		minBackoff = 500 * time.Millisecond
+		maxBackoff = 30 * time.Second
+	)
+	backoff := minBackoff
+
+	for {
+		if ctx.Context.Err() != nil {
+			return
+		}
+
+		watcher, err := clients.Clientset.CoreV1().Pods(namespace).Watch(
+			ctx.Context,
+			metav1.ListOptions{
+				LabelSelector:   selector.String(),
+				ResourceVersion: rv,
+			},
+		)
+		if err != nil {
+			log.Printf("[logs-watch] watch creation failed: %v, retrying in %s", err, backoff)
+			select {
+			case <-ctx.Context.Done():
+				return
+			case <-time.After(backoff):
+			}
+			// Relist to get a fresh resourceVersion.
+			rv, knownSources = relistPods(ctx.Context, clients, namespace, selector, target, knownSources, eventCh)
+			backoff = min(backoff*2, maxBackoff)
+			continue
+		}
+
+		// Successful watch creation resets backoff.
+		backoff = minBackoff
+		newRV := processPodWatchEvents(ctx.Context, watcher, target, knownSources, eventCh)
+		watcher.Stop()
+
+		if ctx.Context.Err() != nil {
+			return
+		}
+
+		// Update RV if processPodWatchEvents returned one from the stream.
+		if newRV != "" {
+			rv = newRV
+		} else {
+			// Watch closed without yielding events — relist.
+			rv, knownSources = relistPods(ctx.Context, clients, namespace, selector, target, knownSources, eventCh)
+		}
+	}
+}
+
+// relistPods re-lists pods to rebuild knownSources and obtain a fresh resourceVersion.
+// It emits SourceAdded for any new pods and SourceRemoved for pods that disappeared.
+func relistPods(
+	ctx context.Context,
+	clients *kubeauth.KubeClientBundle,
+	namespace string,
+	selector labels.Selector,
+	target string,
+	prevKnown map[string]map[string]struct{},
+	eventCh chan<- logs.SourceEvent,
+) (string, map[string]map[string]struct{}) {
+	podList, err := clients.Clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: selector.String(),
+	})
+	if err != nil {
+		log.Printf("[logs-watch] relist failed: %v", err)
+		return "", prevKnown
+	}
+
+	newKnown := make(map[string]map[string]struct{})
+	for i := range podList.Items {
+		pod := &podList.Items[i]
+		sources := podToSources(*pod, target)
+		ids := make(map[string]struct{}, len(sources))
+		for _, s := range sources {
+			ids[s.ID] = struct{}{}
+			// Emit add for sources not previously known.
+			prev := prevKnown[pod.Name]
+			if _, ok := prev[s.ID]; !ok {
+				select {
+				case eventCh <- logs.SourceEvent{Type: logs.SourceAdded, Source: s}:
+				case <-ctx.Done():
+					return podList.ResourceVersion, newKnown
+				}
+			}
+		}
+		newKnown[pod.Name] = ids
+	}
+
+	// Emit removals for pods/containers that disappeared.
+	for podName, prevIDs := range prevKnown {
+		currentIDs := newKnown[podName]
+		for id := range prevIDs {
+			if currentIDs == nil {
+				select {
+				case eventCh <- logs.SourceEvent{Type: logs.SourceRemoved, Source: logs.LogSource{ID: id}}:
+				case <-ctx.Done():
+					return podList.ResourceVersion, newKnown
+				}
+			} else if _, ok := currentIDs[id]; !ok {
+				select {
+				case eventCh <- logs.SourceEvent{Type: logs.SourceRemoved, Source: logs.LogSource{ID: id}}:
+				case <-ctx.Done():
+					return podList.ResourceVersion, newKnown
+				}
+			}
+		}
+	}
+
+	return podList.ResourceVersion, newKnown
 }
 
 // processPodWatchEvents reads from a K8s watch and emits SourceAdded/SourceRemoved
 // events. It tracks known sources per pod and diffs on MODIFIED to detect new
 // or removed containers (e.g. ephemeral debug containers).
+// Returns the last seen resourceVersion from the stream (empty if none seen).
 func processPodWatchEvents(
 	ctx context.Context,
 	watcher watch.Interface,
 	target string,
-	initialKnown map[string]map[string]struct{},
+	knownSources map[string]map[string]struct{},
 	eventCh chan<- logs.SourceEvent,
-) {
-	// Track known sources per pod for diffing on MODIFIED.
-	// Seed from the initial list so we don't re-emit already-known sources.
-	knownSources := initialKnown
-	if knownSources == nil {
-		knownSources = make(map[string]map[string]struct{})
-	}
+) string {
+	var lastRV string
 
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return lastRV
 		case event, ok := <-watcher.ResultChan():
 			if !ok {
-				return
+				return lastRV
+			}
+
+			// Handle watch errors (e.g. expired resourceVersion, server-side close).
+			if event.Type == watch.Error {
+				log.Printf("[logs-watch] watch error event received: %v", event.Object)
+				return lastRV
 			}
 
 			pod, ok := event.Object.(*corev1.Pod)
 			if !ok {
 				continue
 			}
+			lastRV = pod.ResourceVersion
 
 			sources := podToSources(*pod, target)
 			currentIDs := make(map[string]struct{}, len(sources))
@@ -308,7 +418,7 @@ func processPodWatchEvents(
 					select {
 					case eventCh <- logs.SourceEvent{Type: logs.SourceAdded, Source: src}:
 					case <-ctx.Done():
-						return
+						return lastRV
 					}
 				}
 
@@ -321,7 +431,7 @@ func processPodWatchEvents(
 						select {
 						case eventCh <- logs.SourceEvent{Type: logs.SourceAdded, Source: src}:
 						case <-ctx.Done():
-							return
+							return lastRV
 						}
 					}
 				}
@@ -331,7 +441,7 @@ func processPodWatchEvents(
 						select {
 						case eventCh <- logs.SourceEvent{Type: logs.SourceRemoved, Source: logs.LogSource{ID: id}}:
 						case <-ctx.Done():
-							return
+							return lastRV
 						}
 					}
 				}
@@ -354,7 +464,7 @@ func processPodWatchEvents(
 					select {
 					case eventCh <- logs.SourceEvent{Type: logs.SourceRemoved, Source: src}:
 					case <-ctx.Done():
-						return
+						return lastRV
 					}
 				}
 			}

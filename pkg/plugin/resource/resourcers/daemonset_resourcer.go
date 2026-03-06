@@ -87,7 +87,7 @@ func (d *DaemonSetResourcer) ResolveRelationships(
 	}
 
 	var rels []resource.ResolvedRelationship
-	descriptors := d.DeclareRelationships()
+	byTarget := descriptorByTarget(d.DeclareRelationships())
 
 	// Pod relationships via ownerRef.
 	pods, err := listPodsByOwner(ctx, client, namespace, "DaemonSet", id, string(ds.UID))
@@ -97,7 +97,7 @@ func (d *DaemonSetResourcer) ResolveRelationships(
 			targets = append(targets, makeRef("core::v1::Pod", pod.Name, namespace))
 		}
 		rels = append(rels, resource.ResolvedRelationship{
-			Descriptor: descriptors[0], // RelOwns → Pod
+			Descriptor: byTarget["core::v1::Pod"],
 			Targets:    targets,
 		})
 	}
@@ -109,7 +109,7 @@ func (d *DaemonSetResourcer) ResolveRelationships(
 			targets = append(targets, makeRef("core::v1::ConfigMap", name, namespace))
 		}
 		rels = append(rels, resource.ResolvedRelationship{
-			Descriptor: descriptors[1], // RelUses → ConfigMap
+			Descriptor: byTarget["core::v1::ConfigMap"],
 			Targets:    targets,
 		})
 	}
@@ -121,7 +121,7 @@ func (d *DaemonSetResourcer) ResolveRelationships(
 			targets = append(targets, makeRef("core::v1::Secret", name, namespace))
 		}
 		rels = append(rels, resource.ResolvedRelationship{
-			Descriptor: descriptors[2], // RelUses → Secret
+			Descriptor: byTarget["core::v1::Secret"],
 			Targets:    targets,
 		})
 	}
