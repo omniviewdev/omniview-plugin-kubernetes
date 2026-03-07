@@ -4,7 +4,10 @@ import {
   type DrawerContext,
   type DrawerComponent,
   type DrawerFactory,
+  type ExtensionRegistration,
+  type HomepageCardMeta,
 } from '@omniviewdev/runtime';
+import { SiKubernetes } from 'react-icons/si';
 import React from 'react';
 import { RouteObject } from 'react-router-dom';
 
@@ -99,6 +102,7 @@ import StorageClassTable from './components/kubernetes/table/storagev1/StorageCl
 import VolumeAttachmentSidebar from './components/kubernetes/table/storagev1/VolumeAttachment/Sidebar';
 import VolumeAttachmentTable from './components/kubernetes/table/storagev1/VolumeAttachment/Table';
 import { createStandardViews } from './components/shared/sidebar/createDrawerViews';
+import KubernetesHomepageCard from './components/homepage/KubernetesHomepageCard';
 import ClusterEditPage from './pages/ClusterEditPage';
 import ClusterResourcesPage from './pages/ClusterResourcesPage';
 import ClustersPage from './pages/ClustersPage';
@@ -367,6 +371,25 @@ const routes: Array<RouteObject> = [
         ],
       },
     ],
+  },
+];
+
+export const extensionRegistrations: ExtensionRegistration[] = [
+  {
+    extensionPointId: 'omniview/home/card',
+    registration: {
+      id: 'kubernetes/home/card',
+      plugin: 'kubernetes',
+      label: 'Kubernetes',
+      component: KubernetesHomepageCard as any,
+      meta: {
+        label: 'Kubernetes',
+        description: 'Recent clusters, favorites, and folders',
+        defaultConfig: { sections: ['connected', 'recent', 'favorites', 'folders'], maxItems: 5 },
+        defaultWidth: 'medium',
+        icon: SiKubernetes,
+      } satisfies HomepageCardMeta,
+    },
   },
 ];
 
