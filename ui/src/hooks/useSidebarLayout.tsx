@@ -7,7 +7,7 @@ import {
   useWatchState,
   WatchState,
 } from '@omniviewdev/runtime';
-import { types } from '@omniviewdev/runtime/models';
+import { resource } from '@omniviewdev/runtime/models';
 import type { NavSection, NavMenuItem } from '@omniviewdev/ui/sidebars';
 import React from 'react';
 import {
@@ -38,7 +38,7 @@ type Opts = {
 /**
  * Get the ID from the meta object
  */
-const toID = (meta: types.ResourceMeta) => `${meta.group}_${meta.version}_${meta.kind}`;
+const toID = (meta: resource.ResourceMeta) => `${meta.group}_${meta.version}_${meta.kind}`;
 
 /**
  * Returns whether the item is a CRD resource or not
@@ -127,7 +127,7 @@ const getGroupBadge = (
  * Calculates the full sidebar layout divided by the API groups
  */
 const calculateFullLayout = (
-  data: Record<string, types.ResourceGroup>,
+  data: Record<string, resource.ResourceGroup>,
   watchStates?: Record<string, WatchState>,
 ): Array<NavSection> => {
   if (!data) {
@@ -261,7 +261,7 @@ const ModernSectionMap: Record<string, ModernSection> = {
  * resources that are available.
  */
 const calculateModernLayout = (
-  data: Record<string, types.ResourceGroup>,
+  data: Record<string, resource.ResourceGroup>,
   watchStates?: Record<string, WatchState>,
 ): Array<NavSection> => {
   if (!data) {

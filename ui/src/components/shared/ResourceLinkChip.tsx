@@ -71,10 +71,7 @@ const ResourceLinkChip: React.FC<Props> = ({
     return null;
   }
 
-  const handleClick: React.MouseEventHandler = (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-
+  const handleClick = () => {
     showResourceSidebar({
       pluginID,
       connectionID,

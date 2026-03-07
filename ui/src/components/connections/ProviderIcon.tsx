@@ -1,6 +1,7 @@
 import React from 'react';
 import { LuContainer, LuBox, LuServer } from 'react-icons/lu';
-import { SiKubernetes, SiAmazonwebservices, SiGooglecloud } from 'react-icons/si';
+import { FaAws } from 'react-icons/fa';
+import { SiKubernetes, SiGooglecloud } from 'react-icons/si';
 import { VscAzure } from 'react-icons/vsc';
 
 import { getProviderColor } from '../../utils/providers';
@@ -11,7 +12,7 @@ type Props = {
 };
 
 const iconMap: Record<string, React.ComponentType<{ size?: number; color?: string }>> = {
-  eks: SiAmazonwebservices,
+  eks: FaAws,
   gke: SiGooglecloud,
   aks: VscAzure,
   kind: LuBox,

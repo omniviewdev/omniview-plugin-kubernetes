@@ -1,5 +1,5 @@
 import Box from '@mui/material/Box';
-import { type types } from '@omniviewdev/runtime/models';
+import { type resource } from '@omniviewdev/runtime/models';
 import { Text } from '@omniviewdev/ui/typography';
 import React from 'react';
 
@@ -34,7 +34,7 @@ type Props = {
   endDecorator?: React.ReactNode;
   align?: 'left' | 'right' | 'center';
   formatter?: string;
-  resourceLink?: types.ResourceLink;
+  resourceLink?: resource.ResourceLink;
   metadata?: ResourceMetadata;
   children?: React.ReactNode;
 };

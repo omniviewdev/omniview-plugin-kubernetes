@@ -1,5 +1,5 @@
 import { ResourceClient, ExecClient } from '@omniviewdev/runtime/api';
-import { type types } from '@omniviewdev/runtime/models';
+import { type resource } from '@omniviewdev/runtime/models';
 import { useQuery } from '@tanstack/react-query';
 import { type ColumnDef } from '@tanstack/react-table';
 import jsonpath from 'jsonpath';
@@ -41,7 +41,7 @@ const getAlignment = (align?: string) => {
 };
 
 type ParseColumnDefOpts = {
-  columnDefs?: types.ColumnDef[];
+  columnDefs?: resource.ColumnDefinition[];
   actions?: Actions;
   pluginID: string;
   connectionID: string;

@@ -5,7 +5,7 @@ import {
   useConfirmationModal,
 } from '@omniviewdev/runtime';
 import { ResourceClient } from '@omniviewdev/runtime/api';
-import { type types } from '@omniviewdev/runtime/models';
+import { type resource } from '@omniviewdev/runtime/models';
 import { IconButton } from '@omniviewdev/ui/buttons';
 import { DropdownMenu, type ContextMenuItem } from '@omniviewdev/ui/menus';
 import { ObjectMeta } from 'kubernetes-types/meta/v1';
@@ -186,7 +186,7 @@ function buildFallbackDelete(
             namespace: props.namespace,
             input: {},
             params: {},
-          } as unknown as types.DeleteInput);
+          } as unknown as resource.DeleteInput);
         },
       });
     },
