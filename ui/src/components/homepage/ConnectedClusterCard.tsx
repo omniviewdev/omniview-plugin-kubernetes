@@ -129,7 +129,7 @@ const ConnectedClusterCard: React.FC<Props> = ({
 
   const { failedCount, pendingCount, warningCount, podCount, nodeCount, deploymentCount } = React.useMemo(() => {
     const pods = (podsQuery.data?.result ?? []) as Pod[];
-    const events = (eventsQuery.data?.result ?? []) as K8sEvent[];
+    const events = (eventsQuery.data?.result ?? []) as unknown as K8sEvent[];
     return {
       failedCount: pods.filter((p) => p.status?.phase === 'Failed').length,
       pendingCount: pods.filter((p) => p.status?.phase === 'Pending').length,
