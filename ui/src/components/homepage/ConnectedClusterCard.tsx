@@ -13,8 +13,6 @@ import type { ConnectionOverride } from '../../types/clusters';
 import type { types } from '@omniviewdev/runtime/models';
 import ConnectionStatusBadge from '../connections/ConnectionStatusBadge';
 import NamedAvatar from '../shared/NamedAvatar';
-import { useClusterPreferences } from '../../hooks/useClusterPreferences';
-
 const PLUGIN_ID = 'kubernetes';
 
 const METRIC_IDS = [
@@ -65,6 +63,7 @@ const ConnectedClusterCard: React.FC<Props> = ({
   conn,
   override,
   isSyncing,
+  hasErrors = false,
   onClick,
   onDisconnect,
 }) => {
@@ -100,8 +99,7 @@ const ConnectedClusterCard: React.FC<Props> = ({
     idAccessor: 'metadata.uid',
   });
 
-  const { connectionOverrides } = useClusterPreferences(PLUGIN_ID);
-  const metricConfig = connectionOverrides[connectionID]?.metricConfig;
+  const metricConfig = override?.metricConfig;
 
   const resourceData = React.useMemo(() => {
     if (!metricConfig?.prometheusService && !metricConfig?.prometheusNamespace && !metricConfig?.prometheusPort) {
@@ -145,11 +143,21 @@ const ConnectedClusterCard: React.FC<Props> = ({
   const cpuPct = values.get('prom_cluster_cpu_utilization') ?? 0;
   const memPct = values.get('prom_cluster_memory_utilization') ?? 0;
 
-  const hasIssues = failedCount > 0 || pendingCount > 0 || warningCount > 0;
+  const hasIssues = hasErrors || failedCount > 0 || pendingCount > 0 || warningCount > 0;
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onClick();
+    }
+  };
 
   return (
     <Box
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={handleKeyDown}
       sx={{
         position: 'relative',
         display: 'flex',
@@ -166,6 +174,10 @@ const ConnectedClusterCard: React.FC<Props> = ({
           bgcolor: 'var(--ov-bg-surface-hover, rgba(255,255,255,0.05))',
         },
         '&:hover .disconnect-btn': { opacity: 1 },
+        '&:focus-visible': {
+          outline: '2px solid var(--ov-palette-primary-main, #3b82f6)',
+          outlineOffset: '2px',
+        },
       }}
     >
       {/* Disconnect button — top right */}

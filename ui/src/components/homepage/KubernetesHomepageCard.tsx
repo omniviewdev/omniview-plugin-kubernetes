@@ -44,6 +44,10 @@ const chipSx = {
   '&:hover .chip-disconnect': {
     opacity: 1,
   },
+  '&:focus-visible': {
+    outline: '2px solid var(--ov-palette-primary-main, #3b82f6)',
+    outlineOffset: '2px',
+  },
 } as const;
 
 const chipNameSx = {
@@ -112,8 +116,21 @@ const ClusterChip: React.FC<ClusterChipProps> = ({
   const avatar = override?.avatar ?? conn?.avatar;
   const avatarColor = override?.avatarColor;
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onClick();
+    }
+  };
+
   return (
-    <Box sx={stretch ? { ...chipSx, display: 'flex', maxWidth: 'none' } : chipSx} onClick={onClick}>
+    <Box
+      role="button"
+      tabIndex={0}
+      sx={stretch ? { ...chipSx, display: 'flex', maxWidth: 'none' } : chipSx}
+      onClick={onClick}
+      onKeyDown={handleKeyDown}
+    >
       <ConnectionStatusBadge isConnected={isConnected}>
         {avatar ? (
           <Avatar size="sm" src={avatar} sx={avatarSx} />
@@ -189,7 +206,7 @@ const KubernetesHomepageCard: React.FC<HomepageCardProps> = ({ config }) => {
 
   const { connections } = useConnections({ plugin: PLUGIN_ID });
   const { entries: allStatusEntries, disconnect } = useConnectionStatus();
-  const { favorites, recentConnections, customGroups, connectionOverrides, isLoading } =
+  const { favorites, recentConnections, customGroups, connectionOverrides, isLoading, recordAccess } =
     useClusterPreferences(PLUGIN_ID);
 
   const allConnections = connections.data ?? [];
@@ -214,9 +231,14 @@ const KubernetesHomepageCard: React.FC<HomepageCardProps> = ({ config }) => {
   );
 
   const handleOpen = async (connectionId: string) => {
-    await ResourceClient.StartConnection(PLUGIN_ID, connectionId).catch(() => {
-      // ignore — connection may already be active, navigate anyway
-    });
+    if (!connectedIdSet.has(connectionId)) {
+      try {
+        await ResourceClient.StartConnection(PLUGIN_ID, connectionId);
+      } catch {
+        return;
+      }
+    }
+    await recordAccess(connectionId);
     window.location.hash = `/_plugin/${PLUGIN_ID}/cluster/${encodeURIComponent(connectionId)}/resources`;
   };
 
