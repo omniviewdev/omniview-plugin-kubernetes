@@ -29,7 +29,7 @@ const chipSx = {
   pr: 1,
   py: 0.375,
   cursor: 'pointer',
-  borderRadius: '20px',
+  borderRadius: '5px',
   border: '1px solid var(--ov-border-default, rgba(255,255,255,0.08))',
   bgcolor: 'var(--ov-bg-surface, rgba(255,255,255,0.03))',
   transition: 'border-color 0.15s, background-color 0.15s, box-shadow 0.15s',
