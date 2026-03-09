@@ -1,0 +1,30 @@
+# Standalone ReplicaSet (not managed by a Deployment) — worker pool pattern
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: event-processor
+  namespace: omniview-test-apps
+  annotations:
+    description: "Standalone ReplicaSet processing events from the demo app"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: event-processor
+  template:
+    metadata:
+      labels:
+        app: event-processor
+        tier: worker
+    spec:
+      containers:
+        - name: processor
+          image: alpine:3.20
+          command: ["sh", "-c", "while true; do echo \"$(date) Processing events...\"; sleep 30; done"]
+          resources:
+            requests:
+              cpu: 25m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi

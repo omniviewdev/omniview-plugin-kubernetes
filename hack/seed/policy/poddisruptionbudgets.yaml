@@ -1,0 +1,27 @@
+# PDB for the frontend — always keep at least 1 running
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: frontend-pdb
+  namespace: omniview-test-apps
+  annotations:
+    description: "Ensure at least 1 frontend pod is always available"
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: frontend
+---
+# PDB for the checkout service — max 1 unavailable
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: checkoutservice-pdb
+  namespace: omniview-test-apps
+  annotations:
+    description: "Allow at most 1 checkout pod to be unavailable during disruptions"
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: checkoutservice

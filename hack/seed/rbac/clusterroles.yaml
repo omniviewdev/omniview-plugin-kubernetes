@@ -1,0 +1,34 @@
+# ClusterRole with explicit rules
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: omniview-monitoring-reader
+  annotations:
+    description: "Cluster-wide read access for monitoring"
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "pods", "services", "endpoints", "namespaces"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "daemonsets", "statefulsets", "replicasets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get", "list", "watch"]
+  - nonResourceURLs: ["/healthz", "/readyz", "/metrics"]
+    verbs: ["get"]
+---
+# ClusterRole with aggregation
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: omniview-aggregate-reader
+  annotations:
+    description: "Aggregated cluster role"
+  labels:
+    rbac.omniview.dev/aggregate-to-reader: "true"
+aggregationRule:
+  clusterRoleSelectors:
+    - matchLabels:
+        rbac.omniview.dev/aggregate-to-reader: "true"
+rules: []

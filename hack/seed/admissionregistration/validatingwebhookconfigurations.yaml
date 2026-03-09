@@ -1,0 +1,23 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: omniview-pod-validator
+  annotations:
+    description: "Validating webhook for pod creation (dry-run, failurePolicy Ignore)"
+webhooks:
+  - name: validate.pods.omniview.dev
+    admissionReviewVersions: ["v1"]
+    sideEffects: None
+    failurePolicy: Ignore
+    matchPolicy: Equivalent
+    clientConfig:
+      url: "https://webhook.example.com/validate-pods"
+    rules:
+      - operations: ["CREATE", "UPDATE"]
+        apiGroups: [""]
+        apiVersions: ["v1"]
+        resources: ["pods"]
+        scope: Namespaced
+    namespaceSelector:
+      matchLabels:
+        omniview-webhook: enabled

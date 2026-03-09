@@ -1,0 +1,34 @@
+# Default deny all ingress in the infra namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: omniview-test-infra
+  annotations:
+    description: "Deny all ingress traffic by default"
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# Allow frontend to reach backend services in the demo
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-to-backends
+  namespace: omniview-test-apps
+  annotations:
+    description: "Allow the frontend to reach checkout, cart, product catalog, and currency services"
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [checkoutservice, cartservice, productcatalogservice, currencyservice]
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: frontend
