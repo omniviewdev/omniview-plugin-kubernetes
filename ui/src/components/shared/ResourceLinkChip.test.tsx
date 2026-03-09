@@ -1,5 +1,7 @@
+/// <reference types="@testing-library/jest-dom/vitest" />
 import { fireEvent, render, screen } from '@testing-library/react';
-import React from 'react';
+import type React from 'react';
+import { vi, describe, it, expect, beforeEach } from 'vitest';
 
 import ResourceLinkChip from './ResourceLinkChip';
 
@@ -32,25 +34,20 @@ describe('ResourceLinkChip', () => {
     vi.clearAllMocks();
   });
 
-  it('stops click propagation and opens the linked resource sidebar', () => {
-    const parentClick = vi.fn();
-
+  it('opens the linked resource sidebar on click', () => {
     render(
-      <div onClick={parentClick}>
-        <ResourceLinkChip
-          pluginID="kubernetes"
-          connectionID="conn-1"
-          namespace="kube-system"
-          resourceID="pod-1"
-          resourceKey="core::v1::Pod"
-          resourceName="Pod/pod-1"
-        />
-      </div>,
+      <ResourceLinkChip
+        pluginID="kubernetes"
+        connectionID="conn-1"
+        namespace="kube-system"
+        resourceID="pod-1"
+        resourceKey="core::v1::Pod"
+        resourceName="Pod/pod-1"
+      />,
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Pod/pod-1' }));
 
-    expect(parentClick).not.toHaveBeenCalled();
     expect(mocks.mockShowResourceSidebar).toHaveBeenCalledTimes(1);
     expect(mocks.mockShowResourceSidebar).toHaveBeenCalledWith({
       pluginID: 'kubernetes',

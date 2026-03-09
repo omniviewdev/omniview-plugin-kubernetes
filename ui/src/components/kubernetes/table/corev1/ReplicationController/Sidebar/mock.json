@@ -1,0 +1,45 @@
+{
+  "apiVersion": "v1",
+  "kind": "ReplicationController",
+  "metadata": {
+    "name": "web-rc",
+    "namespace": "production",
+    "uid": "rc-001-uid",
+    "resourceVersion": "55555",
+    "creationTimestamp": "2025-03-15T12:00:00Z",
+    "labels": {
+      "app": "web"
+    },
+    "annotations": {}
+  },
+  "spec": {
+    "replicas": 3,
+    "selector": {
+      "app": "web"
+    },
+    "template": {
+      "metadata": {
+        "labels": {
+          "app": "web"
+        }
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "web",
+            "image": "nginx:1.25",
+            "ports": [
+              { "containerPort": 80 }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "status": {
+    "replicas": 3,
+    "readyReplicas": 3,
+    "availableReplicas": 3,
+    "observedGeneration": 2
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "apiVersion": "batch/v1",
+  "kind": "Job",
+  "metadata": {
+    "name": "data-migration-v3",
+    "namespace": "production",
+    "uid": "job-001",
+    "resourceVersion": "54321",
+    "creationTimestamp": "2025-06-14T10:00:00Z",
+    "labels": { "app": "data-migration", "version": "v3" },
+    "annotations": {},
+    "ownerReferences": [
+      {
+        "apiVersion": "batch/v1",
+        "kind": "CronJob",
+        "name": "daily-backup",
+        "uid": "cj-001",
+        "controller": true
+      }
+    ]
+  },
+  "spec": {
+    "completions": 3,
+    "parallelism": 2,
+    "backoffLimit": 4,
+    "activeDeadlineSeconds": 3600,
+    "completionMode": "Indexed",
+    "ttlSecondsAfterFinished": 86400,
+    "suspend": false,
+    "template": {
+      "spec": {
+        "containers": [
+          { "name": "migrate", "image": "data-migrator:v3.1.0" }
+        ],
+        "restartPolicy": "Never"
+      }
+    }
+  },
+  "status": {
+    "conditions": [
+      {
+        "type": "Complete",
+        "status": "True",
+        "lastProbeTime": "2025-06-14T10:15:00Z",
+        "lastTransitionTime": "2025-06-14T10:15:00Z"
+      }
+    ],
+    "startTime": "2025-06-14T10:00:00Z",
+    "completionTime": "2025-06-14T10:15:00Z",
+    "succeeded": 3,
+    "failed": 0,
+    "active": 0,
+    "ready": 0
+  }
+}

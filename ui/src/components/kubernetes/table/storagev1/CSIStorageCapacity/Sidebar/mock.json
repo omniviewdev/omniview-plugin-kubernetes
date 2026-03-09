@@ -1,0 +1,28 @@
+{
+  "apiVersion": "storage.k8s.io/v1",
+  "kind": "CSIStorageCapacity",
+  "metadata": {
+    "name": "csisc-a1b2c3d4",
+    "namespace": "kube-system",
+    "uid": "d0e1f2a3-0123-4567-2345-678901234567",
+    "resourceVersion": "56789",
+    "creationTimestamp": "2025-08-01T07:30:00Z",
+    "labels": {},
+    "ownerReferences": [
+      {
+        "apiVersion": "storage.k8s.io/v1",
+        "kind": "CSIDriver",
+        "name": "ebs.csi.aws.com",
+        "uid": "csidriver-uid-1234"
+      }
+    ]
+  },
+  "storageClassName": "gp3-encrypted",
+  "nodeTopology": {
+    "matchLabels": {
+      "topology.ebs.csi.aws.com/zone": "us-east-1a"
+    }
+  },
+  "capacity": "500Gi",
+  "maximumVolumeSize": "16Ti"
+}

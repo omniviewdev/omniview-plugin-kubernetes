@@ -1,0 +1,84 @@
+{
+  "apiVersion": "networking.k8s.io/v1",
+  "kind": "Ingress",
+  "metadata": {
+    "name": "web-ingress",
+    "namespace": "production",
+    "uid": "b8c9d0e1-8901-2345-0123-456789012345",
+    "resourceVersion": "78901",
+    "creationTimestamp": "2025-07-15T11:00:00Z",
+    "labels": {
+      "app": "web-frontend",
+      "tier": "ingress"
+    },
+    "annotations": {
+      "nginx.ingress.kubernetes.io/rewrite-target": "/",
+      "nginx.ingress.kubernetes.io/ssl-redirect": "true",
+      "cert-manager.io/cluster-issuer": "letsencrypt-prod"
+    }
+  },
+  "spec": {
+    "ingressClassName": "nginx",
+    "tls": [
+      {
+        "hosts": ["app.example.com", "api.example.com"],
+        "secretName": "example-com-tls"
+      }
+    ],
+    "rules": [
+      {
+        "host": "app.example.com",
+        "http": {
+          "paths": [
+            {
+              "path": "/",
+              "pathType": "Prefix",
+              "backend": {
+                "service": {
+                  "name": "web-frontend",
+                  "port": { "number": 80 }
+                }
+              }
+            },
+            {
+              "path": "/static",
+              "pathType": "Prefix",
+              "backend": {
+                "service": {
+                  "name": "static-assets",
+                  "port": { "number": 8080 }
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "host": "api.example.com",
+        "http": {
+          "paths": [
+            {
+              "path": "/v1",
+              "pathType": "Prefix",
+              "backend": {
+                "service": {
+                  "name": "api-gateway",
+                  "port": { "number": 3000 }
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "status": {
+    "loadBalancer": {
+      "ingress": [
+        {
+          "hostname": "a1b2c3d4e5.us-east-1.elb.amazonaws.com"
+        }
+      ]
+    }
+  }
+}

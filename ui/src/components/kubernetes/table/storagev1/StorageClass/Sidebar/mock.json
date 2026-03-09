@@ -1,0 +1,28 @@
+{
+  "apiVersion": "storage.k8s.io/v1",
+  "kind": "StorageClass",
+  "metadata": {
+    "name": "gp3-encrypted",
+    "uid": "c3d4e5f6-3456-7890-bcde-f01234567890",
+    "resourceVersion": "1234",
+    "creationTimestamp": "2025-05-01T12:00:00Z",
+    "labels": {
+      "app.kubernetes.io/managed-by": "Terraform"
+    },
+    "annotations": {
+      "storageclass.kubernetes.io/is-default-class": "true"
+    }
+  },
+  "provisioner": "ebs.csi.aws.com",
+  "reclaimPolicy": "Delete",
+  "volumeBindingMode": "WaitForFirstConsumer",
+  "allowVolumeExpansion": true,
+  "mountOptions": ["noatime", "nodiratime"],
+  "parameters": {
+    "type": "gp3",
+    "encrypted": "true",
+    "iops": "3000",
+    "throughput": "125",
+    "fsType": "ext4"
+  }
+}

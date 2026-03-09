@@ -1,0 +1,22 @@
+{
+  "apiVersion": "admissionregistration.k8s.io/v1",
+  "kind": "ValidatingAdmissionPolicyBinding",
+  "metadata": {
+    "name": "deny-privileged-binding",
+    "uid": "vapb-001",
+    "resourceVersion": "45678",
+    "creationTimestamp": "2025-04-15T12:05:00Z",
+    "labels": {},
+    "annotations": {}
+  },
+  "spec": {
+    "policyName": "deny-privileged-containers",
+    "validationActions": ["Deny", "Audit"],
+    "matchResources": {
+      "resourceRules": [
+        { "operations": ["CREATE"], "apiGroups": [""], "apiVersions": ["v1"], "resources": ["pods"] }
+      ],
+      "namespaceSelector": { "matchLabels": { "policy": "enforced" } }
+    }
+  }
+}

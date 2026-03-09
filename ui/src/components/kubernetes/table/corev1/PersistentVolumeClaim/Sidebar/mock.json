@@ -1,0 +1,33 @@
+{
+  "apiVersion": "v1",
+  "kind": "PersistentVolumeClaim",
+  "metadata": {
+    "name": "data-pvc",
+    "namespace": "production",
+    "uid": "pvc-001-uid",
+    "resourceVersion": "22222",
+    "creationTimestamp": "2025-04-10T08:05:00Z",
+    "labels": {
+      "app": "my-app"
+    },
+    "annotations": {}
+  },
+  "spec": {
+    "accessModes": ["ReadWriteMany"],
+    "resources": {
+      "requests": {
+        "storage": "50Gi"
+      }
+    },
+    "volumeName": "pv-nfs-data",
+    "storageClassName": "nfs-storage",
+    "volumeMode": "Filesystem"
+  },
+  "status": {
+    "phase": "Bound",
+    "accessModes": ["ReadWriteMany"],
+    "capacity": {
+      "storage": "50Gi"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "apiVersion": "coordination.k8s.io/v1",
+  "kind": "Lease",
+  "metadata": {
+    "name": "kube-scheduler",
+    "namespace": "kube-system",
+    "uid": "e5f6a7b8-5678-9012-def0-123456789012",
+    "resourceVersion": "992341",
+    "creationTimestamp": "2025-04-01T00:00:00Z",
+    "labels": {},
+    "annotations": {}
+  },
+  "spec": {
+    "holderIdentity": "control-plane-1_a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "leaseDurationSeconds": 15,
+    "acquireTime": "2025-09-01T08:00:00.000000Z",
+    "renewTime": "2025-09-01T12:34:56.789012Z",
+    "leaseTransitions": 3
+  }
+}

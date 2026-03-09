@@ -1,0 +1,58 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "DaemonSet",
+  "metadata": {
+    "name": "node-exporter",
+    "namespace": "monitoring",
+    "uid": "ds-001",
+    "resourceVersion": "91204",
+    "creationTimestamp": "2025-04-10T14:30:00Z",
+    "labels": {
+      "app.kubernetes.io/name": "node-exporter",
+      "app.kubernetes.io/component": "metrics",
+      "app.kubernetes.io/part-of": "prometheus"
+    },
+    "annotations": {
+      "deprecated.daemonset.template.generation": "3"
+    }
+  },
+  "spec": {
+    "selector": { "matchLabels": { "app.kubernetes.io/name": "node-exporter" } },
+    "updateStrategy": {
+      "type": "RollingUpdate",
+      "rollingUpdate": { "maxUnavailable": 1, "maxSurge": 0 }
+    },
+    "minReadySeconds": 0,
+    "revisionHistoryLimit": 10,
+    "template": {
+      "spec": {
+        "containers": [
+          {
+            "name": "node-exporter",
+            "image": "quay.io/prometheus/node-exporter:v1.7.0",
+            "ports": [{ "containerPort": 9100, "name": "metrics", "protocol": "TCP" }],
+            "resources": {
+              "requests": { "cpu": "50m", "memory": "64Mi" },
+              "limits": { "cpu": "200m", "memory": "128Mi" }
+            }
+          }
+        ],
+        "tolerations": [
+          { "operator": "Exists" }
+        ],
+        "hostNetwork": true,
+        "hostPID": true
+      }
+    }
+  },
+  "status": {
+    "currentNumberScheduled": 5,
+    "desiredNumberScheduled": 5,
+    "numberAvailable": 5,
+    "numberMisscheduled": 0,
+    "numberReady": 5,
+    "numberUnavailable": 0,
+    "observedGeneration": 3,
+    "updatedNumberScheduled": 5
+  }
+}

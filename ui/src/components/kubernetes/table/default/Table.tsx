@@ -1,11 +1,12 @@
 import { DrawerComponent } from '@omniviewdev/runtime';
 import { ColumnDef } from '@tanstack/react-table';
 import React from 'react';
-import { LuCode, LuContainer } from 'react-icons/lu';
+import { LuContainer } from 'react-icons/lu';
 import { useParams } from 'react-router-dom';
 
 import { KubernetesResourceObject } from '../../../../types/resource';
-import BaseEditorPage from '../../../shared/sidebar/pages/editor/BaseEditorPage';
+import { createStandardViews } from '../../../shared/sidebar/createDrawerViews';
+import GenericResourceSidebar from '../../../shared/sidebar/GenericResourceSidebar';
 import ResourceTable from '../../../shared/table/ResourceTable';
 import { withNamespacedResourceColumns } from '../shared/columns';
 
@@ -23,15 +24,7 @@ const DefaultTable: React.FC = () => {
     () => ({
       title: key, // TODO: change runtime sdk to accept a function
       icon: <LuContainer />,
-      views: [
-        {
-          title: 'Editor',
-          icon: <LuCode />,
-          component: (ctx) => (
-            <BaseEditorPage data={ctx.data || {}} resourceKey={ctx.resource?.key} />
-          ),
-        },
-      ],
+      views: createStandardViews({ SidebarComponent: GenericResourceSidebar }),
       actions: [],
     }),
     [key],

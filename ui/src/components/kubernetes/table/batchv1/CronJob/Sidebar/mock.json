@@ -1,0 +1,37 @@
+{
+  "apiVersion": "batch/v1",
+  "kind": "CronJob",
+  "metadata": {
+    "name": "daily-backup",
+    "namespace": "production",
+    "uid": "cj-001",
+    "resourceVersion": "67890",
+    "creationTimestamp": "2025-03-01T00:00:00Z",
+    "labels": { "app": "backup" },
+    "annotations": {}
+  },
+  "spec": {
+    "schedule": "0 2 * * *",
+    "timeZone": "America/New_York",
+    "concurrencyPolicy": "Forbid",
+    "suspend": false,
+    "successfulJobsHistoryLimit": 3,
+    "failedJobsHistoryLimit": 1,
+    "startingDeadlineSeconds": 300,
+    "jobTemplate": {
+      "spec": {
+        "template": {
+          "spec": {
+            "containers": [{ "name": "backup", "image": "backup-tool:v2" }],
+            "restartPolicy": "OnFailure"
+          }
+        }
+      }
+    }
+  },
+  "status": {
+    "lastScheduleTime": "2025-06-15T06:00:00Z",
+    "lastSuccessfulTime": "2025-06-15T06:02:00Z",
+    "active": [{ "name": "daily-backup-28123456", "namespace": "production" }]
+  }
+}

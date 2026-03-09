@@ -1,0 +1,46 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "Deployment",
+  "metadata": {
+    "name": "frontend",
+    "namespace": "production",
+    "uid": "dep-001",
+    "resourceVersion": "58234",
+    "creationTimestamp": "2025-06-15T09:00:00Z",
+    "labels": { "app": "frontend", "tier": "web" },
+    "annotations": { "deployment.kubernetes.io/revision": "5" }
+  },
+  "spec": {
+    "replicas": 3,
+    "selector": { "matchLabels": { "app": "frontend" } },
+    "strategy": { "type": "RollingUpdate", "rollingUpdate": { "maxUnavailable": 1, "maxSurge": 1 } },
+    "minReadySeconds": 5,
+    "revisionHistoryLimit": 10,
+    "progressDeadlineSeconds": 600,
+    "template": {
+      "spec": {
+        "containers": [
+          {
+            "name": "frontend",
+            "image": "nginx:1.25",
+            "ports": [{ "containerPort": 80 }],
+            "resources": {
+              "requests": { "cpu": "100m", "memory": "128Mi" },
+              "limits": { "cpu": "500m", "memory": "256Mi" }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "status": {
+    "replicas": 3,
+    "readyReplicas": 3,
+    "availableReplicas": 3,
+    "updatedReplicas": 3,
+    "conditions": [
+      { "type": "Available", "status": "True", "lastTransitionTime": "2025-06-15T09:05:00Z" },
+      { "type": "Progressing", "status": "True", "lastTransitionTime": "2025-06-15T09:05:00Z" }
+    ]
+  }
+}

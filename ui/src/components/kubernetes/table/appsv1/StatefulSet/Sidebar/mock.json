@@ -1,0 +1,93 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "StatefulSet",
+  "metadata": {
+    "name": "postgres",
+    "namespace": "databases",
+    "uid": "sts-001",
+    "resourceVersion": "74521",
+    "creationTimestamp": "2025-05-01T08:00:00Z",
+    "labels": {
+      "app": "postgres",
+      "app.kubernetes.io/name": "postgresql",
+      "app.kubernetes.io/version": "16.2"
+    },
+    "annotations": {
+      "meta.helm.sh/release-name": "postgresql",
+      "meta.helm.sh/release-namespace": "databases"
+    }
+  },
+  "spec": {
+    "replicas": 3,
+    "serviceName": "postgres-headless",
+    "podManagementPolicy": "OrderedReady",
+    "updateStrategy": {
+      "type": "RollingUpdate",
+      "rollingUpdate": { "partition": 0 }
+    },
+    "revisionHistoryLimit": 10,
+    "selector": {
+      "matchLabels": { "app": "postgres" }
+    },
+    "persistentVolumeClaimRetentionPolicy": {
+      "whenDeleted": "Retain",
+      "whenScaled": "Retain"
+    },
+    "volumeClaimTemplates": [
+      {
+        "metadata": { "name": "data" },
+        "spec": {
+          "accessModes": ["ReadWriteOnce"],
+          "storageClassName": "gp3",
+          "resources": {
+            "requests": { "storage": "50Gi" }
+          }
+        }
+      },
+      {
+        "metadata": { "name": "wal" },
+        "spec": {
+          "accessModes": ["ReadWriteOnce"],
+          "storageClassName": "gp3",
+          "resources": {
+            "requests": { "storage": "10Gi" }
+          }
+        }
+      }
+    ],
+    "template": {
+      "spec": {
+        "containers": [
+          {
+            "name": "postgres",
+            "image": "postgres:16.2-alpine",
+            "ports": [{ "containerPort": 5432, "name": "tcp-postgresql", "protocol": "TCP" }],
+            "resources": {
+              "requests": { "cpu": "500m", "memory": "1Gi" },
+              "limits": { "cpu": "2", "memory": "4Gi" }
+            },
+            "env": [
+              { "name": "POSTGRES_DB", "value": "appdb" },
+              { "name": "PGDATA", "value": "/var/lib/postgresql/data/pgdata" }
+            ],
+            "volumeMounts": [
+              { "name": "data", "mountPath": "/var/lib/postgresql/data" },
+              { "name": "wal", "mountPath": "/var/lib/postgresql/wal" }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "status": {
+    "replicas": 3,
+    "readyReplicas": 3,
+    "availableReplicas": 3,
+    "currentReplicas": 3,
+    "updatedReplicas": 3,
+    "currentRevision": "postgres-6d8f9c7b5",
+    "updateRevision": "postgres-6d8f9c7b5",
+    "observedGeneration": 2,
+    "collisionCount": 0
+  }
+}

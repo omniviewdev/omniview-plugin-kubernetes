@@ -1,34 +1,44 @@
 import { DrawerContext } from '@omniviewdev/runtime';
 import { Stack } from '@omniviewdev/ui/layout';
-import { ClusterRole } from 'kubernetes-types/rbac/v1';
+import type { ClusterRole } from 'kubernetes-types/rbac/v1';
 import React from 'react';
 
-// material-ui
-
-// types
-
-// project-imports
+import KVCard from '../../../../../shared/KVCard';
 import ObjectMetaSection from '../../../../../shared/ObjectMetaSection';
+import RBACRulesSection from '../../../../../shared/RBACRulesSection';
 
 interface Props {
   ctx: DrawerContext<ClusterRole>;
 }
 
-/**
- * Renders a sidebar for a ClusterRole resource
- */
 export const ClusterRoleSidebar: React.FC<Props> = ({ ctx }) => {
-  if (!ctx.data) {
-    return null;
-  }
+  if (!ctx.data) return null;
 
-  const data = ctx.data;
+  const cr = ctx.data;
+  const rules = cr.rules;
+  const aggregationRule = cr.aggregationRule;
+  const selectors = aggregationRule?.clusterRoleSelectors;
 
-  // compose your component here
   return (
-    <Stack direction="column" width={'100%'} spacing={2}>
-      <ObjectMetaSection data={data.metadata} />
-      {/** TODO: fill this in with more data */}
+    <Stack direction="column" width="100%" spacing={2}>
+      <ObjectMetaSection data={cr.metadata} />
+
+      <RBACRulesSection rules={rules} />
+
+      {selectors && selectors.length > 0 && (
+        <Stack direction="column" gap={1}>
+          {selectors.map((sel, i) =>
+            sel.matchLabels && Object.keys(sel.matchLabels).length > 0 ? (
+              <KVCard
+                key={i}
+                title={`Aggregation Selector ${i + 1}`}
+                kvs={sel.matchLabels as Record<string, string>}
+                defaultExpanded
+              />
+            ) : null,
+          )}
+        </Stack>
+      )}
     </Stack>
   );
 };
