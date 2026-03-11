@@ -1,0 +1,17 @@
+{
+  "apiVersion": "scheduling.k8s.io/v1",
+  "kind": "PriorityClass",
+  "metadata": {
+    "name": "high-priority",
+    "uid": "c9d0e1f2-9012-3456-1234-567890123456",
+    "resourceVersion": "2345",
+    "creationTimestamp": "2025-05-10T09:00:00Z",
+    "labels": {
+      "app.kubernetes.io/managed-by": "Terraform"
+    }
+  },
+  "value": 1000000,
+  "globalDefault": false,
+  "preemptionPolicy": "PreemptLowerPriority",
+  "description": "High priority class for critical production workloads that should preempt lower priority pods when resources are scarce."
+}

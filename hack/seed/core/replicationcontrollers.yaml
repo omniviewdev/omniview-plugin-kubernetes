@@ -1,0 +1,29 @@
+# Legacy-style ReplicationController running a simple status page
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: status-page
+  namespace: omniview-test-apps
+  annotations:
+    description: "Legacy replication controller serving a status page"
+spec:
+  replicas: 2
+  selector:
+    app: status-page
+  template:
+    metadata:
+      labels:
+        app: status-page
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 25m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi

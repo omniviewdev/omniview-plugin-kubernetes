@@ -1,0 +1,118 @@
+# Smoke test job — verifies the demo frontend is reachable
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: frontend-smoke-test
+  namespace: omniview-test-batch
+  annotations:
+    description: "Smoke test that verifies the Online Boutique frontend responds"
+spec:
+  completions: 1
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: frontend-smoke-test
+        type: test
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: curl
+          image: curlimages/curl:8.11.0
+          command:
+            - sh
+            - -c
+            - |
+              echo "Testing frontend..."
+              for i in $(seq 1 5); do
+                if curl -sf http://frontend.omniview-test-apps.svc.cluster.local:80 -o /dev/null; then
+                  echo "Attempt $i: Frontend is up"
+                else
+                  echo "Attempt $i: Frontend not ready, waiting..."
+                  sleep 5
+                fi
+              done
+              echo "Smoke test complete"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+---
+# Load test job — generates traffic against the demo
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: api-load-test
+  namespace: omniview-test-batch
+  annotations:
+    description: "Runs parallel requests against the product catalog API"
+spec:
+  completions: 3
+  parallelism: 2
+  backoffLimit: 6
+  activeDeadlineSeconds: 300
+  template:
+    metadata:
+      labels:
+        app: api-load-test
+        type: load-test
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: load
+          image: curlimages/curl:8.11.0
+          command:
+            - sh
+            - -c
+            - |
+              echo "Running load test batch..."
+              for i in $(seq 1 20); do
+                curl -sf http://frontend.omniview-test-apps.svc.cluster.local:80/ -o /dev/null && echo "Request $i: OK" || echo "Request $i: FAIL"
+                sleep 1
+              done
+              echo "Load test batch complete"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+---
+# Failing job — tries to reach a nonexistent service
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: broken-health-check
+  namespace: omniview-test-batch
+  annotations:
+    description: "Health check job that fails (targets nonexistent endpoint)"
+spec:
+  completions: 1
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: broken-health-check
+        type: test
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: check
+          image: curlimages/curl:8.11.0
+          command:
+            - sh
+            - -c
+            - |
+              echo "Checking nonexistent-service..."
+              curl -sf --connect-timeout 5 http://nonexistent-service.omniview-test-apps.svc.cluster.local:8080/health || exit 1
+          resources:
+            requests:
+              cpu: 25m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi

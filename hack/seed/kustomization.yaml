@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespaces.yaml
+  - microservices-demo
+  - core
+  - apps
+  - batch
+  - networking
+  - rbac
+  - policy
+  - autoscaling
+  - storage
+  - scheduling
+  - admissionregistration
+
+labels:
+  - pairs:
+      app.kubernetes.io/managed-by: omniview-seed
+    includeSelectors: false

@@ -1,0 +1,36 @@
+# NodePort service exposing the demo frontend externally
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-nodeport
+  namespace: omniview-test-apps
+  annotations:
+    description: "NodePort exposure of the Online Boutique frontend"
+spec:
+  type: NodePort
+  selector:
+    app: frontend
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      nodePort: 30080
+      protocol: TCP
+---
+# LoadBalancer service for the frontend (pending in kind without metallb)
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-lb
+  namespace: omniview-test-apps
+  annotations:
+    description: "LoadBalancer service for the frontend (pending in kind)"
+spec:
+  type: LoadBalancer
+  selector:
+    app: frontend
+  ports:
+    - name: https
+      port: 443
+      targetPort: 8080
+      protocol: TCP

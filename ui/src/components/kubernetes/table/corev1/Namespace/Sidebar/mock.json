@@ -1,0 +1,20 @@
+{
+  "apiVersion": "v1",
+  "kind": "Namespace",
+  "metadata": {
+    "name": "production",
+    "uid": "ns-001",
+    "resourceVersion": "22222",
+    "creationTimestamp": "2025-01-15T00:00:00Z",
+    "labels": { "kubernetes.io/metadata.name": "production", "env": "prod" },
+    "annotations": {}
+  },
+  "spec": { "finalizers": ["kubernetes"] },
+  "status": {
+    "phase": "Active",
+    "conditions": [
+      { "type": "NamespaceDeletionDiscoveryFailure", "status": "False", "lastTransitionTime": "2025-01-15T00:00:00Z" },
+      { "type": "NamespaceDeletionContentFailure", "status": "False", "lastTransitionTime": "2025-01-15T00:00:00Z" }
+    ]
+  }
+}

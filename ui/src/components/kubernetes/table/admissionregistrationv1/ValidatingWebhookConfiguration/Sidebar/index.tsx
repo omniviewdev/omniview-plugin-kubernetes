@@ -1,31 +1,24 @@
 import { DrawerContext } from '@omniviewdev/runtime';
 import { Stack } from '@omniviewdev/ui/layout';
-import { ValidatingWebhookConfiguration } from 'kubernetes-types/admissionregistration/v1';
+import type { ValidatingWebhookConfiguration } from 'kubernetes-types/admissionregistration/v1';
 import React from 'react';
 
-// material-ui
-
-// types
-
-// project-imports
 import ObjectMetaSection from '../../../../../shared/ObjectMetaSection';
+import WebhookSection from '../../../../../shared/WebhookSection';
 
 interface Props {
   ctx: DrawerContext<ValidatingWebhookConfiguration>;
 }
 
-/**
- * Renders a sidebar for a ValidatingWebhookConfiguration resource
- */
 export const ValidatingWebhookConfigurationSidebar: React.FC<Props> = ({ ctx }) => {
-  if (!ctx.data) {
-    return null;
-  }
+  if (!ctx.data) return null;
+
+  const vwc = ctx.data;
 
   return (
-    <Stack direction="column" width={'100%'} spacing={2}>
-      <ObjectMetaSection data={ctx.data.metadata} />
-      {/** TODO: fill this in with more data */}
+    <Stack direction="column" width="100%" spacing={2}>
+      <ObjectMetaSection data={vwc.metadata} />
+      <WebhookSection webhooks={vwc.webhooks} />
     </Stack>
   );
 };

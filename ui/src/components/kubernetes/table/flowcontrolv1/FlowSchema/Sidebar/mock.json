@@ -1,0 +1,76 @@
+{
+  "apiVersion": "flowcontrol.apiserver.k8s.io/v1",
+  "kind": "FlowSchema",
+  "metadata": {
+    "name": "system-leader-election",
+    "uid": "f1a2b3c4-d5e6-7890-abcd-ef1234567890",
+    "resourceVersion": "14523",
+    "creationTimestamp": "2025-09-01T08:00:00Z",
+    "labels": {
+      "app.kubernetes.io/managed-by": "kube-apiserver"
+    },
+    "annotations": {
+      "apf.kubernetes.io/autoupdate-spec": "true"
+    }
+  },
+  "spec": {
+    "priorityLevelConfiguration": {
+      "name": "leader-election"
+    },
+    "matchingPrecedence": 200,
+    "distinguisherMethod": {
+      "type": "ByUser"
+    },
+    "rules": [
+      {
+        "subjects": [
+          {
+            "kind": "User",
+            "user": { "name": "system:kube-controller-manager" }
+          },
+          {
+            "kind": "User",
+            "user": { "name": "system:kube-scheduler" }
+          },
+          {
+            "kind": "ServiceAccount",
+            "serviceAccount": { "namespace": "kube-system", "name": "endpoint-controller" }
+          }
+        ],
+        "resourceRules": [
+          {
+            "verbs": ["get", "create", "update"],
+            "apiGroups": ["coordination.k8s.io"],
+            "resources": ["leases"],
+            "namespaces": ["kube-system"]
+          }
+        ]
+      },
+      {
+        "subjects": [
+          {
+            "kind": "Group",
+            "group": { "name": "system:authenticated" }
+          }
+        ],
+        "nonResourceRules": [
+          {
+            "verbs": ["get"],
+            "nonResourceURLs": ["/healthz", "/readyz", "/livez"]
+          }
+        ]
+      }
+    ]
+  },
+  "status": {
+    "conditions": [
+      {
+        "type": "Dangling",
+        "status": "False",
+        "lastTransitionTime": "2025-09-01T08:00:05Z",
+        "reason": "Found",
+        "message": "This FlowSchema references the PriorityLevelConfiguration object named \"leader-election\" and it exists"
+      }
+    ]
+  }
+}

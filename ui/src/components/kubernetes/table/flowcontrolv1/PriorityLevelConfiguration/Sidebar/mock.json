@@ -1,0 +1,41 @@
+{
+  "apiVersion": "flowcontrol.apiserver.k8s.io/v1",
+  "kind": "PriorityLevelConfiguration",
+  "metadata": {
+    "name": "leader-election",
+    "uid": "a7b8c9d0-7890-1234-f012-345678901234",
+    "resourceVersion": "14520",
+    "creationTimestamp": "2025-09-01T08:00:00Z",
+    "labels": {},
+    "annotations": {
+      "apf.kubernetes.io/autoupdate-spec": "true"
+    }
+  },
+  "spec": {
+    "type": "Limited",
+    "limited": {
+      "nominalConcurrencyShares": 10,
+      "limitResponse": {
+        "type": "Queue",
+        "queuing": {
+          "queues": 16,
+          "handSize": 4,
+          "queueLengthLimit": 50
+        }
+      },
+      "lendablePercent": 0,
+      "borrowingLimitPercent": 0
+    }
+  },
+  "status": {
+    "conditions": [
+      {
+        "type": "Concurrency-Shared",
+        "status": "True",
+        "lastTransitionTime": "2025-09-01T08:00:05Z",
+        "reason": "ConcurrencyConfigured",
+        "message": "Concurrency shares have been configured"
+      }
+    ]
+  }
+}

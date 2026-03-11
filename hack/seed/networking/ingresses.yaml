@@ -1,0 +1,55 @@
+# Path-based ingress routing to demo services
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: boutique-ingress
+  namespace: omniview-test-apps
+  annotations:
+    description: "Path-based routing for the Online Boutique"
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: boutique.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
+          - path: /api/cart
+            pathType: Prefix
+            backend:
+              service:
+                name: cartservice
+                port:
+                  number: 7070
+  tls:
+    - hosts:
+        - boutique.local
+      secretName: tls-cert
+---
+# Host-based ingress for API access
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-ingress
+  namespace: omniview-test-apps
+  annotations:
+    description: "Host-based routing for API subdomain"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: api.boutique.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: checkoutservice
+                port:
+                  number: 5050

@@ -42,12 +42,15 @@ import CronJobSidebar from './components/kubernetes/table/batchv1/CronJob/Sideba
 import CronJobTable from './components/kubernetes/table/batchv1/CronJob/Table';
 import JobSidebar from './components/kubernetes/table/batchv1/Job/Sidebar';
 import JobTable from './components/kubernetes/table/batchv1/Job/Table';
+import LeaseSidebar from './components/kubernetes/table/coordinationv1/Lease/Sidebar';
 import LeaseTable from './components/kubernetes/table/coordinationv1/Lease/Table';
+import ComponentStatusSidebar from './components/kubernetes/table/corev1/ComponentStatus/Sidebar';
 import ComponentStatusTable from './components/kubernetes/table/corev1/ComponentStatus/Table';
 import ConfigMapSidebar from './components/kubernetes/table/corev1/ConfigMap/Sidebar';
 import ConfigMapTable from './components/kubernetes/table/corev1/ConfigMap/Table';
 import EndpointsSidebar from './components/kubernetes/table/corev1/Endpoints/Sidebar';
 import EndpointsTable from './components/kubernetes/table/corev1/Endpoints/Table';
+import EventSidebar from './components/kubernetes/table/corev1/Event/Sidebar';
 import EventTable from './components/kubernetes/table/corev1/Event/Table';
 import LimitRangeSidebar from './components/kubernetes/table/corev1/LimitRange/Sidebar';
 import LimitRangeTable from './components/kubernetes/table/corev1/LimitRange/Table';
@@ -73,7 +76,9 @@ import EndpointSliceSidebar from './components/kubernetes/table/discoveryv1/Endp
 import EndpointSliceTable from './components/kubernetes/table/discoveryv1/EndpointSlice/Table';
 import FlowSchemaSidebar from './components/kubernetes/table/flowcontrolv1/FlowSchema/Sidebar';
 import FlowSchemaTable from './components/kubernetes/table/flowcontrolv1/FlowSchema/Table';
+import PriorityLevelConfigurationSidebar from './components/kubernetes/table/flowcontrolv1/PriorityLevelConfiguration/Sidebar';
 import PriorityLevelConfigurationTable from './components/kubernetes/table/flowcontrolv1/PriorityLevelConfiguration/Table';
+import IngressSidebar from './components/kubernetes/table/networkingv1/Ingress/Sidebar';
 import IngressTable from './components/kubernetes/table/networkingv1/Ingress/Table';
 import IngressClassSidebar from './components/kubernetes/table/networkingv1/IngressClass/Sidebar';
 import IngressClassTable from './components/kubernetes/table/networkingv1/IngressClass/Table';
@@ -91,17 +96,20 @@ import RoleSidebar from './components/kubernetes/table/rbacv1/Role/Sidebar';
 import RoleTable from './components/kubernetes/table/rbacv1/Role/Table';
 import RoleBindingSidebar from './components/kubernetes/table/rbacv1/RoleBinding/Sidebar';
 import RoleBindingTable from './components/kubernetes/table/rbacv1/RoleBinding/Table';
+import PriorityClassSidebar from './components/kubernetes/table/schedulingv1/PriorityClass/Sidebar';
 import PriorityClassTable from './components/kubernetes/table/schedulingv1/PriorityClass/Table';
 import CSIDriverSidebar from './components/kubernetes/table/storagev1/CSIDriver/Sidebar';
 import CSIDriverTable from './components/kubernetes/table/storagev1/CSIDriver/Table';
 import CSINodeSidebar from './components/kubernetes/table/storagev1/CSINode/Sidebar';
 import CSINodeTable from './components/kubernetes/table/storagev1/CSINode/Table';
+import CSIStorageCapacitySidebar from './components/kubernetes/table/storagev1/CSIStorageCapacity/Sidebar';
 import CSIStorageCapacityTable from './components/kubernetes/table/storagev1/CSIStorageCapacity/Table';
 import StorageClassSidebar from './components/kubernetes/table/storagev1/StorageClass/Sidebar';
 import StorageClassTable from './components/kubernetes/table/storagev1/StorageClass/Table';
 import VolumeAttachmentSidebar from './components/kubernetes/table/storagev1/VolumeAttachment/Sidebar';
 import VolumeAttachmentTable from './components/kubernetes/table/storagev1/VolumeAttachment/Table';
 import { createStandardViews } from './components/shared/sidebar/createDrawerViews';
+import GenericResourceSidebar from './components/shared/sidebar/GenericResourceSidebar';
 import KubernetesHomepageCard from './components/homepage/KubernetesHomepageCard';
 import ClusterEditPage from './pages/ClusterEditPage';
 import ClusterResourcesPage from './pages/ClusterResourcesPage';
@@ -162,6 +170,8 @@ export const sidebars: Record<string, React.FC<{ ctx: DrawerContext }>> = {
   'core::v1::PersistentVolumeClaim': PersistentVolumeClaimSidebar,
   'core::v1::LimitRange': LimitRangeSidebar,
   'core::v1::ResourceQuota': ResourceQuotaSidebar,
+  'core::v1::ComponentStatus': ComponentStatusSidebar,
+  'core::v1::Event': EventSidebar,
   // apps.v1
   'apps::v1::ReplicaSet': ReplicaSetSidebar,
   'apps::v1::DaemonSet': DaemonSetSidebar,
@@ -172,10 +182,14 @@ export const sidebars: Record<string, React.FC<{ ctx: DrawerContext }>> = {
   'batch::v1::CronJob': CronJobSidebar,
   // autoscaling.v1
   'autoscaling::v1::HorizontalPodAutoscaler': HorizontalPodAutoscalerSidebar,
+  'autoscaling::v2::HorizontalPodAutoscaler': HorizontalPodAutoscalerSidebar,
   // policy.v1
   'policy::v1::PodDisruptionBudget': PodDisruptionBudgetSidebar,
+  // coordination.v1
+  'coordination::v1::Lease': LeaseSidebar,
   // flowcontrol.v1
   'flowcontrol::v1::FlowSchema': FlowSchemaSidebar,
+  'flowcontrol::v1::PriorityLevelConfiguration': PriorityLevelConfigurationSidebar,
   // rbac.v1
   'rbac::v1::ClusterRole': ClusterRoleSidebar,
   'rbac::v1::ClusterRoleBinding': ClusterRoleBindingSidebar,
@@ -184,8 +198,11 @@ export const sidebars: Record<string, React.FC<{ ctx: DrawerContext }>> = {
   // networking.v1
   'networking::v1::NetworkPolicy': NetworkPolicySidebar,
   'networking::v1::IngressClass': IngressClassSidebar,
+  'networking::v1::Ingress': IngressSidebar,
   // discovery.v1
   'discovery::v1::EndpointSlice': EndpointSliceSidebar,
+  // scheduling.v1
+  'scheduling::v1::PriorityClass': PriorityClassSidebar,
   // node.v1
   'node::v1::RuntimeClass': RuntimeClassSidebar,
   // storage.v1
@@ -193,6 +210,7 @@ export const sidebars: Record<string, React.FC<{ ctx: DrawerContext }>> = {
   'storage::v1::CSINode': CSINodeSidebar,
   'storage::v1::StorageClass': StorageClassSidebar,
   'storage::v1::VolumeAttachment': VolumeAttachmentSidebar,
+  'storage::v1::CSIStorageCapacity': CSIStorageCapacitySidebar,
   // admissionregistration.v1
   'admissionregistration::v1::MutatingWebhookConfiguration': MutatingWebhookConfigurationSidebar,
   'admissionregistration::v1::ValidatingAdmissionPolicy': ValidatingAdmissionPolicySidebar,
@@ -234,6 +252,14 @@ export const drawers: Record<string, DrawerFactory> = Object.fromEntries(
     createResourceDrawerFactory(key, Component),
   ]),
 );
+
+/**
+ * Default drawer factory for CRDs and dynamic resources that don't have
+ * a dedicated sidebar. Uses GenericResourceSidebar which extracts key
+ * fields from the resource definition's column defs.
+ */
+export const defaultDrawerFactory: DrawerFactory =
+  createResourceDrawerFactory('__default__', GenericResourceSidebar);
 
 const routes: Array<RouteObject> = [
   {

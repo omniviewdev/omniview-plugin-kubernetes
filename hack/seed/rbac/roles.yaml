@@ -1,0 +1,31 @@
+# Read access to the demo's app resources
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: demo-app-reader
+  namespace: omniview-test-apps
+  annotations:
+    description: "Read-only access to the Online Boutique resources"
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "services", "configmaps", "endpoints"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets", "statefulsets", "daemonsets"]
+    verbs: ["get", "list", "watch"]
+---
+# Batch job manager role
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: batch-operator
+  namespace: omniview-test-batch
+  annotations:
+    description: "Manage batch jobs and view their pods"
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get", "list", "watch", "create", "update", "delete"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list", "watch"]

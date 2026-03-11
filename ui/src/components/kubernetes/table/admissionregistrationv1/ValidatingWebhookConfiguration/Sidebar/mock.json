@@ -1,0 +1,39 @@
+{
+  "apiVersion": "admissionregistration.k8s.io/v1",
+  "kind": "ValidatingWebhookConfiguration",
+  "metadata": {
+    "name": "pod-policy-validator",
+    "uid": "vwc-001",
+    "resourceVersion": "23456",
+    "creationTimestamp": "2025-05-20T08:00:00Z",
+    "labels": { "app": "pod-policy" },
+    "annotations": {}
+  },
+  "webhooks": [
+    {
+      "name": "validate.pod-policy.example.com",
+      "clientConfig": {
+        "service": { "namespace": "policy-system", "name": "pod-policy-svc", "path": "/validate", "port": 443 }
+      },
+      "failurePolicy": "Fail",
+      "sideEffects": "None",
+      "admissionReviewVersions": ["v1"],
+      "timeoutSeconds": 15,
+      "rules": [
+        { "operations": ["CREATE", "UPDATE"], "apiGroups": [""], "apiVersions": ["v1"], "resources": ["pods"], "scope": "Namespaced" }
+      ]
+    },
+    {
+      "name": "validate.deployment-policy.example.com",
+      "clientConfig": {
+        "service": { "namespace": "policy-system", "name": "pod-policy-svc", "path": "/validate-deploy", "port": 443 }
+      },
+      "failurePolicy": "Ignore",
+      "sideEffects": "None",
+      "admissionReviewVersions": ["v1"],
+      "rules": [
+        { "operations": ["CREATE"], "apiGroups": ["apps"], "apiVersions": ["v1"], "resources": ["deployments"] }
+      ]
+    }
+  ]
+}

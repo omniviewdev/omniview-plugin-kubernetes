@@ -1,0 +1,20 @@
+{
+  "apiVersion": "v1",
+  "kind": "ServiceAccount",
+  "metadata": {
+    "name": "my-app",
+    "namespace": "production",
+    "uid": "sa-001",
+    "resourceVersion": "44444",
+    "creationTimestamp": "2025-03-01T00:00:00Z",
+    "labels": { "app": "my-app" },
+    "annotations": {}
+  },
+  "automountServiceAccountToken": true,
+  "secrets": [
+    { "name": "my-app-token-abc" }
+  ],
+  "imagePullSecrets": [
+    { "name": "docker-registry-cred" }
+  ]
+}

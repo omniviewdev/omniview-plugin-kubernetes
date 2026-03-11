@@ -1,0 +1,68 @@
+# App configuration for the demo environment
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-environment
+  namespace: omniview-test-apps
+  annotations:
+    description: "Environment configuration for the Online Boutique"
+data:
+  FRONTEND_URL: "http://frontend.omniview-test-apps.svc.cluster.local:80"
+  PRODUCT_CATALOG_URL: "productcatalogservice:3550"
+  CURRENCY_SERVICE_URL: "currencyservice:7000"
+  CART_SERVICE_URL: "cartservice:7070"
+  SHIPPING_SERVICE_URL: "shippingservice:50051"
+  CHECKOUT_SERVICE_URL: "checkoutservice:5050"
+  AD_SERVICE_URL: "adservice:9555"
+---
+# Nginx reverse proxy config for the demo
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-proxy-config
+  namespace: omniview-test-apps
+  annotations:
+    description: "Nginx config proxying to the Online Boutique frontend"
+data:
+  nginx.conf: |
+    upstream frontend {
+      server frontend.omniview-test-apps.svc.cluster.local:80;
+    }
+    server {
+      listen 80;
+      server_name boutique.local;
+      location / {
+        proxy_pass http://frontend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      }
+    }
+---
+# Batch job configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: batch-config
+  namespace: omniview-test-batch
+  annotations:
+    description: "Configuration for batch processing jobs"
+data:
+  FRONTEND_URL: "http://frontend.omniview-test-apps.svc.cluster.local:80"
+  HEALTH_CHECK_TIMEOUT: "5"
+  LOAD_TEST_REQUESTS: "20"
+  LOAD_TEST_DELAY: "1"
+---
+# Feature flags
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: feature-flags
+  namespace: omniview-test-apps
+  annotations:
+    description: "Feature flags for the demo application"
+data:
+  ENABLE_RECOMMENDATIONS: "true"
+  ENABLE_ADS: "true"
+  ENABLE_PROFILING: "false"
+  CACHE_EXPIRY_SECONDS: "300"

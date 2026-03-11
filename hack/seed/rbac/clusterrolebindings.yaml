@@ -1,0 +1,29 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: omniview-monitoring-binding
+  annotations:
+    description: "Bind monitoring reader to app service account"
+subjects:
+  - kind: ServiceAccount
+    name: app-service-account
+    namespace: omniview-test-apps
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: omniview-monitoring-reader
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: omniview-aggregate-binding
+  annotations:
+    description: "Bind aggregated reader to batch runner"
+subjects:
+  - kind: ServiceAccount
+    name: batch-runner
+    namespace: omniview-test-batch
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: omniview-aggregate-reader

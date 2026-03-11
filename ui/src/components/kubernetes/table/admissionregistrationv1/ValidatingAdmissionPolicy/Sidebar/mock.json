@@ -1,0 +1,35 @@
+{
+  "apiVersion": "admissionregistration.k8s.io/v1",
+  "kind": "ValidatingAdmissionPolicy",
+  "metadata": {
+    "name": "deny-privileged-containers",
+    "uid": "vap-001",
+    "resourceVersion": "34567",
+    "creationTimestamp": "2025-04-15T12:00:00Z",
+    "labels": { "policy": "security" },
+    "annotations": {}
+  },
+  "spec": {
+    "failurePolicy": "Fail",
+    "matchConstraints": {
+      "resourceRules": [
+        { "operations": ["CREATE", "UPDATE"], "apiGroups": [""], "apiVersions": ["v1"], "resources": ["pods"] }
+      ]
+    },
+    "validations": [
+      { "expression": "!object.spec.containers.exists(c, c.securityContext.privileged == true)", "message": "Privileged containers are not allowed", "reason": "Forbidden" },
+      { "expression": "object.spec.containers.all(c, c.securityContext.runAsNonRoot == true)", "message": "Containers must run as non-root" }
+    ],
+    "auditAnnotations": [
+      { "key": "policy-checked", "valueExpression": "'deny-privileged: checked'" }
+    ],
+    "variables": [
+      { "name": "isPrivileged", "expression": "object.spec.containers.exists(c, c.securityContext.privileged == true)" }
+    ]
+  },
+  "status": {
+    "conditions": [
+      { "type": "Available", "status": "True", "lastTransitionTime": "2025-04-15T12:01:00Z" }
+    ]
+  }
+}

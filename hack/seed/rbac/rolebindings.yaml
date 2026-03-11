@@ -1,0 +1,31 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: demo-readers
+  namespace: omniview-test-apps
+  annotations:
+    description: "Bind demo-app-reader to the monitoring service account"
+subjects:
+  - kind: ServiceAccount
+    name: monitoring-sa
+    namespace: omniview-test-apps
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: demo-app-reader
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: batch-operators
+  namespace: omniview-test-batch
+  annotations:
+    description: "Bind batch-operator role to the batch runner SA"
+subjects:
+  - kind: ServiceAccount
+    name: batch-runner
+    namespace: omniview-test-batch
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: batch-operator

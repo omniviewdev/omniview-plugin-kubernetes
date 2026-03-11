@@ -1,0 +1,44 @@
+{
+  "apiVersion": "rbac.authorization.k8s.io/v1",
+  "kind": "ClusterRoleBinding",
+  "metadata": {
+    "name": "monitoring-reader-binding",
+    "uid": "d4e5f6a7-b8c9-0123-def0-456789012345",
+    "resourceVersion": "5430",
+    "creationTimestamp": "2025-06-01T10:01:00Z",
+    "labels": {
+      "app.kubernetes.io/managed-by": "Helm"
+    },
+    "annotations": {
+      "meta.helm.sh/release-name": "monitoring",
+      "meta.helm.sh/release-namespace": "monitoring"
+    }
+  },
+  "roleRef": {
+    "apiGroup": "rbac.authorization.k8s.io",
+    "kind": "ClusterRole",
+    "name": "monitoring-reader"
+  },
+  "subjects": [
+    {
+      "kind": "ServiceAccount",
+      "name": "prometheus-server",
+      "namespace": "monitoring"
+    },
+    {
+      "kind": "ServiceAccount",
+      "name": "grafana",
+      "namespace": "monitoring"
+    },
+    {
+      "kind": "Group",
+      "name": "monitoring-team",
+      "apiGroup": "rbac.authorization.k8s.io"
+    },
+    {
+      "kind": "User",
+      "name": "ops-admin@example.com",
+      "apiGroup": "rbac.authorization.k8s.io"
+    }
+  ]
+}

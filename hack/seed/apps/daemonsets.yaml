@@ -1,0 +1,44 @@
+# Fluentd-style log collector running on every node
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: fluentd-logger
+  namespace: omniview-test-apps
+  annotations:
+    description: "Log collector that tails container logs on every node"
+spec:
+  selector:
+    matchLabels:
+      app: fluentd-logger
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app: fluentd-logger
+        tier: logging
+    spec:
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: fluentd
+          image: fluentd:v1.17-1
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          volumeMounts:
+            - name: varlog
+              mountPath: /var/log
+              readOnly: true
+      volumes:
+        - name: varlog
+          hostPath:
+            path: /var/log

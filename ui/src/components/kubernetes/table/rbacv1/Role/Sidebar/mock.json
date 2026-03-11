@@ -1,0 +1,31 @@
+{
+  "apiVersion": "rbac.authorization.k8s.io/v1",
+  "kind": "Role",
+  "metadata": {
+    "name": "pod-manager",
+    "namespace": "development",
+    "uid": "e5f6a7b8-c9d0-1234-ef01-567890123456",
+    "resourceVersion": "12340",
+    "creationTimestamp": "2025-08-15T09:00:00Z",
+    "labels": {
+      "app.kubernetes.io/part-of": "dev-tools"
+    }
+  },
+  "rules": [
+    {
+      "apiGroups": [""],
+      "resources": ["pods", "pods/log", "pods/exec", "pods/portforward"],
+      "verbs": ["get", "list", "watch", "create", "delete"]
+    },
+    {
+      "apiGroups": [""],
+      "resources": ["configmaps", "secrets"],
+      "verbs": ["get", "list"]
+    },
+    {
+      "apiGroups": ["apps"],
+      "resources": ["deployments"],
+      "verbs": ["get", "list", "watch", "update", "patch"]
+    }
+  ]
+}

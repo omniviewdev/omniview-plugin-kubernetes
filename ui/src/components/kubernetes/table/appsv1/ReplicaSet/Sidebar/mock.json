@@ -1,0 +1,62 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "ReplicaSet",
+  "metadata": {
+    "name": "frontend-7c6b4f9d8",
+    "namespace": "production",
+    "uid": "rs-001",
+    "resourceVersion": "63102",
+    "creationTimestamp": "2025-06-15T09:00:15Z",
+    "labels": {
+      "app": "frontend",
+      "pod-template-hash": "7c6b4f9d8"
+    },
+    "annotations": {
+      "deployment.kubernetes.io/desired-replicas": "3",
+      "deployment.kubernetes.io/max-replicas": "4",
+      "deployment.kubernetes.io/revision": "5"
+    },
+    "ownerReferences": [
+      {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "name": "frontend",
+        "uid": "dep-001",
+        "controller": true,
+        "blockOwnerDeletion": true
+      }
+    ]
+  },
+  "spec": {
+    "replicas": 3,
+    "selector": {
+      "matchLabels": {
+        "app": "frontend",
+        "pod-template-hash": "7c6b4f9d8"
+      }
+    },
+    "minReadySeconds": 5,
+    "template": {
+      "spec": {
+        "containers": [
+          {
+            "name": "frontend",
+            "image": "nginx:1.25",
+            "ports": [{ "containerPort": 80 }],
+            "resources": {
+              "requests": { "cpu": "100m", "memory": "128Mi" },
+              "limits": { "cpu": "500m", "memory": "256Mi" }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "status": {
+    "replicas": 3,
+    "readyReplicas": 3,
+    "availableReplicas": 3,
+    "fullyLabeledReplicas": 3,
+    "observedGeneration": 1
+  }
+}

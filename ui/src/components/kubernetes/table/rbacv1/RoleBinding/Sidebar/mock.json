@@ -1,0 +1,36 @@
+{
+  "apiVersion": "rbac.authorization.k8s.io/v1",
+  "kind": "RoleBinding",
+  "metadata": {
+    "name": "dev-pod-manager",
+    "namespace": "development",
+    "uid": "f6a7b8c9-d0e1-2345-f012-678901234567",
+    "resourceVersion": "12345",
+    "creationTimestamp": "2025-08-15T09:01:00Z",
+    "labels": {
+      "app.kubernetes.io/part-of": "dev-tools"
+    }
+  },
+  "roleRef": {
+    "apiGroup": "rbac.authorization.k8s.io",
+    "kind": "Role",
+    "name": "pod-manager"
+  },
+  "subjects": [
+    {
+      "kind": "ServiceAccount",
+      "name": "ci-deployer",
+      "namespace": "development"
+    },
+    {
+      "kind": "User",
+      "name": "developer@example.com",
+      "apiGroup": "rbac.authorization.k8s.io"
+    },
+    {
+      "kind": "Group",
+      "name": "dev-team",
+      "apiGroup": "rbac.authorization.k8s.io"
+    }
+  ]
+}

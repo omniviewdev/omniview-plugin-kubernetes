@@ -1,0 +1,21 @@
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: high-priority
+  annotations:
+    description: "High priority for critical workloads"
+value: 1000000
+globalDefault: false
+preemptionPolicy: PreemptLowerPriority
+description: "Used for critical production workloads that should preempt lower-priority pods."
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: low-priority
+  annotations:
+    description: "Low priority for batch and development workloads"
+value: 100
+globalDefault: false
+preemptionPolicy: Never
+description: "Used for non-critical batch jobs and development workloads."

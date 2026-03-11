@@ -1,0 +1,83 @@
+# Periodic health check against the demo frontend
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: frontend-health-check
+  namespace: omniview-test-batch
+  annotations:
+    description: "Periodic health check hitting the Online Boutique frontend"
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  startingDeadlineSeconds: 120
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: frontend-health-check
+            type: monitoring
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: check
+              image: curlimages/curl:8.11.0
+              command:
+                - sh
+                - -c
+                - |
+                  STATUS=$(curl -sf -o /dev/null -w "%{http_code}" http://frontend.omniview-test-apps.svc.cluster.local:80/)
+                  echo "Frontend status: $STATUS"
+                  [ "$STATUS" = "200" ] && exit 0 || exit 1
+              resources:
+                requests:
+                  cpu: 25m
+                  memory: 16Mi
+                limits:
+                  cpu: 50m
+                  memory: 32Mi
+---
+# Suspended CronJob — cache warmer (disabled)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cache-warmer
+  namespace: omniview-test-batch
+  annotations:
+    description: "Pre-warms product catalog cache (currently suspended)"
+spec:
+  schedule: "0 */2 * * *"
+  suspend: true
+  concurrencyPolicy: Replace
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: cache-warmer
+            type: maintenance
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: warmer
+              image: curlimages/curl:8.11.0
+              command:
+                - sh
+                - -c
+                - |
+                  echo "Warming product catalog cache..."
+                  for i in $(seq 1 10); do
+                    curl -sf http://productcatalogservice.omniview-test-apps.svc.cluster.local:3550/ -o /dev/null 2>/dev/null || true
+                  done
+                  echo "Cache warm complete"
+              resources:
+                requests:
+                  cpu: 25m
+                  memory: 16Mi
+                limits:
+                  cpu: 50m
+                  memory: 32Mi

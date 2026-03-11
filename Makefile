@@ -86,3 +86,36 @@ storybook:
 
 storybook-build:
 	cd ui && pnpm run build-storybook
+
+# ── Kind test cluster ─────────────────────────────────────────────────
+
+CLUSTER_NAME := omniview-test
+KIND_CONFIG := hack/kind-config.yaml
+SEED_DIR := hack/seed
+
+.PHONY: cluster cluster-create cluster-seed cluster-delete cluster-reset
+
+# Create or verify the kind cluster exists, then apply seed data
+cluster: cluster-create cluster-seed
+
+# Create kind cluster (idempotent — skips if already exists)
+cluster-create:
+	@if kind get clusters 2>/dev/null | grep -q "^$(CLUSTER_NAME)$$"; then \
+		echo "Cluster '$(CLUSTER_NAME)' already exists"; \
+	else \
+		kind create cluster --name $(CLUSTER_NAME) --config $(KIND_CONFIG) --wait 60s; \
+	fi
+	@kubectl cluster-info --context kind-$(CLUSTER_NAME)
+
+# Apply seed data (idempotent — kubectl apply is naturally idempotent)
+cluster-seed:
+	kubectl apply --context kind-$(CLUSTER_NAME) -k $(SEED_DIR)
+
+# Tear down the kind cluster
+cluster-delete:
+	kind delete cluster --name $(CLUSTER_NAME)
+
+# Reset seed data (delete and reapply)
+cluster-reset:
+	kubectl delete --context kind-$(CLUSTER_NAME) -k $(SEED_DIR) --ignore-not-found
+	kubectl apply --context kind-$(CLUSTER_NAME) -k $(SEED_DIR)

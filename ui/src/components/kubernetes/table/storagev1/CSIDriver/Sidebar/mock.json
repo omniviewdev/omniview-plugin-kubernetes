@@ -1,0 +1,29 @@
+{
+  "apiVersion": "storage.k8s.io/v1",
+  "kind": "CSIDriver",
+  "metadata": {
+    "name": "ebs.csi.aws.com",
+    "uid": "a1b2c3d4-1234-5678-9abc-def012345678",
+    "resourceVersion": "3421",
+    "creationTimestamp": "2025-05-20T06:00:00Z",
+    "labels": {
+      "app.kubernetes.io/name": "aws-ebs-csi-driver",
+      "app.kubernetes.io/version": "1.28.0"
+    }
+  },
+  "spec": {
+    "attachRequired": true,
+    "podInfoOnMount": false,
+    "fsGroupPolicy": "File",
+    "volumeLifecycleModes": ["Persistent"],
+    "storageCapacity": true,
+    "requiresRepublish": false,
+    "seLinuxMount": false,
+    "tokenRequests": [
+      {
+        "audience": "sts.amazonaws.com",
+        "expirationSeconds": 86400
+      }
+    ]
+  }
+}
