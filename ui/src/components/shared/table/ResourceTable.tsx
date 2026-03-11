@@ -33,8 +33,8 @@ import { useDynamicResourceColumns } from '../../tables/ColumnFilter/useDynamicR
 import { DebouncedInput } from '../../tables/DebouncedInput';
 import NamespaceSelect from '../../tables/NamespaceSelect';
 import ResourceFilterSelect from '../../tables/ResourceFilterSelect';
-import { useConnectionNamespaces } from '../hooks/useConnectionNamespaces';
-import { useStoredState } from '../hooks/useStoredState';
+import { useConnectionNamespaces } from '@/hooks/useConnectionNamespaces';
+import { useStoredState } from '@/hooks/useStoredState';
 
 // ---------------------------------------------------------------------------
 // Static styles

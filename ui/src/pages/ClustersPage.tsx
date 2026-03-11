@@ -13,7 +13,7 @@ import DeleteConfirmationModal from '../components/connections/DeleteConfirmatio
 import EmptyState from '../components/connections/EmptyState';
 import FilterChips from '../components/connections/FilterChips';
 import FolderDialog, { type FolderDialogValues } from '../components/connections/FolderDialog';
-import { useStoredState } from '../components/shared/hooks/useStoredState';
+import { useStoredState } from '@/hooks/useStoredState';
 import { useClusterPreferences } from '../hooks/useClusterPreferences';
 import { useConnectionGrouping } from '../hooks/useConnectionGrouping';
 import type {

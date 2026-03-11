@@ -1,6 +1,6 @@
 import type { NavSection, NavMenuItem } from '@omniviewdev/ui/sidebars';
 
-import { useStoredState } from '../components/shared/hooks/useStoredState';
+import { useStoredState } from './useStoredState';
 
 export interface SidebarOrder {
   items: string[];
