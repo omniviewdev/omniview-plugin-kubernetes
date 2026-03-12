@@ -127,10 +127,36 @@ export function getSeverityColors(
 // Pod field / resource ref resolvers
 // ────────────────────────────────────────────────────────────────────────────
 
+/** Split a fieldRef path into segments, respecting bracket notation.
+ *  e.g. "metadata.annotations['kubernetes.io/name']" -> ["metadata", "annotations['kubernetes.io/name']"]
+ */
+function splitFieldPath(path: string): string[] {
+  const segments: string[] = [];
+  let current = '';
+  let inBracket = false;
+  for (let i = 0; i < path.length; i++) {
+    const ch = path[i];
+    if (ch === '[') {
+      inBracket = true;
+      current += ch;
+    } else if (ch === ']') {
+      inBracket = false;
+      current += ch;
+    } else if (ch === '.' && !inBracket) {
+      if (current) segments.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  if (current) segments.push(current);
+  return segments;
+}
+
 /** Resolve a fieldRef path against a Pod object */
 export function resolveFieldRef(pod: Pod, fieldPath: string): string | undefined {
   try {
-    const parts = fieldPath.split('.');
+    const parts = splitFieldPath(fieldPath);
     let current: unknown = pod;
     for (const part of parts) {
       if (current == null || typeof current !== 'object') return undefined;

@@ -26,15 +26,16 @@ const ResourceTableErrorState: React.FC<ResourceTableErrorStateProps> = ({
   resourceKey,
 }) => {
   const errstring = error?.toString() ?? '';
+  const errlower = errstring.toLowerCase();
   useEffect(() => {
     console.error('Failed loading resources', errstring);
-  }, [error]);
+  }, [errstring]);
 
   let title = 'Failed to load resources';
   let detail = errstring;
   let suggestions: string[] = [];
 
-  if (errstring.includes('could not find the requested resource')) {
+  if (errlower.includes('could not find the requested resource')) {
     title = 'Resource group not found';
     detail = 'The requested resource type could not be found on this cluster.';
     suggestions = [
@@ -43,9 +44,8 @@ const ResourceTableErrorState: React.FC<ResourceTableErrorStateProps> = ({
       'You may not have permission to discover this API group',
     ];
   } else if (
-    errstring.includes('forbidden') ||
-    errstring.includes('Forbidden') ||
-    errstring.includes('403')
+    errlower.includes('forbidden') ||
+    errlower.includes('403')
   ) {
     title = 'Access denied';
     detail = 'You do not have permission to access this resource.';
@@ -55,12 +55,12 @@ const ResourceTableErrorState: React.FC<ResourceTableErrorStateProps> = ({
       'Verify your kubeconfig context is correct',
     ];
   } else if (
-    errstring.includes('connection refused') ||
-    errstring.includes('no such host') ||
-    errstring.includes('network') ||
-    errstring.includes('timeout') ||
-    errstring.includes('ETIMEDOUT') ||
-    errstring.includes('ECONNREFUSED')
+    errlower.includes('connection refused') ||
+    errlower.includes('no such host') ||
+    errlower.includes('network') ||
+    errlower.includes('timeout') ||
+    errlower.includes('etimedout') ||
+    errlower.includes('econnrefused')
   ) {
     title = 'Connection error';
     detail = 'Unable to reach the cluster API server.';
@@ -70,9 +70,9 @@ const ResourceTableErrorState: React.FC<ResourceTableErrorStateProps> = ({
       'Check if a VPN or proxy is required',
     ];
   } else if (
-    errstring.includes('certificate') ||
-    errstring.includes('x509') ||
-    errstring.includes('TLS')
+    errlower.includes('certificate') ||
+    errlower.includes('x509') ||
+    errlower.includes('tls')
   ) {
     title = 'Certificate error';
     detail = 'There was a TLS/certificate issue connecting to the cluster.';
@@ -82,9 +82,8 @@ const ResourceTableErrorState: React.FC<ResourceTableErrorStateProps> = ({
       'Check if the CA bundle is configured correctly',
     ];
   } else if (
-    errstring.includes('unauthorized') ||
-    errstring.includes('Unauthorized') ||
-    errstring.includes('401')
+    errlower.includes('unauthorized') ||
+    errlower.includes('401')
   ) {
     title = 'Authentication failed';
     detail = 'Your credentials were rejected by the cluster.';

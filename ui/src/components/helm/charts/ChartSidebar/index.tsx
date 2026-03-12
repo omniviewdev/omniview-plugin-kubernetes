@@ -137,7 +137,8 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
           tabDataRef.current = next;
           return next;
         });
-      } catch {
+      } catch (err) {
+        console.error('[ChartSidebar] Failed to fetch tab data', { actionID, chartID, selectedVersion }, err);
         setTabData((prev) => {
           const next = { ...prev, [cacheKey]: null };
           tabDataRef.current = next;

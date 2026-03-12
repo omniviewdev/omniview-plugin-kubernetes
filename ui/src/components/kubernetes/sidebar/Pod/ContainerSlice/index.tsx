@@ -74,7 +74,7 @@ const ContainerSlice: React.FC<ContainerSliceProps> = ({
       {/* ── Card-based sub-sections ── */}
       <Grid container spacing={0.75}>
         {/* Restart / termination info — shown when container has issues */}
-        {status && (status.restartCount ?? 0) > 0 && (
+        {status && ((status.restartCount ?? 0) > 0 || status.state?.waiting || status.lastState?.terminated) && (
           <Grid size={12}>
             <ContainerStatusSection status={status} />
           </Grid>

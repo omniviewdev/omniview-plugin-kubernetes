@@ -492,16 +492,22 @@ export default function DraggableNavMenu({
       }
 
       setSections((prev) => {
-        const newSections = prev.map((section) => ({
+        const base = pendingSectionsProp ?? prev;
+        const newSections = base.map((section) => ({
           ...section,
           items: reorderInTree(section.items),
         }));
+
+        if (pendingSectionsProp) {
+          setPrevSectionsProp(pendingSectionsProp);
+          setPendingSectionsProp(null);
+        }
 
         onReorder(extractOrder(newSections));
         return newSections;
       });
     },
-    [onReorder],
+    [onReorder, pendingSectionsProp],
   );
 
   const rootSx = scrollable ? scrollableSx : undefined;

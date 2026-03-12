@@ -101,6 +101,7 @@ export const StyledTable = styled('table')`
   display: grid;
   width: 100%;
   -webkit-user-select: none;
+  user-select: none;
 
   .resize-handle {
     position: absolute;

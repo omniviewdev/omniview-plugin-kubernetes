@@ -20,9 +20,9 @@ export function formatCores(v: number | null): string {
 export function formatOps(v: number | null): string {
   if (v == null) return '–';
   if (v === 0) return '0 ops/s';
-  if (v < 0.01) return `${(v * 1000).toFixed(2)} mops/s`;
-  if (v < 1) return `${v.toFixed(3)} ops/s`;
-  if (v < 1000) return `${v.toFixed(1)} ops/s`;
+  if (Math.abs(v) < 0.01) return `${(v * 1000).toFixed(2)} mops/s`;
+  if (Math.abs(v) < 1) return `${v.toFixed(3)} ops/s`;
+  if (Math.abs(v) < 1000) return `${v.toFixed(1)} ops/s`;
   return `${(v / 1000).toFixed(1)} Kops/s`;
 }
 
@@ -36,6 +36,7 @@ export function formatValue(value: number, unitCode: number): string {
     return `${value} B`;
   }
   if (unitCode === 10) {
+    if (value >= 1024 * 1024 * 1024) return `${(value / (1024 * 1024 * 1024)).toFixed(1)} GB/s`;
     if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB/s`;
     if (value >= 1024) return `${(value / 1024).toFixed(1)} KB/s`;
     return `${value.toFixed(0)} B/s`;

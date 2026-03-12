@@ -67,7 +67,7 @@ export const overflowTextSx = { color: 'neutral.500' } as const;
 export const ociInfoSx = { color: 'neutral.400' } as const;
 
 export const modalStyle = {
-  position: 'absolute' as const,
+  position: 'absolute',
   top: '50%',
   left: '50%',
   transform: 'translate(-50%, -50%)',
@@ -81,4 +81,4 @@ export const modalStyle = {
   display: 'flex',
   flexDirection: 'column',
   overflow: 'hidden',
-};
+} as const;

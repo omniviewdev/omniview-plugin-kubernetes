@@ -21,7 +21,7 @@ function ConnectionSection({ conn, formatTime }: { conn: types.Connection; forma
         />
         <InfoRow label="User" value={connLabels?.user ?? (connData?.user != null ? String(connData.user) : undefined)} />
         <InfoRow label="Auth Method" value={connLabels?.auth_method} />
-        <InfoRow label="Namespace" value={String(connData?.namespace ?? '(default)')} />
+        <InfoRow label="Namespace" value={connData?.namespace ? String(connData.namespace) : '(default)'} />
         <InfoRow label="Last Refresh" value={formatTime(conn.last_refresh)} />
       </Stack>
     </SectionWrapper>
