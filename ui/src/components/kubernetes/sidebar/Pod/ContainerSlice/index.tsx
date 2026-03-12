@@ -11,10 +11,10 @@ import ContainerEnvironmentSection from './ContainerEnvironmentSection';
 import ContainerPortsSection from './ContainerPortsSection';
 import ContainerProbesSection from './ContainerProbesSection';
 import ContainerResourcesSection from './ContainerResourcesSection';
-import RestartInfoCard from './ContainerStatusSection';
+import ContainerStatusSection from './ContainerStatusSection';
 import ContainerVolumesSection from './ContainerVolumesSection';
 import type { ContainerSliceProps } from './helpers';
-import { statusDotColor, typeChipColor, typeLabel } from './helpers';
+import { getRestartChipColor, statusDotColor, typeChipColor, typeLabel } from './helpers';
 import InfoRow from './InfoRow';
 import { chipSx, containerSx, headerSx, infoCardSx } from './styles';
 
@@ -59,32 +59,15 @@ const ContainerSlice: React.FC<ContainerSliceProps> = ({
             label={label}
           />
         )}
-        {status &&
-          !!status.restartCount &&
-          (() => {
-            const healthy =
-              status.lastState?.terminated?.reason === 'Completed' &&
-              status.lastState?.terminated?.exitCode === 0;
-            const failing =
-              !!status.state?.waiting?.reason ||
-              (status.lastState?.terminated != null && status.lastState.terminated.exitCode !== 0);
-            const color = failing
-              ? status.restartCount > 10
-                ? 'danger'
-                : 'warning'
-              : healthy
-                ? 'success'
-                : 'primary';
-            return (
-              <Chip
-                size="xs"
-                color={color}
-                emphasis="soft"
-                sx={chipSx}
-                label={`${status.restartCount} restart${status.restartCount !== 1 ? 's' : ''}`}
-              />
-            );
-          })()}
+        {status && !!status.restartCount && (
+          <Chip
+            size="xs"
+            color={getRestartChipColor(status)}
+            emphasis="soft"
+            sx={chipSx}
+            label={`${status.restartCount} restart${status.restartCount !== 1 ? 's' : ''}`}
+          />
+        )}
         {status && <ContainerStatusDecorator status={status} />}
       </Stack>
 
@@ -93,7 +76,7 @@ const ContainerSlice: React.FC<ContainerSliceProps> = ({
         {/* Restart / termination info — shown when container has issues */}
         {status && (status.restartCount ?? 0) > 0 && (
           <Grid size={12}>
-            <RestartInfoCard status={status} />
+            <ContainerStatusSection status={status} />
           </Grid>
         )}
 

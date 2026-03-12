@@ -13,9 +13,11 @@ interface Props {
   onCopy: () => void;
 }
 
+const VALUES_PANEL_HEIGHT = 500;
+
 const valuesContainerSx = {
   position: 'relative',
-  height: 500,
+  height: VALUES_PANEL_HEIGHT,
   border: '1px solid',
   borderColor: 'neutral.700',
   borderRadius: 'sm',
@@ -42,7 +44,7 @@ const ChartValuesTab: React.FC<Props> = ({ activeTab, valuesContent, copied, onC
         language="yaml"
         value={valuesContent ?? '# Loading...'}
         readOnly
-        height={500}
+        height={VALUES_PANEL_HEIGHT}
       />
       {/* Copy button overlay */}
       <IconButton

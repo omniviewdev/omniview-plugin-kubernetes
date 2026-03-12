@@ -17,6 +17,8 @@ import {
 import get from 'lodash.get';
 import React, { useMemo, useState } from 'react';
 
+const SKELETON_ROW_COUNT = 8;
+
 import type { KubernetesResourceObject } from '../../../../types/resource';
 import { plural } from '../../../../utils/language';
 import { useDynamicResourceColumns } from '../../../tables/ColumnFilter/useDynamicResourceColumns';
@@ -262,7 +264,7 @@ const ResourceTableContainer: React.FC<Props> = ({
     const keyparts = resourceKey.split('::');
     const resource = plural(keyparts[keyparts.length - 1]);
 
-    const count = resources.data?.result.length;
+    const count = resources.data?.result?.length;
 
     return `Search ${count ? `${count} ` : ''}${resource}...`;
   };
@@ -272,7 +274,6 @@ const ResourceTableContainer: React.FC<Props> = ({
       <ResourceTableErrorState
         error={resources.error}
         resourceKey={resourceKey}
-        connectionID={connectionID}
       />
     );
   }
@@ -328,7 +329,7 @@ const ResourceTableContainer: React.FC<Props> = ({
               />
               {resources.isLoading ? (
                 <tbody style={{ display: 'grid' }}>
-                  {Array.from({ length: 8 }, (_, i) => `skel-${i}`).map((rowKey) => (
+                  {Array.from({ length: SKELETON_ROW_COUNT }, (_, i) => `skel-${i}`).map((rowKey) => (
                     <tr key={rowKey} style={{ display: 'flex', width: '100%', height: 30 }}>
                       {table.getVisibleLeafColumns().map((col) => {
                         const flexMeta = (col.columnDef.meta as { flex?: number | undefined })

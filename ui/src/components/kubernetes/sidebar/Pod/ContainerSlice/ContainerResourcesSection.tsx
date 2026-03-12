@@ -24,10 +24,10 @@ import {
 const ResourceBar: React.FC<{
   label: string;
   icon: string;
-  request: string;
+  displayValue: string;
   limit: string;
   usage?: number; // 0-100 percentage — future metrics integration
-}> = ({ label, icon, request, limit, usage }) => {
+}> = ({ label, icon, displayValue, limit, usage }) => {
   const barColor =
     usage != null
       ? usage > 80
@@ -62,7 +62,7 @@ const ResourceBar: React.FC<{
         sx={resourceBarTextSx}
         noWrap
       >
-        {request} / {limit}
+        {displayValue} / {limit}
       </Text>
     </Stack>
   );
@@ -89,15 +89,17 @@ const ContainerResourcesSection: React.FC<ContainerResourcesSectionProps> = ({
 
   // ── Compute usage percentages from pod-level metrics ──
   const cpuDenomStr = cpuReq || cpuLim;
+  const cpuDenom = cpuDenomStr != null ? parseCpuToMillicores(cpuDenomStr) : undefined;
   const cpuUsagePercent =
-    podCpuUsage != null && cpuDenomStr
-      ? (podCpuUsage / parseCpuToMillicores(cpuDenomStr)) * 100
+    podCpuUsage != null && cpuDenom != null && Number.isFinite(cpuDenom) && cpuDenom > 0
+      ? (podCpuUsage / cpuDenom) * 100
       : undefined;
 
   const memDenomStr = memReq || memLim;
+  const memDenom = memDenomStr != null ? parseMemoryToBytes(memDenomStr) : undefined;
   const memUsagePercent =
-    podMemoryUsage != null && memDenomStr
-      ? (podMemoryUsage / parseMemoryToBytes(memDenomStr)) * 100
+    podMemoryUsage != null && memDenom != null && Number.isFinite(memDenom) && memDenom > 0
+      ? (podMemoryUsage / memDenom) * 100
       : undefined;
 
   // Format usage display strings
@@ -119,7 +121,7 @@ const ContainerResourcesSection: React.FC<ContainerResourcesSectionProps> = ({
           <ResourceBar
             label="CPU"
             icon="LuCpu"
-            request={
+            displayValue={
               cpuUsageDisplay ? `${cpuUsageDisplay} / ${cpuReq || '\u221E'}` : cpuReq || 'None'
             }
             limit={cpuLim || 'None'}
@@ -128,7 +130,7 @@ const ContainerResourcesSection: React.FC<ContainerResourcesSectionProps> = ({
           <ResourceBar
             label="Memory"
             icon="LuMemoryStick"
-            request={
+            displayValue={
               memUsageDisplay ? `${memUsageDisplay} / ${memReq || '\u221E'}` : memReq || 'None'
             }
             limit={memLim || 'None'}
@@ -137,7 +139,7 @@ const ContainerResourcesSection: React.FC<ContainerResourcesSectionProps> = ({
           <ResourceBar
             label="Storage"
             icon="LuHardDrive"
-            request={storReq || 'None'}
+            displayValue={storReq || 'None'}
             limit={storLim || 'None'}
           />
         </Box>

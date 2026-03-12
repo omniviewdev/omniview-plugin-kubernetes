@@ -50,6 +50,19 @@ export const miniChartIconContainerSx = {
   justifyContent: 'center',
 } as const;
 export const miniChartImgSx = { width: 20, height: 20, objectFit: 'contain', borderRadius: '3px' } as const;
+export const miniChartFallbackSx = {
+  width: 24,
+  height: 24,
+  borderRadius: '4px',
+  flexShrink: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: 9,
+  fontWeight: 700,
+  color: '#fff',
+  lineHeight: 1,
+} as const;
 export const overflowTextSx = { color: 'neutral.500' } as const;
 export const ociInfoSx = { color: 'neutral.400' } as const;
 

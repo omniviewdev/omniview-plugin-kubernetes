@@ -31,12 +31,12 @@ function resolveField(conn: EnrichedConnection, field: RuleField): string | stri
   if (field.startsWith('label:')) {
     const key = field.slice(6);
     const val: unknown = conn.connection.labels?.[key];
-    return val != null ? String(val as string | number) : undefined;
+    return (typeof val === 'string' || typeof val === 'number') ? String(val) : undefined;
   }
   if (field.startsWith('data:')) {
     const key = field.slice(5);
     const val: unknown = conn.connection.data?.[key];
-    return val != null ? String(val as string | number) : undefined;
+    return (typeof val === 'string' || typeof val === 'number') ? String(val) : undefined;
   }
   return undefined;
 }

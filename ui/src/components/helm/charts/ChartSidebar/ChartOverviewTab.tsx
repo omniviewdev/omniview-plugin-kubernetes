@@ -41,7 +41,7 @@ const ChartOverviewTab: React.FC<Props> = ({
           </Text>
           <Stack direction="column" spacing={0.5}>
             {maintainers.map((m) => (
-              <Text key={m.name} size="xs" sx={maintainerTextSx}>
+              <Text key={`${m.name}-${m.email ?? ''}-${m.url ?? ''}`} size="xs" sx={maintainerTextSx}>
                 {m.name}
                 {m.email ? ` <${m.email}>` : ''}
                 {m.url && (

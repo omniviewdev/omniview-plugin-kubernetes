@@ -94,12 +94,12 @@ export const ScrollContainer = styled('div')`
   }
   scrollbar-width: none;
   -webkit-user-select: none;
+  user-select: none;
 `;
 
 export const StyledTable = styled('table')`
   display: grid;
   width: 100%;
-  border-collapse: collapse;
   -webkit-user-select: none;
 
   .resize-handle {

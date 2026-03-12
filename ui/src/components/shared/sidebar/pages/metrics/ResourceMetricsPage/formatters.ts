@@ -41,7 +41,8 @@ export function formatValue(value: number, unitCode: number): string {
     return `${value.toFixed(0)} B/s`;
   }
   if (unitCode === 9) return formatOps(value);
-  if (unitCode === 11 || unitCode === 12) return formatCores(value) ?? '';
+  if (unitCode === 11) return formatCores(value / 1000) ?? '';
+  if (unitCode === 12) return formatCores(value) ?? '';
   if (unitCode === 5) return `${value.toFixed(1)}%`;
   // Seconds -> human readable uptime
   if (unitCode === 7) {
@@ -73,7 +74,8 @@ export function unitToSuffix(unit: number): string | undefined {
 
 /** Pick a valueFormatter based on the primary unit in the group. */
 export function unitToFormatter(unit: number): ((v: number | null) => string) | undefined {
-  if (unit === 11 || unit === 12) return formatCores; // millicores, cores
+  if (unit === 11) return (v: number | null) => formatCores(v != null ? v / 1000 : null); // millicores
+  if (unit === 12) return formatCores; // cores
   if (unit === 9) return formatOps; // ops/sec
   return undefined;
 }

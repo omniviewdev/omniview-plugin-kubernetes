@@ -4,7 +4,7 @@ import { Text } from '@omniviewdev/ui/typography';
 
 const metaLabelSx = { color: 'neutral.400', flexShrink: 0 } as const;
 
-const metaValueSx = { fontWeight: 400, color: 'neutral.100', textAlign: 'right' } as const;
+const metaValueSx = { color: 'neutral.100', textAlign: 'right' } as const;
 
 const MetaEntry: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
   <Stack direction="row" justifyContent="space-between" alignItems="center">

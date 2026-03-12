@@ -75,6 +75,54 @@ export const typeChipColor = (type: ContainerType): 'warning' | 'primary' | unde
   }
 };
 
+// Whitelist of error waiting reasons that indicate a container is actively failing
+const ERROR_WAITING_REASONS = new Set([
+  'CrashLoopBackOff',
+  'ImagePullBackOff',
+  'ErrImagePull',
+  'CreateContainerConfigError',
+  'RunContainerError',
+]);
+
+/** Returns a chip color based on the restart/failure state of a container. */
+export function getRestartChipColor(
+  status: ContainerStatus,
+): 'danger' | 'warning' | 'success' | 'primary' {
+  const restarts = status.restartCount ?? 0;
+  const waitingReason = status.state?.waiting?.reason;
+  const lastTerminated = status.lastState?.terminated;
+
+  const isCurrentlyFailing = waitingReason != null && ERROR_WAITING_REASONS.has(waitingReason);
+  const hasErrorExit =
+    lastTerminated?.exitCode != null && lastTerminated.exitCode !== 0;
+  const isHealthyExit =
+    lastTerminated?.reason === 'Completed' && lastTerminated?.exitCode === 0;
+
+  if (isCurrentlyFailing || hasErrorExit) {
+    return restarts > 10 ? 'danger' : 'warning';
+  }
+  if (isHealthyExit) return 'success';
+  return 'primary';
+}
+
+/** Returns accentColor and chipColor for the restart info card severity indicator. */
+export function getSeverityColors(
+  isCurrentlyFailing: boolean,
+  hasErrorExit: boolean,
+  isHealthyExit: boolean,
+  restarts: number,
+): { accentColor: string; chipColor: 'danger' | 'warning' | 'success' | 'primary' } {
+  if (isCurrentlyFailing || hasErrorExit) {
+    return restarts > 10
+      ? { accentColor: 'error.main', chipColor: 'danger' }
+      : { accentColor: 'warning.main', chipColor: 'warning' };
+  }
+  if (isHealthyExit) {
+    return { accentColor: 'success.main', chipColor: 'success' };
+  }
+  return { accentColor: 'info.main', chipColor: 'primary' };
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Pod field / resource ref resolvers
 // ────────────────────────────────────────────────────────────────────────────
@@ -177,10 +225,14 @@ export function volumeTypeColor(type: string): 'primary' | 'warning' | 'success'
 
 /** Parse a K8s CPU resource string to millicores. "100m"->100, "0.5"->500, "1"->1000 */
 export function parseCpuToMillicores(s: string): number {
-  if (s.endsWith('m')) {
-    return parseFloat(s.slice(0, -1));
+  const trimmed = s.trim();
+  if (!trimmed) return 0;
+  if (trimmed.endsWith('m')) {
+    const val = parseFloat(trimmed.slice(0, -1));
+    return Number.isFinite(val) ? val : 0;
   }
-  return parseFloat(s) * 1000;
+  const val = parseFloat(trimmed) * 1000;
+  return Number.isFinite(val) ? val : 0;
 }
 
 /** Parse a K8s memory resource string to bytes. "128Mi"->134217728, "1Gi"->1073741824 */

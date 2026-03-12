@@ -11,7 +11,7 @@ import ResourceTable from '../../../shared/table/ResourceTable';
 import RepoSidebar from '../RepoSidebar';
 
 import AddRepoDialog from './RepoActions';
-import useRepoColumns from './RepoRow';
+import useRepoColumns from './useRepoColumns';
 import { resourceKey } from './styles';
 import type { HelmRepo } from './types';
 

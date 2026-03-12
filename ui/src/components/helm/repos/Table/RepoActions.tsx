@@ -44,6 +44,7 @@ import {
   chartDetailColumnSx,
   miniChartIconContainerSx,
   miniChartImgSx,
+  miniChartFallbackSx,
   overflowTextSx,
   ociInfoSx,
   modalStyle,
@@ -51,9 +52,9 @@ import {
 
 function chartInitials(name: string): string {
   if (!name) return '?';
-  const parts = name.includes('-') ? name.split('-') : [name];
-  if (parts.length > 1) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-  return name.slice(0, 2).toUpperCase();
+  const parts = name.split('-').filter(Boolean);
+  if (parts.length > 1 && parts[0] && parts[1]) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  return (parts[0] ?? name).slice(0, 2).toUpperCase() || '?';
 }
 
 const MiniChartIcon: React.FC<{ icon?: string; name: string }> = ({ icon, name }) => {
@@ -72,22 +73,7 @@ const MiniChartIcon: React.FC<{ icon?: string; name: string }> = ({ icon, name }
     );
   }
   return (
-    <Box
-      sx={{
-        width: 24,
-        height: 24,
-        borderRadius: '4px',
-        flexShrink: 0,
-        bgcolor: stringToColor(name, 1),
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: 9,
-        fontWeight: 700,
-        color: '#fff',
-        lineHeight: 1,
-      }}
-    >
+    <Box sx={{ ...miniChartFallbackSx, bgcolor: stringToColor(name, 1) }}>
       {chartInitials(name)}
     </Box>
   );

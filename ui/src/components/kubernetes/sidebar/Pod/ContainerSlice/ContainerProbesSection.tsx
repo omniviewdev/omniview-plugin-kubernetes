@@ -11,8 +11,7 @@ export interface ContainerProbesSectionProps {
 }
 
 const ContainerProbesSection: React.FC<ContainerProbesSectionProps> = ({ container }) => {
-  const numProbes =
-    +!!container.livenessProbe + +!!container.readinessProbe + +!!container.startupProbe;
+  const numProbes = [container.livenessProbe, container.readinessProbe, container.startupProbe].filter(Boolean).length;
 
   if (numProbes === 0) return null;
 

@@ -2,6 +2,7 @@
 export function formatDate(iso: string): string {
   try {
     const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
     return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   } catch {
     return iso;
@@ -12,6 +13,7 @@ export function formatDate(iso: string): string {
 export function relativeTime(iso: string): string {
   try {
     const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
     const now = Date.now();
     const diffMs = now - d.getTime();
     const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));

@@ -10,6 +10,7 @@ import React from 'react';
 
 import Icon from '../../../../shared/Icon';
 
+import { getSeverityColors } from './helpers';
 import {
   chipSx,
   fontSize13Sx,
@@ -22,6 +23,14 @@ import {
   termValueCellSx,
   waitingDividerSx,
 } from './styles';
+
+const ERROR_WAITING_REASONS = new Set([
+  'CrashLoopBackOff',
+  'ImagePullBackOff',
+  'ErrImagePull',
+  'CreateContainerConfigError',
+  'RunContainerError',
+]);
 
 // ── Restart / termination info card ──
 const formatTerminated = (t: ContainerStateTerminated) => {
@@ -47,7 +56,7 @@ const formatTerminated = (t: ContainerStateTerminated) => {
   return parts;
 };
 
-const RestartInfoCard: React.FC<{ status: ContainerStatus }> = ({ status }) => {
+const ContainerStatusSection: React.FC<{ status: ContainerStatus }> = ({ status }) => {
   const restarts = status.restartCount ?? 0;
   const lastTerminated = status.lastState?.terminated;
   const waiting = status.state?.waiting;
@@ -56,26 +65,16 @@ const RestartInfoCard: React.FC<{ status: ContainerStatus }> = ({ status }) => {
 
   // Determine severity based on *why* it restarted, not just how many times
   const isHealthyExit = lastTerminated?.reason === 'Completed' && lastTerminated?.exitCode === 0;
-  const isCurrentlyFailing = !!waiting?.reason; // CrashLoopBackOff, etc.
-  const hasErrorExit = lastTerminated != null && lastTerminated.exitCode !== 0;
+  const isCurrentlyFailing =
+    waiting?.reason != null && ERROR_WAITING_REASONS.has(waiting.reason);
+  const hasErrorExit = lastTerminated?.exitCode != null && lastTerminated.exitCode !== 0;
 
-  const accentColor =
-    isCurrentlyFailing || hasErrorExit
-      ? restarts > 10
-        ? 'error.main'
-        : 'warning.main'
-      : isHealthyExit
-        ? 'success.main'
-        : 'info.main';
-
-  const chipColor =
-    isCurrentlyFailing || hasErrorExit
-      ? restarts > 10
-        ? 'danger'
-        : 'warning'
-      : isHealthyExit
-        ? 'success'
-        : 'primary';
+  const { accentColor, chipColor } = getSeverityColors(
+    isCurrentlyFailing,
+    hasErrorExit,
+    isHealthyExit,
+    restarts,
+  );
 
   return (
     <Box
@@ -179,4 +178,4 @@ const RestartInfoCard: React.FC<{ status: ContainerStatus }> = ({ status }) => {
   );
 };
 
-export default RestartInfoCard;
+export default ContainerStatusSection;

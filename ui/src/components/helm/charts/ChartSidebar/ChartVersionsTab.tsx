@@ -13,6 +13,7 @@ interface Props {
   versions: ChartVersion[];
   selectedVersion: string;
   onVersionChange: (version: string) => void;
+  loading?: boolean;
 }
 
 const versionsListSx = {
@@ -35,6 +36,7 @@ const ChartVersionsTab: React.FC<Props> = ({
   versions,
   selectedVersion,
   onVersionChange,
+  loading = false,
 }) => (
   <TabPanel value="versions" activeValue={activeTab}>
     {versions.length > 0 ? (
@@ -50,7 +52,15 @@ const ChartVersionsTab: React.FC<Props> = ({
               key={v.version}
               direction="row"
               alignItems="center"
+              role="button"
+              tabIndex={0}
               onClick={() => onVersionChange(v.version)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onVersionChange(v.version);
+                }
+              }}
               sx={{
                 px: 1.25,
                 py: 0.625,
@@ -108,7 +118,7 @@ const ChartVersionsTab: React.FC<Props> = ({
       </Stack>
     ) : (
       <Text size="sm" sx={emptyTextSx}>
-        Loading versions...
+        {loading ? 'Loading versions...' : 'No versions available'}
       </Text>
     )}
   </TabPanel>

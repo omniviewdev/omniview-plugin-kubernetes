@@ -93,12 +93,12 @@ export const ContainerStatusCell: React.FC<Props> = ({ data, initData }) => {
     >
       {containers.map((status) => (
         <Tooltip key={status.name} variant="rich" placement="top" content={renderTooltipContent(status)}>
-          <div role="button" tabIndex={0} style={chipStyle(getColor(status))} />
+          <div role="img" aria-label={`${status.name} status`} style={chipStyle(getColor(status))} />
         </Tooltip>
       ))}
       {initContainers.map((status) => (
         <Tooltip key={`init-${status.name}`} variant="rich" placement="top" content={renderTooltipContent(status, true)}>
-          <div role="button" tabIndex={0} style={chipStyle(getColor(status), true)} />
+          <div role="img" aria-label={`${status.name} status`} style={chipStyle(getColor(status), true)} />
         </Tooltip>
       ))}
     </Stack>

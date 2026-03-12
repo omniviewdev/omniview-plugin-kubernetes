@@ -81,9 +81,12 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
   const [selectedVersion, setSelectedVersion] = React.useState('');
   const [versions, setVersions] = React.useState<ChartVersion[]>([]);
   const [tabData, setTabData] = React.useState<Record<string, TabDataEntry>>({});
+  const [versionsLoading, setVersionsLoading] = React.useState(false);
   const [showInstall, setShowInstall] = React.useState(false);
   const [iconFailed, setIconFailed] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
+  const copyTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tabDataRef = React.useRef<Record<string, TabDataEntry>>({});
 
   const connectionID = ctx.resource?.connectionID ?? '';
   const chartID = ctx.data?.id ?? ctx.resource?.id ?? '';
@@ -97,6 +100,7 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
   // Load versions on mount
   React.useEffect(() => {
     if (!chartID || !connectionID) return;
+    setVersionsLoading(true);
     void executeAction({
       actionID: 'get-versions',
       id: chartID,
@@ -108,8 +112,12 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
         if (versionList.length > 0 && !selectedVersion) {
           setSelectedVersion(versionList[0].version);
         }
+        setVersionsLoading(false);
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.error('[ChartSidebar] Failed to fetch versions', { chartID, connectionID }, err);
+        setVersionsLoading(false);
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chartID, connectionID]);
 
@@ -117,19 +125,27 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
   const fetchTabData = React.useCallback(
     async (actionID: string) => {
       const cacheKey = `${actionID}::${selectedVersion}`;
-      if (tabData[cacheKey]) return;
+      if (tabDataRef.current[cacheKey]) return;
       try {
         const result = await executeAction({
           actionID,
           id: chartID,
           params: selectedVersion ? { version: selectedVersion } : undefined,
         });
-        setTabData((prev) => ({ ...prev, [cacheKey]: result.data as TabDataEntry }));
+        setTabData((prev) => {
+          const next = { ...prev, [cacheKey]: result.data as TabDataEntry };
+          tabDataRef.current = next;
+          return next;
+        });
       } catch {
-        setTabData((prev) => ({ ...prev, [cacheKey]: null }));
+        setTabData((prev) => {
+          const next = { ...prev, [cacheKey]: null };
+          tabDataRef.current = next;
+          return next;
+        });
       }
     },
-    [executeAction, chartID, selectedVersion, tabData],
+    [executeAction, chartID, selectedVersion],
   );
 
   // Fetch data when tab changes
@@ -149,7 +165,17 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
   const handleVersionChange = React.useCallback((newVersion: string | string[]) => {
     const v = Array.isArray(newVersion) ? newVersion[0] : newVersion;
     setSelectedVersion(v);
+    tabDataRef.current = {};
     setTabData({}); // Clear all cached data to force refetch
+  }, []);
+
+  // Clean up pending copy timeout on unmount
+  React.useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current !== null) {
+        clearTimeout(copyTimeoutRef.current);
+      }
+    };
   }, []);
 
   const handleCopyValues = React.useCallback(() => {
@@ -159,7 +185,12 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
     if (valuesData) {
       void navigator.clipboard.writeText(valuesData).then(() => {
         setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        if (copyTimeoutRef.current !== null) {
+          clearTimeout(copyTimeoutRef.current);
+        }
+        copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
+      }).catch((err) => {
+        console.error('[ChartSidebar] Failed to copy values to clipboard', err);
       });
     }
   }, [tabData, selectedVersion]);
@@ -341,6 +372,7 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
           versions={versions}
           selectedVersion={selectedVersion}
           onVersionChange={handleVersionChange}
+          loading={versionsLoading}
         />
       </Box>
 

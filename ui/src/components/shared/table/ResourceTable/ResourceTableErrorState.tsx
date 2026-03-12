@@ -2,7 +2,7 @@ import Box from '@mui/material/Box';
 import { Alert } from '@omniviewdev/ui/feedback';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text, Heading } from '@omniviewdev/ui/typography';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { LuCircleAlert } from 'react-icons/lu';
 
 import {
@@ -19,7 +19,6 @@ import {
 type ResourceTableErrorStateProps = {
   error: Error | null;
   resourceKey: string;
-  connectionID: string;
 };
 
 const ResourceTableErrorState: React.FC<ResourceTableErrorStateProps> = ({
@@ -27,7 +26,9 @@ const ResourceTableErrorState: React.FC<ResourceTableErrorStateProps> = ({
   resourceKey,
 }) => {
   const errstring = error?.toString() ?? '';
-  console.error('Failed loading resources', errstring);
+  useEffect(() => {
+    console.error('Failed loading resources', errstring);
+  }, [error]);
 
   let title = 'Failed to load resources';
   let detail = errstring;

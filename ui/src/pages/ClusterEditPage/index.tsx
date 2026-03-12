@@ -60,16 +60,14 @@ const ClusterEditPage: React.FC = () => {
   const [avatarColor, setAvatarColor] = React.useState(existing.avatarColor ?? '');
   const [tags, setTags] = React.useState<string[]>(existing.tags ?? []);
 
-  // Sync form state when overrides load
+  // Sync form state when overrides load or connectionId changes
   React.useEffect(() => {
     const o = connectionOverrides[connectionId];
-    if (o) {
-      setDisplayName((prev) => prev || o.displayName || '');
-      setDescription((prev) => prev || o.description || '');
-      setAvatarUrl((prev) => prev || o.avatar || '');
-      setAvatarColor((prev) => prev || o.avatarColor || '');
-      setTags((prev) => (prev.length === 0 ? (o.tags ?? []) : prev));
-    }
+    setDisplayName(o?.displayName ?? '');
+    setDescription(o?.description ?? '');
+    setAvatarUrl(o?.avatar ?? '');
+    setAvatarColor(o?.avatarColor ?? '');
+    setTags(o?.tags ?? []);
   }, [connectionOverrides, connectionId]);
 
   const hasDrafts = React.useMemo(() => {
@@ -122,8 +120,10 @@ const ClusterEditPage: React.FC = () => {
     return refreshTime.getTime() + conn.expiry_time > Date.now();
   }, [conn]);
 
-  const formatTime = React.useCallback((timestamp: string | number | Date | null | undefined): string => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- conn.last_refresh is time.Time (Go wrapper), Date constructor accepts it at runtime
+  const formatTime = React.useCallback((timestamp: any): string => {
     if (!timestamp) return 'Never';
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- time.Time is opaque but Date() handles it at runtime
     const date = new Date(timestamp);
     if (date.toString() === 'Invalid Date') return 'Never';
     const diff = Date.now() - date.getTime();

@@ -108,7 +108,7 @@ const ResourceMetricsPage: React.FC<Props> = ({ ctx }) => {
   const tsMetricIDList = useMemo(() => [...tsMetricIDs], [tsMetricIDs]);
 
   // Time-series query (shape=1) - only if descriptors declare time-series support
-  const { data: tsData, isLoading: tsLoading } = useResourceMetrics({
+  const { data: tsData, isLoading: tsLoading, error: tsError } = useResourceMetrics({
     pluginID: 'kubernetes',
     connectionID,
     resourceKey,
@@ -188,10 +188,10 @@ const ResourceMetricsPage: React.FC<Props> = ({ ctx }) => {
       )}
 
       {/* Error banner */}
-      {error && (
+      {(error || tsError) && (
         <Box sx={errorBannerSx}>
           <Text size="xs" sx={errorTextSx}>
-            {error.message || 'Failed to load metrics'}
+            {(error ?? tsError)?.message || 'Failed to load metrics'}
           </Text>
         </Box>
       )}
