@@ -436,42 +436,42 @@ export default function DraggableNavMenu({
         return;
       }
 
-      setSections((prev) => {
-        const base = pendingSectionsProp ?? prev;
-        const sectionIdx = base.findIndex((s) => s.items.some((i) => i.id === active.id));
-        const overSectionIdx = base.findIndex((s) => s.items.some((i) => i.id === over.id));
-        if (sectionIdx === -1 || overSectionIdx === -1 || sectionIdx !== overSectionIdx) {
-          if (pendingSectionsProp) {
-            setPrevSectionsProp(pendingSectionsProp);
-            setPendingSectionsProp(null);
-          }
-          return base;
-        }
-
-        const section = base[sectionIdx];
-        const oldIndex = section.items.findIndex((i) => i.id === active.id);
-        const newIndex = section.items.findIndex((i) => i.id === over.id);
-        if (oldIndex === -1 || newIndex === -1) {
-          if (pendingSectionsProp) {
-            setPrevSectionsProp(pendingSectionsProp);
-            setPendingSectionsProp(null);
-          }
-          return base;
-        }
-
-        const newSections = [...base];
-        newSections[sectionIdx] = { ...section, items: arrayMove(section.items, oldIndex, newIndex) };
-
+      // Compute reorder outside the updater to keep it pure
+      const base = pendingSectionsProp ?? sections;
+      const sectionIdx = base.findIndex((s) => s.items.some((i) => i.id === active.id));
+      const overSectionIdx = base.findIndex((s) => s.items.some((i) => i.id === over.id));
+      if (sectionIdx === -1 || overSectionIdx === -1 || sectionIdx !== overSectionIdx) {
         if (pendingSectionsProp) {
+          setSections(pendingSectionsProp);
           setPrevSectionsProp(pendingSectionsProp);
           setPendingSectionsProp(null);
         }
+        return;
+      }
 
-        onReorder(extractOrder(newSections));
-        return newSections;
-      });
+      const section = base[sectionIdx];
+      const oldIndex = section.items.findIndex((i) => i.id === active.id);
+      const newIndex = section.items.findIndex((i) => i.id === over.id);
+      if (oldIndex === -1 || newIndex === -1) {
+        if (pendingSectionsProp) {
+          setSections(pendingSectionsProp);
+          setPrevSectionsProp(pendingSectionsProp);
+          setPendingSectionsProp(null);
+        }
+        return;
+      }
+
+      const newSections = [...base];
+      newSections[sectionIdx] = { ...section, items: arrayMove(section.items, oldIndex, newIndex) };
+
+      setSections(newSections);
+      if (pendingSectionsProp) {
+        setPrevSectionsProp(pendingSectionsProp);
+        setPendingSectionsProp(null);
+      }
+      onReorder(extractOrder(newSections));
     },
-    [onReorder, pendingSectionsProp],
+    [onReorder, pendingSectionsProp, sections],
   );
 
   const handleChildReorder = useCallback(
@@ -491,23 +491,20 @@ export default function DraggableNavMenu({
         });
       }
 
-      setSections((prev) => {
-        const base = pendingSectionsProp ?? prev;
-        const newSections = base.map((section) => ({
-          ...section,
-          items: reorderInTree(section.items),
-        }));
+      const base = pendingSectionsProp ?? sections;
+      const newSections = base.map((section) => ({
+        ...section,
+        items: reorderInTree(section.items),
+      }));
 
-        if (pendingSectionsProp) {
-          setPrevSectionsProp(pendingSectionsProp);
-          setPendingSectionsProp(null);
-        }
-
-        onReorder(extractOrder(newSections));
-        return newSections;
-      });
+      setSections(newSections);
+      if (pendingSectionsProp) {
+        setPrevSectionsProp(pendingSectionsProp);
+        setPendingSectionsProp(null);
+      }
+      onReorder(extractOrder(newSections));
     },
-    [onReorder, pendingSectionsProp],
+    [onReorder, pendingSectionsProp, sections],
   );
 
   const rootSx = scrollable ? scrollableSx : undefined;

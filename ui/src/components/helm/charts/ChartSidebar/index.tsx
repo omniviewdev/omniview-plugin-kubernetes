@@ -91,6 +91,16 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
   const connectionID = ctx.resource?.connectionID ?? '';
   const chartID = ctx.data?.id ?? ctx.resource?.id ?? '';
 
+  // Reset per-chart state when the chart changes (sidebar may stay mounted)
+  React.useEffect(() => {
+    setSelectedVersion('');
+    setActiveTab('overview');
+    setIconFailed(false);
+    setCopied(false);
+    setTabData({});
+    tabDataRef.current = {};
+  }, [chartID]);
+
   const { executeAction, isExecuting } = useExecuteAction({
     pluginID: 'kubernetes',
     connectionID,
@@ -124,7 +134,7 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
   // Fetch tab-specific data lazily, cache by action+version
   const fetchTabData = React.useCallback(
     async (actionID: string) => {
-      const cacheKey = `${actionID}::${selectedVersion}`;
+      const cacheKey = `${chartID}::${actionID}::${selectedVersion}`;
       if (tabDataRef.current[cacheKey]) return;
       try {
         const result = await executeAction({
@@ -180,7 +190,7 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
   }, []);
 
   const handleCopyValues = React.useCallback(() => {
-    const cacheKey = `get-values::${selectedVersion}`;
+    const cacheKey = `${chartID}::get-values::${selectedVersion}`;
     const entry = tabData[cacheKey] as ValuesActionData | null | undefined;
     const valuesData = entry?.values;
     if (valuesData) {
@@ -221,8 +231,8 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
     label: v.appVersion ? `${v.version} (App: ${v.appVersion})` : v.version,
   }));
 
-  const readmeCacheKey = `get-readme::${selectedVersion}`;
-  const valuesCacheKey = `get-values::${selectedVersion}`;
+  const readmeCacheKey = `${chartID}::get-readme::${selectedVersion}`;
+  const valuesCacheKey = `${chartID}::get-values::${selectedVersion}`;
   const readmeEntry = tabData[readmeCacheKey] as ReadmeActionData | null | undefined;
   const valuesEntry = tabData[valuesCacheKey] as ValuesActionData | null | undefined;
   const readmeContent = readmeEntry?.readme;

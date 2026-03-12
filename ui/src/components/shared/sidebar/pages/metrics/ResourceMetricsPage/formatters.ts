@@ -30,27 +30,29 @@ export function formatValue(value: number, unitCode: number): string {
   const unit = UNIT_LABELS[unitCode] ?? '';
 
   if (unitCode === 1) {
-    if (value >= 1024 * 1024 * 1024) return `${(value / (1024 * 1024 * 1024)).toFixed(1)} GB`;
-    if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`;
-    if (value >= 1024) return `${(value / 1024).toFixed(1)} KB`;
+    const abs = Math.abs(value);
+    if (abs >= 1024 * 1024 * 1024) return `${(value / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+    if (abs >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+    if (abs >= 1024) return `${(value / 1024).toFixed(1)} KB`;
     return `${value} B`;
   }
   if (unitCode === 10) {
-    if (value >= 1024 * 1024 * 1024) return `${(value / (1024 * 1024 * 1024)).toFixed(1)} GB/s`;
-    if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB/s`;
-    if (value >= 1024) return `${(value / 1024).toFixed(1)} KB/s`;
+    const abs = Math.abs(value);
+    if (abs >= 1024 * 1024 * 1024) return `${(value / (1024 * 1024 * 1024)).toFixed(1)} GB/s`;
+    if (abs >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB/s`;
+    if (abs >= 1024) return `${(value / 1024).toFixed(1)} KB/s`;
     return `${value.toFixed(0)} B/s`;
   }
   if (unitCode === 9) return formatOps(value);
   if (unitCode === 11) return formatCores(value / 1000) ?? '';
   if (unitCode === 12) return formatCores(value) ?? '';
   if (unitCode === 5) return `${value.toFixed(1)}%`;
-  // Seconds -> human readable uptime
+  // Seconds -> human readable uptime (truncate to avoid rounding across unit boundaries)
   if (unitCode === 7) {
-    if (value >= 86400) return `${(value / 86400).toFixed(1)}d`;
-    if (value >= 3600) return `${(value / 3600).toFixed(1)}h`;
-    if (value >= 60) return `${(value / 60).toFixed(0)}m`;
-    return `${value.toFixed(0)}s`;
+    if (value >= 86400) return `${(Math.floor((value / 86400) * 10) / 10).toFixed(1)}d`;
+    if (value >= 3600) return `${(Math.floor((value / 3600) * 10) / 10).toFixed(1)}h`;
+    if (value >= 60) return `${Math.floor(value / 60)}m`;
+    return `${Math.floor(value)}s`;
   }
   if (Number.isInteger(value)) return `${value}${unit ? ` ${unit}` : ''}`;
   return `${value.toFixed(2)}${unit ? ` ${unit}` : ''}`;

@@ -263,8 +263,10 @@ export function parseCpuToMillicores(s: string): number {
 
 /** Parse a K8s memory resource string to bytes. "128Mi"->134217728, "1Gi"->1073741824 */
 export function parseMemoryToBytes(s: string): number {
-  const match = s.match(/^(\d+(?:\.\d+)?)\s*([A-Za-z]*)$/);
-  if (!match) return parseFloat(s) || 0;
+  const trimmed = s.trim();
+  if (!trimmed) return 0;
+  const match = trimmed.match(/^(\d+(?:\.\d+)?)\s*([A-Za-z]*)$/);
+  if (!match) return parseFloat(trimmed) || 0;
   const val = parseFloat(match[1]);
   switch (match[2]) {
     case 'Ki':

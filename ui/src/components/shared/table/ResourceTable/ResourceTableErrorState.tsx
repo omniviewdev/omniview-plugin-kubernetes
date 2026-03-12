@@ -28,7 +28,7 @@ const ResourceTableErrorState: React.FC<ResourceTableErrorStateProps> = ({
   const errstring = error?.toString() ?? '';
   const errlower = errstring.toLowerCase();
   useEffect(() => {
-    console.error('Failed loading resources', errstring);
+    if (errstring) console.error('Failed loading resources', errstring);
   }, [errstring]);
 
   let title = 'Failed to load resources';

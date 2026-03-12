@@ -58,16 +58,20 @@ const formatTerminated = (t: ContainerStateTerminated) => {
 
 const ContainerStatusSection: React.FC<{ status: ContainerStatus }> = ({ status }) => {
   const restarts = status.restartCount ?? 0;
+  const currentTerminated = status.state?.terminated;
   const lastTerminated = status.lastState?.terminated;
   const waiting = status.state?.waiting;
 
-  if (!lastTerminated && !waiting) return null;
+  if (!currentTerminated && !lastTerminated && !waiting) return null;
+
+  // Use the most relevant termination info (current state takes precedence)
+  const terminated = currentTerminated ?? lastTerminated;
 
   // Determine severity based on *why* it restarted, not just how many times
-  const isHealthyExit = lastTerminated?.reason === 'Completed' && lastTerminated?.exitCode === 0;
+  const isHealthyExit = terminated?.reason === 'Completed' && terminated?.exitCode === 0;
   const isCurrentlyFailing =
     waiting?.reason != null && ERROR_WAITING_REASONS.has(waiting.reason);
-  const hasErrorExit = lastTerminated?.exitCode != null && lastTerminated.exitCode !== 0;
+  const hasErrorExit = terminated?.exitCode != null && terminated.exitCode !== 0;
 
   const { accentColor, chipColor } = getSeverityColors(
     isCurrentlyFailing,
@@ -138,8 +142,8 @@ const ContainerStatusSection: React.FC<{ status: ContainerStatus }> = ({ status 
           </Stack>
         )}
 
-        {/* Last termination details */}
-        {lastTerminated && (
+        {/* Termination details (current or last) */}
+        {terminated && (
           <>
             {waiting && <Divider sx={waitingDividerSx} />}
             <Stack spacing={0.25}>
@@ -148,9 +152,9 @@ const ContainerStatusSection: React.FC<{ status: ContainerStatus }> = ({ status 
                 weight="semibold"
                 sx={lastTermLabelSx}
               >
-                Last Termination
+                {currentTerminated ? 'Termination' : 'Last Termination'}
               </Text>
-              {formatTerminated(lastTerminated).map((entry) => (
+              {formatTerminated(terminated).map((entry) => (
                 <Grid container key={entry.label} spacing={0.5} sx={termEntryRowSx}>
                   <Grid size={4} sx={termLabelCellSx}>
                     <Text sx={termLabelTextSx}>{entry.label}</Text>
