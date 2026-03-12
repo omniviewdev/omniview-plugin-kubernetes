@@ -23,7 +23,7 @@ export const ownerRefFilter: FilterFn<any> = (row, columnId, value: string[]) =>
   if (!Array.isArray(value) || !value.length) {
     return true;
   }
-  const refs = row.getValue(columnId) as Array<{ name?: string }> | undefined;
+  const refs: Array<{ name?: string }> | undefined = row.getValue(columnId);
   const name = refs?.[0]?.name;
   return name != null && value.includes(name);
 };

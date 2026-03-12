@@ -4,7 +4,6 @@ import { Chip, ClipboardText } from '@omniviewdev/ui';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
 import type { Service } from 'kubernetes-types/core/v1';
-import type { Condition } from 'kubernetes-types/meta/v1';
 import React from 'react';
 
 import ConditionChip from '../../../../../shared/ConditionChip';
@@ -94,7 +93,7 @@ const ServiceStatusSection: React.FC<Props> = ({ service, connectionID }) => {
         </Stack>
         {conditions && conditions.length > 0 && (
           <Stack direction="row" gap={0.5} flexWrap="wrap" justifyContent="flex-end">
-            {(conditions as Condition[]).map((condition) => (
+            {conditions.map((condition) => (
               <ConditionChip
                 key={condition.type}
                 condition={condition}

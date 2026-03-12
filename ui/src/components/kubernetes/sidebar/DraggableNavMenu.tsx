@@ -320,14 +320,16 @@ export default function DraggableNavMenu({
 }: DraggableNavMenuProps) {
   // Local copy for optimistic reorder during drag — kept in sync with
   // incoming props so layout changes (e.g. new resources) are reflected.
+  const [isDraggingState, setIsDragging] = useState(false);
   const [sections, setSections] = useState(sectionsProp);
-  const isDragging = useRef(false);
+  const [prevSectionsProp, setPrevSectionsProp] = useState(sectionsProp);
 
-  useEffect(() => {
-    if (!isDragging.current) {
+  if (prevSectionsProp !== sectionsProp) {
+    setPrevSectionsProp(sectionsProp);
+    if (!isDraggingState) {
       setSections(sectionsProp);
     }
-  }, [sectionsProp]);
+  }
 
   // ── Expand/collapse state (mirroring NavMenu logic) ──
   const computeExpanded = useMemo(
@@ -341,7 +343,9 @@ export default function DraggableNavMenu({
   }));
 
   const onExpandedChangeRef = useRef(onExpandedChange);
-  onExpandedChangeRef.current = onExpandedChange;
+  useEffect(() => {
+    onExpandedChangeRef.current = onExpandedChange;
+  }, [onExpandedChange]);
 
   const updateExpanded = useCallback(
     (updater: (prev: Record<string, boolean>) => Record<string, boolean>) => {
@@ -408,7 +412,7 @@ export default function DraggableNavMenu({
 
   const handleTopLevelDragEnd = useCallback(
     (event: DragEndEvent) => {
-      isDragging.current = false;
+      setIsDragging(false);
       const { active, over } = event;
       if (!over || active.id === over.id) return;
 
@@ -510,9 +514,9 @@ export default function DraggableNavMenu({
         sensors={sensors}
         collisionDetection={closestCenter}
         modifiers={[restrictToVerticalAxis]}
-        onDragStart={() => { isDragging.current = true; }}
+        onDragStart={() => { setIsDragging(true); }}
         onDragEnd={handleTopLevelDragEnd}
-        onDragCancel={() => { isDragging.current = false; }}
+        onDragCancel={() => { setIsDragging(false); }}
       >
         <SortableContext items={topLevelIds} strategy={verticalListSortingStrategy}>
           {sections.map((section, i) => (

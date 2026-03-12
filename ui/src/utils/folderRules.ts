@@ -30,13 +30,13 @@ function resolveField(conn: EnrichedConnection, field: RuleField): string | stri
   if (field === 'tag') return conn.tags; // returns array — tested per-element
   if (field.startsWith('label:')) {
     const key = field.slice(6);
-    const val = conn.connection.labels?.[key];
-    return val != null ? String(val) : undefined;
+    const val: unknown = conn.connection.labels?.[key];
+    return val != null ? String(val as string | number) : undefined;
   }
   if (field.startsWith('data:')) {
     const key = field.slice(5);
-    const val = (conn.connection.data as Record<string, unknown> | undefined)?.[key];
-    return val != null ? String(val) : undefined;
+    const val: unknown = conn.connection.data?.[key];
+    return val != null ? String(val as string | number) : undefined;
   }
   return undefined;
 }
