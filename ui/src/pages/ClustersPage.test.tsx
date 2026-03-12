@@ -37,7 +37,7 @@ vi.mock('@omniviewdev/runtime', () => ({
   useSnackbar: () => ({ showSnackbar: vi.fn() }),
 }));
 
-vi.mock('../components/shared/hooks/useStoredState', () => ({
+vi.mock('@/hooks/useStoredState', () => ({
   useStoredState: <T,>(_key: string, defaultValue: T) => {
     const state = vi.fn();
     return [defaultValue, state];
