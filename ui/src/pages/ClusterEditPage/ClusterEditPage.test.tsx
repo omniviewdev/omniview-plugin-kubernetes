@@ -3,9 +3,9 @@ import type React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 
-import type { ConnectionOverride } from '../types/clusters';
+import type { ConnectionOverride } from '../../types/clusters';
 
-import ClusterEditPage from './ClusterEditPage';
+import ClusterEditPage from '.';
 
 // ---------------------------------------------------------------------------
 // Mock connection shape — mirrors the fields accessed by ClusterEditPage
@@ -48,7 +48,7 @@ vi.mock('@omniviewdev/runtime', () => ({
   useConnection: () => ({ connection: { data: mockConnectionData } }),
 }));
 
-vi.mock('../hooks/useClusterPreferences', () => ({
+vi.mock('../../hooks/useClusterPreferences', () => ({
   useClusterPreferences: () => ({
     connectionOverrides: mockConnectionOverrides,
     availableTags: mockAvailableTags,
@@ -57,7 +57,7 @@ vi.mock('../hooks/useClusterPreferences', () => ({
 }));
 
 // Stub child components as lightweight divs with interactive buttons
-vi.mock('../components/connections/AvatarEditor', () => ({
+vi.mock('../../components/connections/AvatarEditor', () => ({
   default: ({ name, onAvatarUrlChange, onAvatarColorChange }: {
     name: string;
     onAvatarUrlChange: (url: string) => void;
@@ -77,7 +77,7 @@ vi.mock('../components/connections/AvatarEditor', () => ({
   ),
 }));
 
-vi.mock('../components/connections/TagInput', () => ({
+vi.mock('../../components/connections/TagInput', () => ({
   default: ({ tags, availableTags, onChange }: {
     tags: string[];
     availableTags: string[];
@@ -95,7 +95,7 @@ vi.mock('../components/connections/TagInput', () => ({
   ),
 }));
 
-vi.mock('../components/settings/MetricsTabContent', () => ({
+vi.mock('../../components/settings/MetricsTabContent', () => ({
   default: ({ pluginID, connectionID, connected }: {
     pluginID: string;
     connectionID: string;
@@ -110,7 +110,7 @@ vi.mock('../components/settings/MetricsTabContent', () => ({
   ),
 }));
 
-vi.mock('../components/settings/NodeShellTabContent', () => ({
+vi.mock('../../components/settings/NodeShellTabContent', () => ({
   default: ({ pluginID, connectionID }: {
     pluginID: string;
     connectionID: string;
@@ -124,7 +124,7 @@ vi.mock('../components/settings/NodeShellTabContent', () => ({
 }));
 
 // Stub the layout components as pass-through containers
-vi.mock('../layouts/resource', () => ({
+vi.mock('../../layouts/resource', () => ({
   default: {
     Root: ({ children }: { children: React.ReactNode }) => <div data-testid="layout-root">{children}</div>,
     SideNav: ({ children }: { children: React.ReactNode }) => <div data-testid="layout-sidenav">{children}</div>,
@@ -136,7 +136,7 @@ vi.mock('@omniviewdev/ui/overlays', () => ({
   Tooltip: ({ title, children }: { title: string; children: React.ReactNode }) => <span data-tooltip={title}>{children}</span>,
 }));
 
-vi.mock('../utils/color', () => ({
+vi.mock('../../utils/color', () => ({
   stringToColor: (s: string) => `#mock-color-${s}`,
 }));
 

@@ -83,6 +83,7 @@ function SortableItem({
   isEditing,
   parentId: _parentId,
   onChildReorder,
+  setIsDragging,
 }: {
   item: NavMenuItemType;
   depth: number;
@@ -93,6 +94,7 @@ function SortableItem({
   isEditing: boolean;
   parentId?: string;
   onChildReorder?: (parentId: string, activeId: string, overId: string) => void;
+  setIsDragging?: (v: boolean) => void;
 }) {
   const {
     attributes,
@@ -206,6 +208,7 @@ function SortableItem({
           onToggleExpanded={onToggleExpanded}
           isEditing={isEditing}
           onChildReorder={onChildReorder}
+          setIsDragging={setIsDragging}
         />
       )}
     </Box>
@@ -222,6 +225,7 @@ function ChildSortableContext({
   onToggleExpanded,
   isEditing,
   onChildReorder,
+  setIsDragging,
 }: {
   parentId: string;
   items: NavMenuItemType[];
@@ -232,6 +236,7 @@ function ChildSortableContext({
   onToggleExpanded: (id: string) => void;
   isEditing: boolean;
   onChildReorder?: (parentId: string, activeId: string, overId: string) => void;
+  setIsDragging?: (v: boolean) => void;
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -242,12 +247,13 @@ function ChildSortableContext({
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
+      setIsDragging?.(false);
       const { active, over } = event;
       if (over && active.id !== over.id) {
         onChildReorder?.(parentId, active.id as string, over.id as string);
       }
     },
-    [parentId, onChildReorder],
+    [parentId, onChildReorder, setIsDragging],
   );
 
   if (!isEditing) {
@@ -275,7 +281,9 @@ function ChildSortableContext({
       sensors={sensors}
       collisionDetection={closestCenter}
       modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+      onDragStart={() => { setIsDragging?.(true); }}
       onDragEnd={handleDragEnd}
+      onDragCancel={() => { setIsDragging?.(false); }}
     >
       <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
         {items.map((child) => (
@@ -290,6 +298,7 @@ function ChildSortableContext({
             isEditing={isEditing}
             parentId={parentId}
             onChildReorder={onChildReorder}
+            setIsDragging={setIsDragging}
           />
         ))}
       </SortableContext>
@@ -320,14 +329,20 @@ export default function DraggableNavMenu({
 }: DraggableNavMenuProps) {
   // Local copy for optimistic reorder during drag — kept in sync with
   // incoming props so layout changes (e.g. new resources) are reflected.
+  const [isDraggingState, setIsDragging] = useState(false);
   const [sections, setSections] = useState(sectionsProp);
-  const isDragging = useRef(false);
+  const [prevSectionsProp, setPrevSectionsProp] = useState(sectionsProp);
+  const [pendingSectionsProp, setPendingSectionsProp] = useState<NavSection[] | null>(null);
 
-  useEffect(() => {
-    if (!isDragging.current) {
+  if (prevSectionsProp !== sectionsProp) {
+    if (isDraggingState) {
+      setPendingSectionsProp(sectionsProp);
+    } else {
+      setPrevSectionsProp(sectionsProp);
       setSections(sectionsProp);
+      setPendingSectionsProp(null);
     }
-  }, [sectionsProp]);
+  }
 
   // ── Expand/collapse state (mirroring NavMenu logic) ──
   const computeExpanded = useMemo(
@@ -341,7 +356,9 @@ export default function DraggableNavMenu({
   }));
 
   const onExpandedChangeRef = useRef(onExpandedChange);
-  onExpandedChangeRef.current = onExpandedChange;
+  useEffect(() => {
+    onExpandedChangeRef.current = onExpandedChange;
+  }, [onExpandedChange]);
 
   const updateExpanded = useCallback(
     (updater: (prev: Record<string, boolean>) => Record<string, boolean>) => {
@@ -408,28 +425,53 @@ export default function DraggableNavMenu({
 
   const handleTopLevelDragEnd = useCallback(
     (event: DragEndEvent) => {
-      isDragging.current = false;
+      setIsDragging(false);
       const { active, over } = event;
-      if (!over || active.id === over.id) return;
+      if (!over || active.id === over.id) {
+        if (pendingSectionsProp) {
+          setSections(pendingSectionsProp);
+          setPrevSectionsProp(pendingSectionsProp);
+          setPendingSectionsProp(null);
+        }
+        return;
+      }
 
-      setSections((prev) => {
-        const sectionIdx = prev.findIndex((s) => s.items.some((i) => i.id === active.id));
-        const overSectionIdx = prev.findIndex((s) => s.items.some((i) => i.id === over.id));
-        if (sectionIdx === -1 || overSectionIdx === -1 || sectionIdx !== overSectionIdx) return prev;
+      // Compute reorder outside the updater to keep it pure
+      const base = pendingSectionsProp ?? sections;
+      const sectionIdx = base.findIndex((s) => s.items.some((i) => i.id === active.id));
+      const overSectionIdx = base.findIndex((s) => s.items.some((i) => i.id === over.id));
+      if (sectionIdx === -1 || overSectionIdx === -1 || sectionIdx !== overSectionIdx) {
+        if (pendingSectionsProp) {
+          setSections(pendingSectionsProp);
+          setPrevSectionsProp(pendingSectionsProp);
+          setPendingSectionsProp(null);
+        }
+        return;
+      }
 
-        const section = prev[sectionIdx];
-        const oldIndex = section.items.findIndex((i) => i.id === active.id);
-        const newIndex = section.items.findIndex((i) => i.id === over.id);
-        if (oldIndex === -1 || newIndex === -1) return prev;
+      const section = base[sectionIdx];
+      const oldIndex = section.items.findIndex((i) => i.id === active.id);
+      const newIndex = section.items.findIndex((i) => i.id === over.id);
+      if (oldIndex === -1 || newIndex === -1) {
+        if (pendingSectionsProp) {
+          setSections(pendingSectionsProp);
+          setPrevSectionsProp(pendingSectionsProp);
+          setPendingSectionsProp(null);
+        }
+        return;
+      }
 
-        const newSections = [...prev];
-        newSections[sectionIdx] = { ...section, items: arrayMove(section.items, oldIndex, newIndex) };
+      const newSections = [...base];
+      newSections[sectionIdx] = { ...section, items: arrayMove(section.items, oldIndex, newIndex) };
 
-        onReorder(extractOrder(newSections));
-        return newSections;
-      });
+      setSections(newSections);
+      if (pendingSectionsProp) {
+        setPrevSectionsProp(pendingSectionsProp);
+        setPendingSectionsProp(null);
+      }
+      onReorder(extractOrder(newSections));
     },
-    [onReorder],
+    [onReorder, pendingSectionsProp, sections],
   );
 
   const handleChildReorder = useCallback(
@@ -449,17 +491,20 @@ export default function DraggableNavMenu({
         });
       }
 
-      setSections((prev) => {
-        const newSections = prev.map((section) => ({
-          ...section,
-          items: reorderInTree(section.items),
-        }));
+      const base = pendingSectionsProp ?? sections;
+      const newSections = base.map((section) => ({
+        ...section,
+        items: reorderInTree(section.items),
+      }));
 
-        onReorder(extractOrder(newSections));
-        return newSections;
-      });
+      setSections(newSections);
+      if (pendingSectionsProp) {
+        setPrevSectionsProp(pendingSectionsProp);
+        setPendingSectionsProp(null);
+      }
+      onReorder(extractOrder(newSections));
     },
-    [onReorder],
+    [onReorder, pendingSectionsProp, sections],
   );
 
   const rootSx = scrollable ? scrollableSx : undefined;
@@ -510,9 +555,16 @@ export default function DraggableNavMenu({
         sensors={sensors}
         collisionDetection={closestCenter}
         modifiers={[restrictToVerticalAxis]}
-        onDragStart={() => { isDragging.current = true; }}
+        onDragStart={() => { setIsDragging(true); }}
         onDragEnd={handleTopLevelDragEnd}
-        onDragCancel={() => { isDragging.current = false; }}
+        onDragCancel={() => {
+          setIsDragging(false);
+          if (pendingSectionsProp) {
+            setSections(pendingSectionsProp);
+            setPrevSectionsProp(pendingSectionsProp);
+            setPendingSectionsProp(null);
+          }
+        }}
       >
         <SortableContext items={topLevelIds} strategy={verticalListSortingStrategy}>
           {sections.map((section, i) => (
@@ -545,6 +597,7 @@ export default function DraggableNavMenu({
                   onToggleExpanded={handleToggle}
                   isEditing
                   onChildReorder={handleChildReorder}
+                  setIsDragging={setIsDragging}
                 />
               ))}
             </Box>

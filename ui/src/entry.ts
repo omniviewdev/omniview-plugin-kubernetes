@@ -407,7 +407,7 @@ export const extensionRegistrations: ExtensionRegistration[] = [
       id: 'kubernetes/home/card',
       plugin: 'kubernetes',
       label: 'Kubernetes',
-      component: KubernetesHomepageCard as any,
+      component: KubernetesHomepageCard,
       meta: {
         label: 'Kubernetes',
         description: 'Recent clusters, favorites, and folders',

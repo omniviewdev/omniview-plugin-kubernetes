@@ -2,16 +2,14 @@ import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
 import Divider from '@mui/material/Divider';
 import Modal from '@mui/material/Modal';
-import { DrawerComponent, useExecuteAction } from '@omniviewdev/runtime';
+import { useExecuteAction } from '@omniviewdev/runtime';
 import { Card, Chip } from '@omniviewdev/ui';
 import { Button, IconButton } from '@omniviewdev/ui/buttons';
 import { Switch, TextField } from '@omniviewdev/ui/inputs';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
-import { ColumnDef } from '@tanstack/react-table';
 import React from 'react';
 import {
-  LuPlus,
   LuCheck,
   LuX,
   LuPackage,
@@ -20,113 +18,43 @@ import {
   LuLock,
 } from 'react-icons/lu';
 import { SiHelm } from 'react-icons/si';
-import { useParams } from 'react-router-dom';
 
-import { stringToColor } from '../../../utils/color';
-import { createStandardViews } from '../../shared/sidebar/createDrawerViews';
-import ResourceTable from '../../shared/table/ResourceTable';
+import { stringToColor } from '../../../../utils/color';
 
-import RepoSidebar from './RepoSidebar';
-
-const resourceKey = 'helm::v1::Repository';
-
-const headerSx = { px: 2.5, pt: 2, pb: 1.5 } as const;
-const contentSx = { flex: 1, overflow: 'auto', px: 2.5, py: 2 } as const;
-const footerSx = { px: 2.5, py: 1.5 } as const;
-const validatingContainerSx = { py: 4 } as const;
-const validatingDetailSx = { color: 'neutral.400' } as const;
-const authSectionToggleSx = { cursor: 'pointer', py: 0.5, userSelect: 'none' } as const;
-const authSectionLabelSx = { color: 'neutral.400' } as const;
-const authFieldsSx = { pt: 1, pl: 2.5 } as const;
-const errorCardSx = { p: 1.25, borderRadius: 'sm', borderColor: 'error.main' } as const;
-const errorTextSx = { color: 'error.light' } as const;
-const successCardSx = { p: 1.25, borderRadius: 'sm', borderColor: 'success.main' } as const;
-const successIconSx = {
-  width: 20,
-  height: 20,
-  borderRadius: '50%',
-  bgcolor: 'success.main',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-} as const;
-const successUrlSx = { color: 'neutral.400' } as const;
-const chartCountSx = { color: 'neutral.300' } as const;
-const chartListSx = {
-  maxHeight: 280,
-  overflow: 'auto',
-  borderRadius: '6px',
-  border: '1px solid',
-  borderColor: 'neutral.800',
-} as const;
-const chartNameSx = { lineHeight: 1.3 } as const;
-const chartDescSx = {
-  color: 'neutral.500',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-  lineHeight: 1.3,
-} as const;
-const chartVersionTextSx = { color: 'neutral.500', flexShrink: 0 } as const;
-const chartDetailColumnSx = { flex: 1, minWidth: 0 } as const;
-const miniChartIconContainerSx = {
-  width: 24,
-  height: 24,
-  borderRadius: '4px',
-  flexShrink: 0,
-  bgcolor: 'rgba(255,255,255,0.08)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-} as const;
-const miniChartImgSx = { width: 20, height: 20, objectFit: 'contain', borderRadius: '3px' } as const;
-const overflowTextSx = { color: 'neutral.500' } as const;
-const ociInfoSx = { color: 'neutral.400' } as const;
-
-/** Shape of a Helm repository row. */
-interface HelmRepo {
-  name?: string;
-  url?: string;
-  type?: string;
-  username?: string;
-  insecure_skip_tls_verify?: boolean;
-}
-
-type ChartEntry = {
-  name: string;
-  description: string;
-  version: string;
-  appVersion?: string;
-  icon?: string;
-};
-
-/** Data returned by `list-charts` action. */
-interface ListChartsData {
-  charts?: ChartEntry[];
-}
-
-const modalStyle = {
-  position: 'absolute' as const,
-  top: '50%',
-  left: '50%',
-  transform: 'translate(-50%, -50%)',
-  width: '90%',
-  maxWidth: 560,
-  maxHeight: '85vh',
-  bgcolor: 'background.paper',
-  borderRadius: 2,
-  boxShadow: 24,
-  p: 0,
-  display: 'flex',
-  flexDirection: 'column',
-  overflow: 'hidden',
-};
+import type { ChartEntry, DialogStep, ListChartsData } from './types';
+import {
+  headerSx,
+  contentSx,
+  footerSx,
+  validatingContainerSx,
+  validatingDetailSx,
+  authSectionToggleSx,
+  authSectionLabelSx,
+  authFieldsSx,
+  errorCardSx,
+  errorTextSx,
+  successCardSx,
+  successIconSx,
+  successUrlSx,
+  chartCountSx,
+  chartListSx,
+  chartNameSx,
+  chartDescSx,
+  chartVersionTextSx,
+  chartDetailColumnSx,
+  miniChartIconContainerSx,
+  miniChartImgSx,
+  miniChartFallbackSx,
+  overflowTextSx,
+  ociInfoSx,
+  modalStyle,
+} from './styles';
 
 function chartInitials(name: string): string {
   if (!name) return '?';
-  const parts = name.includes('-') ? name.split('-') : [name];
-  if (parts.length > 1) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-  return name.slice(0, 2).toUpperCase();
+  const parts = name.split('-').filter(Boolean);
+  if (parts.length > 1 && parts[0] && parts[1]) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  return (parts[0] ?? name).slice(0, 2).toUpperCase() || '?';
 }
 
 const MiniChartIcon: React.FC<{ icon?: string; name: string }> = ({ icon, name }) => {
@@ -145,30 +73,13 @@ const MiniChartIcon: React.FC<{ icon?: string; name: string }> = ({ icon, name }
     );
   }
   return (
-    <Box
-      sx={{
-        width: 24,
-        height: 24,
-        borderRadius: '4px',
-        flexShrink: 0,
-        bgcolor: stringToColor(name, 1),
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: 9,
-        fontWeight: 700,
-        color: '#fff',
-        lineHeight: 1,
-      }}
-    >
+    <Box sx={{ ...miniChartFallbackSx, bgcolor: stringToColor(name, 1) }}>
       {chartInitials(name)}
     </Box>
   );
 };
 
 // ─── Add Repository Dialog ──────────────────────────────────────────────────────
-
-type DialogStep = 'input' | 'validating' | 'success' | 'error';
 
 /** Collapsible section for auth fields in the Add Repo dialog. */
 const AuthSection: React.FC<{
@@ -625,82 +536,4 @@ const AddRepoDialog: React.FC<{
   );
 };
 
-const HelmRepoTable: React.FC = () => {
-  const { id = '' } = useParams<{ id: string }>();
-  const [showAddRepo, setShowAddRepo] = React.useState(false);
-
-  const columns = React.useMemo<Array<ColumnDef<HelmRepo>>>(
-    () => [
-      {
-        id: 'name',
-        header: 'Name',
-        accessorKey: 'name',
-        size: 200,
-      },
-      {
-        id: 'type',
-        header: 'Type',
-        accessorFn: (row) => row.type ?? 'default',
-        size: 80,
-        cell: ({ getValue }) => {
-          const t = getValue<string>();
-          return (
-            <Chip
-              size="sm"
-              emphasis="soft"
-              color={t === 'oci' ? 'info' : 'neutral'}
-              label={t === 'oci' ? 'OCI' : 'HTTP'}
-            />
-          );
-        },
-      },
-      {
-        id: 'url',
-        header: 'URL',
-        accessorKey: 'url',
-        size: 300,
-        meta: { flex: 1 },
-      },
-    ],
-    [],
-  );
-
-  const drawer: DrawerComponent<HelmRepo> = React.useMemo(
-    () => ({
-      title: 'Repository',
-      icon: <SiHelm />,
-      views: createStandardViews({ SidebarComponent: RepoSidebar }),
-      actions: [],
-    }),
-    [],
-  );
-
-  return (
-    <>
-      <ResourceTable
-        columns={columns}
-        connectionID={id}
-        resourceKey={resourceKey}
-        idAccessor="name"
-        memoizer="name"
-        drawer={drawer}
-        hideNamespaceSelector
-        createEnabled={false}
-        toolbarActions={
-          <Button
-            size="xs"
-            emphasis="outline"
-            color="primary"
-            startIcon={<LuPlus size={12} />}
-            onClick={() => setShowAddRepo(true)}
-          >
-            Add Repo
-          </Button>
-        }
-      />
-      <AddRepoDialog open={showAddRepo} onClose={() => setShowAddRepo(false)} connectionID={id} />
-    </>
-  );
-};
-
-export default HelmRepoTable;
+export default AddRepoDialog;

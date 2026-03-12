@@ -9,22 +9,11 @@ import { type Column } from '@tanstack/react-table';
 import React, { useState } from 'react';
 import { LuColumns2, LuSettings2, LuTag, LuStickyNote, LuSearch } from 'react-icons/lu';
 
+import SectionHeader from '../../shared/SectionHeader';
+
 // ---------------------------------------------------------------------------
 // Static styles
 // ---------------------------------------------------------------------------
-
-const sectionHeaderSx = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 0.75,
-  px: 1.5,
-  py: 0.75,
-  bgcolor: 'var(--ov-bg-surface)',
-  borderBottom: '1px solid var(--ov-border-muted)',
-} as const;
-const sectionIconSx = { display: 'flex', color: 'var(--ov-fg-faint)', fontSize: 12 } as const;
-const sectionTitleSx = { color: 'var(--ov-fg-muted)', flex: 1 } as const;
-const sectionCountSx = { color: 'var(--ov-fg-faint)' } as const;
 
 const checkRowSx = {
   display: 'flex',
@@ -89,25 +78,6 @@ type Props = {
   onClose: () => void;
   onClick: React.MouseEventHandler<HTMLButtonElement>;
 };
-
-/** Compact section header */
-const SectionHeader: React.FC<{ icon: React.ReactNode; title: string; count?: number }> = ({
-  icon,
-  title,
-  count,
-}) => (
-  <Box sx={sectionHeaderSx}>
-    <Box sx={sectionIconSx}>{icon}</Box>
-    <Text weight="semibold" size="xs" sx={sectionTitleSx}>
-      {title}
-    </Text>
-    {count !== undefined && count > 0 && (
-      <Text size="xs" sx={sectionCountSx}>
-        {count}
-      </Text>
-    )}
-  </Box>
-);
 
 /** Compact checkbox row */
 const CheckRow: React.FC<{ label: string; checked: boolean; onChange: () => void }> = ({

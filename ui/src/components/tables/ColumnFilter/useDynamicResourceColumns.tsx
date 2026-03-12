@@ -5,7 +5,7 @@ import React from 'react';
 import { LuTag, LuStickyNote } from 'react-icons/lu';
 
 import { type KubernetesResourceObject } from '../../../types/resource';
-import { useStoredState } from '../../shared/hooks/useStoredState';
+import { useStoredState } from '@/hooks/useStoredState';
 
 // ---------------------------------------------------------------------------
 // Static styles

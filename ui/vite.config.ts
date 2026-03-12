@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { omniviewExternals } from "@omniviewdev/vite-plugin";
@@ -17,6 +18,11 @@ export default defineConfig({
     // react/compiler-runtime must be shared until @omniviewdev/vite-plugin is republished
     omniviewExternals({ additionalShared: ["react/compiler-runtime"] }),
   ],
+  resolve: {
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+    },
+  },
   server: {
     host: '127.0.0.1',
     cors: true,

@@ -1,6 +1,6 @@
 import { type RowSelectionState } from '@tanstack/react-table';
 import get from 'lodash.get';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo } from 'react';
 
 /**
  * Build a Set of valid row IDs from the current data array.
@@ -14,9 +14,7 @@ export function useRowSelectionCleanup(
   idPath: string,
   setRowSelection: React.Dispatch<React.SetStateAction<RowSelectionState>>,
 ) {
-  const validRowIds = useRef<Set<string>>(new Set());
-
-  validRowIds.current = useMemo(() => {
+  const validRowIds = useMemo(() => {
     const ids = new Set<string>();
     for (const row of data) {
       const uid = get(row, idPath) as string | undefined;
@@ -33,7 +31,7 @@ export function useRowSelectionCleanup(
       const pruned: RowSelectionState = {};
       let changed = false;
       for (const key of keys) {
-        if (validRowIds.current.has(key)) {
+        if (validRowIds.has(key)) {
           pruned[key] = true;
         } else {
           changed = true;
@@ -41,5 +39,5 @@ export function useRowSelectionCleanup(
       }
       return changed ? pruned : prev;
     });
-  }, [data, setRowSelection]);
+  }, [validRowIds, setRowSelection]);
 }

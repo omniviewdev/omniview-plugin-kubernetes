@@ -2,7 +2,6 @@ import { DrawerContext } from '@omniviewdev/runtime';
 import { Stack } from '@omniviewdev/ui/layout';
 import { Text } from '@omniviewdev/ui/typography';
 import type { ValidatingAdmissionPolicy } from 'kubernetes-types/admissionregistration/v1';
-import type { Condition } from 'kubernetes-types/meta/v1';
 import React from 'react';
 
 import ConditionChip from '../../../../../shared/ConditionChip';
@@ -22,7 +21,7 @@ export const ValidatingAdmissionPolicySidebar: React.FC<Props> = ({ ctx }) => {
   const vap = ctx.data;
   const spec = vap.spec;
   const status = vap.status;
-  const conditions = (status?.conditions || []) as Condition[];
+  const conditions = status?.conditions || [];
   const validations = spec?.validations;
   const auditAnnotations = spec?.auditAnnotations;
   const matchConditions = spec?.matchConditions;

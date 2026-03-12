@@ -1,7 +1,6 @@
 import { DrawerContext } from '@omniviewdev/runtime';
 import { Stack } from '@omniviewdev/ui/layout';
 import type { PodDisruptionBudget } from 'kubernetes-types/policy/v1';
-import type { Condition } from 'kubernetes-types/meta/v1';
 import React from 'react';
 
 import ConditionChip from '../../../../../shared/ConditionChip';
@@ -20,7 +19,7 @@ export const PodDisruptionBudgetSidebar: React.FC<Props> = ({ ctx }) => {
   const pdb = ctx.data;
   const spec = pdb.spec;
   const status = pdb.status;
-  const conditions = (status?.conditions || []) as Condition[];
+  const conditions = status?.conditions || [];
   const selector = spec?.selector?.matchLabels as Record<string, string> | undefined;
 
   return (

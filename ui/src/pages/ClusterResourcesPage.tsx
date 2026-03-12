@@ -16,7 +16,7 @@ import { LuCog, LuLock, LuLockOpen, LuRotateCcw } from 'react-icons/lu';
 import { Outlet, useParams } from 'react-router-dom';
 
 import DraggableNavMenu from '../components/kubernetes/sidebar/DraggableNavMenu';
-import { useStoredState } from '../components/shared/hooks/useStoredState';
+import { useStoredState } from '@/hooks/useStoredState';
 import ResourceCommandPalette from '../components/shared/ResourceCommandPalette';
 import SyncProgressDialog from '../components/shared/SyncProgressDialog';
 import { useClusterPreferences } from '../hooks/useClusterPreferences';
