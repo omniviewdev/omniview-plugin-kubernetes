@@ -119,7 +119,7 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
         const versionsData = result.data as VersionsActionData | undefined;
         const versionList = versionsData?.versions ?? [];
         setVersions(versionList);
-        if (versionList.length > 0 && !selectedVersion) {
+        if (versionList.length > 0) {
           setSelectedVersion(versionList[0].version);
         }
         setVersionsLoading(false);
@@ -204,7 +204,7 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
         console.error('[ChartSidebar] Failed to copy values to clipboard', err);
       });
     }
-  }, [tabData, selectedVersion]);
+  }, [tabData, selectedVersion, chartID]);
 
   if (!ctx.data) {
     return null;

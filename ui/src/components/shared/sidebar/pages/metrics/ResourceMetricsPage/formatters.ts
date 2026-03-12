@@ -75,10 +75,22 @@ export function unitToSuffix(unit: number): string | undefined {
   return undefined;
 }
 
+/** Format seconds to human-readable duration */
+export function formatDuration(v: number | null): string {
+  if (v == null) return '–';
+  if (v === 0) return '0s';
+  const abs = Math.abs(v);
+  if (abs >= 86400) return `${(Math.floor((v / 86400) * 10) / 10).toFixed(1)}d`;
+  if (abs >= 3600) return `${(Math.floor((v / 3600) * 10) / 10).toFixed(1)}h`;
+  if (abs >= 60) return `${Math.floor(v / 60)}m`;
+  return `${Math.floor(v)}s`;
+}
+
 /** Pick a valueFormatter based on the primary unit in the group. */
 export function unitToFormatter(unit: number): ((v: number | null) => string) | undefined {
   if (unit === 11) return (v: number | null) => formatCores(v != null ? v / 1000 : null); // millicores
   if (unit === 12) return formatCores; // cores
   if (unit === 9) return formatOps; // ops/sec
+  if (unit === 7) return formatDuration; // seconds -> human duration
   return undefined;
 }

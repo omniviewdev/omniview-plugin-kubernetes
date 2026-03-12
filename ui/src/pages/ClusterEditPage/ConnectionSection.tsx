@@ -26,7 +26,7 @@ function ConnectionSection({ conn, formatTime }: { conn: types.Connection; forma
           value={nonBlank(connLabels?.kubeconfig) ?? (connData?.kubeconfig != null ? String(connData.kubeconfig) : undefined)}
         />
         <InfoRow label="User" value={nonBlank(connLabels?.user) ?? (connData?.user != null ? String(connData.user) : undefined)} />
-        <InfoRow label="Auth Method" value={connLabels?.auth_method} />
+        <InfoRow label="Auth Method" value={nonBlank(connLabels?.auth_method)} />
         <InfoRow label="Namespace" value={trimmedNamespace || '(default)'} />
         <InfoRow label="Last Refresh" value={formatTime(conn.last_refresh)} />
       </Stack>

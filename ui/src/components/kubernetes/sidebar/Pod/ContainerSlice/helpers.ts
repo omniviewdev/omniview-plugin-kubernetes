@@ -76,7 +76,7 @@ export const typeChipColor = (type: ContainerType): 'warning' | 'primary' | unde
 };
 
 // Whitelist of error waiting reasons that indicate a container is actively failing
-const ERROR_WAITING_REASONS = new Set([
+export const ERROR_WAITING_REASONS = new Set([
   'CrashLoopBackOff',
   'ImagePullBackOff',
   'ErrImagePull',

@@ -10,7 +10,7 @@ import React from 'react';
 
 import Icon from '../../../../shared/Icon';
 
-import { getSeverityColors } from './helpers';
+import { ERROR_WAITING_REASONS, getSeverityColors } from './helpers';
 import {
   chipSx,
   fontSize13Sx,
@@ -23,14 +23,6 @@ import {
   termValueCellSx,
   waitingDividerSx,
 } from './styles';
-
-const ERROR_WAITING_REASONS = new Set([
-  'CrashLoopBackOff',
-  'ImagePullBackOff',
-  'ErrImagePull',
-  'CreateContainerConfigError',
-  'RunContainerError',
-]);
 
 // ── Restart / termination info card ──
 const formatTerminated = (t: ContainerStateTerminated) => {
