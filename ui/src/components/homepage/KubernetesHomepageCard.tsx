@@ -16,6 +16,7 @@ import { useClusterPreferences } from '../../hooks/useClusterPreferences';
 import type { ConnectionOverride, ConnectionGroup } from '../../types/clusters';
 import ConnectionStatusBadge from '../connections/ConnectionStatusBadge';
 import NamedAvatar from '../shared/NamedAvatar';
+import SectionHeader from '../shared/SectionHeader';
 import ConnectedClusterCard from './ConnectedClusterCard';
 
 const PLUGIN_ID = 'kubernetes';
@@ -69,17 +70,6 @@ const chipGridSx = {
 } as const;
 
 // ── Sub-components ────────────────────────────────────────────────────────────
-
-const SectionHeader: React.FC<{ title: string }> = ({ title }) => (
-  <Box sx={{ px: 0.5, pt: 1.25, pb: 0.5 }}>
-    <Text
-      size="xs"
-      sx={{ color: 'var(--ov-fg-faint, rgba(255,255,255,0.4))', textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 600 }}
-    >
-      {title}
-    </Text>
-  </Box>
-);
 
 const EmptySectionNote: React.FC<{ message: string }> = ({ message }) => (
   <Box sx={{ px: 0.5, py: 0.5 }}>
