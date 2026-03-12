@@ -1,13 +1,11 @@
 import React from 'react';
 import Box from '@mui/material/Box';
 import { IconButton } from '@omniviewdev/ui/buttons';
-import { TabPanel } from '@omniviewdev/ui/navigation';
 import { LuClipboardCopy, LuCheck } from 'react-icons/lu';
 
 import CodeEditor from '../../../shared/CodeEditor';
 
 interface Props {
-  activeTab: string;
   valuesContent: string | undefined;
   copied: boolean;
   onCopy: () => void;
@@ -34,32 +32,28 @@ const copyButtonSx = {
   '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' },
 } as const;
 
-const ChartValuesTab: React.FC<Props> = ({ activeTab, valuesContent, copied, onCopy }) => (
-  <TabPanel value="values" activeValue={activeTab}>
-    <Box
-      sx={valuesContainerSx}
+const ChartValuesTab: React.FC<Props> = ({ valuesContent, copied, onCopy }) => (
+  <Box sx={valuesContainerSx}>
+    <CodeEditor
+      filename="values.yaml"
+      language="yaml"
+      value={valuesContent ?? '# Loading...'}
+      readOnly
+      height={VALUES_PANEL_HEIGHT}
+    />
+    {/* Copy button overlay */}
+    <IconButton
+      size="xs"
+      emphasis="ghost"
+      color="neutral"
+      onClick={onCopy}
+      title={copied ? 'Copied!' : 'Copy values'}
+      disabled={!valuesContent}
+      sx={copyButtonSx}
     >
-      <CodeEditor
-        filename="values.yaml"
-        language="yaml"
-        value={valuesContent ?? '# Loading...'}
-        readOnly
-        height={VALUES_PANEL_HEIGHT}
-      />
-      {/* Copy button overlay */}
-      <IconButton
-        size="xs"
-        emphasis="ghost"
-        color="neutral"
-        onClick={onCopy}
-        title={copied ? 'Copied!' : 'Copy values'}
-        disabled={!valuesContent}
-        sx={copyButtonSx}
-      >
-        {copied ? <LuCheck size={12} /> : <LuClipboardCopy size={12} />}
-      </IconButton>
-    </Box>
-  </TabPanel>
+      {copied ? <LuCheck size={12} /> : <LuClipboardCopy size={12} />}
+    </IconButton>
+  </Box>
 );
 
 ChartValuesTab.displayName = 'ChartValuesTab';

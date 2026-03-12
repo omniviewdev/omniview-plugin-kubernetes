@@ -2,14 +2,12 @@ import React from 'react';
 import Box from '@mui/material/Box';
 import { Chip } from '@omniviewdev/ui';
 import { Stack } from '@omniviewdev/ui/layout';
-import { TabPanel } from '@omniviewdev/ui/navigation';
 import { Text } from '@omniviewdev/ui/typography';
 
 import type { ChartVersion } from './types';
 import { formatDate, relativeTime } from './utils';
 
 interface Props {
-  activeTab: string;
   versions: ChartVersion[];
   selectedVersion: string;
   onVersionChange: (version: string) => void;
@@ -32,13 +30,12 @@ const dateTextSx = { color: 'neutral.600', flexShrink: 0 } as const;
 const emptyTextSx = { color: 'neutral.400' } as const;
 
 const ChartVersionsTab: React.FC<Props> = ({
-  activeTab,
   versions,
   selectedVersion,
   onVersionChange,
   loading = false,
 }) => (
-  <TabPanel value="versions" activeValue={activeTab}>
+  <>
     {versions.length > 0 ? (
       <Stack
         direction="column"
@@ -121,7 +118,7 @@ const ChartVersionsTab: React.FC<Props> = ({
         {loading ? 'Loading versions...' : 'No versions available'}
       </Text>
     )}
-  </TabPanel>
+  </>
 );
 
 ChartVersionsTab.displayName = 'ChartVersionsTab';

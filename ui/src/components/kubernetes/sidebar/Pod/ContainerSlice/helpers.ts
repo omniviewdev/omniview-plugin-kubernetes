@@ -90,13 +90,13 @@ export function getRestartChipColor(
 ): 'danger' | 'warning' | 'success' | 'primary' {
   const restarts = status.restartCount ?? 0;
   const waitingReason = status.state?.waiting?.reason;
-  const lastTerminated = status.lastState?.terminated;
+  const terminated = status.state?.terminated ?? status.lastState?.terminated;
 
   const isCurrentlyFailing = waitingReason != null && ERROR_WAITING_REASONS.has(waitingReason);
   const hasErrorExit =
-    lastTerminated?.exitCode != null && lastTerminated.exitCode !== 0;
+    terminated?.exitCode != null && terminated.exitCode !== 0;
   const isHealthyExit =
-    lastTerminated?.reason === 'Completed' && lastTerminated?.exitCode === 0;
+    terminated?.reason === 'Completed' && terminated?.exitCode === 0;
 
   if (isCurrentlyFailing || hasErrorExit) {
     return restarts > 10 ? 'danger' : 'warning';
@@ -249,11 +249,20 @@ export function volumeTypeColor(type: string): 'primary' | 'warning' | 'success'
 // K8s resource string parsers
 // ────────────────────────────────────────────────────────────────────────────
 
-/** Parse a K8s CPU resource string to millicores. "100m"->100, "0.5"->500, "1"->1000 */
+/** Parse a K8s CPU resource string to millicores. "100m"->100, "0.5"->500, "1"->1000, "500000n"->0.5, "500u"->0.5 */
 export function parseCpuToMillicores(s: string): number {
   const trimmed = s.trim();
   if (!trimmed) return 0;
-  if (trimmed.endsWith('m')) {
+  const lastChar = trimmed[trimmed.length - 1].toLowerCase();
+  if (lastChar === 'n') {
+    const val = parseFloat(trimmed.slice(0, -1));
+    return Number.isFinite(val) ? val / 1_000_000 : 0;
+  }
+  if (lastChar === 'u') {
+    const val = parseFloat(trimmed.slice(0, -1));
+    return Number.isFinite(val) ? val / 1_000 : 0;
+  }
+  if (lastChar === 'm') {
     const val = parseFloat(trimmed.slice(0, -1));
     return Number.isFinite(val) ? val : 0;
   }

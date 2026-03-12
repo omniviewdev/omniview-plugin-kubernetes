@@ -128,7 +128,7 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
         console.error('[ChartSidebar] Failed to fetch versions', { chartID, connectionID }, err);
         setVersionsLoading(false);
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- executeAction excluded: its reference may change but should not retrigger version fetching
   }, [chartID, connectionID]);
 
   // Fetch tab-specific data lazily, cache by action+version
@@ -351,7 +351,7 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
             { key: 'versions', label: `Versions (${versions.length})` },
           ]}
           value={activeTab}
-          onChange={(v) => setActiveTab(v)}
+          onChange={setActiveTab}
           size="sm"
           sx={tabsSx}
         />
@@ -359,32 +359,31 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
 
       {/* Scrollable tab content */}
       <Box sx={scrollableContentSx}>
-        <ChartOverviewTab
-          activeTab={activeTab}
-          maintainers={maintainers}
-          keywords={keywords}
-          dependencies={data.dependencies ?? []}
-        />
-
-        <ChartReadmeTab
-          activeTab={activeTab}
-          readmeContent={readmeContent}
-        />
-
-        <ChartValuesTab
-          activeTab={activeTab}
-          valuesContent={valuesContent}
-          copied={copied}
-          onCopy={handleCopyValues}
-        />
-
-        <ChartVersionsTab
-          activeTab={activeTab}
-          versions={versions}
-          selectedVersion={selectedVersion}
-          onVersionChange={handleVersionChange}
-          loading={versionsLoading}
-        />
+        {activeTab === 'overview' && (
+          <ChartOverviewTab
+            maintainers={maintainers}
+            keywords={keywords}
+            dependencies={data.dependencies ?? []}
+          />
+        )}
+        {activeTab === 'readme' && (
+          <ChartReadmeTab readmeContent={readmeContent} />
+        )}
+        {activeTab === 'values' && (
+          <ChartValuesTab
+            valuesContent={valuesContent}
+            copied={copied}
+            onCopy={handleCopyValues}
+          />
+        )}
+        {activeTab === 'versions' && (
+          <ChartVersionsTab
+            versions={versions}
+            selectedVersion={selectedVersion}
+            onVersionChange={handleVersionChange}
+            loading={versionsLoading}
+          />
+        )}
       </Box>
 
       {/* Install Dialog */}

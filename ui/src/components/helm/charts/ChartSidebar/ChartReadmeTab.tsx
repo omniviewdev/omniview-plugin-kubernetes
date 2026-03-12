@@ -1,11 +1,9 @@
 import React from 'react';
 import Box from '@mui/material/Box';
 import { MarkdownPreview } from '@omniviewdev/ui/editors';
-import { TabPanel } from '@omniviewdev/ui/navigation';
 import { Text } from '@omniviewdev/ui/typography';
 
 interface Props {
-  activeTab: string;
   readmeContent: string | undefined;
 }
 
@@ -30,12 +28,10 @@ const readmeWrapperSx = {
 
 const emptyTextSx = { color: 'neutral.400' } as const;
 
-const ChartReadmeTab: React.FC<Props> = ({ activeTab, readmeContent }) => (
-  <TabPanel value="readme" activeValue={activeTab}>
+const ChartReadmeTab: React.FC<Props> = ({ readmeContent }) => (
+  <>
     {readmeContent ? (
-      <Box
-        sx={readmeWrapperSx}
-      >
+      <Box sx={readmeWrapperSx}>
         <MarkdownPreview source={readmeContent} />
       </Box>
     ) : readmeContent === '' ? (
@@ -47,7 +43,7 @@ const ChartReadmeTab: React.FC<Props> = ({ activeTab, readmeContent }) => (
         Loading README...
       </Text>
     )}
-  </TabPanel>
+  </>
 );
 
 ChartReadmeTab.displayName = 'ChartReadmeTab';

@@ -47,13 +47,7 @@ export function formatValue(value: number, unitCode: number): string {
   if (unitCode === 11) return formatCores(value / 1000) ?? '';
   if (unitCode === 12) return formatCores(value) ?? '';
   if (unitCode === 5) return `${value.toFixed(1)}%`;
-  // Seconds -> human readable uptime (truncate to avoid rounding across unit boundaries)
-  if (unitCode === 7) {
-    if (value >= 86400) return `${(Math.floor((value / 86400) * 10) / 10).toFixed(1)}d`;
-    if (value >= 3600) return `${(Math.floor((value / 3600) * 10) / 10).toFixed(1)}h`;
-    if (value >= 60) return `${Math.floor(value / 60)}m`;
-    return `${Math.floor(value)}s`;
-  }
+  if (unitCode === 7) return formatDuration(value);
   if (Number.isInteger(value)) return `${value}${unit ? ` ${unit}` : ''}`;
   return `${value.toFixed(2)}${unit ? ` ${unit}` : ''}`;
 }
@@ -75,15 +69,15 @@ export function unitToSuffix(unit: number): string | undefined {
   return undefined;
 }
 
-/** Format seconds to human-readable duration */
+/** Format seconds to human-readable duration (truncates toward zero) */
 export function formatDuration(v: number | null): string {
   if (v == null) return '–';
   if (v === 0) return '0s';
   const abs = Math.abs(v);
-  if (abs >= 86400) return `${(Math.floor((v / 86400) * 10) / 10).toFixed(1)}d`;
-  if (abs >= 3600) return `${(Math.floor((v / 3600) * 10) / 10).toFixed(1)}h`;
-  if (abs >= 60) return `${Math.floor(v / 60)}m`;
-  return `${Math.floor(v)}s`;
+  if (abs >= 86400) return `${(Math.trunc((v / 86400) * 10) / 10).toFixed(1)}d`;
+  if (abs >= 3600) return `${(Math.trunc((v / 3600) * 10) / 10).toFixed(1)}h`;
+  if (abs >= 60) return `${Math.trunc(v / 60)}m`;
+  return `${Math.trunc(v)}s`;
 }
 
 /** Pick a valueFormatter based on the primary unit in the group. */
