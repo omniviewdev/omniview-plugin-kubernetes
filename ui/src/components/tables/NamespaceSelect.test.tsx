@@ -102,7 +102,7 @@ describe('NamespaceSelect', () => {
     const setNamespaces = vi.fn();
     renderNs(['default', 'kube-system'], setNamespaces);
 
-    fireEvent.mouseDown(getClearAllButton()!);
+    fireEvent.click(getClearAllButton()!);
     expect(setNamespaces).toHaveBeenCalledWith([]);
   });
 
@@ -129,7 +129,7 @@ describe('NamespaceSelect', () => {
     const setNamespaces = vi.fn();
     renderNs(['default', 'deleted-ns', 'also-gone'], setNamespaces);
 
-    fireEvent.mouseDown(getClearAllButton()!);
+    fireEvent.click(getClearAllButton()!);
     expect(setNamespaces).toHaveBeenCalledWith([]);
   });
 });
