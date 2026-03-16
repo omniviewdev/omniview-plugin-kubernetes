@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	resource "github.com/omniviewdev/plugin-sdk/pkg/v1/resource"
 )
@@ -422,4 +423,51 @@ func TestBase_Find_UnsyncedInformer(t *testing.T) {
 	require.NotNil(t, result)
 	assert.True(t, result.Success)
 	assert.Len(t, result.Result, 1)
+}
+
+// ===================== extractMetadata =====================
+
+func TestExtractMetadata(t *testing.T) {
+	obj := &unstructured.Unstructured{Object: map[string]interface{}{
+		"metadata": map[string]interface{}{
+			"uid":               "abc-123",
+			"creationTimestamp": "2026-01-15T10:30:00Z",
+			"labels": map[string]interface{}{
+				"app": "web",
+				"env": "prod",
+			},
+		},
+	}}
+
+	meta := extractMetadata(obj)
+
+	if meta.UID != "abc-123" {
+		t.Errorf("expected UID abc-123, got %q", meta.UID)
+	}
+	if meta.Labels["app"] != "web" || meta.Labels["env"] != "prod" {
+		t.Errorf("unexpected labels: %v", meta.Labels)
+	}
+	if meta.CreatedAt == nil {
+		t.Fatal("expected non-nil CreatedAt")
+	}
+	if meta.CreatedAt.Year() != 2026 {
+		t.Errorf("expected year 2026, got %d", meta.CreatedAt.Year())
+	}
+}
+
+func TestExtractMetadata_NoTimestamp(t *testing.T) {
+	obj := &unstructured.Unstructured{Object: map[string]interface{}{
+		"metadata": map[string]interface{}{
+			"uid": "xyz-456",
+		},
+	}}
+
+	meta := extractMetadata(obj)
+
+	if meta.UID != "xyz-456" {
+		t.Errorf("expected UID xyz-456, got %q", meta.UID)
+	}
+	if meta.CreatedAt != nil {
+		t.Errorf("expected nil CreatedAt, got %v", meta.CreatedAt)
+	}
 }
