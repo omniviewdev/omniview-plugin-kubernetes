@@ -39,11 +39,11 @@ importers:
         specifier: ^8.27.0
         version: 8.27.4(@emotion/react@11.14.0(@types/react@19.2.14)(react@19.2.4))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.14)(react@19.2.4))(@types/react@19.2.14)(react@19.2.4))(@mui/material@7.3.9(@emotion/react@11.14.0(@types/react@19.2.14)(react@19.2.4))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.14)(react@19.2.4))(@types/react@19.2.14)(react@19.2.4))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(@mui/system@7.3.9(@emotion/react@11.14.0(@types/react@19.2.14)(react@19.2.4))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.14)(react@19.2.4))(@types/react@19.2.14)(react@19.2.4))(@types/react@19.2.14)(react@19.2.4))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@omniviewdev/runtime':
-        specifier: ^0.2.2
-        version: 0.2.2
+        specifier: ^0.3.0
+        version: 0.3.0
       '@omniviewdev/ui':
-        specifier: ^0.2.2
-        version: 0.2.2(2742beb49791786563ce9eb5001c356d)
+        specifier: ^0.3.0
+        version: 0.3.0(2742beb49791786563ce9eb5001c356d)
       '@tanstack/react-query':
         specifier: ^5.76.1
         version: 5.90.21(react@19.2.4)
@@ -106,8 +106,8 @@ importers:
         specifier: ^5.0.12
         version: 5.2.10
       '@omniviewdev/vite-plugin':
-        specifier: ^0.2.2
-        version: 0.2.2(vite@5.4.21)
+        specifier: ^0.3.0
+        version: 0.3.0(vite@5.4.21)
       '@storybook/addon-docs':
         specifier: 10.2.13
         version: 10.2.13(@types/react@19.2.14)(esbuild@0.27.3)(rollup@4.59.0)(storybook@10.2.13(@testing-library/dom@10.4.1)(prettier@3.8.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(vite@5.4.21)
@@ -987,11 +987,11 @@ packages:
   '@neoconfetti/react@1.0.0':
     resolution: {integrity: sha512-klcSooChXXOzIm+SE5IISIAn3bYzYfPjbX7D7HoqZL84oAfgREeSg5vSIaSFH+DaGzzvImTyWe1OyrJ67vik4A==}
 
-  '@omniviewdev/runtime@0.2.2':
-    resolution: {integrity: sha512-2bRE4aF5Dqx1xZAk/SsG2p+FAbLkuhBg0bRLUcnvpxR9UwPPjtk4+Iy2htktM60wAhmAK6i0DhMCyYZAm7wEQw==}
+  '@omniviewdev/runtime@0.3.0':
+    resolution: {integrity: sha512-0/NYbHHFV+K2UDUkhnNQImyROFbxQORmZ0i3Bo0zI4l8n/0l+G4ZQdzYjK32mEGtabtTC8y7OwkqTbiZ5rqbqA==}
 
-  '@omniviewdev/ui@0.2.2':
-    resolution: {integrity: sha512-Zp+DI1+lZB0kuMi4f+r577DNp+97lpbAtXeeYJF+YuPn1AgRmJqaMCYH1u6D6a2oZGaQMm31xpsws++4wohfbQ==}
+  '@omniviewdev/ui@0.3.0':
+    resolution: {integrity: sha512-AYiRnFVerzyaJP5I7bgI8StI0CIQJleNwehdF28qEi1gbakhJUlXthkMuv3vYt79JyVh3Oy+Wzt8XpVdgj2c3w==}
     peerDependencies:
       '@emotion/react': '>=11.0.0'
       '@emotion/styled': '>=11.0.0'
@@ -1029,8 +1029,8 @@ packages:
       monaco-editor:
         optional: true
 
-  '@omniviewdev/vite-plugin@0.2.2':
-    resolution: {integrity: sha512-YJEht5xOh6ex1TF04VMlen1XXCg+kByzikdAhemd9wbaV46hj0vfogmIG1c4V2kbd/EoaUVq3JlTjyD68X98bg==}
+  '@omniviewdev/vite-plugin@0.3.0':
+    resolution: {integrity: sha512-AnV9EhGUC4eAYtlk8U3UNv7q3iD7pqyAzBPDkN9Y+iLEcCVnpTTIyVYweKkKYJJdi7Y1qSJfjW+LDrClJAf8lA==}
     peerDependencies:
       vite: '>=5.0.0'
 
@@ -4695,12 +4695,12 @@ snapshots:
 
   '@neoconfetti/react@1.0.0': {}
 
-  '@omniviewdev/runtime@0.2.2':
+  '@omniviewdev/runtime@0.3.0':
     dependencies:
       lodash.get: 4.4.2
       ts-invariant: 0.10.3
 
-  '@omniviewdev/ui@0.2.2(2742beb49791786563ce9eb5001c356d)':
+  '@omniviewdev/ui@0.3.0(2742beb49791786563ce9eb5001c356d)':
     dependencies:
       '@emotion/react': 11.14.0(@types/react@19.2.14)(react@19.2.4)
       '@emotion/styled': 11.14.1(@emotion/react@11.14.0(@types/react@19.2.14)(react@19.2.4))(@types/react@19.2.14)(react@19.2.4)
@@ -4720,7 +4720,7 @@ snapshots:
       - '@types/react'
       - supports-color
 
-  '@omniviewdev/vite-plugin@0.2.2(vite@5.4.21)':
+  '@omniviewdev/vite-plugin@0.3.0(vite@5.4.21)':
     dependencies:
       vite: 5.4.21
 

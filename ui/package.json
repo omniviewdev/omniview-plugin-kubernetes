@@ -1,7 +1,7 @@
 {
   "name": "omniview-plugin-kubernetes",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.2.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -27,8 +27,8 @@
     "@mui/icons-material": "^7.3.8",
     "@mui/material": "^7.3.8",
     "@mui/x-charts": "^8.27.0",
-    "@omniviewdev/runtime": "^0.2.2",
-    "@omniviewdev/ui": "^0.2.2",
+    "@omniviewdev/runtime": "^0.3.0",
+    "@omniviewdev/ui": "^0.3.0",
     "@tanstack/react-query": "^5.76.1",
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/react-virtual": "^3.13.19",
@@ -51,7 +51,7 @@
     "@eslint/js": "^9.39.3",
     "@fontsource/material-icons": "^5.0.16",
     "@fontsource/roboto": "^5.0.12",
-    "@omniviewdev/vite-plugin": "^0.2.2",
+    "@omniviewdev/vite-plugin": "^0.3.0",
     "@storybook/addon-docs": "10.2.13",
     "@storybook/addon-links": "10.2.13",
     "@storybook/addon-onboarding": "10.2.13",
