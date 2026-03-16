@@ -35,19 +35,11 @@ var (
 )
 
 // NewNodeResourcer creates a NodeResourcer for core::v1::Node.
-func NewNodeResourcer(logger *zap.SugaredLogger) *NodeResourcer {
+func NewNodeResourcer(logger *zap.SugaredLogger, opts ...Option) *NodeResourcer {
 	base := NewKubernetesResourcerBase[MetaAccessor](
 		logger,
 		corev1.SchemeGroupVersion.WithResource("nodes"),
-		WithRelationships([]resource.RelationshipDescriptor{
-			{
-				Type:              resource.RelRunsOn,
-				TargetResourceKey: "core::v1::Pod",
-				Label:             "runs",
-				InverseLabel:      "runs on",
-				Cardinality:       "one-to-many",
-			},
-		}),
+		opts...,
 	)
 	return &NodeResourcer{
 		KubernetesResourcerBase: base,

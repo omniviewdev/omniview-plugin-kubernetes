@@ -100,7 +100,7 @@ func TestDaemonSetResourcer_ResolveRelationships(t *testing.T) {
 	factory.WaitForCacheSync(ctx.Done())
 
 	logger := zap.NewNop().Sugar()
-	resourcer := NewDaemonSetResourcer(logger)
+	resourcer := NewDaemonSetResourcer(logger, WithRelationships(RelationshipTable()["apps::v1::DaemonSet"]))
 
 	rels, err := resourcer.ResolveRelationships(ctx, cs, dsMeta(), "my-ds", "kube-system")
 	require.NoError(t, err)
@@ -163,7 +163,7 @@ func TestDaemonSetResourcer_ResolveRelationships_NoPods(t *testing.T) {
 	factory.WaitForCacheSync(ctx.Done())
 
 	logger := zap.NewNop().Sugar()
-	resourcer := NewDaemonSetResourcer(logger)
+	resourcer := NewDaemonSetResourcer(logger, WithRelationships(RelationshipTable()["apps::v1::DaemonSet"]))
 
 	rels, err := resourcer.ResolveRelationships(ctx, cs, dsMeta(), "empty-ds", "default")
 	require.NoError(t, err)

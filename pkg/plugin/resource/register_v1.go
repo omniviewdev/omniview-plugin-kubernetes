@@ -63,13 +63,16 @@ func Register(plugin *sdk.Plugin) {
 // buildRegistrations creates resource registrations from the static resourceMap.
 // Specialized resourcers override the base resourcer for specific resource types.
 func buildRegistrations(logger *zap.SugaredLogger) []resource.ResourceRegistration[clients.ClientSet] {
+	// Load centralized relationship table.
+	relTable := resourcers.RelationshipTable()
+
 	// Map of resource keys to specialized resourcers.
 	specialized := map[string]resource.Resourcer[clients.ClientSet]{
-		"core::v1::Node":        resourcers.NewNodeResourcer(logger),
-		"core::v1::Pod":         resourcers.NewPodResourcer(logger),
-		"apps::v1::Deployment":  resourcers.NewDeploymentResourcer(logger),
-		"apps::v1::DaemonSet":   resourcers.NewDaemonSetResourcer(logger),
-		"apps::v1::StatefulSet": resourcers.NewStatefulSetResourcer(logger),
+		"core::v1::Node":        resourcers.NewNodeResourcer(logger, resourcers.WithRelationships(relTable["core::v1::Node"])),
+		"core::v1::Pod":         resourcers.NewPodResourcer(logger, resourcers.WithRelationships(relTable["core::v1::Pod"])),
+		"apps::v1::Deployment":  resourcers.NewDeploymentResourcer(logger, resourcers.WithRelationships(relTable["apps::v1::Deployment"])),
+		"apps::v1::DaemonSet":   resourcers.NewDaemonSetResourcer(logger, resourcers.WithRelationships(relTable["apps::v1::DaemonSet"])),
+		"apps::v1::StatefulSet": resourcers.NewStatefulSetResourcer(logger, resourcers.WithRelationships(relTable["apps::v1::StatefulSet"])),
 	}
 
 	// Resources that should use SyncNever policy.
@@ -115,6 +118,9 @@ func buildRegistrations(logger *zap.SugaredLogger) []resource.ResourceRegistrati
 			var opts []resourcers.Option
 			if syncNeverKeys[key] {
 				opts = append(opts, resourcers.WithSyncPolicy(resource.SyncNever))
+			}
+			if rels, ok := relTable[key]; ok {
+				opts = append(opts, resourcers.WithRelationships(rels))
 			}
 			res = resourcers.NewKubernetesResourcerBase[resourcers.MetaAccessor](logger, gvr, opts...)
 		}

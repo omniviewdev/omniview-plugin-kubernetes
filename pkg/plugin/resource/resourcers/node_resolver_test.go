@@ -40,7 +40,7 @@ func TestNodeResourcer_ResolveRelationships(t *testing.T) {
 	cs := &clients.ClientSet{KubeClient: fakeClient}
 
 	logger := zap.NewNop().Sugar()
-	resourcer := NewNodeResourcer(logger)
+	resourcer := NewNodeResourcer(logger, WithRelationships(RelationshipTable()["core::v1::Node"]))
 
 	rels, err := resourcer.ResolveRelationships(context.Background(), cs, nodeMeta(), "node-1", "")
 	require.NoError(t, err)
@@ -57,7 +57,7 @@ func TestNodeResourcer_ResolveRelationships_NoPods(t *testing.T) {
 	cs := &clients.ClientSet{KubeClient: fakeClient}
 
 	logger := zap.NewNop().Sugar()
-	resourcer := NewNodeResourcer(logger)
+	resourcer := NewNodeResourcer(logger, WithRelationships(RelationshipTable()["core::v1::Node"]))
 
 	rels, err := resourcer.ResolveRelationships(context.Background(), cs, nodeMeta(), "node-1", "")
 	require.NoError(t, err)

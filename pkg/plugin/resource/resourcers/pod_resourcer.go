@@ -30,60 +30,15 @@ type PodResourcer struct {
 }
 
 // NewPodResourcer creates a PodResourcer for core::v1::Pod.
-func NewPodResourcer(logger *zap.SugaredLogger) *PodResourcer {
+func NewPodResourcer(logger *zap.SugaredLogger, opts ...Option) *PodResourcer {
 	base := NewKubernetesResourcerBase[MetaAccessor](
 		logger,
 		corev1.SchemeGroupVersion.WithResource("pods"),
+		opts...,
 	)
 	return &PodResourcer{
 		KubernetesResourcerBase: base,
 		log:                     logger.Named("PodResourcer"),
-	}
-}
-
-// DeclareRelationships overrides the base to declare Pod-specific relationships.
-func (p *PodResourcer) DeclareRelationships() []resource.RelationshipDescriptor {
-	return []resource.RelationshipDescriptor{
-		{
-			Type:              resource.RelRunsOn,
-			TargetResourceKey: "core::v1::Node",
-			Label:             "runs on",
-			InverseLabel:      "runs",
-			Cardinality:       "many-to-one",
-			Extractor:         &resource.RelationshipExtractor{Method: "fieldPath", FieldPath: "spec.nodeName"},
-		},
-		{
-			Type:              resource.RelUses,
-			TargetResourceKey: "core::v1::PersistentVolumeClaim",
-			Label:             "uses",
-			InverseLabel:      "used by",
-			Cardinality:       "many-to-many",
-			Extractor:         &resource.RelationshipExtractor{Method: "fieldPath", FieldPath: "spec.volumes[*].persistentVolumeClaim.claimName"},
-		},
-		{
-			Type:              resource.RelUses,
-			TargetResourceKey: "core::v1::ConfigMap",
-			Label:             "uses",
-			InverseLabel:      "used by",
-			Cardinality:       "many-to-many",
-			Extractor:         &resource.RelationshipExtractor{Method: "fieldPath", FieldPath: "spec.volumes[*].configMap.name"},
-		},
-		{
-			Type:              resource.RelUses,
-			TargetResourceKey: "core::v1::Secret",
-			Label:             "uses",
-			InverseLabel:      "used by",
-			Cardinality:       "many-to-many",
-			Extractor:         &resource.RelationshipExtractor{Method: "fieldPath", FieldPath: "spec.volumes[*].secret.secretName"},
-		},
-		{
-			Type:              resource.RelUses,
-			TargetResourceKey: "core::v1::ServiceAccount",
-			Label:             "uses",
-			InverseLabel:      "used by",
-			Cardinality:       "many-to-one",
-			Extractor:         &resource.RelationshipExtractor{Method: "fieldPath", FieldPath: "spec.serviceAccountName"},
-		},
 	}
 }
 

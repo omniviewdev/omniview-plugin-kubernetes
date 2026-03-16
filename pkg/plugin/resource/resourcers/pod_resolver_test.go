@@ -78,7 +78,7 @@ func TestPodResourcer_ResolveRelationships(t *testing.T) {
 	cs.DynamicInformerFactory.WaitForCacheSync(ctx.Done())
 
 	logger := zap.NewNop().Sugar()
-	resourcer := NewPodResourcer(logger)
+	resourcer := NewPodResourcer(logger, WithRelationships(RelationshipTable()["core::v1::Pod"]))
 
 	rels, err := resourcer.ResolveRelationships(ctx, cs, podMeta(), "test-pod", "default")
 	require.NoError(t, err)
@@ -131,7 +131,7 @@ func TestPodResourcer_ResolveRelationships_NoVolumes(t *testing.T) {
 	cs.DynamicInformerFactory.WaitForCacheSync(ctx.Done())
 
 	logger := zap.NewNop().Sugar()
-	resourcer := NewPodResourcer(logger)
+	resourcer := NewPodResourcer(logger, WithRelationships(RelationshipTable()["core::v1::Pod"]))
 
 	rels, err := resourcer.ResolveRelationships(ctx, cs, podMeta(), "bare-pod", "default")
 	require.NoError(t, err)
@@ -152,7 +152,7 @@ func TestPodResourcer_ResolveRelationships_NotFound(t *testing.T) {
 	cs.DynamicInformerFactory.WaitForCacheSync(ctx.Done())
 
 	logger := zap.NewNop().Sugar()
-	resourcer := NewPodResourcer(logger)
+	resourcer := NewPodResourcer(logger, WithRelationships(RelationshipTable()["core::v1::Pod"]))
 
 	_, err := resourcer.ResolveRelationships(ctx, cs, podMeta(), "nonexistent", "default")
 	require.Error(t, err)

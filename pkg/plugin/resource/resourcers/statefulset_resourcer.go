@@ -32,44 +32,11 @@ var (
 )
 
 // NewStatefulSetResourcer creates a StatefulSetResourcer for apps::v1::StatefulSet.
-func NewStatefulSetResourcer(logger *zap.SugaredLogger) *StatefulSetResourcer {
+func NewStatefulSetResourcer(logger *zap.SugaredLogger, opts ...Option) *StatefulSetResourcer {
 	base := NewKubernetesResourcerBase[MetaAccessor](
 		logger,
 		appsv1.SchemeGroupVersion.WithResource("statefulsets"),
-		WithRelationships([]resource.RelationshipDescriptor{
-			{
-				Type:              resource.RelOwns,
-				TargetResourceKey: "core::v1::Pod",
-				Label:             "owns",
-				InverseLabel:      "owned by",
-				Cardinality:       "one-to-many",
-				Extractor:         &resource.RelationshipExtractor{Method: "ownerRef", OwnerRefKind: "StatefulSet"},
-			},
-			{
-				Type:              resource.RelUses,
-				TargetResourceKey: "core::v1::PersistentVolumeClaim",
-				Label:             "uses",
-				InverseLabel:      "used by",
-				Cardinality:       "one-to-many",
-				Extractor:         &resource.RelationshipExtractor{Method: "fieldPath", FieldPath: "spec.volumeClaimTemplates[*].metadata.name"},
-			},
-			{
-				Type:              resource.RelUses,
-				TargetResourceKey: "core::v1::ConfigMap",
-				Label:             "uses",
-				InverseLabel:      "used by",
-				Cardinality:       "many-to-many",
-				Extractor:         &resource.RelationshipExtractor{Method: "fieldPath", FieldPath: "spec.template.spec.volumes[*].configMap.name"},
-			},
-			{
-				Type:              resource.RelUses,
-				TargetResourceKey: "core::v1::Secret",
-				Label:             "uses",
-				InverseLabel:      "used by",
-				Cardinality:       "many-to-many",
-				Extractor:         &resource.RelationshipExtractor{Method: "fieldPath", FieldPath: "spec.template.spec.volumes[*].secret.secretName"},
-			},
-		}),
+		opts...,
 	)
 	return &StatefulSetResourcer{
 		KubernetesResourcerBase: base,

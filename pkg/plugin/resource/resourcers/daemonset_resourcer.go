@@ -31,36 +31,11 @@ var (
 )
 
 // NewDaemonSetResourcer creates a DaemonSetResourcer for apps::v1::DaemonSet.
-func NewDaemonSetResourcer(logger *zap.SugaredLogger) *DaemonSetResourcer {
+func NewDaemonSetResourcer(logger *zap.SugaredLogger, opts ...Option) *DaemonSetResourcer {
 	base := NewKubernetesResourcerBase[MetaAccessor](
 		logger,
 		appsv1.SchemeGroupVersion.WithResource("daemonsets"),
-		WithRelationships([]resource.RelationshipDescriptor{
-			{
-				Type:              resource.RelOwns,
-				TargetResourceKey: "core::v1::Pod",
-				Label:             "owns",
-				InverseLabel:      "owned by",
-				Cardinality:       "one-to-many",
-				Extractor:         &resource.RelationshipExtractor{Method: "ownerRef", OwnerRefKind: "DaemonSet"},
-			},
-			{
-				Type:              resource.RelUses,
-				TargetResourceKey: "core::v1::ConfigMap",
-				Label:             "uses",
-				InverseLabel:      "used by",
-				Cardinality:       "many-to-many",
-				Extractor:         &resource.RelationshipExtractor{Method: "fieldPath", FieldPath: "spec.template.spec.volumes[*].configMap.name"},
-			},
-			{
-				Type:              resource.RelUses,
-				TargetResourceKey: "core::v1::Secret",
-				Label:             "uses",
-				InverseLabel:      "used by",
-				Cardinality:       "many-to-many",
-				Extractor:         &resource.RelationshipExtractor{Method: "fieldPath", FieldPath: "spec.template.spec.volumes[*].secret.secretName"},
-			},
-		}),
+		opts...,
 	)
 	return &DaemonSetResourcer{
 		KubernetesResourcerBase: base,

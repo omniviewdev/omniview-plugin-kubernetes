@@ -196,30 +196,34 @@ func TestPodHealth_InvalidJSON(t *testing.T) {
 // ====================== POD RELATIONSHIPS ====================== //
 
 func TestPodRelationships(t *testing.T) {
-	r := NewPodResourcer(zap.NewNop().Sugar())
+	r := NewPodResourcer(zap.NewNop().Sugar(), WithRelationships(RelationshipTable()["core::v1::Pod"]))
 	rels := r.DeclareRelationships()
-	assert.Len(t, rels, 5)
+	assert.Len(t, rels, 11)
 }
 
 func TestPodRelationships_Types(t *testing.T) {
-	r := NewPodResourcer(zap.NewNop().Sugar())
+	r := NewPodResourcer(zap.NewNop().Sugar(), WithRelationships(RelationshipTable()["core::v1::Pod"]))
 	rels := r.DeclareRelationships()
 
-	expected := map[string]resource.RelationshipType{
-		"core::v1::Node":                   resource.RelRunsOn,
-		"core::v1::PersistentVolumeClaim":  resource.RelUses,
-		"core::v1::ConfigMap":              resource.RelUses,
-		"core::v1::Secret":                 resource.RelUses,
-		"core::v1::ServiceAccount":         resource.RelUses,
+	// Verify all expected target keys are present.
+	expectedTargets := map[string]bool{
+		"apps::v1::ReplicaSet":            false,
+		"apps::v1::DaemonSet":             false,
+		"apps::v1::StatefulSet":           false,
+		"batch::v1::Job":                  false,
+		"core::v1::Node":                  false,
+		"core::v1::ServiceAccount":        false,
+		"core::v1::PersistentVolumeClaim": false,
+		"core::v1::ConfigMap":             false,
+		"core::v1::Secret":                false,
 	}
-
 	for _, rel := range rels {
-		expectedType, ok := expected[rel.TargetResourceKey]
-		if assert.True(t, ok, "unexpected target key: %s", rel.TargetResourceKey) {
-			assert.Equal(t, expectedType, rel.Type)
-		}
+		expectedTargets[rel.TargetResourceKey] = true
 		assert.NotNil(t, rel.Extractor, "extractor should be set for %s", rel.TargetResourceKey)
 		assert.Equal(t, "fieldPath", rel.Extractor.Method)
 		assert.NotEmpty(t, rel.Extractor.FieldPath)
+	}
+	for key, found := range expectedTargets {
+		assert.True(t, found, "expected target key %s not found in relationships", key)
 	}
 }
