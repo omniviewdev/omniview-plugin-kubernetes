@@ -408,7 +408,8 @@ func TestIntegration_Relationships_Pod(t *testing.T) {
 		nil, nil,
 	)
 
-	podRes := resourcers.NewPodResourcer(logger)
+	relTable := resourcers.RelationshipTable()
+	podRes := resourcers.NewPodResourcer(logger, resourcers.WithRelationships(relTable["core::v1::Pod"]))
 	cfg := resource.ResourcePluginConfig[clients.ClientSet]{
 		Connections: integConnProvider(cs),
 		Resources: []resource.ResourceRegistration[clients.ClientSet]{
@@ -423,24 +424,22 @@ func TestIntegration_Relationships_Pod(t *testing.T) {
 	h := plugintest.Mount(t, cfg)
 
 	rels := h.GetRelationships("core::v1::Pod")
-	require.Len(t, rels, 5)
+	require.Len(t, rels, 11)
 
-	// Build a map by target resource key for easier assertions.
-	relTargets := make(map[string]resource.RelationshipDescriptor)
+	// Collect unique target keys.
+	targetKeys := make(map[string]bool)
 	for _, rel := range rels {
-		relTargets[rel.TargetResourceKey] = rel
+		targetKeys[rel.TargetResourceKey] = true
 	}
 
-	assert.Contains(t, relTargets, "core::v1::Node")
-	assert.Contains(t, relTargets, "core::v1::PersistentVolumeClaim")
-	assert.Contains(t, relTargets, "core::v1::ConfigMap")
-	assert.Contains(t, relTargets, "core::v1::Secret")
-	assert.Contains(t, relTargets, "core::v1::ServiceAccount")
-
-	// Verify relationship types.
-	assert.Equal(t, resource.RelRunsOn, relTargets["core::v1::Node"].Type)
-	assert.Equal(t, resource.RelUses, relTargets["core::v1::PersistentVolumeClaim"].Type)
-	assert.Equal(t, resource.RelUses, relTargets["core::v1::ConfigMap"].Type)
-	assert.Equal(t, resource.RelUses, relTargets["core::v1::Secret"].Type)
-	assert.Equal(t, resource.RelUses, relTargets["core::v1::ServiceAccount"].Type)
+	// Pod table has 11 relationships across these target keys.
+	assert.Contains(t, targetKeys, "core::v1::Node")
+	assert.Contains(t, targetKeys, "core::v1::PersistentVolumeClaim")
+	assert.Contains(t, targetKeys, "core::v1::ConfigMap")
+	assert.Contains(t, targetKeys, "core::v1::Secret")
+	assert.Contains(t, targetKeys, "core::v1::ServiceAccount")
+	assert.Contains(t, targetKeys, "apps::v1::ReplicaSet")
+	assert.Contains(t, targetKeys, "apps::v1::DaemonSet")
+	assert.Contains(t, targetKeys, "apps::v1::StatefulSet")
+	assert.Contains(t, targetKeys, "batch::v1::Job")
 }
