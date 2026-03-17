@@ -93,7 +93,7 @@ func TestStatefulSetResourcer_ResolveRelationships(t *testing.T) {
 	factory.WaitForCacheSync(ctx.Done())
 
 	logger := zap.NewNop().Sugar()
-	resourcer := NewStatefulSetResourcer(logger)
+	resourcer := NewStatefulSetResourcer(logger, WithRelationships(RelationshipTable()["apps::v1::StatefulSet"]))
 
 	rels, err := resourcer.ResolveRelationships(ctx, cs, stsMeta(), "my-sts", "default")
 	require.NoError(t, err)
@@ -160,7 +160,7 @@ func TestStatefulSetResourcer_ResolveRelationships_Empty(t *testing.T) {
 	factory.WaitForCacheSync(ctx.Done())
 
 	logger := zap.NewNop().Sugar()
-	resourcer := NewStatefulSetResourcer(logger)
+	resourcer := NewStatefulSetResourcer(logger, WithRelationships(RelationshipTable()["apps::v1::StatefulSet"]))
 
 	rels, err := resourcer.ResolveRelationships(ctx, cs, stsMeta(), "bare-sts", "default")
 	require.NoError(t, err)

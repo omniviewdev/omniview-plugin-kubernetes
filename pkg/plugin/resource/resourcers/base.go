@@ -105,6 +105,20 @@ var (
 	_ resource.RelationshipDeclarer          = (*KubernetesResourcerBase[MetaAccessor])(nil)
 )
 
+// extractMetadata pulls UID, Labels, and CreatedAt from an unstructured object
+// for inclusion in watch event payloads.
+func extractMetadata(u *unstructured.Unstructured) resource.ResourceMetadata {
+	meta := resource.ResourceMetadata{
+		UID:    string(u.GetUID()),
+		Labels: u.GetLabels(),
+	}
+	if t := u.GetCreationTimestamp(); !t.IsZero() {
+		ts := t.Time
+		meta.CreatedAt = &ts
+	}
+	return meta
+}
+
 // ============================ CRUD METHODS ============================ //
 
 func (s *KubernetesResourcerBase[T]) Get(
@@ -342,6 +356,7 @@ func makeEventHandler(meta resource.ResourceMeta, sink resource.WatchEventSink) 
 				Key:       meta.Key(),
 				ID:        u.GetName(),
 				Namespace: u.GetNamespace(),
+				Metadata:  extractMetadata(u),
 			})
 		},
 		UpdateFunc: func(_, newObj interface{}) {
@@ -358,6 +373,7 @@ func makeEventHandler(meta resource.ResourceMeta, sink resource.WatchEventSink) 
 				Key:       meta.Key(),
 				ID:        u.GetName(),
 				Namespace: u.GetNamespace(),
+				Metadata:  extractMetadata(u),
 			})
 		},
 		DeleteFunc: func(obj interface{}) {
@@ -521,6 +537,7 @@ func (s *KubernetesResourcerBase[T]) watchUnscoped(
 				Key:       meta.Key(),
 				ID:        u.GetName(),
 				Namespace: u.GetNamespace(),
+				Metadata:  extractMetadata(u),
 			})
 		}
 	}
@@ -671,6 +688,7 @@ func (s *KubernetesResourcerBase[T]) watchScoped(
 				Key:       meta.Key(),
 				ID:        u.GetName(),
 				Namespace: u.GetNamespace(),
+				Metadata:  extractMetadata(u),
 			})
 		}
 	}

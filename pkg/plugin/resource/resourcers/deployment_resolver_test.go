@@ -93,7 +93,7 @@ func TestDeploymentResourcer_ResolveRelationships(t *testing.T) {
 	factory.WaitForCacheSync(ctx.Done())
 
 	logger := zap.NewNop().Sugar()
-	resourcer := NewDeploymentResourcer(logger)
+	resourcer := NewDeploymentResourcer(logger, WithRelationships(RelationshipTable()["apps::v1::Deployment"]))
 
 	rels, err := resourcer.ResolveRelationships(ctx, cs, deployMeta(), "my-deploy", "default")
 	require.NoError(t, err)
@@ -158,7 +158,7 @@ func TestDeploymentResourcer_ResolveRelationships_NoVolumes(t *testing.T) {
 	factory.WaitForCacheSync(ctx.Done())
 
 	logger := zap.NewNop().Sugar()
-	resourcer := NewDeploymentResourcer(logger)
+	resourcer := NewDeploymentResourcer(logger, WithRelationships(RelationshipTable()["apps::v1::Deployment"]))
 
 	rels, err := resourcer.ResolveRelationships(ctx, cs, deployMeta(), "bare-deploy", "default")
 	require.NoError(t, err)

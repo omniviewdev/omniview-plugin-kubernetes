@@ -32,36 +32,11 @@ var (
 )
 
 // NewDeploymentResourcer creates a DeploymentResourcer for apps::v1::Deployment.
-func NewDeploymentResourcer(logger *zap.SugaredLogger) *DeploymentResourcer {
+func NewDeploymentResourcer(logger *zap.SugaredLogger, opts ...Option) *DeploymentResourcer {
 	base := NewKubernetesResourcerBase[MetaAccessor](
 		logger,
 		appsv1.SchemeGroupVersion.WithResource("deployments"),
-		WithRelationships([]resource.RelationshipDescriptor{
-			{
-				Type:              resource.RelManages,
-				TargetResourceKey: "apps::v1::ReplicaSet",
-				Label:             "manages",
-				InverseLabel:      "managed by",
-				Cardinality:       "one-to-many",
-				Extractor:         &resource.RelationshipExtractor{Method: "ownerRef", OwnerRefKind: "Deployment"},
-			},
-			{
-				Type:              resource.RelUses,
-				TargetResourceKey: "core::v1::ConfigMap",
-				Label:             "uses",
-				InverseLabel:      "used by",
-				Cardinality:       "many-to-many",
-				Extractor:         &resource.RelationshipExtractor{Method: "fieldPath", FieldPath: "spec.template.spec.volumes[*].configMap.name"},
-			},
-			{
-				Type:              resource.RelUses,
-				TargetResourceKey: "core::v1::Secret",
-				Label:             "uses",
-				InverseLabel:      "used by",
-				Cardinality:       "many-to-many",
-				Extractor:         &resource.RelationshipExtractor{Method: "fieldPath", FieldPath: "spec.template.spec.volumes[*].secret.secretName"},
-			},
-		}),
+		opts...,
 	)
 	return &DeploymentResourcer{
 		KubernetesResourcerBase: base,

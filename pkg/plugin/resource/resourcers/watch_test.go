@@ -170,6 +170,66 @@ func TestWatch_NewObjectAfterSync(t *testing.T) {
 	<-done
 }
 
+func TestWatch_AddPayloadCarriesMetadata(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Build an unstructured pod with uid, labels, and creationTimestamp.
+	pod := &unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": "v1",
+		"kind":       "Pod",
+		"metadata": map[string]interface{}{
+			"name":              "meta-pod",
+			"namespace":         "default",
+			"uid":               "uid-abc-123",
+			"creationTimestamp": "2026-01-15T10:30:00Z",
+			"labels": map[string]interface{}{
+				"app": "web",
+				"env": "prod",
+			},
+		},
+	}}
+
+	cs := newWatchableClientSet(testGVR, defaultGVRListKinds(), pod)
+	r := newBaseResourcer()
+	sink := resourcetest.NewRecordingSink()
+	meta := resource.ResourceMeta{Group: "core", Version: "v1", Kind: "Pod"}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- r.Watch(ctx, cs, meta, sink)
+	}()
+
+	sink.WaitForState(t, meta.Key(), resource.WatchStateSynced, 5*time.Second)
+	sink.WaitForAdds(t, 1, 5*time.Second)
+
+	// After WaitForAdds the event is recorded; find our pod's payload.
+	require.GreaterOrEqual(t, len(sink.Adds), 1)
+	var payload resource.WatchAddPayload
+	for _, a := range sink.Adds {
+		if a.ID == "meta-pod" {
+			payload = a
+			break
+		}
+	}
+	require.Equal(t, "meta-pod", payload.ID, "should find meta-pod in add events")
+
+	assert.Equal(t, "default", payload.Namespace)
+	assert.Equal(t, "uid-abc-123", payload.Metadata.UID)
+	assert.Equal(t, "web", payload.Metadata.Labels["app"])
+	assert.Equal(t, "prod", payload.Metadata.Labels["env"])
+	require.NotNil(t, payload.Metadata.CreatedAt, "CreatedAt should be non-nil")
+	assert.Equal(t, 2026, payload.Metadata.CreatedAt.Year())
+
+	cancel()
+	select {
+	case err := <-done:
+		assert.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Watch did not return after context cancellation")
+	}
+}
+
 func TestWatch_SyncedStateHasResourceCount(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
