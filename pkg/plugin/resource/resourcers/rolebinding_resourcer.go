@@ -74,7 +74,7 @@ func (r *RoleBindingResourcer) ResolveRelationships(
 	byTarget := descriptorByTarget(r.DeclareRelationships())
 	desc, ok := byTarget[resourceKey]
 	if !ok {
-		return nil, nil
+		return nil, fmt.Errorf("missing relationship descriptor for %s (roleRef.kind=%s); ensure WithRelationships(RelationshipTable()[\"rbac::v1::RoleBinding\"]) is provided", resourceKey, refKind)
 	}
 
 	// For ClusterRole targets, the ref is cluster-scoped so namespace is empty.

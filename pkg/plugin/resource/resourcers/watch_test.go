@@ -223,7 +223,12 @@ func TestWatch_AddPayloadCarriesMetadata(t *testing.T) {
 	assert.Equal(t, 2026, payload.Metadata.CreatedAt.Year())
 
 	cancel()
-	<-done
+	select {
+	case err := <-done:
+		assert.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Watch did not return after context cancellation")
+	}
 }
 
 func TestWatch_SyncedStateHasResourceCount(t *testing.T) {

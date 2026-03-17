@@ -75,7 +75,7 @@ func (h *HPAResourcer) ResolveRelationships(
 	byTarget := descriptorByTarget(h.DeclareRelationships())
 	desc, ok := byTarget[resourceKey]
 	if !ok {
-		return nil, nil
+		return nil, fmt.Errorf("missing relationship descriptor for %s; ensure WithRelationships(RelationshipTable()[\"autoscaling::v2::HorizontalPodAutoscaler\"]) is provided", resourceKey)
 	}
 
 	return []resource.ResolvedRelationship{
