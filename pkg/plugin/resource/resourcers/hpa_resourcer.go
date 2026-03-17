@@ -38,15 +38,16 @@ func NewHPAResourcer(logger *zap.SugaredLogger, opts ...Option) *HPAResourcer {
 	}
 }
 
-// scaleTargetRefToResourceKey maps the HPA scaleTargetRef kind/apiVersion to
-// the internal resource key used by the relationship table.
+// scaleTargetRefToResourceKey maps the HPA scaleTargetRef apiVersion+kind to
+// the internal resource key used by the relationship table. Keys use the form
+// "apiVersion::Kind" to avoid mis-resolving HPAs that target a different API group.
 var scaleTargetRefToResourceKey = map[string]string{
-	"Deployment":  "apps::v1::Deployment",
-	"StatefulSet": "apps::v1::StatefulSet",
+	"apps/v1::Deployment":  "apps::v1::Deployment",
+	"apps/v1::StatefulSet": "apps::v1::StatefulSet",
 }
 
 // ResolveRelationships resolves runtime relationship instances for an HPA.
-// It inspects spec.scaleTargetRef.kind to emit an edge only to the correct target.
+// It inspects spec.scaleTargetRef.kind and apiVersion to emit an edge only to the correct target.
 func (h *HPAResourcer) ResolveRelationships(
 	ctx context.Context,
 	client *clients.ClientSet,
@@ -64,11 +65,11 @@ func (h *HPAResourcer) ResolveRelationships(
 		return nil, fmt.Errorf("failed to unmarshal HPA: %w", err)
 	}
 
-	targetKind := hpa.Spec.ScaleTargetRef.Kind
-	targetName := hpa.Spec.ScaleTargetRef.Name
+	ref := hpa.Spec.ScaleTargetRef
+	lookupKey := ref.APIVersion + "::" + ref.Kind
 
-	resourceKey, ok := scaleTargetRefToResourceKey[targetKind]
-	if !ok || targetName == "" {
+	resourceKey, ok := scaleTargetRefToResourceKey[lookupKey]
+	if !ok || ref.Name == "" {
 		return nil, nil
 	}
 
@@ -82,7 +83,7 @@ func (h *HPAResourcer) ResolveRelationships(
 		{
 			Descriptor: desc,
 			Targets: []resource.ResourceRef{
-				makeRef(resourceKey, targetName, namespace),
+				makeRef(resourceKey, ref.Name, namespace),
 			},
 		},
 	}, nil

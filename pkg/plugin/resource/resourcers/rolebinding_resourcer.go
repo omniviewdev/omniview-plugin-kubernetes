@@ -68,6 +68,8 @@ func (r *RoleBindingResourcer) ResolveRelationships(
 
 	resourceKey, ok := roleRefKindToResourceKey[refKind]
 	if !ok || refName == "" {
+		r.log.Debugw("skipping RoleBinding relationship: unmapped roleRef.kind or empty name",
+			"id", id, "namespace", namespace, "roleRef.kind", refKind, "roleRef.name", refName)
 		return nil, nil
 	}
 

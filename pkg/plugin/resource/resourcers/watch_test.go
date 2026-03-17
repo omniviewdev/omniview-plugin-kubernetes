@@ -214,7 +214,6 @@ func TestWatch_AddPayloadCarriesMetadata(t *testing.T) {
 	}
 	require.Equal(t, "meta-pod", payload.ID, "should find meta-pod in add events")
 
-	assert.Equal(t, "meta-pod", payload.ID)
 	assert.Equal(t, "default", payload.Namespace)
 	assert.Equal(t, "uid-abc-123", payload.Metadata.UID)
 	assert.Equal(t, "web", payload.Metadata.Labels["app"])
