@@ -70,6 +70,10 @@ func (h *HPAResourcer) ResolveRelationships(
 
 	resourceKey, ok := scaleTargetRefToResourceKey[lookupKey]
 	if !ok || ref.Name == "" {
+		h.log.Debugw("skipping HPA relationship: unmapped scaleTargetRef or empty name",
+			"id", id, "namespace", namespace, "lookupKey", lookupKey,
+			"apiVersion", ref.APIVersion, "kind", ref.Kind, "name", ref.Name,
+			"mapped", ok)
 		return nil, nil
 	}
 
