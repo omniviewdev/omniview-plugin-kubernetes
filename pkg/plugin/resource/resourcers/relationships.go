@@ -259,20 +259,16 @@ func RelationshipTable() map[string][]resource.RelationshipDescriptor {
 		},
 
 		// ── autoscaling::v2::HorizontalPodAutoscaler ───────────────
+		// Resolve-only: the HPA resourcer inspects spec.scaleTargetRef.kind at
+		// runtime to emit an edge to either Deployment or StatefulSet (not both).
 		"autoscaling::v2::HorizontalPodAutoscaler": {
 			{
 				Type: resource.RelManages, TargetResourceKey: "apps::v1::Deployment",
 				Label: "manages",
-				Extractor: &resource.RelationshipExtractor{
-					Method: "fieldPath", FieldPath: "spec.scaleTargetRef.name",
-				},
 			},
 			{
 				Type: resource.RelManages, TargetResourceKey: "apps::v1::StatefulSet",
 				Label: "manages",
-				Extractor: &resource.RelationshipExtractor{
-					Method: "fieldPath", FieldPath: "spec.scaleTargetRef.name",
-				},
 			},
 		},
 
@@ -310,13 +306,16 @@ func RelationshipTable() map[string][]resource.RelationshipDescriptor {
 		},
 
 		// ── rbac::v1::RoleBinding ──────────────────────────────────
+		// Resolve-only: the RoleBinding resourcer inspects roleRef.kind at
+		// runtime to route to either Role or ClusterRole.
 		"rbac::v1::RoleBinding": {
 			{
 				Type: resource.RelUses, TargetResourceKey: "rbac::v1::Role",
 				Label: "uses",
-				Extractor: &resource.RelationshipExtractor{
-					Method: "fieldPath", FieldPath: "roleRef.name",
-				},
+			},
+			{
+				Type: resource.RelUses, TargetResourceKey: "rbac::v1::ClusterRole",
+				Label: "uses", TargetNamespaced: boolPtr(false),
 			},
 		},
 	}

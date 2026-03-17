@@ -71,9 +71,15 @@ func (n *NodeResourcer) ResolveRelationships(
 		targets = append(targets, makeRef("core::v1::Pod", pod.Name, pod.Namespace))
 	}
 
+	byTarget := descriptorByTarget(n.DeclareRelationships())
+	desc, ok := byTarget["core::v1::Pod"]
+	if !ok {
+		return nil, fmt.Errorf("missing relationship descriptor for core::v1::Pod")
+	}
+
 	return []resource.ResolvedRelationship{
 		{
-			Descriptor: n.DeclareRelationships()[0], // RelRunsOn → Pod
+			Descriptor: desc,
 			Targets:    targets,
 		},
 	}, nil

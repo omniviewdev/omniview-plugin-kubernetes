@@ -67,12 +67,22 @@ func buildRegistrations(logger *zap.SugaredLogger) []resource.ResourceRegistrati
 	relTable := resourcers.RelationshipTable()
 
 	// Map of resource keys to specialized resourcers.
-	specialized := map[string]resource.Resourcer[clients.ClientSet]{
-		"core::v1::Node":        resourcers.NewNodeResourcer(logger, resourcers.WithRelationships(relTable["core::v1::Node"])),
-		"core::v1::Pod":         resourcers.NewPodResourcer(logger, resourcers.WithRelationships(relTable["core::v1::Pod"])),
-		"apps::v1::Deployment":  resourcers.NewDeploymentResourcer(logger, resourcers.WithRelationships(relTable["apps::v1::Deployment"])),
-		"apps::v1::DaemonSet":   resourcers.NewDaemonSetResourcer(logger, resourcers.WithRelationships(relTable["apps::v1::DaemonSet"])),
-		"apps::v1::StatefulSet": resourcers.NewStatefulSetResourcer(logger, resourcers.WithRelationships(relTable["apps::v1::StatefulSet"])),
+	// Use comma-ok to avoid passing zero-value slices if a key is missing from the table.
+	specialized := make(map[string]resource.Resourcer[clients.ClientSet])
+	for key, constructor := range map[string]func(*zap.SugaredLogger, ...resourcers.Option) resource.Resourcer[clients.ClientSet]{
+		"core::v1::Node":        func(l *zap.SugaredLogger, o ...resourcers.Option) resource.Resourcer[clients.ClientSet] { return resourcers.NewNodeResourcer(l, o...) },
+		"core::v1::Pod":         func(l *zap.SugaredLogger, o ...resourcers.Option) resource.Resourcer[clients.ClientSet] { return resourcers.NewPodResourcer(l, o...) },
+		"apps::v1::Deployment":  func(l *zap.SugaredLogger, o ...resourcers.Option) resource.Resourcer[clients.ClientSet] { return resourcers.NewDeploymentResourcer(l, o...) },
+		"apps::v1::DaemonSet":   func(l *zap.SugaredLogger, o ...resourcers.Option) resource.Resourcer[clients.ClientSet] { return resourcers.NewDaemonSetResourcer(l, o...) },
+		"apps::v1::StatefulSet":                        func(l *zap.SugaredLogger, o ...resourcers.Option) resource.Resourcer[clients.ClientSet] { return resourcers.NewStatefulSetResourcer(l, o...) },
+		"autoscaling::v2::HorizontalPodAutoscaler":     func(l *zap.SugaredLogger, o ...resourcers.Option) resource.Resourcer[clients.ClientSet] { return resourcers.NewHPAResourcer(l, o...) },
+		"rbac::v1::RoleBinding":                         func(l *zap.SugaredLogger, o ...resourcers.Option) resource.Resourcer[clients.ClientSet] { return resourcers.NewRoleBindingResourcer(l, o...) },
+	} {
+		var opts []resourcers.Option
+		if rels, ok := relTable[key]; ok {
+			opts = append(opts, resourcers.WithRelationships(rels))
+		}
+		specialized[key] = constructor(logger, opts...)
 	}
 
 	// Resources that should use SyncNever policy.
