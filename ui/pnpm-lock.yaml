@@ -30,8 +30,8 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1(@omniviewdev/base-ui@0.2.2(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@omniviewdev/runtime':
-        specifier: ^0.4.1
-        version: 0.4.1(@omniviewdev/base-ui@0.2.2(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))
+        specifier: ^0.4.2
+        version: 0.4.2(@omniviewdev/base-ui@0.2.2(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))
       '@tanstack/react-query':
         specifier: ^5.76.1
         version: 5.90.21(react@19.2.4)
@@ -85,8 +85,8 @@ importers:
         specifier: ^9.39.3
         version: 9.39.4
       '@omniviewdev/vite-plugin':
-        specifier: ^0.4.0
-        version: 0.4.0(vite@5.4.21)
+        specifier: ^0.4.2
+        version: 0.4.2(vite@5.4.21)
       '@storybook/addon-docs':
         specifier: 10.2.13
         version: 10.2.13(@types/react@19.2.14)(esbuild@0.27.3)(rollup@4.59.0)(storybook@10.2.13(@testing-library/dom@10.4.1)(prettier@3.8.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(vite@5.4.21)
@@ -857,13 +857,13 @@ packages:
       react: ^19.0.0
       react-dom: ^19.0.0
 
-  '@omniviewdev/runtime@0.4.1':
-    resolution: {integrity: sha512-kic445IuzsQ1gecDt2sRZn+PrWXfgjA5Lobh1bChqbgsb47XzJW3f+LYWzvjhvDEHM2T5G1dtpwuzwC84gwxZw==}
+  '@omniviewdev/runtime@0.4.2':
+    resolution: {integrity: sha512-pQ23609V35UUZRjUcqylS//RecxuDaWvmsjoEXrnefSW5CwvfjnB53fa38IhT+Kd8zbS/lV2AWRZ5b4wuiQO8g==}
     peerDependencies:
       '@omniviewdev/base-ui': ^0.2.1
 
-  '@omniviewdev/vite-plugin@0.4.0':
-    resolution: {integrity: sha512-Jf5VKlRnNwf2VgJQoe8EcU8O3lOt2xUQjHMGRrnsPQbkiRGgiZ6XLKseKo4MKvK7CunBgZB/0zRvu1DMFBxCow==}
+  '@omniviewdev/vite-plugin@0.4.2':
+    resolution: {integrity: sha512-oZk0iZiElGJ14pE4zOjc/77PpeGJg1V0B5fKBZGh6yYAaB7VHp1eW9yAnK70KftT7X7HjqgP4D9Hb5mGkpiwwg==}
     peerDependencies:
       vite: '>=5.0.0'
 
@@ -4199,14 +4199,14 @@ snapshots:
       - '@types/react'
       - supports-color
 
-  '@omniviewdev/runtime@0.4.1(@omniviewdev/base-ui@0.2.2(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))':
+  '@omniviewdev/runtime@0.4.2(@omniviewdev/base-ui@0.2.2(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))':
     dependencies:
       '@omniviewdev/base-ui': 0.2.2(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@wailsio/runtime': 3.0.0-beta.29
       lodash.get: 4.4.2
       ts-invariant: 0.10.3
 
-  '@omniviewdev/vite-plugin@0.4.0(vite@5.4.21)':
+  '@omniviewdev/vite-plugin@0.4.2(vite@5.4.21)':
     dependencies:
       vite: 5.4.21
 
