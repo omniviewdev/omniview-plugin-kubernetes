@@ -55,6 +55,7 @@ const ContainerVolumesSection: React.FC<ContainerVolumesSectionProps> = ({
   return (
     <Grid.Item span={12}>
       <DetailsCard
+        boundary="section"
         title="Volume Mounts"
         titleSize="sm"
         icon="LuHardDrive"

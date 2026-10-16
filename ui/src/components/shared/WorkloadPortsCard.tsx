@@ -34,7 +34,7 @@ const headerStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 8,
-  borderBottom: '1px solid var(--ov-color-border-default)',
+  borderBottom: '1px solid var(--ov-color-border-muted)',
 };
 
 const portEntryStyle: React.CSSProperties = {
@@ -56,7 +56,7 @@ const forwardBtnStyle: React.CSSProperties = { paddingBlock: 0, paddingInline: 2
 // Popover styles
 const popoverPopupStyle: React.CSSProperties = {
   backgroundColor: 'var(--ov-color-bg-elevated)',
-  border: '1px solid var(--ov-color-border-default)',
+  border: '1px solid var(--ov-color-border-overlay)',
   borderRadius: 8,
   padding: 0,
   minWidth: 240,
@@ -71,7 +71,7 @@ const popoverHeaderStyle: React.CSSProperties = {
   gap: 8,
   paddingInline: 12,
   paddingBlock: 8,
-  borderBottom: '1px solid var(--ov-color-border-default)',
+  borderBottom: '1px solid var(--ov-color-border-muted)',
 };
 
 const popoverTitleStyle: React.CSSProperties = {
@@ -104,7 +104,7 @@ const popoverFooterStyle: React.CSSProperties = {
   justifyContent: 'flex-end',
   paddingInline: 12,
   paddingBlock: 8,
-  borderTop: '1px solid var(--ov-color-border-default)',
+  borderTop: '1px solid var(--ov-color-border-muted)',
 };
 
 const configRowStyle: React.CSSProperties = {

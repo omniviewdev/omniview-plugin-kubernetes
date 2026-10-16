@@ -5,10 +5,11 @@ import type React from 'react';
  * kubernetes resource sidebars (status / config / topology sections, etc.).
  */
 
-/** Outer bordered container (was `borderRadius: 1, border: '1px solid', borderColor: 'divider'`). */
+/** Quiet passive enclosure, matching the shared outlined Card. */
 export const sectionBorderStyle: React.CSSProperties = {
   borderRadius: 4,
   border: '1px solid var(--ov-color-border-default)',
+  backgroundColor: 'var(--ov-color-bg-surface)',
 };
 
 /** Header row with title on the left and extra content on the right. */

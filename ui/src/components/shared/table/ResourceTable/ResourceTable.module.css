@@ -1,8 +1,8 @@
 /*
  * Resource table layout. The frame, header and virtualized body come from
  * base-ui DataTable; .body only tightens the body rows to the plugin's
- * compact density. Colours use DataTable's private custom properties,
- * which are inherited from DataTable.Root.
+ * compact density. Loaded row dividers remain library-owned; skeleton
+ * and toolbar dividers use the plugin's public structural token.
  */
 
 .outer {
@@ -81,7 +81,7 @@
   align-items: center;
   box-sizing: border-box;
   padding: 0 8px;
-  border-bottom: 1px solid var(--_ov-dt-divider, var(--ov-color-border-muted));
+  border-bottom: 1px solid var(--ov-color-border-muted);
 }
 
 .toolbar {
@@ -89,7 +89,7 @@
   align-items: center;
   gap: 8px;
   padding: 4px 8px;
-  border-bottom: 1px solid var(--ov-color-border-default);
+  border-bottom: 1px solid var(--ov-color-border-muted);
   background: var(--ov-color-bg-surface);
   flex-shrink: 0;
 }

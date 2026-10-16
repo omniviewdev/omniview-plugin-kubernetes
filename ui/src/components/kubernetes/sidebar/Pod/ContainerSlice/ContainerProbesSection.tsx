@@ -20,6 +20,7 @@ const ContainerProbesSection: React.FC<ContainerProbesSectionProps> = ({ contain
       {container.readinessProbe && (
         <Grid.Item span={numProbes > 1 ? 12 / numProbes : 12}>
           <DetailsCard
+            boundary="section"
             title="Readiness Probe"
             titleSize="sm"
             data={probeEntry(container.readinessProbe)}
@@ -29,6 +30,7 @@ const ContainerProbesSection: React.FC<ContainerProbesSectionProps> = ({ contain
       {container.livenessProbe && (
         <Grid.Item span={numProbes > 1 ? 12 / numProbes : 12}>
           <DetailsCard
+            boundary="section"
             title="Liveness Probe"
             titleSize="sm"
             data={probeEntry(container.livenessProbe)}
@@ -38,6 +40,7 @@ const ContainerProbesSection: React.FC<ContainerProbesSectionProps> = ({ contain
       {container.startupProbe && (
         <Grid.Item span={numProbes > 1 ? 12 / numProbes : 12}>
           <DetailsCard
+            boundary="section"
             title="Startup Probe"
             titleSize="sm"
             data={probeEntry(container.startupProbe)}

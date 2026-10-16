@@ -70,9 +70,6 @@ const ContainerStatusSection: React.FC<{ status: ContainerStatus }> = ({ status 
   return (
     <div
       style={{
-        borderRadius: 4,
-        border: '1px solid var(--ov-color-border-default)',
-        overflow: 'hidden',
         borderLeft: `3px solid ${accentColor}`,
       }}
     >

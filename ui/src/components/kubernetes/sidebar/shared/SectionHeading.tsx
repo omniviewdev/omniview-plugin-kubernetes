@@ -15,7 +15,7 @@ const countChipStyle: React.CSSProperties = { borderRadius: 4, flexShrink: 0 };
 const headingRuleStyle: React.CSSProperties = {
   flex: 1,
   height: 1,
-  backgroundColor: 'var(--ov-color-border-default)',
+  backgroundColor: 'var(--ov-color-border-muted)',
 };
 
 /**

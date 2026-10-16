@@ -21,7 +21,7 @@ const popoverHeaderStyle: React.CSSProperties = {
   alignItems: 'center',
   gap: 8,
   padding: '8px 12px',
-  borderBottom: '1px solid var(--ov-color-border-default)',
+  borderBottom: '1px solid var(--ov-color-border-muted)',
 };
 
 const popoverTitleStyle: React.CSSProperties = {
@@ -57,7 +57,7 @@ const popoverFooterStyle: React.CSSProperties = {
   display: 'flex',
   justifyContent: 'flex-end',
   padding: '8px 12px',
-  borderTop: '1px solid var(--ov-color-border-default)',
+  borderTop: '1px solid var(--ov-color-border-muted)',
 };
 
 const forwardButtonStyle: React.CSSProperties = {
@@ -85,9 +85,7 @@ const protocolRowStyle: React.CSSProperties = { display: 'flex', gap: 4 };
 const protocolButtonStyle: React.CSSProperties = { fontSize: '0.6875rem', fontWeight: 600 };
 
 const cardContainerStyle: React.CSSProperties = {
-  borderRadius: 4,
-  border: '1px solid var(--ov-color-border-default)',
-  overflow: 'hidden',
+  borderTop: '1px solid var(--ov-color-border-muted)',
 };
 
 const avatarStyle: React.CSSProperties = { maxHeight: 16, maxWidth: 16, borderRadius: 4 };
@@ -365,7 +363,6 @@ const PortDetailsCard: React.FC<PortDetailsCardProps> = ({
             flexDirection: 'row',
             justifyContent: 'space-between',
             alignItems: 'center',
-            borderBottom: '1px solid var(--ov-color-border-default)',
           }}
         >
           <Stack direction="row" spacing={0} align="center" style={{ gap: cfg.gap }}>

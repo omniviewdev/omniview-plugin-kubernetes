@@ -61,7 +61,7 @@ const ContainerSlice: React.FC<ContainerSliceProps> = ({
         {status && <ContainerStatusDecorator status={status} />}
       </Stack>
 
-      {/* ── Card-based sub-sections ── */}
+      {/* ── Subsections within the shared container frame ── */}
       <Grid columns={12} spacing={0} style={sliceGridStyle}>
         {/* Restart / termination info — shown when container has issues */}
         {status && ((status.restartCount ?? 0) > 0 || status.state?.waiting || status.state?.terminated || status.lastState?.terminated) && (

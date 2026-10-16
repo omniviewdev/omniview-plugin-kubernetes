@@ -15,7 +15,7 @@ const reasonLineStyle: React.CSSProperties = { display: 'flex', alignItems: 'bas
 const dividerDotStyle: React.CSSProperties = {
   width: 1,
   height: 10,
-  background: 'var(--ov-color-border-default)',
+  background: 'var(--ov-color-border-muted)',
   flexShrink: 0,
   alignSelf: 'center',
 };
@@ -28,7 +28,7 @@ const toolbarStyle: React.CSSProperties = {
   flexShrink: 0,
   paddingInline: 12,
   paddingBlock: 6,
-  borderBottom: '1px solid var(--ov-color-border-default)',
+  borderBottom: '1px solid var(--ov-color-border-muted)',
 };
 
 // Rows truncate rather than scroll sideways; only the list scrolls vertically.

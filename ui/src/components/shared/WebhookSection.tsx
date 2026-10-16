@@ -38,7 +38,7 @@ const ruleStyle: React.CSSProperties = {
   gap: 2,
   paddingBlock: 2,
   paddingLeft: 4,
-  borderLeft: '2px solid var(--ov-color-border-default)',
+  borderLeft: '2px solid var(--ov-color-border-muted)',
 };
 
 const ChipRow: React.FC<{ label: string; items?: string[] }> = ({ label, items }) => {

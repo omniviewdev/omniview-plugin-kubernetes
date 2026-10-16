@@ -8,7 +8,7 @@ const statLabelStyle: React.CSSProperties = { fontWeight: 600 };
 
 const cardRowStyle: React.CSSProperties = {
   paddingBlock: 6,
-  borderBottom: '1px solid var(--ov-color-border-default)',
+  borderBottom: '1px solid var(--ov-color-border-muted)',
 };
 
 const statListStyle: React.CSSProperties = { minWidth: 0 };

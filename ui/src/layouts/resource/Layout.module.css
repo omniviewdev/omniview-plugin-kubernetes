@@ -1,6 +1,6 @@
 .SidePane {
   background-color: var(--ov-color-bg-surface);
-  border-right: 1px solid var(--ov-color-border-default);
+  border-right: 1px solid var(--ov-color-border-muted);
   display: none;
 }
 
@@ -42,7 +42,7 @@
 
 .Bordered {
   background-color: var(--ov-color-bg-surface);
-  border-right: 1px solid var(--ov-color-border-default);
+  border-right: 1px solid var(--ov-color-border-muted);
 }
 
 .Inset {
@@ -51,7 +51,7 @@
 
 .Transparent {
   background-color: transparent;
-  border-right: 1px solid var(--ov-color-border-default);
+  border-right: 1px solid var(--ov-color-border-muted);
 }
 
 .BorderedInset {

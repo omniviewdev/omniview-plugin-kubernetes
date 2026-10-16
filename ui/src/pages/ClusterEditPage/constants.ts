@@ -2,7 +2,7 @@ import type React from 'react';
 
 import type { NavSection } from '../../types/navigation';
 
-const divider = '1px solid var(--ov-color-border-default)';
+const divider = '1px solid var(--ov-color-border-muted)';
 
 export const sidenavHeaderStyle: React.CSSProperties = { padding: 8, borderBottom: divider };
 
@@ -10,7 +10,7 @@ export const clusterCardWrapperStyle: React.CSSProperties = { padding: 8 };
 
 export const clusterCardStyle: React.CSSProperties = {
   background: 'var(--ov-color-bg-surface-raised)',
-  border: divider,
+  border: '1px solid var(--ov-color-border-default)',
   borderRadius: 4,
   padding: 10,
   display: 'flex',

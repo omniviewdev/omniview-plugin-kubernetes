@@ -3,13 +3,14 @@
 }
 
 .Bordered {
-  border-radius: 6px;
+  border-radius: 4px;
   border: 1px solid var(--ov-color-border-default);
+  background-color: var(--ov-color-bg-surface);
 }
 
 .Divider {
   height: 1px;
-  background-color: var(--ov-color-border-default);
+  background-color: var(--ov-color-border-muted);
 }
 
 .Header {

@@ -28,7 +28,7 @@ const groupProgressCountStyle: React.CSSProperties = {
 const dialogStyle: React.CSSProperties = {
   maxWidth: 600,
   backgroundColor: 'var(--ov-color-bg-elevated)',
-  border: '1px solid var(--ov-color-border-default)',
+  border: '1px solid var(--ov-color-border-overlay)',
   borderRadius: 8,
   color: 'var(--ov-color-fg-default)',
 };
@@ -39,7 +39,7 @@ const headerStyle: React.CSSProperties = {
   justifyContent: 'space-between',
   paddingInline: 16,
   paddingBlock: 12,
-  borderBottom: '1px solid var(--ov-color-border-default)',
+  borderBottom: '1px solid var(--ov-color-border-muted)',
 };
 
 const headerLeftStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8 };
@@ -47,7 +47,7 @@ const headerLeftStyle: React.CSSProperties = { display: 'flex', alignItems: 'cen
 const progressBarWrapperStyle: React.CSSProperties = {
   paddingInline: 16,
   paddingBlock: 8,
-  borderBottom: '1px solid var(--ov-color-border-default)',
+  borderBottom: '1px solid var(--ov-color-border-muted)',
 };
 const progressBarInnerStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 };
 const progressBarStyle: React.CSSProperties = { flex: 1 };
@@ -62,7 +62,7 @@ const groupHeaderStyle: React.CSSProperties = {
   paddingInline: 16,
   paddingBlock: 6,
   backgroundColor: 'var(--ov-color-bg-inset)',
-  borderBottom: '1px solid var(--ov-color-border-default)',
+  borderBottom: '1px solid var(--ov-color-border-muted)',
 };
 
 const groupLabelStyle: React.CSSProperties = {
@@ -78,7 +78,7 @@ const retryButtonStyle: React.CSSProperties = { minWidth: 0, fontSize: '0.625rem
 const footerStyle: React.CSSProperties = {
   display: 'flex',
   justifyContent: 'flex-end',
-  borderTop: '1px solid var(--ov-color-border-default)',
+  borderTop: '1px solid var(--ov-color-border-muted)',
   paddingInline: 16,
   paddingBlock: 8,
 };

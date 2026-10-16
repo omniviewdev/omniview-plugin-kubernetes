@@ -11,6 +11,7 @@ const groupHeaderStyle: React.CSSProperties = { padding: '6px 10px 2px' };
 const containerBoxStyle: React.CSSProperties = {
   borderRadius: 4,
   border: '1px solid var(--ov-color-border-default)',
+  backgroundColor: 'var(--ov-color-bg-surface)',
   overflow: 'hidden',
 };
 

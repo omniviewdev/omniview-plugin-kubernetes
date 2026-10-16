@@ -196,7 +196,7 @@ const thStyle: React.CSSProperties = {
   padding: '2px 8px',
   textAlign: 'left',
   verticalAlign: 'middle',
-  borderBottom: '1px solid var(--ov-color-border-default)',
+  borderBottom: '1px solid var(--ov-color-border-muted)',
   whiteSpace: 'nowrap',
   height: 28,
 };

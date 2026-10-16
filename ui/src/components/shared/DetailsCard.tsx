@@ -10,6 +10,10 @@ const outerBoxStyle: React.CSSProperties = {
   overflow: 'hidden',
 };
 
+const sectionStyle: React.CSSProperties = {
+  borderTop: '1px solid var(--ov-color-border-muted)',
+};
+
 const iconImageStyle: React.CSSProperties = { maxHeight: 16, maxWidth: 16, borderRadius: 4 };
 const entryIconImageStyle: React.CSSProperties = { width: 20, height: 20, borderRadius: '50%' };
 const cellStyle: React.CSSProperties = { minWidth: 0, display: 'flex', alignItems: 'center' };
@@ -32,6 +36,8 @@ export interface DetailsCardProps {
   icon?: string | React.ReactNode;
   data: DetailsCardEntry[];
   endAdornment?: React.ReactNode;
+  /** Nested details share their parent's enclosure and own only a dividing edge. */
+  boundary?: 'enclosed' | 'section';
   /** Show the kv pair even if the value is undefined */
   showUndefined?: boolean;
 }
@@ -79,11 +85,12 @@ export const DetailsCard: React.FC<DetailsCardProps> = ({
   data,
   endAdornment,
   showUndefined = false,
+  boundary = 'enclosed',
 }) => {
   const cfg = sizeConfig[titleSize];
 
   return (
-    <div style={outerBoxStyle}>
+    <div style={boundary === 'section' ? sectionStyle : outerBoxStyle}>
       {title && (
         <div
           style={{
@@ -93,7 +100,7 @@ export const DetailsCard: React.FC<DetailsCardProps> = ({
             flexDirection: 'row',
             justifyContent: 'space-between',
             alignItems: 'center',
-            borderBottom: '1px solid var(--ov-color-border-default)',
+            borderBottom: boundary === 'enclosed' ? '1px solid var(--ov-color-border-muted)' : undefined,
           }}
         >
           <Stack direction="row" spacing={0} align="center" style={{ gap: cfg.gap }}>

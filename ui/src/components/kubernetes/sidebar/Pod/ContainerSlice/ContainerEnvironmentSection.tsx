@@ -137,7 +137,7 @@ const ContainerEnvironmentSection: React.FC<ContainerEnvironmentSectionProps> = 
 
   return (
     <Grid.Item span={12}>
-      <DetailsCard title="Environment Variables" titleSize="sm" icon="LuKey" data={envData} />
+      <DetailsCard boundary="section" title="Environment Variables" titleSize="sm" icon="LuKey" data={envData} />
     </Grid.Item>
   );
 };

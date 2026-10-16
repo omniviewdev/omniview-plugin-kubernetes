@@ -17,7 +17,7 @@ const stackStyle1 = { gap: 6 } as const;
 
 const sectionHeadingLabelStyle: React.CSSProperties = { color: 'var(--ov-color-fg-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: 11, flexShrink: 0 };
 
-const sectionHeadingDividerStyle: React.CSSProperties = { flex: 1, height: '1px', background: 'var(--ov-color-border-default)' };
+const sectionHeadingDividerStyle: React.CSSProperties = { flex: 1, height: '1px', background: 'var(--ov-color-border-muted)' };
 
 const sectionHeadingStackStyle: React.CSSProperties = { marginBottom: 6 };
 

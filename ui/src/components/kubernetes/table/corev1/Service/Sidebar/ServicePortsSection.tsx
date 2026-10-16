@@ -69,7 +69,7 @@ const popoverHeaderStyle: React.CSSProperties = {
   gap: 8,
   paddingInline: 12,
   paddingBlock: 8,
-  borderBottom: '1px solid var(--ov-color-border-default)',
+  borderBottom: '1px solid var(--ov-color-border-muted)',
 };
 
 const popoverTitleStyle: React.CSSProperties = {
@@ -106,7 +106,7 @@ const popoverFooterStyle: React.CSSProperties = {
   justifyContent: 'flex-end',
   paddingInline: 12,
   paddingBlock: 8,
-  borderTop: '1px solid var(--ov-color-border-default)',
+  borderTop: '1px solid var(--ov-color-border-muted)',
 };
 
 const configRowStyle: React.CSSProperties = {

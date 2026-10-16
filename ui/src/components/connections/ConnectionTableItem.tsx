@@ -44,7 +44,7 @@ const truncate = (input: string) => (input.length > 60 ? `${input.substring(0, 6
 const tdSx: React.CSSProperties = {
   padding: '3px 8px',
   verticalAlign: 'middle',
-  borderBottom: '1px solid var(--ov-color-border-default)',
+  borderBottom: '1px solid var(--ov-color-border-muted)',
 };
 
 const ConnectionTableItem: React.FC<Props> = ({

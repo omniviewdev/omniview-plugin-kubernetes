@@ -60,7 +60,7 @@ const MetadataSection: React.FC<Props> = ({ data, connectionID }) => {
 
   return (
     <Stack direction="column" spacing={1}>
-      <Card style={cardStyle}>
+      <Card variant="outline" color="neutral" style={cardStyle}>
         <div style={cardHeaderStyle}>
           <Text weight="semibold" size="sm">
             Metadata

@@ -57,7 +57,7 @@
   justify-content: center;
   min-height: 100px;
   border-radius: 4px;
-  border: 2px dashed var(--ov-color-border-strong);
+  border: 2px dashed var(--ov-color-border-control);
   background-color: transparent;
   transition:
     border-color 0.15s,

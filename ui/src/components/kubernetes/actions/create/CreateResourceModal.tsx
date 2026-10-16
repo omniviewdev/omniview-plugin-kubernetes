@@ -14,7 +14,7 @@ const contentStyle = {
   overflow: 'hidden',
   display: 'flex',
   flexDirection: 'column',
-  borderTop: '1px solid var(--ov-color-border-default)',
+  borderTop: '1px solid var(--ov-color-border-muted)',
 } as const;
 const footerStyle = { paddingTop: 12 } as const;
 const editorWrapperStyle = { height: 'calc(80vh - 120px)', overflow: 'hidden' } as const;

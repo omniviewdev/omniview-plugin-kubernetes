@@ -294,7 +294,7 @@ const FolderDropZone: React.FC<{
         borderRadius: 'var(--ov-radius-sm, 4px)',
         transition: 'outline-color 0.15s, background-color 0.15s',
         outline: isDraggingConnection ? '2px dashed' : 'none',
-        outlineColor: isOver ? 'var(--ov-color-brand-500)' : 'var(--ov-color-border-strong)',
+        outlineColor: isOver ? 'var(--ov-color-brand-500)' : 'var(--ov-color-border-control)',
         backgroundColor: isOver ? 'var(--ov-color-accent-soft)' : 'transparent',
       }}
     >

@@ -218,7 +218,7 @@ const PodVolumesSection: React.FC<Props> = ({ pod, connectionID, namespace }) =>
           {type}
         </Chip>
       ),
-      children: details.length > 0 ? <DetailsCard data={details} /> : null,
+      children: details.length > 0 ? <DetailsCard boundary="section" data={details} /> : null,
     };
   });
 

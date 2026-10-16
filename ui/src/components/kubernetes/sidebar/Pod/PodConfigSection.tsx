@@ -99,7 +99,7 @@ const TolerationRow: React.FC<{ toleration: Toleration; isLast: boolean }> = ({
         display: 'flex',
         alignItems: 'center',
         gap: 8,
-        borderBottom: isLast ? 'none' : '1px solid var(--ov-color-border-default)',
+        borderBottom: isLast ? 'none' : '1px solid var(--ov-color-border-muted)',
       }}
     >
       <div style={tolerationKeyBoxStyle}>

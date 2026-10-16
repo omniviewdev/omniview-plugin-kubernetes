@@ -26,21 +26,14 @@ export const resourceBarTextStyle: Style = {
   flexShrink: 0,
 };
 export const infoCardStyle: Style = {
-  borderRadius: 4,
-  border: '1px solid var(--ov-color-border-default)',
-  overflow: 'hidden',
   padding: 8,
 };
 export const resourceCardStyle: Style = {
-  borderRadius: 4,
-  border: '1px solid var(--ov-color-border-default)',
-  overflow: 'hidden',
+  borderTop: '1px solid var(--ov-color-border-muted)',
 };
 export const resourceCardHeaderStyle: Style = {
   paddingBlock: 4,
   paddingInline: 8,
-  backgroundColor: 'var(--ov-color-bg-surface)',
-  borderBottom: '1px solid var(--ov-color-border-default)',
   display: 'flex',
   alignItems: 'center',
 };
@@ -48,8 +41,6 @@ export const resourceCardBodyStyle: Style = { paddingBlock: 6, paddingInline: 8 
 export const restartHeaderStyle: Style = {
   paddingBlock: 4,
   paddingInline: 8,
-  backgroundColor: 'var(--ov-color-bg-surface)',
-  borderBottom: '1px solid var(--ov-color-border-default)',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',

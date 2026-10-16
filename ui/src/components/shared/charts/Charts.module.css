@@ -23,7 +23,7 @@
 }
 
 .gridLine {
-  stroke: var(--ov-color-border-default);
+  stroke: var(--ov-color-border-muted);
   stroke-width: 1;
   opacity: 0.5;
   shape-rendering: crispEdges;
@@ -56,7 +56,7 @@
   min-width: 120px;
   max-width: 260px;
   padding: 6px 8px;
-  border: 1px solid var(--ov-color-border-default);
+  border: 1px solid var(--ov-color-border-overlay);
   border-radius: var(--ov-radius-sm);
   background: var(--ov-color-bg-elevated);
   box-shadow: var(--ov-shadow-surface);
