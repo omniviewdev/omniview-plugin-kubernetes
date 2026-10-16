@@ -45,7 +45,7 @@ const CreateResourceButton: React.FC<Props> = ({ connectionID, resourceKey }) =>
   return (
     <>
       <Button
-        size="xs"
+        size="sm"
         variant="outline"
         color="neutral"
         startDecorator={<LuPlus size={13} />}

@@ -231,6 +231,8 @@ To enable advanced metrics, configure a Prometheus endpoint in the cluster setti
 
 ## Development
 
+Resource-toolbar Create, search, filter and settings controls should consistently request `size="sm"` and rely on the shared density scale rather than fixed pixel heights. The host supplies shared `@omniviewdev/base-ui`, so shared styling fixes reach the plugin through the host's library release.
+
 ### Prerequisites
 
 - Go 1.21+
