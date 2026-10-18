@@ -10,10 +10,12 @@ nodes:
             runtime-config: "admissionregistration.k8s.io/v1=true"
     extraPortMappings:
       - containerPort: 80
-        hostPort: 80
+        hostPort: __HTTP_PORT__
         protocol: TCP
+        listenAddress: "127.0.0.1"
       - containerPort: 443
-        hostPort: 443
+        hostPort: __HTTPS_PORT__
         protocol: TCP
+        listenAddress: "127.0.0.1"
   - role: worker
   - role: worker

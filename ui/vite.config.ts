@@ -10,6 +10,7 @@ const reactCompilerConfig = {
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  cacheDir: process.env.OMNIVIEW_VITE_CACHE_DIRECTORY,
   plugins: [
     react({
       babel: {
@@ -33,6 +34,7 @@ export default defineConfig({
     },
   },
   build: {
+    outDir: process.env.OMNIVIEW_BUILD_OUTPUT_DIRECTORY || 'dist',
     cssCodeSplit: false,
     sourcemap: true,
     rollupOptions: {

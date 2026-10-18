@@ -235,19 +235,53 @@ Resource-toolbar Create, search, filter and settings controls should consistentl
 
 ### Prerequisites
 
-- Go 1.21+
+- Go 1.25+
 - Node.js 20+
 - pnpm
 
 ### Building
 
 ```sh
-# Build the Go backend
+# Build the backend and UI (Make forces GOWORK=off)
 make build
 
 # Build the UI
 cd ui && pnpm install && pnpm build
 ```
+
+### Isolated workspace development
+
+Select this plugin in an Omniview feature workspace and start its host with the
+host-owned `omniview-dev workspace up` command. The workspace owns package/SDK
+links, plugin generations, Vite ports and rebuilds. Use `workspace paths` for the
+resolved state root; never infer it from a custom directory or copy production
+plugin executables into it.
+
+`make install` delegates the actual source transaction to the live host:
+
+```sh
+OMNIVIEW_WORKSPACE_FILE="$FEATURE/workspace.json" \
+OMNIVIEW_STATE_DIR="$RESOLVED_STATE_ROOT" \
+OMNIVIEW_DEV_CLI="$ABSOLUTE_OMNIVIEW_DEV_CLI" make install
+```
+
+All three values are required. No production fallback, direct state-tree copy,
+independent build/install runner or `installui` shortcut remains. The canonical
+host validates the selected source, builds with its verified SDK and returns the
+operation result. UI edits use the managed Vite feedback loop.
+
+Optional local tools need their own explicit assignments when used concurrently:
+
+```sh
+make storybook STORYBOOK_PORT=26061
+make cluster CLUSTER_NAME=my-feature CLUSTER_HTTP_PORT=28080 \
+  CLUSTER_HTTPS_PORT=28443 CLUSTER_KUBECONFIG="$FEATURE/.local/kubeconfig"
+```
+
+The kind ports bind loopback; the explicit kubeconfig avoids changing the human
+current context. Cluster creation/seeding is a separate deliberate operation,
+not a workspace-start prerequisite or permission to use a production cluster.
+
 
 ### Project Structure
 

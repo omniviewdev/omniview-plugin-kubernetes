@@ -1,6 +1,9 @@
 packages: []
+linkWorkspacePackages: false
+strictPeerDependencies: true
+pmOnFail: error
+# Preserve pnpm 10's immediate-release install behavior explicitly.
+minimumReleaseAge: 0
 allowBuilds:
-  esbuild: set this to true or false
-  unrs-resolver: set this to true or false
-minimumReleaseAgeExclude:
-  - '@omniviewdev/base-ui@0.2.2'
+  esbuild: false
+  unrs-resolver: false
