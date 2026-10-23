@@ -13,33 +13,41 @@ permissions:
   contents: write
 
 jobs:
-  set-version:
+  validate-version:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'push' && github.sha || github.ref }}
-      - name: Set package.json version from tag
+          ref: ${{ github.sha }}
+      - name: Validate committed release versions
+        env:
+          RELEASE_VERSION: ${{ github.event_name == 'push' && github.ref_name || format('v{0}', inputs.version) }}
         run: |
-          VERSION=${{ github.event_name == 'push' && github.ref_name || format('v{0}', inputs.version) }}
-          VERSION="${VERSION#v}"
-          cd ui && jq --arg v "$VERSION" '.version = $v' package.json > tmp.json && mv tmp.json package.json
-      - name: Push version update
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add ui/package.json
-          git commit -m "chore: set package.json version to ${GITHUB_REF_NAME#v}" || true
-          git push origin HEAD:main
+          node <<'NODE'
+          const fs = require('node:fs');
+          const version = process.env.RELEASE_VERSION.replace(/^v/, '');
+          if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) {
+            throw new Error(`Invalid release version: ${version}`);
+          }
+          const ui = JSON.parse(fs.readFileSync('ui/package.json', 'utf8')).version;
+          const manifest = fs.readFileSync('plugin.yaml', 'utf8').match(/^version:\s*(\S+)\s*$/m)?.[1];
+          const metadata = JSON.parse(fs.readFileSync('plugin.json', 'utf8')).version;
+          const packaged = fs.readFileSync('.package/plugin.yaml', 'utf8').match(/^version:\s*(\S+)\s*$/m)?.[1];
+          if ([ui, manifest, metadata, packaged].some(value => value !== version)) {
+            throw new Error(`Commit release versions before tagging: requested=${version}, ui=${ui}, manifest=${manifest}, metadata=${metadata}, packaged=${packaged}`);
+          }
+          NODE
 
   publish:
-    needs: set-version
+    needs: validate-version
     uses: omniviewdev/publish-plugin-action/.github/workflows/build-and-publish.yml@v1
     with:
       go-version: '1.25'
+      pnpm-version: '12.14.0'
+      node-version: '22'
       plugin-id: kubernetes
       publisher-slug: omniview
-      api-url: https://api.staging.omniview.dev
+      api-url: https://api.omniview.dev
       version: ${{ github.event_name == 'push' && github.ref_name || format('v{0}', inputs.version) }}
       go-entry: ./pkg
       ui-path: ./ui
@@ -47,6 +55,7 @@ jobs:
       api-key: ${{ secrets.OMNIVIEW_API_KEY }}
 
   github-release:
+    needs: publish
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
     steps:

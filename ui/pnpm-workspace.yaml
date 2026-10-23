@@ -5,5 +5,5 @@ pmOnFail: error
 # Preserve pnpm 10's immediate-release install behavior explicitly.
 minimumReleaseAge: 0
 allowBuilds:
-  esbuild: false
+  esbuild: true
   unrs-resolver: false

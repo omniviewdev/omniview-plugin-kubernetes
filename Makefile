@@ -44,7 +44,7 @@ package:
 
 	# Build UI once (platform-agnostic)
 	mkdir -p ./.package/assets
-	cd ./ui && pnpm run build && cd ..
+	cd ./ui && OMNIVIEW_BUILD_OUTPUT_DIRECTORY=dist pnpm run build && cd ..
 	cp -r ui/dist/assets/* ./.package/assets/
 
 	# Copy metadata (shared)
@@ -75,6 +75,7 @@ storybook-build:
 # ── Kind test cluster ─────────────────────────────────────────────────
 
 CLUSTER_NAME ?= omniview-test
+export KIND_EXPERIMENTAL_PROVIDER ?= docker
 KIND_CONFIG ?= hack/kind-config.yaml
 CLUSTER_CONFIG ?= .local/kind-config.yaml
 CLUSTER_KUBECONFIG ?= $(CURDIR)/.local/kubeconfig
@@ -97,6 +98,7 @@ cluster-create: cluster-config
 	mkdir -p "$$(dirname "$(CLUSTER_KUBECONFIG)")"; \
 	if kind get clusters 2>/dev/null | grep -Fxq -- "$(CLUSTER_NAME)"; then \
 		echo "Cluster '$(CLUSTER_NAME)' already exists"; \
+		node hack/cluster-ports.mjs "$(KIND_EXPERIMENTAL_PROVIDER)" "$(CLUSTER_NAME)" "$(CLUSTER_HTTP_PORT)" "$(CLUSTER_HTTPS_PORT)"; \
 		kind export kubeconfig --name "$(CLUSTER_NAME)" --kubeconfig "$(CLUSTER_KUBECONFIG)"; \
 	else \
 		kind create cluster --name "$(CLUSTER_NAME)" --config "$(CLUSTER_CONFIG)" --kubeconfig "$(CLUSTER_KUBECONFIG)" --wait 60s; \

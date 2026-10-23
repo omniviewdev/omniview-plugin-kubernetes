@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -13,10 +13,22 @@ export function renderClusterConfig(template, http, https) {
     .replaceAll('__HTTPS_PORT__', String(Number(https)));
 }
 
+export function writeClusterConfig(destination, config) {
+  const directory = path.dirname(destination);
+  mkdirSync(directory, { recursive: true });
+  const temporary = mkdtempSync(path.join(directory, '.kind-config-'));
+  try {
+    const file = path.join(temporary, 'config.yaml');
+    writeFileSync(file, config);
+    renameSync(file, destination);
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [source, destination, http, https] = process.argv.slice(2);
   if (!source || !destination) throw new Error('Expected template, output, HTTP port and HTTPS port');
   const config = renderClusterConfig(readFileSync(source, 'utf8'), http, https);
-  mkdirSync(path.dirname(destination), { recursive: true });
-  writeFileSync(destination, config);
+  writeClusterConfig(destination, config);
 }
