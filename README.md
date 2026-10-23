@@ -258,6 +258,17 @@ cd ui && pnpm install && pnpm build
 when the environment contains a workspace-owned Vite output directory. Direct
 workspace UI builds continue to honor `OMNIVIEW_BUILD_OUTPUT_DIRECTORY`.
 
+### Tests
+
+```sh
+GOWORK=off go test ./... -count=1
+node --test hack/cluster-config.test.mjs
+cd ui && pnpm test
+```
+
+UI persistence tests use the test document's real JSDOM storage, including on
+Node versions that also expose process-global Web Storage.
+
 
 ### Isolated workspace development
 
