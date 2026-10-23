@@ -241,6 +241,8 @@ Resource-toolbar Create, search, filter and settings controls should consistentl
 
 Registry installs retain pnpm's 24-hour release-age protection. Only coordinated
 `@omniviewdev/*` packages are exempted; linked source worktrees resolve locally.
+The current UI cohort is `@omniviewdev/base-ui` 0.5.0 and
+`@omniviewdev/editors` 4.0.0, paired with host runtime/Vite packages 0.5.0.
 
 ### Building
 
