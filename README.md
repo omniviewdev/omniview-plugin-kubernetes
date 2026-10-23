@@ -261,7 +261,7 @@ workspace UI builds continue to honor `OMNIVIEW_BUILD_OUTPUT_DIRECTORY`.
 ### Tests
 
 ```sh
-GOWORK=off go test ./... -count=1
+GOWORK=off GOFLAGS= go test ./... -count=1
 node --test hack/cluster-config.test.mjs
 cd ui && pnpm test
 ```
