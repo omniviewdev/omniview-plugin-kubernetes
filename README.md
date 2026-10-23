@@ -239,6 +239,9 @@ Resource-toolbar Create, search, filter and settings controls should consistentl
 - Node.js 22+
 - pnpm 12.14.0 (pinned by `ui/package.json`)
 
+Registry installs retain pnpm's 24-hour release-age protection. Only coordinated
+`@omniviewdev/*` packages are exempted; linked source worktrees resolve locally.
+
 ### Building
 
 ```sh
