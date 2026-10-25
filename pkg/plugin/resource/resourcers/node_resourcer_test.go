@@ -208,7 +208,7 @@ func TestNodeResourcer_Drain_EvictsPods(t *testing.T) {
 		ID: "drain-node",
 		Params: map[string]interface{}{
 			"gracePeriodSeconds": float64(30),
-			"ignoreDaemonSets":  true,
+			"ignoreDaemonSets":   true,
 		},
 	})
 
@@ -545,7 +545,9 @@ func TestNodeResourcer_StreamAction_NotSupported(t *testing.T) {
 	err := r.StreamAction(context.Background(), nil, resource.ResourceMeta{}, "cordon", resource.ActionInput{}, nil)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "streaming actions not supported")
+	var operationError *resource.ResourceOperationError
+	require.ErrorAs(t, err, &operationError)
+	assert.Equal(t, "UNSUPPORTED", operationError.Code)
 }
 
 // ===================== isDaemonSetPod =====================

@@ -287,7 +287,9 @@ func TestDeploymentResourcer_StreamAction_UnsupportedAction(t *testing.T) {
 	err := r.StreamAction(context.Background(), nil, resource.ResourceMeta{}, "scale", resource.ActionInput{}, stream)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "streaming not supported for action: scale")
+	var operationError *resource.ResourceOperationError
+	require.ErrorAs(t, err, &operationError)
+	assert.Equal(t, "UNSUPPORTED", operationError.Code)
 }
 
 func TestDeploymentResourcer_StreamAction_Restart_NotFound(t *testing.T) {
@@ -302,11 +304,10 @@ func TestDeploymentResourcer_StreamAction_Restart_NotFound(t *testing.T) {
 
 	require.Error(t, err)
 
-	// Stream should have received an error event and be closed.
+	// Failed native establishment emits neither readiness nor public progress.
 	var events []resource.ActionEvent
 	for ev := range stream {
 		events = append(events, ev)
 	}
-	require.NotEmpty(t, events)
-	assert.Equal(t, "error", events[0].Type)
+	assert.Empty(t, events)
 }

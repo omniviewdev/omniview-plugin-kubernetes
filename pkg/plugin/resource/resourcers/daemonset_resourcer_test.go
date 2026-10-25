@@ -116,7 +116,9 @@ func TestDaemonSetResourcer_StreamAction_UnsupportedAction(t *testing.T) {
 	err := r.StreamAction(context.Background(), nil, resource.ResourceMeta{}, "foo", resource.ActionInput{}, stream)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "streaming not supported")
+	var operationError *resource.ResourceOperationError
+	require.ErrorAs(t, err, &operationError)
+	assert.Equal(t, "UNSUPPORTED", operationError.Code)
 }
 
 func TestDaemonSetResourcer_StreamAction_Restart_NotFound(t *testing.T) {
@@ -135,6 +137,5 @@ func TestDaemonSetResourcer_StreamAction_Restart_NotFound(t *testing.T) {
 	for ev := range stream {
 		events = append(events, ev)
 	}
-	require.NotEmpty(t, events)
-	assert.Equal(t, "error", events[0].Type)
+	assert.Empty(t, events)
 }

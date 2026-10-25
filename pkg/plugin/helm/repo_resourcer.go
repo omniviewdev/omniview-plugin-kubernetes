@@ -544,5 +544,5 @@ func (r *RepoResourcerWithActions) StreamAction(
 	_ resource.ActionInput,
 	_ chan<- resource.ActionEvent,
 ) error {
-	return fmt.Errorf("streaming actions not supported for repositories")
+	return &resource.ResourceOperationError{Code: "UNSUPPORTED", Title: "Unsupported operation", Message: "Streaming actions are not supported for this resource."}
 }

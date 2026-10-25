@@ -29,9 +29,9 @@ type NodeResourcer struct {
 // Compile-time interface checks.
 var (
 	_ resource.Resourcer[clients.ClientSet]            = (*NodeResourcer)(nil)
-	_ resource.ActionResourcer[clients.ClientSet]       = (*NodeResourcer)(nil)
-	_ resource.RelationshipDeclarer                     = (*NodeResourcer)(nil)
-	_ resource.RelationshipResolver[clients.ClientSet]  = (*NodeResourcer)(nil)
+	_ resource.ActionResourcer[clients.ClientSet]      = (*NodeResourcer)(nil)
+	_ resource.RelationshipDeclarer                    = (*NodeResourcer)(nil)
+	_ resource.RelationshipResolver[clients.ClientSet] = (*NodeResourcer)(nil)
 )
 
 // NewNodeResourcer creates a NodeResourcer for core::v1::Node.
@@ -117,9 +117,9 @@ func (n *NodeResourcer) GetActions(
 			ParamsSchema: &resource.Schema{
 				Properties: map[string]resource.SchemaProperty{
 					"gracePeriodSeconds": {Type: resource.SchemaInteger, Default: 30, Description: "Seconds to wait for graceful termination"},
-					"ignoreDaemonSets":  {Type: resource.SchemaBoolean, Default: true, Description: "Ignore DaemonSet-managed pods"},
+					"ignoreDaemonSets":   {Type: resource.SchemaBoolean, Default: true, Description: "Ignore DaemonSet-managed pods"},
 					"deleteEmptyDirData": {Type: resource.SchemaBoolean, Default: true, Description: "Delete pods using emptyDir volumes"},
-					"force":             {Type: resource.SchemaBoolean, Default: false, Description: "Force-delete pods that fail eviction"},
+					"force":              {Type: resource.SchemaBoolean, Default: false, Description: "Force-delete pods that fail eviction"},
 				},
 			},
 		},
@@ -195,7 +195,7 @@ func (n *NodeResourcer) StreamAction(
 	_ resource.ActionInput,
 	_ chan<- resource.ActionEvent,
 ) error {
-	return fmt.Errorf("streaming actions not supported for nodes")
+	return &resource.ResourceOperationError{Code: "UNSUPPORTED", Title: "Unsupported operation", Message: "Streaming actions are not supported for this resource."}
 }
 
 // ====================== ACTION IMPLEMENTATIONS ====================== //

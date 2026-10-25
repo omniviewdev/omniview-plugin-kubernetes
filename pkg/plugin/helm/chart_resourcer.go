@@ -25,7 +25,7 @@ type ChartResourcer struct {
 }
 
 var (
-	_ resource.Resourcer[clients.ClientSet]      = (*ChartResourcerWithActions)(nil)
+	_ resource.Resourcer[clients.ClientSet]       = (*ChartResourcerWithActions)(nil)
 	_ resource.ActionResourcer[clients.ClientSet] = (*ChartResourcerWithActions)(nil)
 )
 
@@ -533,5 +533,5 @@ func (r *ChartResourcerWithActions) StreamAction(
 	_ resource.ActionInput,
 	_ chan<- resource.ActionEvent,
 ) error {
-	return fmt.Errorf("streaming actions not supported for charts")
+	return &resource.ResourceOperationError{Code: "UNSUPPORTED", Title: "Unsupported operation", Message: "Streaming actions are not supported for this resource."}
 }

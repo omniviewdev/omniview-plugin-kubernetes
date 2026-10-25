@@ -25,9 +25,9 @@ type DaemonSetResourcer struct {
 // Compile-time interface checks.
 var (
 	_ resource.Resourcer[clients.ClientSet]            = (*DaemonSetResourcer)(nil)
-	_ resource.ActionResourcer[clients.ClientSet]       = (*DaemonSetResourcer)(nil)
-	_ resource.RelationshipDeclarer                     = (*DaemonSetResourcer)(nil)
-	_ resource.RelationshipResolver[clients.ClientSet]  = (*DaemonSetResourcer)(nil)
+	_ resource.ActionResourcer[clients.ClientSet]      = (*DaemonSetResourcer)(nil)
+	_ resource.RelationshipDeclarer                    = (*DaemonSetResourcer)(nil)
+	_ resource.RelationshipResolver[clients.ClientSet] = (*DaemonSetResourcer)(nil)
 )
 
 // NewDaemonSetResourcer creates a DaemonSetResourcer for apps::v1::DaemonSet.
@@ -151,7 +151,7 @@ func (d *DaemonSetResourcer) StreamAction(
 	case "restart":
 		return d.streamRestart(ctx, client, input, stream)
 	default:
-		return fmt.Errorf("streaming not supported for action: %s", actionID)
+		return &resource.ResourceOperationError{Code: "UNSUPPORTED", Title: "Unsupported operation", Message: "This action does not support streaming."}
 	}
 }
 
@@ -197,16 +197,7 @@ func (d *DaemonSetResourcer) streamRestart(
 		[]byte(patch), metav1.PatchOptions{},
 	)
 	if err != nil {
-		stream <- resource.ActionEvent{
-			Type: "error",
-			Data: map[string]interface{}{"message": fmt.Sprintf("failed to restart: %v", err)},
-		}
 		return err
-	}
-
-	stream <- resource.ActionEvent{
-		Type: "progress",
-		Data: map[string]interface{}{"message": "Rollout restart initiated"},
 	}
 
 	watcher, err := client.KubeClient.AppsV1().DaemonSets(input.Namespace).Watch(
@@ -215,33 +206,26 @@ func (d *DaemonSetResourcer) streamRestart(
 		},
 	)
 	if err != nil {
-		stream <- resource.ActionEvent{
-			Type: "error",
-			Data: map[string]interface{}{"message": fmt.Sprintf("failed to watch daemonset: %v", err)},
-		}
 		return err
 	}
 	defer watcher.Stop()
+	select {
+	case stream <- resource.ActionEvent{Type: "ready"}:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 
 	timeout := time.After(5 * time.Minute)
 	for {
 		select {
 		case <-timeout:
-			stream <- resource.ActionEvent{
-				Type: "error",
-				Data: map[string]interface{}{"message": "rollout restart timed out after 5 minutes"},
-			}
-			return fmt.Errorf("rollout restart timed out")
+			return &resource.ResourceOperationError{Code: "TIMEOUT", Title: "Timed out", Message: "The rollout restart exceeded its deadline."}
 
 		case <-ctx.Done():
 			return ctx.Err()
 
 		case event, ok := <-watcher.ResultChan():
 			if !ok {
-				stream <- resource.ActionEvent{
-					Type: "error",
-					Data: map[string]interface{}{"message": "watch channel closed unexpectedly"},
-				}
 				return fmt.Errorf("watch channel closed")
 			}
 			if event.Type != watch.Modified {
@@ -254,24 +238,26 @@ func (d *DaemonSetResourcer) streamRestart(
 
 			desired := ds.Status.DesiredNumberScheduled
 
-			stream <- resource.ActionEvent{
-				Type: "progress",
-				Data: map[string]interface{}{
-					"ready":   ds.Status.NumberReady,
-					"desired": desired,
-					"updated": ds.Status.UpdatedNumberScheduled,
-					"message": fmt.Sprintf("%d/%d nodes ready", ds.Status.NumberReady, desired),
-				},
+			select {
+			case stream <- resource.ActionEvent{Type: "progress", Data: map[string]interface{}{
+				"ready":   ds.Status.NumberReady,
+				"desired": desired,
+				"updated": ds.Status.UpdatedNumberScheduled,
+				"message": fmt.Sprintf("%d/%d nodes ready", ds.Status.NumberReady, desired),
+			}}:
+			case <-ctx.Done():
+				return ctx.Err()
 			}
 
 			if ds.Status.UpdatedNumberScheduled == desired &&
 				ds.Status.NumberReady == desired &&
 				ds.Status.NumberAvailable == desired {
-				stream <- resource.ActionEvent{
-					Type: "complete",
-					Data: map[string]interface{}{
-						"message": fmt.Sprintf("DaemonSet %s successfully restarted", input.ID),
-					},
+				select {
+				case stream <- resource.ActionEvent{Type: "complete", Data: map[string]interface{}{
+					"message": fmt.Sprintf("DaemonSet %s successfully restarted", input.ID),
+				}}:
+				case <-ctx.Done():
+					return ctx.Err()
 				}
 				return nil
 			}

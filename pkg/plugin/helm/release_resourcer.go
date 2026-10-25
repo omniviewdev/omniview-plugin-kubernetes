@@ -23,7 +23,7 @@ type ReleaseResourcer struct {
 
 // Compile-time checks.
 var (
-	_ resource.Resourcer[clients.ClientSet]      = (*ReleaseResourcer)(nil)
+	_ resource.Resourcer[clients.ClientSet]       = (*ReleaseResourcer)(nil)
 	_ resource.ActionResourcer[clients.ClientSet] = (*ReleaseResourcer)(nil)
 )
 
@@ -460,7 +460,7 @@ func (r *ReleaseResourcer) StreamAction(
 	_ resource.ActionInput,
 	_ chan<- resource.ActionEvent,
 ) error {
-	return fmt.Errorf("streaming actions not yet implemented for releases")
+	return &resource.ResourceOperationError{Code: "UNSUPPORTED", Title: "Unsupported operation", Message: "Streaming actions are not supported for this resource."}
 }
 
 // ================================= SCHEMA ================================= //
@@ -924,10 +924,10 @@ func (r *ReleaseResourcer) executeTest(
 			events = append(events, string(e))
 		}
 		hooks = append(hooks, map[string]interface{}{
-			"name":     hook.Name,
-			"kind":     hook.Kind,
-			"events":   events,
-			"lastRun":  hook.LastRun,
+			"name":    hook.Name,
+			"kind":    hook.Kind,
+			"events":  events,
+			"lastRun": hook.LastRun,
 		})
 	}
 
