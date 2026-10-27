@@ -239,6 +239,8 @@ The backend consumes the published SDK pinned in `go.mod`. Restart streams emit 
 
 These action semantics require a compatible host/runtime cohort. Coordinate changes with [the host invocation contract](https://github.com/omniviewdev/omniview/issues/83); source integration does not publish a plugin release.
 
+Resource watch streams acknowledge actual SDK listener registration before the host admits connections. Build the plugin and host from the same reviewed SDK cohort; the host rejects streams without that acknowledgement.
+
 ### Prerequisites
 
 - Go 1.25+
