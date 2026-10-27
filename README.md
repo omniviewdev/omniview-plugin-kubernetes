@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://omniview.dev"><img src="https://img.shields.io/badge/omniview-plugin-326CE5?style=flat-square&logo=kubernetes&logoColor=white" alt="Omniview Plugin" /></a>
-  <img src="https://img.shields.io/badge/version-0.3.0-blue?style=flat-square" alt="Version" />
+  <img src="https://img.shields.io/badge/version-0.7.0-blue?style=flat-square" alt="Version" />
   <img src="https://img.shields.io/badge/license-Apache--2.0-green?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/category-cloud-326CE5?style=flat-square" alt="Category" />
 </p>
@@ -241,6 +241,23 @@ These action semantics require a compatible host/runtime cohort. Coordinate chan
 
 Resource watch streams acknowledge actual SDK listener registration before the host admits connections. Build the plugin and host from the same reviewed SDK cohort; the host rejects streams without that acknowledgement.
 
+### Settings and shared dependency migration
+
+Rebuild both the backend and UI when upgrading to this release. Older plugin
+archives are not compatible with the host's current shared dependency contract:
+the host shares React 19 and `@omniviewdev/base-ui`, not MUI, Emotion, or the
+legacy `@omniviewdev/ui` package.
+
+Settings validation uses the SDK's single structured
+`Validator func(interface{}) settings.ValidationResult` callback. Kubernetes
+currently registers no custom validators; host-managed settings use the SDK's
+standard validation and draft-validation RPC. Do not add an error-returning
+validator or a separate `ValidateValue` callback.
+
+The plugin manifest schema has no minimum-host-version field. Keep the host,
+backend SDK, runtime, and Vite plugin on the coordinated release cohort below
+rather than adding unsupported manifest fields.
+
 ### Prerequisites
 
 - Go 1.25+
@@ -249,8 +266,8 @@ Resource watch streams acknowledge actual SDK listener registration before the h
 
 Registry installs retain pnpm's 24-hour release-age protection. Only coordinated
 `@omniviewdev/*` packages are exempted; linked source worktrees resolve locally.
-The current UI cohort is `@omniviewdev/base-ui` 0.5.0 and
-`@omniviewdev/editors` 4.0.0, paired with host runtime/Vite packages 0.5.0.
+The current UI cohort is `@omniviewdev/base-ui` 0.7.0 and
+`@omniviewdev/editors` 6.0.0, paired with host/runtime/Vite 0.7.0 and Go SDK v0.7.0.
 
 ### Building
 

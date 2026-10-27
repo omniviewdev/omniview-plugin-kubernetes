@@ -270,12 +270,8 @@ github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f h1:y5//uYreIhSUg3J
 github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f/go.mod h1:ZdcZmHo+o7JKHSa8/e818NopupXU1YMK5fe1lsApnBw=
 github.com/oklog/run v1.1.0 h1:GEenZ1cK0+q0+wsJew9qUg/DyD8k3JzYsZAi5gYi2mA=
 github.com/oklog/run v1.1.0/go.mod h1:sVPdnTZT1zYwAJeCMu2Th4T21pA3FPOQRfWjQlk7DVU=
-github.com/omniviewdev/plugin-sdk v0.6.0 h1:C+EZI7LXAYsaeS1DtOoXgEihaj6A0BjVd+iNdp8+JUA=
-github.com/omniviewdev/plugin-sdk v0.6.0/go.mod h1:7EL5BfctDEQdflClkZMhgvSAGkDff79UteN7rcuBUho=
-github.com/omniviewdev/plugin-sdk v0.6.1-0.20261025021152-8e78f72556c5 h1:OP6PeO5LT6hsTOW/jgdAV3QS0EYK4tVxpbepRco4c3U=
-github.com/omniviewdev/plugin-sdk v0.6.1-0.20261025021152-8e78f72556c5/go.mod h1:7EL5BfctDEQdflClkZMhgvSAGkDff79UteN7rcuBUho=
-github.com/omniviewdev/plugin-sdk v0.6.1-0.20261027043654-cae2a08cf2b9 h1:jSzc/Z5TxxPkQSkYGOQQdmYCZFaWe70ovcSPHP7XxyQ=
-github.com/omniviewdev/plugin-sdk v0.6.1-0.20261027043654-cae2a08cf2b9/go.mod h1:7EL5BfctDEQdflClkZMhgvSAGkDff79UteN7rcuBUho=
+github.com/omniviewdev/plugin-sdk v0.7.0 h1:jgspsb2tngT875VV3Wq6oxGj5KyYQxFjSWkepxPuCns=
+github.com/omniviewdev/plugin-sdk v0.7.0/go.mod h1:7EL5BfctDEQdflClkZMhgvSAGkDff79UteN7rcuBUho=
 github.com/onsi/ginkgo/v2 v2.27.2 h1:LzwLj0b89qtIy6SSASkzlNvX6WktqurSHwkk2ipF/Ns=
 github.com/onsi/ginkgo/v2 v2.27.2/go.mod h1:ArE1D/XhNXBXCBkKOLkbsb2c81dQHCRcF5zwn/ykDRo=
 github.com/onsi/gomega v1.38.2 h1:eZCjf2xjZAqe+LeWvKb5weQ+NcPwX84kqJ0cZNxok2A=
