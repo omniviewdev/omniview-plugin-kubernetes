@@ -9,16 +9,9 @@ import type {
 } from '@omniviewdev/runtime';
 
 /**
- * Drawer actions are plain objects (`DrawerComponentAction`), but what they do
- * needs React hooks: the confirmation modal, mutations, log and exec sessions.
- * A drawer opened from a table row could close over the table's hooks; a drawer
- * opened from a link (owner chip, Related view, graph) is built by a plain
- * factory and could not, so it had no actions.
- *
- * Instead, `DrawerActionsBridge` calls the hooks and registers the results here,
- * keyed by connection and resource type. It is mounted in every drawer view and
- * in every resource table, so whichever way an action is triggered, the handlers
- * for its resource are mounted. Actions look them up with `drawerActionDeps(ctx)`.
+ * Shared hook-backed execution dependencies. Drawer bridges register fallback
+ * handlers; standalone consumers bind handlers directly to their context.
+ * Context binding survives confirmation callbacks without a mounted table.
  */
 
 export type ScaleTarget = { name: string; namespace: string; replicas: number };
@@ -41,6 +34,13 @@ export type DrawerActionDeps = {
 
 const registry = new Map<string, DrawerActionDeps[]>();
 
+const contextDeps = new WeakMap<DrawerContext, DrawerActionDeps>();
+
+export function bindDrawerActionDeps(ctx: DrawerContext, deps: DrawerActionDeps): DrawerContext {
+  contextDeps.set(ctx, deps);
+  return ctx;
+}
+
 export const registryKey = (connectionID: string, resourceKey: string) => `${connectionID}\u0000${resourceKey}`;
 
 export function registerDrawerActionDeps(key: string, deps: DrawerActionDeps): () => void {
@@ -58,6 +58,8 @@ export function registerDrawerActionDeps(key: string, deps: DrawerActionDeps): (
 
 /** The hook-backed handlers for the resource in `ctx`. Call it inside an action handler. */
 export function drawerActionDeps(ctx: DrawerContext): DrawerActionDeps {
+  const bound = contextDeps.get(ctx);
+  if (bound) return bound;
   const connectionID = ctx.resource?.connectionID ?? '';
   const resourceKey = ctx.resource?.key ?? '';
   const list = registry.get(registryKey(connectionID, resourceKey));

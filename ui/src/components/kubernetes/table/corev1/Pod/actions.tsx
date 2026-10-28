@@ -52,7 +52,7 @@ export const drawerActions: Array<DrawerComponentAction<Pod>> = [
         list.push({
           title: container.name,
           action: () => {
-            void drawerActionDeps(ctx).createExecSession({
+            return drawerActionDeps(ctx).createExecSession({
               connectionID: ctx.resource?.connectionID ?? '',
               label: `${ctx.data?.metadata?.name}/${container.name}`,
               icon: 'LuContainer',
@@ -70,7 +70,7 @@ export const drawerActions: Array<DrawerComponentAction<Pod>> = [
         list.push({
           title: container.name,
           action: () => {
-            void drawerActionDeps(ctx).createExecSession({
+            return drawerActionDeps(ctx).createExecSession({
               connectionID: ctx.resource?.connectionID ?? '',
               label: `${ctx.data?.metadata?.name}/${container.name}`,
               icon: 'LuContainer',
@@ -104,7 +104,7 @@ export const drawerActions: Array<DrawerComponentAction<Pod>> = [
         list.push({
           title: 'All Containers',
           action: () => {
-            void drawerActionDeps(ctx).createLogSession({
+            return drawerActionDeps(ctx).createLogSession({
               connectionID: ctx.resource?.connectionID ?? '',
               resourceKey,
               resourceID: ctx.data?.metadata?.name as string,
@@ -122,7 +122,7 @@ export const drawerActions: Array<DrawerComponentAction<Pod>> = [
         list.push({
           title: container.name,
           action: () => {
-            void drawerActionDeps(ctx).createLogSession({
+            return drawerActionDeps(ctx).createLogSession({
               connectionID: ctx.resource?.connectionID ?? '',
               resourceKey,
               resourceID: ctx.data?.metadata?.name as string,
@@ -139,7 +139,7 @@ export const drawerActions: Array<DrawerComponentAction<Pod>> = [
         list.push({
           title: `${container.name} (init)`,
           action: () => {
-            void drawerActionDeps(ctx).createLogSession({
+            return drawerActionDeps(ctx).createLogSession({
               connectionID: ctx.resource?.connectionID ?? '',
               resourceKey,
               resourceID: ctx.data?.metadata?.name as string,
@@ -156,7 +156,7 @@ export const drawerActions: Array<DrawerComponentAction<Pod>> = [
         list.push({
           title: `${container.name} (ephemeral)`,
           action: () => {
-            void drawerActionDeps(ctx).createLogSession({
+            return drawerActionDeps(ctx).createLogSession({
               connectionID: ctx.resource?.connectionID ?? '',
               resourceKey,
               resourceID: ctx.data?.metadata?.name as string,

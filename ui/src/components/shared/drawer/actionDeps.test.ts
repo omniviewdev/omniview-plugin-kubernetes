@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { resourceDrawerActions } from '../../kubernetes/drawerActions';
 
-import { type DrawerActionDeps, drawerActionDeps, registerDrawerActionDeps, registryKey } from './actionDeps';
+import { bindDrawerActionDeps, type DrawerActionDeps, drawerActionDeps, registerDrawerActionDeps, registryKey } from './actionDeps';
 
 function fakeDeps(): DrawerActionDeps {
   return {
@@ -25,6 +25,16 @@ const rsCtx: DrawerContext = {
 };
 
 describe('drawerActionDeps', () => {
+  it('keeps explicitly bound context handlers independent of mounted surfaces', () => {
+    const bound = fakeDeps();
+    const mounted = fakeDeps();
+    const ctx = bindDrawerActionDeps({ ...rsCtx }, bound);
+    const unregister = registerDrawerActionDeps(registryKey('conn-1', 'apps::v1::ReplicaSet'), mounted);
+    expect(drawerActionDeps(ctx)).toBe(bound);
+    unregister();
+    expect(drawerActionDeps(ctx)).toBe(bound);
+  });
+
   it('throws when nothing is mounted for the resource', () => {
     expect(() => drawerActionDeps(rsCtx)).toThrow(/apps::v1::ReplicaSet/);
   });

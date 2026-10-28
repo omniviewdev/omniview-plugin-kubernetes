@@ -6,6 +6,7 @@ import {
   type DrawerFactory,
   type ExtensionRegistration,
   type HomepageCardMeta,
+  type SearchRouteHandleV1,
 } from '@omniviewdev/runtime';
 import { SiKubernetes } from 'react-icons/si';
 import React from 'react';
@@ -121,6 +122,14 @@ import ClusterDashboardBenchmarksPage from './pages/dashboard/benchmarks';
 import ClusterDashboardExtensionPage from './pages/dashboard/extension';
 import ClusterDashboardMetricsPage from './pages/dashboard/metrics';
 import ClusterDashboardOverviewPage from './pages/dashboard/overview';
+import { kubernetesSearchProvider } from './search/provider';
+import { kubernetesResourceIconSet } from './icons/resourceIcons';
+
+const connectionSearchHandle: SearchRouteHandleV1 = {
+  searchScope: ({ params }) => params.id
+    ? { kind: 'connection', pluginId: 'kubernetes', connectionId: params.id, label: params.id }
+    : undefined,
+};
 
 // @ts-expect-error Expose React to the plugin host window
 window.PluginReact = React;
@@ -280,10 +289,12 @@ const routes: Array<RouteObject> = [
       {
         path: 'edit',
         Component: ClusterEditPage,
+        handle: connectionSearchHandle,
       },
       {
         path: 'resources',
         Component: ClusterResourcesPage,
+        handle: connectionSearchHandle,
         children: [
           {
             path: '',
@@ -409,6 +420,24 @@ const routes: Array<RouteObject> = [
 ];
 
 export const extensionRegistrations: ExtensionRegistration[] = [
+  {
+    extensionPointId: 'omniview/resource/icons',
+    registration: {
+      id: 'resource-icons',
+      plugin: 'kubernetes',
+      label: 'Kubernetes resource icons',
+      value: kubernetesResourceIconSet,
+    },
+  },
+  {
+    extensionPointId: 'omniview/global-search',
+    registration: {
+      id: 'kubernetes/global-search',
+      plugin: 'kubernetes',
+      label: 'Kubernetes',
+      value: kubernetesSearchProvider,
+    },
+  },
   {
     extensionPointId: 'omniview/home/card',
     registration: {
