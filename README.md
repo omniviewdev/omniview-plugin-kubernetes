@@ -19,6 +19,66 @@
 
 Browse, inspect, edit, and manage Kubernetes clusters without leaving Omniview. The Kubernetes plugin provides real-time resource tables, an integrated terminal, log streaming, port forwarding, Helm chart management, cluster metrics, and full YAML editing — all from a single, unified interface.
 
+## Local audit evidence fixture
+
+`hack/history-audit.mjs` creates a separate, randomly named local kind sandbox.
+It does not connect Omniview history, provide historical reads, or resolve the
+blocked production query/evaluator gates.
+
+Requirements: Node.js 20+, `kubectl` compatible with Kubernetes 1.32, kind
+**v0.27.0**, and a running local Docker engine using a Unix-socket Docker context.
+Unset `DOCKER_HOST` and `DOCKER_CONTEXT`; remote Docker endpoints are refused.
+Docker must permit bind mounts from the chosen directory. The node image is
+`kindest/node:v1.32.2@sha256:f226345927d7e348497136874b6d207e0b32cc52154ad8323129352923a3142f`,
+published for amd64 and arm64 in the
+[kind v0.27.0 release](https://github.com/kubernetes-sigs/kind/releases/tag/v0.27.0).
+Initial setup may download this image and kind's standard system images.
+No fixture workload or external application image is needed.
+
+Run from this repository. Choose an absolute, canonical path whose final directory
+does **not** exist; do not use a symlinked parent (`/tmp` is symlinked on macOS).
+For example, use a new directory below your real home directory:
+
+```bash
+SANDBOX="$HOME/omniview-history-audit-smoke"
+node hack/history-audit.mjs create "$SANDBOX"
+node hack/history-audit.mjs exercise "$SANDBOX"
+node hack/history-audit.mjs inspect "$SANDBOX"
+node hack/history-audit.mjs delete "$SANDBOX"
+node --test hack/history-audit.test.mjs
+```
+
+Creation prints the generated name, private kubeconfig path, and explicit context.
+Every cluster operation uses that kubeconfig/context, never the user's kubeconfig
+or current cluster. Existing directories/clusters are never adopted. Ownership
+checks require the exact kind label, sandbox host mount, and recorded container ID.
+The private directory contains credentials: do not upload or commit it.
+
+Exercise runs once per fresh sandbox. It performs ConfigMap create, patch, server
+dry-run, RBAC-denied create, delete, and recreate, and asserts distinct incarnation
+UIDs. It also creates a core Event, a namespaced custom resource with an explicit
+CRD, and a status-subresource patch. Synthetic Secret and TokenReview probes check
+the metadata-only boundary. CRD creation itself is metadata-only.
+
+The mounted `audit/audit.jsonl` contains actual API-server audit events. The policy
+captures RequestResponse only for fixture-namespace ConfigMap, Event, and Sample
+writes. Secret, authentication, authorization, other namespaces, and other resources
+remain metadata-only. `RequestReceived` is omitted. Inspect rejects malformed JSONL,
+unexpected RequestReceived events, and bodies outside the allowlist; its evidence
+lists audit IDs, stages, HTTP outcomes, request URIs (including dry-run), and UIDs.
+Compare completed ConfigMap create UIDs with `exercise.json`; look for a 403 denied
+request, a `dryRun=All` URI, and the Sample status patch. Synthetic unit-test audit
+records are not real-cluster evidence.
+
+Subprocess deadlines, output caps, and a 24 MiB inspection limit bound local work.
+The audit log rotates at 20 MiB with one backup; inspect reads only the active file,
+so run it promptly after exercise. This fixture does not prove durable retention,
+watch ingestion, historical authorization, numeric query safety, or host history.
+An interrupted create retains its sandbox and any partial cluster for explicit
+cleanup. Run `delete` with the same directory; it refuses unknown/replaced containers
+and retains evidence. A failure before a container exists leaves only local files.
+After deletion, archive desired evidence, then remove the private directory yourself.
+
 ## Highlights
 
 - **70+ resource types** across every major Kubernetes API group, with automatic discovery of Custom Resource Definitions
