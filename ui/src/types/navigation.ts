@@ -16,6 +16,8 @@ export interface NavMenuItem {
   badge?: React.ReactNode;
   children?: NavMenuItem[];
   disabled?: boolean;
+  /** A parent with children can also be a navigable destination. */
+  selectable?: boolean;
   /** Start expanded when first rendered. Only relevant for items with children. */
   defaultExpanded?: boolean;
 }

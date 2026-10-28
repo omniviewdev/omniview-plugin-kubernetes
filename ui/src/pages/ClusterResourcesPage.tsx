@@ -1,5 +1,5 @@
 import { Avatar, IconButton, Stack, Text } from '@omniviewdev/base-ui';
-import { Link, useWatchState,
+import { Link, useWatchState, openGlobalSearch,
   useConnection,
   useResourceTypes,
   useResourceGroups,
@@ -7,12 +7,12 @@ import { Link, useWatchState,
   usePluginRouter,
   useEditorSchemas } from '@omniviewdev/runtime';
 import React from 'react';
-import { LuCog, LuLock, LuLockOpen, LuPuzzle, LuRotateCcw } from 'react-icons/lu';
+import { LuCog, LuLock, LuLockOpen, LuPuzzle, LuRotateCcw, LuSearch } from 'react-icons/lu';
 import { Outlet, useParams } from 'react-router-dom';
 
 import DraggableNavMenu from '../components/kubernetes/sidebar/DraggableNavMenu';
 import { useStoredState } from '@/hooks/useStoredState';
-import ResourceCommandPalette from '../components/shared/ResourceCommandPalette';
+import { useKubernetesSearchNavigation } from '../search/provider';
 import SimpleTooltip from '../components/shared/SimpleTooltip';
 import SyncProgressDialog from '../components/shared/SyncProgressDialog';
 import { useClusterPreferences } from '../hooks/useClusterPreferences';
@@ -112,6 +112,7 @@ export default function ClusterResourcesPage(): React.ReactElement {
     const at = first.items.findIndex((item) => item.id === '__dashboard__') + 1;
     return [{ ...first, items: [...first.items.slice(0, at), ...pageItems, ...first.items.slice(at)] }, ...rest];
   }, [rawLayout, order, clusterPages]);
+  useKubernetesSearchNavigation(id, layout);
   const { location, navigate } = usePluginRouter();
   const [savedExpandedState, setSavedExpandedState] = useStoredState<Record<string, boolean>>(
     `kubernetes-${id}-sidebar-expanded`,
@@ -249,7 +250,6 @@ export default function ClusterResourcesPage(): React.ReactElement {
 
   return (
     <Layout.Root style={rootStyle}>
-      <ResourceCommandPalette connectionID={id} layout={layout} onNavigate={handleSelect} />
       <Layout.SideNav type="bordered" padding={0.5}>
         <Stack direction="column" spacing={1} style={sidenavStackStyle}>
           <div style={sidenavHeaderStyle}>
@@ -273,6 +273,19 @@ export default function ClusterResourcesPage(): React.ReactElement {
               </Text>
             </Stack>
             <Stack direction="row" align="center" spacing={1}>
+              <SimpleTooltip content="Find in this connection" placement="bottom">
+                <IconButton
+                  variant="soft"
+                  size="sm"
+                  color="neutral"
+                  aria-label="Find in this connection"
+                  onClick={() => openGlobalSearch({ scope: {
+                    kind: 'connection', pluginId: 'kubernetes', connectionId: id, label: clusterName,
+                  } })}
+                >
+                  <LuSearch size={16} />
+                </IconButton>
+              </SimpleTooltip>
               {isEditing && (
                 <SimpleTooltip content="Reset to default order" placement="bottom">
                   <IconButton

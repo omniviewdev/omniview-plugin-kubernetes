@@ -22,7 +22,7 @@ type BridgeProps = {
   resourceKey: string;
 };
 
-const DrawerActionsBridge: React.FC<BridgeProps> = ({ connectionID, resourceKey }) => {
+export const useDrawerActionExecution = ({ connectionID, resourceKey }: BridgeProps) => {
   const { show } = useConfirmationModal();
   const { remove, update } = useResourceMutations({ pluginID: PLUGIN_ID });
   const { createLogSession } = useLogs({ pluginID: PLUGIN_ID });
@@ -51,14 +51,8 @@ const DrawerActionsBridge: React.FC<BridgeProps> = ({ connectionID, resourceKey 
     [show, remove, update, createLogSession, createSession, executeAction, startStreamAction, closeDrawer, nodeShellConfig],
   );
 
-  React.useEffect(
-    () => registerDrawerActionDeps(registryKey(connectionID, resourceKey), deps),
-    [connectionID, resourceKey, deps],
-  );
 
-  if (!scaleTarget) return null;
-
-  return (
+  const dialogs = scaleTarget ? (
     <ScaleModal
       open
       onClose={() => setScaleTarget(null)}
@@ -78,7 +72,17 @@ const DrawerActionsBridge: React.FC<BridgeProps> = ({ connectionID, resourceKey 
       currentReplicas={scaleTarget.replicas}
       isExecuting={isExecuting}
     />
+  ) : null;
+  return { deps, dialogs, isBusy: scaleTarget !== null || isExecuting };
+};
+
+const DrawerActionsBridge: React.FC<BridgeProps> = (props) => {
+  const { deps, dialogs } = useDrawerActionExecution(props);
+  React.useEffect(
+    () => registerDrawerActionDeps(registryKey(props.connectionID, props.resourceKey), deps),
+    [props.connectionID, props.resourceKey, deps],
   );
+  return dialogs;
 };
 
 export default DrawerActionsBridge;

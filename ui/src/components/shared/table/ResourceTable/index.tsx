@@ -1,5 +1,5 @@
 import { DataTable, Progress, Skeleton } from '@omniviewdev/base-ui';
-import { useResources, useRightDrawer, DrawerComponent } from '@omniviewdev/runtime';
+import { useResources, useRightDrawer, usePluginRouter, DrawerComponent } from '@omniviewdev/runtime';
 import {
   type ColumnDef,
   type ColumnFiltersState,
@@ -116,7 +116,12 @@ const ResourceTableContainer: React.FC<Props> = ({
     {},
   );
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const [search, setSearch] = useState<string>('');
+  const { location } = usePluginRouter();
+  const navigationSearch = new URLSearchParams(location.search).get('search') ?? '';
+  const [search, setSearch] = useState<string>(navigationSearch);
+  React.useEffect(() => {
+    setSearch(navigationSearch);
+  }, [connectionID, resourceKey, location.key, location.pathname, navigationSearch]);
 
   // Shared per-connection namespace selection
   const { namespaces: sharedNamespaces, setNamespaces: setSharedNamespaces } =

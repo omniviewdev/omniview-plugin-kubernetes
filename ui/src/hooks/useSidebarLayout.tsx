@@ -5,6 +5,7 @@ import {
   useResourceGroups,
   useWatchState,
   WatchState,
+  ResourceIcon,
 } from '@omniviewdev/runtime';
 import { resource } from '@omniviewdev/runtime/models';
 import React from 'react';
@@ -12,13 +13,10 @@ import {
   LuBlocks,
   LuBoxes,
   LuClipboard,
-  LuCloudLightning,
   LuDatabase,
   LuGauge,
-  LuLayers2,
   LuLock,
   LuNetwork,
-  LuServer,
   LuTicket,
 } from 'react-icons/lu';
 import { SiHelm } from 'react-icons/si';
@@ -65,9 +63,6 @@ function resolveIcon(
 // --- Module-level icon constants (allocated once, reused forever) ---
 
 const ICON_GAUGE = <LuGauge />;
-const ICON_SERVER = <LuServer />;
-const ICON_CLOUD_LIGHTNING = <LuCloudLightning />;
-const ICON_LAYERS = <LuLayers2 />;
 const ICON_BOXES = <LuBoxes />;
 const ICON_CLIPBOARD = <LuClipboard />;
 const ICON_NETWORK = <LuNetwork />;
@@ -149,7 +144,7 @@ const calculateFullLayout = (
           children.push({
             id: toID(meta),
             label: meta.kind,
-            icon: resolveIcon(meta.icon),
+            icon: <ResourceIcon pluginId="kubernetes" resourceKey={toResourceKey(toID(meta))} size={16} />,
             badge: getStateBadge(toID(meta), watchStates),
           });
         });
@@ -274,6 +269,7 @@ const calculateModernLayout = (
   const withBadge = (id: string, label: string): NavMenuItem => ({
     id,
     label,
+    icon: <ResourceIcon pluginId="kubernetes" resourceKey={toResourceKey(id)} size={16} />,
     badge: getStateBadge(id, watchStates),
   });
 
@@ -352,19 +348,19 @@ const calculateModernLayout = (
         {
           id: 'core_v1_Node',
           label: 'Nodes',
-          icon: ICON_SERVER,
+          icon: <ResourceIcon pluginId="kubernetes" resourceKey="core::v1::Node" size={16} />,
           badge: getStateBadge('core_v1_Node', watchStates),
         },
         {
           id: 'events_v1_Event',
           label: 'Events',
-          icon: ICON_CLOUD_LIGHTNING,
+          icon: <ResourceIcon pluginId="kubernetes" resourceKey="events::v1::Event" size={16} />,
           badge: getStateBadge('events_v1_Event', watchStates),
         },
         {
           id: 'core_v1_Namespace',
           label: 'Namespaces',
-          icon: ICON_LAYERS,
+          icon: <ResourceIcon pluginId="kubernetes" resourceKey="core::v1::Namespace" size={16} />,
           badge: getStateBadge('core_v1_Namespace', watchStates),
         },
         {

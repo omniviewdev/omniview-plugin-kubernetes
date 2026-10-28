@@ -85,7 +85,7 @@ export const drawerActions: Array<DrawerComponentAction<DaemonSet>> = [
       list.push({
         title: 'All Containers',
         action: () => {
-          void drawerActionDeps(ctx).createLogSession({
+          return drawerActionDeps(ctx).createLogSession({
             connectionID: ctx.resource?.connectionID ?? '',
             resourceKey,
             resourceID: ctx.data?.metadata?.name as string,
@@ -102,7 +102,7 @@ export const drawerActions: Array<DrawerComponentAction<DaemonSet>> = [
         list.push({
           title: container.name,
           action: () => {
-            void drawerActionDeps(ctx).createLogSession({
+            return drawerActionDeps(ctx).createLogSession({
               connectionID: ctx.resource?.connectionID ?? '',
               resourceKey,
               resourceID: ctx.data?.metadata?.name as string,

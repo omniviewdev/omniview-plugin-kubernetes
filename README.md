@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://omniview.dev"><img src="https://img.shields.io/badge/omniview-plugin-326CE5?style=flat-square&logo=kubernetes&logoColor=white" alt="Omniview Plugin" /></a>
-  <img src="https://img.shields.io/badge/version-0.7.0-blue?style=flat-square" alt="Version" />
+  <img src="https://img.shields.io/badge/version-0.7.1-blue?style=flat-square" alt="Version" />
   <img src="https://img.shields.io/badge/license-Apache--2.0-green?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/category-cloud-326CE5?style=flat-square" alt="Category" />
 </p>
@@ -18,6 +18,10 @@
 ---
 
 Browse, inspect, edit, and manage Kubernetes clusters without leaving Omniview. The Kubernetes plugin provides real-time resource tables, an integrated terminal, log streaming, port forwarding, Helm chart management, cluster metrics, and full YAML editing — all from a single, unified interface.
+
+Resource icons come from the upstream [Kubernetes Icons Set](https://github.com/kubernetes/community/tree/aeee117fa02e25b68298999d699fb45bdc91acb7/icons), bundled under Apache-2.0. Source attribution and license live in `ui/src/icons/kubernetes/NOTICE` and `LICENSE`. The plugin registers one `ResourceIconSetV1` at `omniview/resource/icons`; both sidebar layouts and the host search palette reuse it. Kubernetes API versions share artwork within the same native API group and kind; unknown resources use the host fallback. Custom API groups cannot impersonate native kinds.
+
+Native artwork is adapted to monochrome resource glyphs without blue badges and uses inherited `currentColor` in every theme. Trusted bundled SVG geometry is imported inline, so sidebar and search icons need no image requests or cross-origin asset URLs. Sanitized assets contain no scripts, embedded HTML, external references, or style URLs; regression tests enforce the geometry and attribute allowlists. Modification details remain in `NOTICE`.
 
 ## Local audit evidence fixture
 
@@ -181,6 +185,24 @@ Every resource type gets a dedicated, sortable table with:
 - **Inline create** — open a YAML editor pre-populated with a template for the resource kind
 - **Row actions** — click any row to open a detail sidebar with tabs for overview, YAML, events, and more
 
+### Scoped Command Search
+
+Requires Omniview 0.7.4 or later in the compatible 0.7.x cohort for the shared search and resource-icon runtime contracts.
+
+Cmd/Ctrl-K opens Omniview's single global search surface, including on Kubernetes pages. Type a connection name and press Tab to scope it, then scope a resource type and resource. Enter opens the selected destination or existing action. The sidebar's **Find in this connection** control opens that same surface with a visible connection chip.
+
+Kubernetes routes automatically scope global search to the active connection only, including on Pod and other resource lists. Deeper scopes require explicit Tab selection or an explicit `openGlobalSearch` scope.
+
+Empty-input Backspace selects the final chip; another Backspace removes it. Removing a parent also removes dependent scopes and restores the parent search. Resource results show namespaces and retain UID identity so replaced objects cannot inherit stale actions.
+
+Search reuses the sidebar's destinations and eight connection-scoped recent resource types. **Open list matching …** transfers text into the resource table without changing its namespace, node/controller, or other structured filters. Search scans at most the first 200 objects and reports incomplete results; use the list for broader filtering.
+
+Disconnected connections require explicit connection. Authentication, permission, loading, and source failures remain visible. Logs, container choices, and destructive-action confirmations use the same action inventory as resource menus and drawers, even when no table is mounted.
+
+Resource scopes acquire native live-update subscriptions even when no table is open. Failed acquisition keeps current results visible and offers **Retry live updates**; closing or removing scopes releases their subscriptions. Event bursts preserve rows and selection, including updates received during an in-flight read.
+
+Search and resource views share the runtime's `resourceQueryKeys` snapshots. Query refinements reuse resource data for 15 seconds and readiness for 2 seconds. Action execution still reads and validates the current object instead of trusting the discovery snapshot. A deleted or replaced object is an object failure, not a reconnect suggestion.
+
 ### Detail Sidebars
 
 Click any resource row to open a rich sidebar panel with contextual information:
@@ -326,8 +348,8 @@ rather than adding unsupported manifest fields.
 
 Registry installs retain pnpm's 24-hour release-age protection. Only coordinated
 `@omniviewdev/*` packages are exempted; linked source worktrees resolve locally.
-The current UI cohort is `@omniviewdev/base-ui` 0.7.0 and
-`@omniviewdev/editors` 6.0.0, paired with host/runtime/Vite 0.7.0 and Go SDK v0.7.0.
+The current UI cohort is `@omniviewdev/base-ui` 0.7.1 and
+`@omniviewdev/editors` 6.0.1, paired with host/runtime/Vite plugin 0.7.4 and Go SDK v0.7.1.
 
 ### Building
 

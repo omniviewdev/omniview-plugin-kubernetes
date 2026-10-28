@@ -1,0 +1,9 @@
+Kubernetes Icons Set, Kubernetes Authors.
+Selected resource SVG files adapted from https://github.com/kubernetes/community/tree/aeee117fa02e25b68298999d699fb45bdc91acb7/icons/svg/resources/unlabeled (group.svg, user.svg, vol.svg omitted).
+Upstream commit: aeee117fa02e25b68298999d699fb45bdc91acb7
+node.svg comes from icons/svg/infrastructure_components/unlabeled/node.svg at the same commit (Git blob c0f2b8e13d6004c3c518834b03083eb206b4ed4f).
+Resource tree: faae00e08ccf4aa634452c7b39fea8e989e4e3c6
+Upstream icons/README.md grants Apache-2.0 OR CC-BY-4.0; used here under Apache-2.0 (LICENSE).
+https://github.com/kubernetes/community/blob/aeee117fa02e25b68298999d699fb45bdc91acb7/icons/README.md
+Modified by Omniview: removed Kubernetes blue badge backgrounds and surrounding badge borders, converted resource glyph fills and strokes to inherited currentColor, removed blue separator strokes, cropped viewBoxes around resource glyphs with padding for small icon sizes, and stripped editor metadata and non-geometric markup. The bundled files contain only inert SVG geometry and presentation attributes for trusted inline rendering.
+The Kubernetes logo is a Linux Foundation registered trademark; trademark rights are not granted.
