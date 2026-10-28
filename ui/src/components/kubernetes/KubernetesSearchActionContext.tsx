@@ -105,7 +105,9 @@ function ActionContext({ target, register }: {
 }) {
   const { deps, dialogs, isBusy } = useDrawerActionExecution(target);
   const latest = React.useRef(deps);
-  latest.current = deps;
+  React.useLayoutEffect(() => {
+    latest.current = deps;
+  }, [deps]);
   const stable = React.useMemo<DrawerActionDeps>(() => ({
     show: (...args) => latest.current.show(...args),
     remove: (...args) => latest.current.remove(...args),
