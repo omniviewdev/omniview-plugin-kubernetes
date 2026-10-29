@@ -6,6 +6,9 @@ import SectionHeading from '../shared/SectionHeading';
 import { subsectionLabelStyle } from '../shared/sectionStyles';
 
 import ContainerSlice from './ContainerSlice';
+import { Button } from '@omniviewdev/base-ui';
+import { useDrawerActionExecution } from '../../../shared/drawer/DrawerActionsBridge';
+import { runningDebugTargets } from '../../../../features/debug/targets';
 
 const groupHeaderStyle: React.CSSProperties = { padding: '6px 10px 2px' };
 const containerBoxStyle: React.CSSProperties = {
@@ -102,6 +105,8 @@ const PodContainersSection: React.FC<ContainersSectionProps> = ({
   podCpuUsage,
   podMemoryUsage,
 }) => {
+  const execution = useDrawerActionExecution({ connectionID, resourceKey: 'core::v1::Pod' });
+  const [debugError, setDebugError] = React.useState('');
   const parsed = parseContainers(obj, resourceID, connectionID);
   if (parsed.length === 0) return null;
 
@@ -111,6 +116,8 @@ const PodContainersSection: React.FC<ContainersSectionProps> = ({
 
   return (
     <div>
+      {execution.dialogs}
+      {debugError && <p role="alert">{debugError}</p>}
       <SectionHeading label="Containers" count={parsed.length} />
       <div style={containerBoxStyle}>
         {initContainers.length > 0 && (
@@ -141,6 +148,9 @@ const PodContainersSection: React.FC<ContainersSectionProps> = ({
               podCpuUsage={podCpuUsage}
               podMemoryUsage={podMemoryUsage}
             />
+            {runningDebugTargets(obj).includes(c.container.name) && <Button variant="ghost" onClick={() => {
+              void execution.deps.startDebug({ connectionID, resourceID, namespace: obj.metadata!.namespace!, podUID: obj.metadata!.uid!, targetContainerName: c.container.name, resourceData: obj }).catch(cause => setDebugError(String(cause)));
+            }}>Debug {c.container.name}</Button>}
           </React.Fragment>
         ))}
         {ephemeralContainers.length > 0 && (

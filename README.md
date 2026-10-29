@@ -227,10 +227,46 @@ Exec into any running container directly from the resource table. The plugin han
 
 - Multi-container pods with container selection
 - Intelligent shell detection (`bash` > `sh` > `ash`)
-- Distroless image fallback with debug containers
+- Explicit distroless recovery with targeted ephemeral containers
 - Node-level shell access via ephemeral debug pods
 - Terminal resize support
 - SPDY and WebSocket protocol fallback
+
+### Live Pod Debug
+
+Use **Debug** beside Exec and Logs in a Pod header. One running application
+container opens a toolbox shell immediately; multiple containers show a
+names-only target picker. No shell is required in the application image.
+The command palette exposes the same **Debug: container** actions after scoping
+to a Pod, including when its details drawer is closed.
+
+**Debug options** is secondary: choose a template or image, then expand
+**Customize** only when needed. Its controls use `@omniviewdev/base-ui`.
+Genuine missing-shell Exec errors offer **Debug this container**; other Exec
+errors do not inject a debugger automatically. Node shell remains a separate
+Node action.
+
+The toolbox shares Pod networking and requests the selected container's process
+namespace. Runtime support controls process visibility. Its root filesystem,
+environment, user and trust store remain separate. `/proc/PID/root` inspection
+also depends on permissions; the plugin does not automatically chroot, mount
+credentials or elevate privileges.
+
+The restricted default runs as UID 1000, drops all capabilities and disables
+privilege escalation. Network-admin and privileged profiles require explicit
+confirmation on every launch and remain subject to admission policy.
+Required feature permissions are `get` on `pods`, `update` on
+`pods/ephemeralcontainers`, and `get` plus `create` on `pods/attach` for the two
+streaming transports.
+
+Debug sessions retain their original Pod UID and exact container name.
+Image failures show the actual waiting reason; inspect status before opening
+a terminal. Reconnect attaches an existing running debugger rather than adding
+another container. Completed entries cannot restart or reconnect. Closing a
+terminal does not remove an ephemeral container, and Kubernetes does not allow
+editing or deleting individual ephemeral entries. Correcting an image requires
+an explicit new launch. An unconfirmed creation blocks duplicate submissions
+until status can establish its outcome.
 
 ### Log Viewer
 
@@ -306,6 +342,31 @@ The plugin automatically discovers clusters from your `~/.kube/config` file. You
 - Configure per-cluster display preferences (name, color, avatar)
 - Set namespace restrictions per connection
 - Configure node shell image and command overrides
+
+### Debug templates and defaults
+
+Open **Templates & defaults** from the Pod's secondary Debug options. Shell
+(`busybox:1.37.0`) and Network toolbox (`nicolaka/netshoot:v0.14`) are immutable
+starters: duplicate them to customize. Custom templates support a unique name,
+image, JSON argv array, access profile, image pull policy and explicitly entered
+non-secret environment values. Customize starts collapsed. Do not store secrets:
+template values are ordinary plugin preferences, not a secret store.
+
+Templates and the all-cluster default persist in the plugin Data Store under
+`debug_templates`. A cluster stores only its chosen template ID in its existing
+connection-ID-keyed preferences (`cluster_overrides.debugDefaultTemplateId`).
+The cluster choice wins over the all-cluster choice, then built-in Shell.
+**Inherit all-cluster default** follows later parent changes rather than copying
+the current image. Missing or invalid selections show an error and resolve to
+restricted Shell.
+
+**Save template** does not select a default or launch a container. **Save default**
+persists the scope's selection separately. Cancel discards template drafts;
+persistence errors remain visible without reporting success. Changes affect
+future launches only. Pod identity, target container and volume bindings are
+never template fields. An elevated saved template or default never authorizes
+an elevated launch: each invocation still requires fresh confirmation and remains
+subject to Kubernetes authorization and admission policy.
 
 ### Prometheus Integration
 

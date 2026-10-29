@@ -95,6 +95,8 @@ export interface ConnectionOverride {
   tags?: string[];
   metricConfig?: MetricConfig;
   nodeShellConfig?: NodeShellConfig;
+  /** Null or absent inherits the plugin-wide debug default. */
+  debugDefaultTemplateId?: string | null;
 }
 
 export interface ClusterPreferences {

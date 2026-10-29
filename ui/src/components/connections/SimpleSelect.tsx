@@ -6,6 +6,7 @@ import { LuChevronDown } from 'react-icons/lu';
 export type SimpleSelectOption = { value: string; label: React.ReactNode };
 
 export type SimpleSelectProps = {
+  id?: string;
   value: string;
   onChange: (value: string) => void;
   options: SimpleSelectOption[];
@@ -14,6 +15,7 @@ export type SimpleSelectProps = {
   disabled?: boolean;
   style?: React.CSSProperties;
   className?: string;
+  portalContainer?: React.ComponentProps<typeof Select.Portal>['container'];
   'aria-label'?: string;
 };
 
@@ -22,6 +24,7 @@ export type SimpleSelectProps = {
  * `@omniviewdev/ui/inputs` Select call shape on top of the base-ui compound Select.
  */
 const SimpleSelect: React.FC<SimpleSelectProps> = ({
+  id,
   value,
   onChange,
   options,
@@ -30,6 +33,7 @@ const SimpleSelect: React.FC<SimpleSelectProps> = ({
   disabled,
   style,
   className,
+  portalContainer,
   'aria-label': ariaLabel,
 }) => (
   <Select.Root
@@ -41,13 +45,13 @@ const SimpleSelect: React.FC<SimpleSelectProps> = ({
       if (next !== null && next !== undefined) onChange(String(next));
     }}
   >
-    <Select.Trigger style={style} className={className} aria-label={ariaLabel}>
+    <Select.Trigger id={id} style={style} className={className} aria-label={ariaLabel}>
       <Select.Value placeholder={placeholder} />
       <Select.Icon>
         <LuChevronDown aria-hidden />
       </Select.Icon>
     </Select.Trigger>
-    <Select.Portal>
+    <Select.Portal container={portalContainer}>
       <Select.Positioner sideOffset={4}>
         <Select.Popup>
           <Select.List>

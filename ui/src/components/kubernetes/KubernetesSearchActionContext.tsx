@@ -97,17 +97,19 @@ export async function executeSearchAction(action: SearchActionReferenceV1, conte
   }
 }
 
-type Registration = { key: string; deps: DrawerActionDeps; busy: boolean };
+type Registration = { key: string; deps: DrawerActionDeps; ready: boolean; busy: boolean };
 
 function ActionContext({ target, register }: {
   target: ContextTarget;
   register: (value?: Registration) => void;
 }) {
-  const { deps, dialogs, isBusy } = useDrawerActionExecution(target);
+  const { deps, dialogs, isReady, isBusy } = useDrawerActionExecution(target);
   const latest = React.useRef(deps);
+  const latestReady = React.useRef(isReady);
   React.useLayoutEffect(() => {
     latest.current = deps;
-  }, [deps]);
+    latestReady.current = isReady;
+  }, [deps, isReady]);
   const stable = React.useMemo<DrawerActionDeps>(() => ({
     show: (...args) => latest.current.show(...args),
     remove: (...args) => latest.current.remove(...args),
@@ -116,17 +118,22 @@ function ActionContext({ target, register }: {
     createExecSession: (...args) => latest.current.createExecSession(...args),
     executeAction: (...args) => latest.current.executeAction(...args),
     startStreamAction: (...args) => latest.current.startStreamAction(...args),
+    startDebug: (...args) => latest.current.startDebug(...args),
+    openDebugOptions: (...args) => {
+      register({ key: keyOf(target), deps: stable, ready: latestReady.current, busy: true });
+      latest.current.openDebugOptions(...args);
+    },
     closeDrawer: () => latest.current.closeDrawer(),
     openScale: (value) => {
-      register({ key: keyOf(target), deps: stable, busy: true });
+      register({ key: keyOf(target), deps: stable, ready: latestReady.current, busy: true });
       latest.current.openScale(value);
     },
     get nodeShellConfig() { return latest.current.nodeShellConfig; },
   }), [target, register]);
   React.useEffect(() => {
-    register({ key: keyOf(target), deps: stable, busy: Boolean(isBusy) });
+    register({ key: keyOf(target), deps: stable, ready: isReady, busy: Boolean(isBusy) });
     return () => register();
-  }, [target, stable, isBusy, register]);
+  }, [target, stable, isReady, isBusy, register]);
   return dialogs;
 }
 
@@ -137,7 +144,7 @@ export default function KubernetesSearchActionContext() {
   const pending = React.useRef<{ key: string; finish: (deps?: DrawerActionDeps) => void } | undefined>(undefined);
   const register = React.useCallback((value?: Registration) => {
     current.current = value;
-    if (value && pending.current?.key === value.key) {
+    if (value?.ready && pending.current?.key === value.key) {
       const finish = pending.current.finish;
       pending.current = undefined;
       finish(value.deps);
@@ -150,22 +157,22 @@ export default function KubernetesSearchActionContext() {
         return Promise.reject(new Error('Finish the current Kubernetes action before starting another'));
       }
       const key = keyOf(next);
-      if (current.current?.key === key) return Promise.resolve(current.current.deps);
-      return new Promise((resolve, reject) => {
-        const finish = (deps?: DrawerActionDeps) => {
-          signal.removeEventListener('abort', abort);
-          if (deps) resolve(deps);
-          else reject(new Error('Kubernetes search action context was removed'));
-        };
-        const abort = () => {
-          pending.current = undefined;
-          signal.removeEventListener('abort', abort);
-          reject(abortError());
-        };
-        pending.current = { key, finish };
-        signal.addEventListener('abort', abort, { once: true });
-        setTarget(next);
-      });
+      if (current.current?.key === key && current.current.ready) return Promise.resolve(current.current.deps);
+      const { promise, resolve, reject } = Promise.withResolvers<DrawerActionDeps>();
+      const finish = (deps?: DrawerActionDeps) => {
+        signal.removeEventListener('abort', abort);
+        if (deps) resolve(deps);
+        else reject(new Error('Kubernetes search action context was removed'));
+      };
+      const abort = () => {
+        pending.current = undefined;
+        signal.removeEventListener('abort', abort);
+        reject(abortError());
+      };
+      pending.current = { key, finish };
+      signal.addEventListener('abort', abort, { once: true });
+      setTarget(next);
+      return promise;
     };
     resolveContext = resolver;
     return () => {

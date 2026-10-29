@@ -1,3 +1,4 @@
+import type { Pod } from 'kubernetes-types/core/v1';
 import type {
   DrawerContext,
   useConfirmationModal,
@@ -18,6 +19,15 @@ export type ScaleTarget = { name: string; namespace: string; replicas: number };
 
 type NodeShellConfig = { image?: string; command?: string };
 
+export type StartDebugInput = {
+  connectionID: string;
+  resourceID: string;
+  namespace: string;
+  podUID: string;
+  targetContainerName: string;
+  resourceData: Pod;
+};
+
 export type DrawerActionDeps = {
   show: ReturnType<typeof useConfirmationModal>['show'];
   remove: ReturnType<typeof useResourceMutations>['remove'];
@@ -29,6 +39,8 @@ export type DrawerActionDeps = {
   closeDrawer: () => void;
   /** Opens the replica count dialog; confirming runs the `scale` action. */
   openScale: (target: ScaleTarget) => void;
+  startDebug: (input: StartDebugInput) => Promise<void>;
+  openDebugOptions: (input: StartDebugInput) => void;
   nodeShellConfig?: NodeShellConfig;
 };
 
