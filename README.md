@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://omniview.dev"><img src="https://img.shields.io/badge/omniview-plugin-326CE5?style=flat-square&logo=kubernetes&logoColor=white" alt="Omniview Plugin" /></a>
-  <img src="https://img.shields.io/badge/version-0.7.1-blue?style=flat-square" alt="Version" />
+  <img src="https://img.shields.io/badge/version-0.7.3-blue?style=flat-square" alt="Version" />
   <img src="https://img.shields.io/badge/license-Apache--2.0-green?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/category-cloud-326CE5?style=flat-square" alt="Category" />
 </p>
@@ -187,7 +187,7 @@ Every resource type gets a dedicated, sortable table with:
 
 ### Scoped Command Search
 
-Requires Omniview 0.7.4 or later in the compatible 0.7.x cohort for the shared search and resource-icon runtime contracts.
+Requires Omniview 0.8.2 or later in the compatible 0.8.x cohort for live-Pod debug recovery, asynchronous resource actions, and the shared search and resource-icon runtime contracts. Update Omniview before updating the Kubernetes plugin.
 
 Cmd/Ctrl-K opens Omniview's single global search surface, including on Kubernetes pages. Type a connection name and press Tab to scope it, then scope a resource type and resource. Enter opens the selected destination or existing action. The sidebar's **Find in this connection** control opens that same surface with a visible connection chip.
 
@@ -411,8 +411,8 @@ rather than adding unsupported manifest fields.
 
 Registry installs retain pnpm's 24-hour release-age protection. Only coordinated
 `@omniviewdev/*` packages are exempted; linked source worktrees resolve locally.
-The current UI cohort is `@omniviewdev/base-ui` 0.7.1 and
-`@omniviewdev/editors` 6.0.1, paired with host/runtime/Vite plugin 0.7.4 and Go SDK v0.7.1.
+The current UI cohort is `@omniviewdev/base-ui` 0.7.2 and
+`@omniviewdev/editors` 6.0.2, paired with host/runtime/Vite plugin 0.8.2 and Go SDK v0.7.1.
 
 ### Building
 
