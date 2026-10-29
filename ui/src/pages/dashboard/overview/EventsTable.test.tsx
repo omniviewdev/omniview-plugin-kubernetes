@@ -5,17 +5,26 @@ vi.mock('@omniviewdev/runtime', () => ({ useRightDrawer: () => ({ showResourceSi
 
 import EventsTable from './EventsTable';
 
+const originalScrollTo = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollTo');
+
 beforeEach(() => {
   vi.stubGlobal('ResizeObserver', class {
     observe() {}
     unobserve() {}
     disconnect() {}
   });
-  Object.defineProperty(HTMLElement.prototype, 'scrollTo', { configurable: true, writable: true, value: vi.fn() });
+  Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
+    configurable: true,
+    writable: true,
+    value(this: HTMLElement, options: ScrollToOptions) {
+      this.scrollTop = options.top ?? this.scrollTop;
+    },
+  });
 });
 afterEach(() => {
   cleanup();
-  vi.restoreAllMocks();
+  if (originalScrollTo) Object.defineProperty(HTMLElement.prototype, 'scrollTo', originalScrollTo);
+  else Reflect.deleteProperty(HTMLElement.prototype, 'scrollTo');
   vi.unstubAllGlobals();
 });
 
@@ -27,13 +36,11 @@ it('resets the viewport for namespace changes but preserves it for live event up
   }));
   const view = render(<EventsTable events={events} connectionID="cluster-a" namespaceScope='["alpha"]' />);
   const viewport = screen.getByRole('region', { name: 'Scrollable events' });
-  const scrollTo = vi.spyOn(viewport, 'scrollTo');
   viewport.scrollTop = 600;
-  scrollTo.mockClear();
 
   view.rerender(<EventsTable events={[...events]} connectionID="cluster-a" namespaceScope='["alpha"]' />);
-  expect(scrollTo).not.toHaveBeenCalled();
+  expect(viewport.scrollTop).toBe(600);
 
   view.rerender(<EventsTable events={events} connectionID="cluster-a" namespaceScope='["beta"]' />);
-  expect(scrollTo).toHaveBeenCalledWith({ top: 0 });
+  expect(viewport.scrollTop).toBe(0);
 });
