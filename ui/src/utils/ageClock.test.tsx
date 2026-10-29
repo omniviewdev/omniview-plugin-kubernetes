@@ -69,6 +69,29 @@ describe('renderer age clock', () => {
     },
   );
 
+  it.each([-2, 2])('refreshes old labels after a visible %i-day clock jump', (days) => {
+    const value = ago(5 * 86_400_000);
+    const { result } = renderHook(() => useAge(value));
+    expect(result.current).toBe('5d');
+    act(() => {
+      vi.setSystemTime(start + days * 86_400_000);
+      vi.advanceTimersByTime(1000);
+    });
+    expect(result.current).toBe(days < 0 ? '3d' : '7d');
+    expect(vi.getTimerCount()).toBe(1);
+  });
+
+  it('refreshes old labels after a visible time-zone offset change', () => {
+    const value = ago(5 * 86_400_000);
+    const { result } = renderHook(() => useAge(value));
+    const format = vi.spyOn(time, 'formatTimeDifference');
+    const offset = new Date().getTimezoneOffset();
+    vi.spyOn(Date.prototype, 'getTimezoneOffset').mockReturnValue(offset + 60);
+    act(() => vi.advanceTimersByTime(1000));
+    expect(result.current).toBe('5d');
+    expect(format).toHaveBeenCalledWith(new Date(value));
+  });
+
   it('updates timestamps during render, including invalid and missing values', () => {
     const { result, rerender } = renderHook(({ value }) => useAge(value), {
       initialProps: { value: ago(3000) },

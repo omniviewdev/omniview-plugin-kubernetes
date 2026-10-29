@@ -52,6 +52,9 @@ only when CPU or memory columns are visible in a visible document. Persisted col
 visibility applies before the observer mounts; pausing the observer does not
 remount table rows or discard selection, filtering, focus, or scroll. Dashboard
 metric consumers also pause while the document is hidden.
+The single visible clock also checks wall-clock and time-zone changes once per
+second, refreshing old labels after clock corrections without formatting them
+on ordinary young-cell ticks.
 
 Synthetic provider measurements for 300 representative pods: unchanged replay
 0.054 ms, zero encoded bytes and allocations; changed updates 7.442 ms,
