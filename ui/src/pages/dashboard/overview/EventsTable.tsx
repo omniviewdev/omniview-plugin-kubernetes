@@ -91,6 +91,7 @@ type Props = {
   events: KubeEvent[];
   loading?: boolean;
   connectionID: string;
+  namespaceScope?: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -255,7 +256,7 @@ EventRow.displayName = 'EventRow';
 // EventsTable
 // ---------------------------------------------------------------------------
 
-const EventsTable: React.FC<Props> = ({ events, loading, connectionID }) => {
+const EventsTable: React.FC<Props> = ({ events, loading, connectionID, namespaceScope }) => {
   const [filter, setFilter] = useState<EventFilter>('all');
   const [search, setSearch] = useState('');
   const deferredSearch = useDeferredValue(search);
@@ -317,7 +318,7 @@ const EventsTable: React.FC<Props> = ({ events, loading, connectionID }) => {
   // A new query must expose its first match, even when the old list was scrolled.
   useLayoutEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 });
-  }, [filter, deferredSearch, connectionID]);
+  }, [filter, deferredSearch, connectionID, namespaceScope]);
 
   // Width changes invalidate estimates for offscreen rows as well as visible rows.
   useLayoutEffect(() => {

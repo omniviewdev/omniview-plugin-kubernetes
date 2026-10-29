@@ -41,6 +41,9 @@ every event. Filtering, search, warning counts, ordering, and object links still
 cover the full event collection. The overview owns its Pod subscription and passes
 its namespace-filtered result to the Pod summary card, avoiding duplicate live
 event delivery and cache application. Initial List calls were already query-deduplicated.
+Namespace scope changes reset the event viewport to its newest entries; live
+updates preserve the current viewport. CI also runs age-clock tests explicitly
+under `America/New_York` to enforce DST boundary coverage.
 
 Age cells share one visibility-aware scheduler per renderer package. They preserve
 second/minute/day formatting, stop while the document is hidden, refresh on resume,

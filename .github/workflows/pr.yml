@@ -46,5 +46,8 @@ jobs:
       - name: Behavior tests
         run: pnpm test
 
+      - name: New York age-clock tests
+        run: TZ=America/New_York pnpm exec vitest run src/utils/ageClock.test.tsx
+
       - name: Production UI build
         run: pnpm run build

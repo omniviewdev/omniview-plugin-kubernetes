@@ -108,7 +108,10 @@ describe('Pod metrics acquisition', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(120_000); });
     const hiddenConnectionSwitch = transport.query.mock.calls.length - beforeHidden;
     await show('visible');
-    console.info('Controlled Pod metrics requests', JSON.stringify({ initialHidden120s: initialHidden, visible60s: visible, columnsHidden120s: columnsHidden, hiddenConnectionSwitch120s: hiddenConnectionSwitch, total: transport.query.mock.calls.length }));
+    expect(initialHidden).toBe(0);
+    expect(visible).toBeGreaterThan(0);
+    expect(columnsHidden).toBe(0);
+    expect(hiddenConnectionSwitch).toBe(0);
     expect(hook.result.current.metricsMap.get('default/pod')?.memoryBytes).toBe(4096);
   });
 });

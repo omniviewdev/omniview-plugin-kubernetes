@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // Controlled hook results, not a runtime transport or native CPU benchmark.
 const fixture = vi.hoisted(() => ({
   connectionID: 'cluster-a',
+  resourceCalls: [] as string[],
   results: {} as Record<string, { data?: { result: Pod[] }; isLoading: boolean; isError?: boolean }>,
 }));
 
@@ -14,11 +15,14 @@ vi.mock('@omniviewdev/runtime', () => ({
   usePluginRouter: () => ({ navigate: vi.fn() }),
   useConnection: () => ({ connection: { data: { data: {} }, isLoading: false } }),
   useExtensionPoint: () => undefined,
-  useResources: ({ connectionID, resourceKey }: { connectionID: string; resourceKey: string }) => ({
-    resources: resourceKey === 'core::v1::Pod'
-      ? fixture.results[connectionID]
-      : { data: { result: [] }, isLoading: false },
-  }),
+  useResources: ({ connectionID, resourceKey }: { connectionID: string; resourceKey: string }) => {
+    fixture.resourceCalls.push(resourceKey);
+    return {
+      resources: resourceKey === 'core::v1::Pod'
+        ? fixture.results[connectionID]
+        : { data: { result: [] }, isLoading: false },
+    };
+  },
 }));
 vi.mock('../../../hooks/useClusterPreferences', () => ({
   useClusterPreferences: () => ({ connectionOverrides: {} }),
@@ -44,6 +48,7 @@ function pod(namespace: string, phase?: string): Pod {
 
 beforeEach(() => {
   fixture.connectionID = 'cluster-a';
+  fixture.resourceCalls = [];
   fixture.results = {
     'cluster-a': {
       data: { result: [
@@ -64,6 +69,7 @@ function podCard() {
 describe('dashboard shared Pod result', () => {
   it('keeps mixed phase totals and health aligned through namespace changes', () => {
     render(<ClusterDashboardOverviewPage />);
+    expect(fixture.resourceCalls.filter((key) => key === 'core::v1::Pod')).toHaveLength(1);
     expect(podCard()).toHaveTextContent('6');
     expect(podCard()).toHaveTextContent('1 Running, 1 Pending, 1 Failed, 1 Succeeded, 2 Unknown');
     expect(screen.getByText(/1 failed pod/)).toBeInTheDocument();

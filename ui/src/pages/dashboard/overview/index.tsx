@@ -212,7 +212,7 @@ const ClusterDashboardOverviewPage: React.FC = () => {
             Recent Events ({allEvents.length})
           </Text>
           <div style={eventsContainerStyle}>
-            <EventsTable events={allEvents} loading={events.isLoading} connectionID={id} />
+            <EventsTable events={allEvents} loading={events.isLoading} connectionID={id} namespaceScope={JSON.stringify(namespaces)} />
           </div>
         </Stack>
       </Stack>
