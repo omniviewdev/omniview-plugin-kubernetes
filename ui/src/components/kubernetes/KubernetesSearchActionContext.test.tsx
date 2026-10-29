@@ -1,7 +1,6 @@
-import React from 'react';
+import type { SearchExecutionContextV1, SearchProviderItemV1, SearchScopeV1 } from '@omniviewdev/runtime';
 import { act, cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SearchExecutionContextV1, SearchProviderItemV1, SearchScopeV1 } from '@omniviewdev/runtime';
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
   hook: vi.fn(),
@@ -16,8 +15,9 @@ vi.mock('../shared/drawer/DrawerActionsBridge', () => ({
     ?? { deps: mocks.deps, dialogs: null, isBusy: false, isReady: true },
 }));
 
-import KubernetesSearchActionContext, { executeSearchAction, searchActions, validateSearchAction } from './KubernetesSearchActionContext';
 import type { StartDebugInput } from '../shared/drawer/actionDeps';
+
+import KubernetesSearchActionContext, { executeSearchAction, searchActions, validateSearchAction } from './KubernetesSearchActionContext';
 
 const scope: Extract<SearchScopeV1, { kind: 'resource' }> = {
   kind: 'resource', pluginId: 'kubernetes', connectionId: 'prod', resourceKey: 'core::v1::Pod',
@@ -266,6 +266,109 @@ describe('standalone palette Debug', () => {
       connectionID: 'prod', resourceID: 'api', namespace: 'apps', podUID: 'original',
       targetContainerName: 'main', resourceData: fresh,
     });
+  });
+
+  it.each(['two-to-one', 'one-to-two'])('executes the discovered main target after a %s live-target change', async (change) => {
+    render(<KubernetesSearchActionContext />);
+    const single = {
+      ...debugPod,
+      status: { ...debugPod.status, containerStatuses: [debugPod.status.containerStatuses[0]] },
+    };
+    const discovery = change === 'two-to-one' ? debugPod : single;
+    const fresh = change === 'two-to-one' ? single : debugPod;
+    const items = await searchActions(scope, context().signal, discovery);
+    const main = items.find(item => item.label === (change === 'two-to-one' ? 'Debug: main' : 'Debug'));
+    expect(main).toBeDefined();
+    if (main!.value.kind !== 'action') throw new Error('Expected action');
+    mocks.get.mockResolvedValue({ success: true, result: fresh });
+    const execution = executeSearchAction(main!.value.action, context());
+    const result = expect(execution).resolves.toBeUndefined();
+    await act(async () => { await Promise.resolve(); });
+    await result;
+    expect(mocks.deps.startDebug).toHaveBeenCalledTimes(1);
+    expect(mocks.deps.startDebug).toHaveBeenCalledWith({
+      connectionID: 'prod', resourceID: 'api', namespace: 'apps', podUID: 'original',
+      targetContainerName: 'main', resourceData: fresh,
+    });
+  });
+
+  it('rejects a vanished single target rather than launching its replacement', async () => {
+    render(<KubernetesSearchActionContext />);
+    const single = {
+      ...debugPod,
+      status: { ...debugPod.status, containerStatuses: [debugPod.status.containerStatuses[0]] },
+    };
+    const items = await searchActions(scope, context().signal, single);
+    const main = items.find(item => item.label === 'Debug')!;
+    if (main.value.kind !== 'action') throw new Error('Expected action');
+    const fresh = {
+      ...debugPod,
+      status: { ...debugPod.status, containerStatuses: [debugPod.status.containerStatuses[1]] },
+    };
+    mocks.get.mockResolvedValue({ success: true, result: fresh });
+    const execution = executeSearchAction(main.value.action, context());
+    const rejection = expect(execution).rejects.toThrow(/available|executable|Choose/);
+    await act(async () => { await Promise.resolve(); });
+    await rejection;
+    expect(mocks.deps.startDebug).not.toHaveBeenCalled();
+  });
+
+  it.each(['ready', 'timeout', 'unmount'])('settles deferred resolution on %s without Promise.withResolvers', async (outcome) => {
+    const intrinsic = Object.getOwnPropertyDescriptor(Promise, 'withResolvers');
+    Object.defineProperty(Promise, 'withResolvers', { configurable: true, writable: true, value: undefined });
+    mocks.hook.mockReturnValue({
+      deps: mocks.deps, dialogs: null, isBusy: false, isReady: false,
+    });
+    const mounted = render(<KubernetesSearchActionContext />);
+    const controller = new AbortController();
+    const removeListener = vi.spyOn(controller.signal, 'removeEventListener');
+    const settled = vi.fn();
+    let execution: Promise<void> | undefined;
+    let timeout: number | undefined;
+    try {
+      const items = await searchActions(scope, context().signal, debugPod);
+      const main = items.find(item => item.label === 'Debug: main')!;
+      if (main.value.kind !== 'action') throw new Error('Expected action');
+      mocks.get.mockResolvedValue({ success: true, result: debugPod });
+      execution = executeSearchAction(main.value.action, { ...context(), signal: controller.signal }).then(
+        () => { settled('fulfilled'); },
+        error => { settled(error); },
+      );
+      await act(async () => { await Promise.resolve(); });
+      expect(settled).not.toHaveBeenCalled();
+      expect(mocks.deps.startDebug).not.toHaveBeenCalled();
+      if (outcome === 'ready') {
+        mocks.hook.mockReturnValue({
+          deps: mocks.deps, dialogs: null, isBusy: false, isReady: true,
+        });
+        await act(async () => { mounted.rerender(<KubernetesSearchActionContext />); });
+      } else if (outcome === 'timeout') {
+        await act(async () => {
+          await new Promise<void>((resolve) => {
+            timeout = window.setTimeout(() => { controller.abort(); resolve(); }, 10);
+          });
+        });
+      } else {
+        mounted.unmount();
+      }
+      await execution;
+      expect(settled).toHaveBeenCalledTimes(1);
+      expect(settled).toHaveBeenCalledWith(outcome === 'ready'
+        ? 'fulfilled'
+        : expect.objectContaining(outcome === 'timeout'
+          ? { name: 'AbortError' }
+          : { message: 'Kubernetes search action context was removed' }));
+      expect(mocks.deps.startDebug).toHaveBeenCalledTimes(outcome === 'ready' ? 1 : 0);
+      expect(removeListener).toHaveBeenCalledWith('abort', expect.any(Function));
+    } finally {
+      window.clearTimeout(timeout);
+      controller.abort();
+      mounted.unmount();
+      await execution;
+      removeListener.mockRestore();
+      if (intrinsic) Object.defineProperty(Promise, 'withResolvers', intrinsic);
+      else Reflect.deleteProperty(Promise, 'withResolvers');
+    }
   });
 
   it('blocks another palette launch while creation is pending and releases the guard after rejection', async () => {

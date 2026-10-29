@@ -11,6 +11,7 @@ import {
   Text,
   TextArea,
 } from '@omniviewdev/base-ui';
+import { parseAppError } from '@omniviewdev/runtime';
 import React from 'react';
 import { LuChevronDown, LuChevronRight } from 'react-icons/lu';
 
@@ -58,6 +59,7 @@ export default function DebugLaunchDialog({
   const [mountPath, setMountPath] = React.useState('');
   const [acknowledged, setAcknowledged] = React.useState(false);
   const [error, setError] = React.useState('');
+  const [mountError, setMountError] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [customizeOpen, setCustomizeOpen] = React.useState(false);
   const id = React.useId();
@@ -222,14 +224,17 @@ export default function DebugLaunchDialog({
                   />
                 </FormField>
                 {volume && (
-                  <FormField label="Mount path" htmlFor={`${id}-mount-path`} size="sm">
+                  <FormField label="Mount path" htmlFor={`${id}-mount-path`} size="sm" error={mountError || undefined}>
                     <Input.Control
                       id={`${id}-mount-path`}
                       size="sm"
                       disabled={busy}
                       style={formStyles.fullWidth}
                       value={mountPath}
-                      onChange={(event) => setMountPath(event.target.value)}
+                      onChange={(event) => {
+                        setMountPath(event.target.value);
+                        setMountError('');
+                      }}
                     />
                   </FormField>
                 )}
@@ -270,6 +275,7 @@ export default function DebugLaunchDialog({
             void (async () => {
               setBusy(true);
               setError('');
+              setMountError('');
               try {
                 const argv: unknown = JSON.parse(command);
                 const environment: unknown = JSON.parse(env);
@@ -287,8 +293,17 @@ export default function DebugLaunchDialog({
                 )
                   throw new Error('Environment must contain string values');
                 if (!draft.image.trim()) throw new Error('Image is required');
-                if (volume && !mountPath.startsWith('/'))
-                  throw new Error('Mount path must be absolute');
+                if (
+                  volume &&
+                  (!mountPath.startsWith('/') ||
+                    mountPath.includes('\0') ||
+                    (mountPath !== '/' &&
+                      mountPath.slice(1).split('/').some((part) => !part || part === '.' || part === '..')))
+                ) {
+                  const message = 'Mount path must be absolute and canonical, without repeated or trailing slashes, dot segments, or NUL characters.';
+                  setMountError(message);
+                  return;
+                }
                 await onLaunch(
                   { ...draft, command: argv, env: environment as Record<string, string> },
                   acknowledged,
@@ -296,7 +311,8 @@ export default function DebugLaunchDialog({
                 );
                 onClose();
               } catch (cause) {
-                setError(String(cause));
+                const parsed = parseAppError(cause);
+                setError(parsed.code ? `${parsed.title}: ${parsed.detail}` : cause instanceof Error ? cause.message : parsed.detail);
               } finally {
                 setBusy(false);
               }

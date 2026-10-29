@@ -34,6 +34,22 @@ export function useDebugActions(
     <>
       {launch && (
         <DebugLaunchDialog
+          key={JSON.stringify([
+            launch.connectionID,
+            launch.namespace,
+            launch.resourceID,
+            launch.podUID,
+            launch.targetContainerName,
+            preferences.resolved.template.id,
+            preferences.resolved.template.name,
+            preferences.resolved.template.image,
+            preferences.resolved.template.command,
+            preferences.resolved.template.profile,
+            preferences.resolved.template.imagePullPolicy,
+            Object.entries(preferences.resolved.template.env).sort(([a], [b]) =>
+              a < b ? -1 : a > b ? 1 : 0,
+            ),
+          ])}
           open={!settings}
           input={launch}
           templates={preferences.templates}

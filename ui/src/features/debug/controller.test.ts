@@ -473,4 +473,75 @@ describe('shared create and attach transitions', () => {
       certainty: 'accepted',
     });
   });
+
+  it('does not resurrect a rejected creation when an older status request finishes', async () => {
+    const launch = input('rejected-during-inspection');
+    let rejectCreation!: (reason: unknown) => void;
+    const executeAction = vi.fn(() => new Promise<never>((_resolve, reject) => {
+      rejectCreation = reject;
+    }));
+    const deps = { executeAction, createExecSession: vi.fn() } as unknown as DrawerActionDeps;
+    const starting = startDebugSession(launch, BUILTIN_DEBUG_TEMPLATES[0], deps);
+    const rejection = expect(starting).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    const reserved = getDebugRecords().find((record) => record.podUID === launch.podUID)!;
+    let finishInspection!: (response: never) => void;
+    vi.mocked(ResourceClient.Get).mockReturnValueOnce(new Promise<never>((resolve) => {
+      finishInspection = resolve;
+    }));
+    const inspecting = inspectDebugRecord(reserved);
+
+    rejectCreation({ code: 'FORBIDDEN', title: 'Access denied', message: 'Debugging denied' });
+    await rejection;
+    finishInspection({ success: true, result: launch.resourceData } as never);
+
+    expect((await inspecting).record).toMatchObject({
+      state: 'rejected',
+      certainty: 'rejected',
+    });
+    expect(getDebugRecords().find((record) => record.containerName === reserved.containerName))
+      .toMatchObject({ state: 'rejected', certainty: 'rejected' });
+  });
+
+  it.each([
+    { name: 'nonempty proxy', proxy: 'http://proxy.invalid', serverProxy: { name: 'HTTP_PROXY', value: 'http://proxy.invalid' } },
+    { name: 'empty proxy', proxy: '', serverProxy: { name: 'HTTP_PROXY' } },
+  ])('reconciles an uncertain creation with server byte order and $name', async ({ name, proxy, serverProxy }) => {
+    const launch = input(`environment-byte-order-${name}`);
+    const template = {
+      ...BUILTIN_DEBUG_TEMPLATES[0],
+      env: { HTTP_PROXY: proxy, HTTPS_PROXY: 'https://proxy.invalid', _DEBUG: '1', lower: 'x' },
+    };
+    const deps = {
+      executeAction: vi.fn().mockRejectedValue({ code: 'TIMEOUT', title: 'Timeout', message: 'No response' }),
+      createExecSession: vi.fn(),
+    } as unknown as DrawerActionDeps;
+    await expect(startDebugSession(launch, template, deps)).rejects.toMatchObject({ code: 'TIMEOUT' });
+    const reserved = getDebugRecords().find((record) => record.podUID === launch.podUID)!;
+    vi.mocked(ResourceClient.Get).mockResolvedValueOnce({
+      success: true,
+      result: {
+        ...launch.resourceData,
+        spec: {
+          ...launch.resourceData.spec,
+          ephemeralContainers: [{
+            ...reserved.expectedEntry,
+            env: [
+              { name: 'HTTPS_PROXY', value: 'https://proxy.invalid' },
+              serverProxy,
+              { name: '_DEBUG', value: '1' },
+              { name: 'lower', value: 'x' },
+            ],
+          }],
+        },
+        status: {
+          ephemeralContainerStatuses: [{ name: reserved.containerName, state: { running: {} } }],
+        },
+      },
+    } as never);
+
+    expect((await inspectDebugRecord(reserved)).record).toMatchObject({
+      state: 'running',
+      certainty: 'accepted',
+    });
+  });
 });

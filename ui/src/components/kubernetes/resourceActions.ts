@@ -1,6 +1,7 @@
 import type { DrawerContext, DrawerComponentAction } from '@omniviewdev/runtime';
 
 import { bindDrawerActionDeps, type DrawerActionDeps } from '../shared/drawer/actionDeps';
+
 import { resourceDrawerActions } from './drawerActions';
 
 export type KubernetesActionTarget = {
@@ -46,7 +47,7 @@ export function resolveKubernetesActions(target: KubernetesActionTarget, deps?: 
       icon: descriptor.icon,
       execute: descriptor.action ? () => descriptor.action!(ctx) : undefined,
       // Container names, not row indices, keep choices stable when lists reorder.
-      items: descriptor.action && items?.length === 1 ? undefined : items?.flatMap((item) => typeof item.title !== 'string' ? [] : [{
+      items: items?.flatMap((item) => typeof item.title !== 'string' ? [] : [{
         id: `${id}:${encodeURIComponent(item.title)}`,
         title: item.title,
         icon: item.icon,
@@ -65,6 +66,7 @@ export function executeKubernetesAction(
   const action = resolveKubernetesActions(target, deps).find((candidate) => candidate.id === id);
   if (!action) throw new Error('Kubernetes action is no longer available');
   if (action.items) {
+    if (!itemID && action.items.length === 1 && action.execute) return action.execute();
     const item = action.items.find((candidate) => candidate.id === itemID);
     if (!item) throw new Error('Choose an available Kubernetes action target');
     return item.execute();

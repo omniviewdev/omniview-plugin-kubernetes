@@ -239,6 +239,8 @@ container opens a toolbox shell immediately; multiple containers show a
 names-only target picker. No shell is required in the application image.
 The command palette exposes the same **Debug: container** actions after scoping
 to a Pod, including when its details drawer is closed.
+Named targets remain pinned when other containers start or stop; a vanished
+target never redirects the action to another container.
 
 **Debug options** is secondary: choose a template or image, then expand
 **Customize** only when needed. Its controls use `@omniviewdev/base-ui`.
@@ -351,6 +353,9 @@ starters: duplicate them to customize. Custom templates support a unique name,
 image, JSON argv array, access profile, image pull policy and explicitly entered
 non-secret environment values. Customize starts collapsed. Do not store secrets:
 template values are ordinary plugin preferences, not a secret store.
+Per-launch drafts reset when the Pod, target or resolved default changes.
+Existing-volume mounts require canonical absolute paths; validation errors stay
+beside the mount field before any creation request.
 
 Templates and the all-cluster default persist in the plugin Data Store under
 `debug_templates`. A cluster stores only its chosen template ID in its existing

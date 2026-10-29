@@ -1,9 +1,11 @@
-import { describe, expect, it, vi } from 'vitest';
-import type { DrawerActionDeps } from '../shared/drawer/actionDeps';
-import { executeKubernetesAction, resolveKubernetesActions, type KubernetesActionTarget } from './resourceActions';
-import { resourceDrawerActions } from './drawerActions';
-import { bindDrawerActionDeps } from '../shared/drawer/actionDeps';
 import type { DrawerContext } from '@omniviewdev/runtime';
+import { describe, expect, it, vi } from 'vitest';
+
+import type { DrawerActionDeps } from '../shared/drawer/actionDeps';
+import { bindDrawerActionDeps } from '../shared/drawer/actionDeps';
+
+import { resourceDrawerActions } from './drawerActions';
+import { executeKubernetesAction, resolveKubernetesActions, type KubernetesActionTarget } from './resourceActions';
 
 const target = (resourceKey = 'core::v1::Pod'): KubernetesActionTarget => ({
   pluginID: 'kubernetes', connectionID: 'prod', resourceKey,
@@ -127,7 +129,6 @@ describe('live Pod Debug actions', () => {
     object.data.status.containerStatuses[0].state = { waiting: { reason: 'CrashLoopBackOff' } };
     const debug = debugAction(object, handlers);
     expect(debug).toBeDefined();
-    expect(debug!.items).toBeUndefined();
     await executeKubernetesAction(object, handlers, debug!.id);
     expect(handlers.startDebug).toHaveBeenCalledTimes(1);
     expect(handlers.startDebug).toHaveBeenCalledWith({
@@ -160,6 +161,25 @@ describe('live Pod Debug actions', () => {
     expect(handlers.startDebug).toHaveBeenCalledWith(expect.objectContaining({ targetContainerName: 'main' }));
   });
 
+  it.each(['two-to-one', 'one-to-two'])('preserves a selected running target across %s resolution', async (change) => {
+    const handlers = debugDeps();
+    const object = livePod();
+    if (change === 'one-to-two') {
+      object.data.status.containerStatuses[1].state = { waiting: {} };
+    }
+    const debug = debugAction(object, handlers)!;
+    const main = debug.items?.find(item => item.title === 'main');
+    expect(main).toBeDefined();
+    object.data.status.containerStatuses[1].state = change === 'two-to-one'
+      ? { terminated: { exitCode: 0 } }
+      : { running: {} };
+    await executeKubernetesAction(object, handlers, debug.id, main!.id);
+    expect(handlers.startDebug).toHaveBeenCalledTimes(1);
+    expect(handlers.startDebug).toHaveBeenCalledWith(expect.objectContaining({
+      targetContainerName: 'main', resourceData: object.data,
+    }));
+  });
+
   it.each(['no-running', 'static', 'deleting', 'Succeeded', 'Failed'])('does not offer Debug for %s Pods', (condition) => {
     const object = livePod();
     if (condition === 'no-running') object.data.status.containerStatuses = [];
@@ -179,22 +199,19 @@ describe('live Pod Debug actions', () => {
     expect(handlers.startDebug).not.toHaveBeenCalled();
   });
 
-  it('uses the header descriptor and shared resolver to invoke the same bound launch hook', async () => {
+  it('launches the single running target from the header without confirmation', async () => {
     const handlers = debugDeps();
     const object = livePod();
+    object.data.status.containerStatuses[1].state = { terminated: { exitCode: 0 } };
     const ctx = bindDrawerActionDeps({
       data: object.data,
       resource: { pluginID: 'kubernetes', connectionID: 'prod', key: object.resourceKey, id: 'api' },
     } as DrawerContext, handlers);
     const header = resourceDrawerActions[object.resourceKey].actions!.find(action => action.title === 'Debug');
     expect(header).toBeDefined();
-    const headerItems = typeof header!.list === 'function' ? header!.list(ctx) : header!.list;
-    const headerMain = headerItems!.find(item => item.title === 'main')!;
-    await headerMain.action(ctx);
-    const resolved = debugAction(object, handlers)!;
-    await executeKubernetesAction(object, handlers, resolved.id, resolved.items!.find(item => item.title === 'main')!.id);
-    expect(handlers.startDebug).toHaveBeenCalledTimes(2);
-    expect(handlers.startDebug.mock.calls[0]).toEqual(handlers.startDebug.mock.calls[1]);
+    await header!.action!(ctx);
+    expect(handlers.startDebug).toHaveBeenCalledTimes(1);
+    expect(handlers.show).not.toHaveBeenCalled();
     expect(handlers.startDebug).toHaveBeenCalledWith(expect.objectContaining({
       podUID: 'uid-1', targetContainerName: 'main', resourceData: object.data,
     }));

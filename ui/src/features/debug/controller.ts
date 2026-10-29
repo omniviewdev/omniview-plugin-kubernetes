@@ -127,6 +127,7 @@ export function observeDebugRecord(record: DebugRecord, pod: Pod): DebugRecord {
 }
 
 function applyPodObservation(record: DebugRecord, pod: Pod): DebugRecord {
+  record = records.get(`${key(record)}:${record.containerName}`) ?? record;
   const next = observeDebugRecord(record, pod);
   publish(next);
   const waitingReason =
@@ -279,9 +280,10 @@ export async function startDebugSession(
           },
     ...(Object.keys(template.env).length
       ? {
-          env: Object.entries(template.env)
-            .sort(([left], [right]) => left.localeCompare(right))
-            .map(([name, value]) => ({ name, value })),
+          env: Object.keys(template.env)
+            .sort()
+            // Kubernetes omits empty env values when serializing the Pod.
+            .map((name) => ({ name, value: template.env[name] || undefined })),
         }
       : {}),
     ...(volumeMounts.length ? { volumeMounts } : {}),

@@ -1,14 +1,14 @@
-import { Separator, Text } from '@omniviewdev/base-ui';
+import { Separator, Text, Button  } from '@omniviewdev/base-ui';
+import { parseAppError } from '@omniviewdev/runtime';
 import { Container, ContainerStatus, Pod, PodSpec } from 'kubernetes-types/core/v1';
 import React from 'react';
 
+import { runningDebugTargets } from '../../../../features/debug/targets';
+import { useDrawerActionExecution } from '../../../shared/drawer/DrawerActionsBridge';
 import SectionHeading from '../shared/SectionHeading';
 import { subsectionLabelStyle } from '../shared/sectionStyles';
 
 import ContainerSlice from './ContainerSlice';
-import { Button } from '@omniviewdev/base-ui';
-import { useDrawerActionExecution } from '../../../shared/drawer/DrawerActionsBridge';
-import { runningDebugTargets } from '../../../../features/debug/targets';
 
 const groupHeaderStyle: React.CSSProperties = { padding: '6px 10px 2px' };
 const containerBoxStyle: React.CSSProperties = {
@@ -149,7 +149,11 @@ const PodContainersSection: React.FC<ContainersSectionProps> = ({
               podMemoryUsage={podMemoryUsage}
             />
             {runningDebugTargets(obj).includes(c.container.name) && <Button variant="ghost" onClick={() => {
-              void execution.deps.startDebug({ connectionID, resourceID, namespace: obj.metadata!.namespace!, podUID: obj.metadata!.uid!, targetContainerName: c.container.name, resourceData: obj }).catch(cause => setDebugError(String(cause)));
+              setDebugError('');
+              void execution.deps.startDebug({ connectionID, resourceID, namespace: obj.metadata!.namespace!, podUID: obj.metadata!.uid!, targetContainerName: c.container.name, resourceData: obj }).catch(cause => {
+                const parsed = parseAppError(cause);
+                setDebugError(parsed.code ? `${parsed.title}: ${parsed.detail}` : cause instanceof Error ? cause.message : parsed.detail);
+              });
             }}>Debug {c.container.name}</Button>}
           </React.Fragment>
         ))}
