@@ -24,11 +24,11 @@ import resourceQuotaIcon from './kubernetes/quota.svg?raw';
 import roleBindingIcon from './kubernetes/rb.svg?raw';
 import roleIcon from './kubernetes/role.svg?raw';
 import replicaSetIcon from './kubernetes/rs.svg?raw';
+import serviceAccountIcon from './kubernetes/sa.svg?raw';
+import storageClassIcon from './kubernetes/sc.svg?raw';
 import secretIcon from './kubernetes/secret.svg?raw';
 import statefulSetIcon from './kubernetes/sts.svg?raw';
 import serviceIcon from './kubernetes/svc.svg?raw';
-import serviceAccountIcon from './kubernetes/sa.svg?raw';
-import storageClassIcon from './kubernetes/sc.svg?raw';
 
 function nativeIcon(source: string): ComponentType<ResourceIconProps> {
   // Only sanitized, repository-owned SVGs enter this path. Never accept runtime markup.

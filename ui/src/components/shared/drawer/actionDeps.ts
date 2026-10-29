@@ -1,4 +1,3 @@
-import type { Pod } from 'kubernetes-types/core/v1';
 import type {
   DrawerContext,
   useConfirmationModal,
@@ -8,6 +7,7 @@ import type {
   useResourceMutations,
   useStreamAction,
 } from '@omniviewdev/runtime';
+import type { Pod } from 'kubernetes-types/core/v1';
 
 /**
  * Shared hook-backed execution dependencies. Drawer bridges register fallback
