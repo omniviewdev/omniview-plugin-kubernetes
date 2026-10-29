@@ -11,7 +11,6 @@ import { useParams } from 'react-router'
 
 import { PLUGIN_ID } from '@/pluginId';
 
-import { usePodMetricsBatch } from '../../../../../hooks/usePodMetricsBatch';
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
 import PodSidebar from '../../../sidebar/Pod';
@@ -23,8 +22,9 @@ import { inclusionFilter, ownerRefFilter } from '../../shared/filters';
 import { drawerActions, editorSubmit } from './actions';
 import ContainerPhaseCell from './cells/ContainerPhaseCell';
 import ContainerStatusCell from './cells/ContainerStatusCell';
-import MetricUsageCell, { PodMetricsContext } from './cells/MetricUsageCell';
+import MetricUsageCell from './cells/MetricUsageCell';
 import ResourceLinkCell from './cells/ResourceLinkCell';
+import PodMetricsProvider from './PodMetricsProvider';
 
 
 const resourceKey = 'core::v1::Pod';
@@ -39,10 +39,10 @@ const ownerRefKeyMap: Record<string, string> = {
   Node: 'core::v1::Node',
 };
 
+
 const PodTable: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
 
-  const { metricsMap } = usePodMetricsBatch({ connectionID: id });
 
   /**
    * Handler to go ahead and submit a resource change
@@ -286,20 +286,20 @@ const PodTable: React.FC = () => {
   );
 
   return (
-    <PodMetricsContext.Provider value={metricsMap}>
       <ResourceTable
+        key={id}
         columns={columns}
         connectionID={id}
         resourceKey={resourceKey}
         idAccessor="metadata.uid"
         drawer={drawer}
+        contentWrapper={PodMetricsProvider}
         toolbarFilters={[
           { columnId: 'node', placeholder: 'All Nodes', accessor: (r: Pod) => r?.spec?.nodeName },
           { columnId: 'controlledBy', placeholder: 'All Controllers', accessor: (r: Pod) => r?.metadata?.ownerReferences?.[0]?.name },
           { columnId: 'namespace', placeholder: 'All Namespaces', accessor: (r: Pod) => r?.metadata?.namespace },
         ]}
       />
-    </PodMetricsContext.Provider>
   );
 };
 

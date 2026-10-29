@@ -6,7 +6,7 @@
   border-bottom: 1px solid var(--ov-color-border-muted);
 }
 
-.eventRow:last-child {
+.virtualRow[data-last='true'] .eventRow {
   border-bottom: none;
 }
 
@@ -33,4 +33,16 @@
   margin-top: 2px;
   font-size: 0.75rem;
   color: var(--ov-color-fg-muted);
+}
+
+.virtualList {
+  position: relative;
+  width: 100%;
+}
+
+.virtualRow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
 }

@@ -109,7 +109,7 @@ const ClusterDashboardOverviewPage: React.FC = () => {
   const { connectionOverrides } = useClusterPreferences(PLUGIN_ID);
   const metricConfig = connectionOverrides[id]?.metricConfig;
 
-  // Only keep the resource hooks needed for ClusterInfoCard and EventsTable
+  // Own Pod ingestion once; health and workload counts share the filtered result.
   const { resources: pods } = useResources({
     pluginID: PLUGIN_ID,
     connectionID: id,
@@ -170,9 +170,9 @@ const ClusterDashboardOverviewPage: React.FC = () => {
           <NamespaceSelect connectionID={id} selected={namespaces} setNamespaces={setNamespaces} />
         </Stack>
 
-        {/* Workload summary cards — each owns its own useResources hook */}
+        {/* Pods share the health data; other workload cards own their resource hooks. */}
         <div style={workloadGridStyle}>
-          <PodStatCard connectionID={id} namespaces={namespaces} onClick={goToPods} />
+          <PodStatCard pods={allPods} loading={pods.isLoading} onClick={goToPods} />
           <DeploymentStatCard connectionID={id} namespaces={namespaces} onClick={goToDeployments} />
           <StatefulSetStatCard connectionID={id} namespaces={namespaces} onClick={goToStatefulSets} />
           <DaemonSetStatCard connectionID={id} namespaces={namespaces} onClick={goToDaemonSets} />

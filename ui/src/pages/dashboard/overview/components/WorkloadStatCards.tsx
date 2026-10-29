@@ -42,23 +42,20 @@ type CardProps = {
   onClick: () => void;
 };
 
-export const PodStatCard = React.memo(function PodStatCard({
-  connectionID,
-  namespaces,
-  onClick,
-}: CardProps) {
-  const { resources: pods } = useResources({
-    pluginID: PLUGIN_ID,
-    connectionID,
-    resourceKey: 'core::v1::Pod',
-    idAccessor: 'metadata.uid',
-  });
+type PodCardProps = {
+  pods: Pod[];
+  loading: boolean;
+  onClick: () => void;
+};
 
+export const PodStatCard = React.memo(function PodStatCard({
+  pods,
+  loading,
+  onClick,
+}: PodCardProps) {
   const stats = React.useMemo(() => {
-    // runtime ListResult.result is typed as any[]; cast to the known K8s type
-    const all = filterByNamespace((pods.data?.result ?? []) as Pod[], namespaces);
     const counts = { Running: 0, Pending: 0, Failed: 0, Succeeded: 0, Unknown: 0 };
-    for (const p of all) {
+    for (const p of pods) {
       const phase = p.status?.phase ?? 'Unknown';
       if (phase in counts) {
         counts[phase as keyof typeof counts]++;
@@ -67,7 +64,7 @@ export const PodStatCard = React.memo(function PodStatCard({
       }
     }
     return {
-      total: all.length,
+      total: pods.length,
       statuses: [
         { label: 'Running', count: counts.Running, color: 'success' as const },
         { label: 'Pending', count: counts.Pending, color: 'warning' as const },
@@ -76,7 +73,7 @@ export const PodStatCard = React.memo(function PodStatCard({
         { label: 'Unknown', count: counts.Unknown, color: 'neutral' as const },
       ],
     };
-  }, [pods.data, namespaces]);
+  }, [pods]);
 
   return (
     <WorkloadSummaryCard
@@ -84,7 +81,7 @@ export const PodStatCard = React.memo(function PodStatCard({
       icon={ICON_POD}
       total={stats.total}
       statuses={stats.statuses}
-      loading={pods.isLoading}
+      loading={loading}
       onClick={onClick}
     />
   );

@@ -1,5 +1,7 @@
 import { MetricClient } from '@omniviewdev/runtime/api';
-import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
+
+import { useDocumentVisibility } from './useDocumentVisibility';
 
 export type PodMetricEntry = {
   cpuMillicores: number;
@@ -32,6 +34,7 @@ export function usePodMetricsBatch(opts: {
   enabled?: boolean;
 }): { metricsMap: PodMetricsMap; isLoading: boolean } {
   const { connectionID, namespace = '', refreshInterval = 30_000, enabled = true } = opts;
+  const documentVisible = useDocumentVisibility();
 
   const resourceKey = 'core::v1::Pod';
 
@@ -95,11 +98,10 @@ export function usePodMetricsBatch(opts: {
 
       return map;
     },
-    enabled: enabled && !!connectionID,
+    enabled: enabled && documentVisible && !!connectionID,
     refetchInterval: refreshInterval > 0 ? refreshInterval : undefined,
     staleTime: 10_000,
-    placeholderData: keepPreviousData,
-    retry: 1,
+    retry: (failureCount) => failureCount < 1 && enabled && document.visibilityState !== 'hidden',
   });
 
   return {

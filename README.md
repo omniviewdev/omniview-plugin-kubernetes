@@ -36,6 +36,20 @@ per-resource storage keys remain shared across connections. New keys start
 unselected; updates with no new keys preserve selection state and write nothing
 to localStorage. Combined table columns retain their reference until inputs change.
 
+Dashboard events now render a measured, overscanned viewport rather than mounting
+every event. Filtering, search, warning counts, ordering, and object links still
+cover the full event collection. The overview owns its Pod subscription and passes
+its namespace-filtered result to the Pod summary card, avoiding duplicate live
+event delivery and cache application. Initial List calls were already query-deduplicated.
+
+Age cells share one visibility-aware scheduler per renderer package. They preserve
+second/minute/day formatting, stop while the document is hidden, refresh on resume,
+and remove the final timer and visibility listener on unmount. Pod metrics acquire
+only when CPU or memory columns are visible in a visible document. Persisted column
+visibility applies before the observer mounts; pausing the observer does not
+remount table rows or discard selection, filtering, focus, or scroll. Dashboard
+metric consumers also pause while the document is hidden.
+
 Synthetic provider measurements for 300 representative pods: unchanged replay
 0.054 ms, zero encoded bytes and allocations; changed updates 7.442 ms,
 1,453,200 encoded bytes and approximately 6.63 MB allocations. These are different
@@ -48,10 +62,13 @@ reduction in the reported 53.5% Graphics and Media / 35.6% WebContent CPU on a
 300-pod connection. Native acceptance requires matched cluster, viewport, event
 rate, warmup, and repeated dashboard/table/hidden-view captures.
 
-Remaining work includes single-owner live ingestion, bounded transport batching,
-virtualized dashboard events, projected resource representations, and source
-paging with complete query membership and sorting. Do not truncate results or
-remove initial ADD replay without proving List/watch handoff correctness.
+Remaining work includes generalized single-owner ingestion, bounded transport,
+projected resource representations, and source paging with complete query
+membership and sorting. Event virtualization bounds mounted DOM, not event
+acquisition, deduplication, or sorting. Do not truncate results or remove initial
+ADD replay without proving List/watch handoff correctness. The
+[performance tracker](https://github.com/omniviewdev/omniview/issues/212) links
+agent-ready work, measured receipts, and SDK-v2 carry-forward requirements.
 [FreeLens watch ownership](https://github.com/freelensapp/freelens/blob/0c8f34ac6c5fe6546e25c7591abe335c8ca2b689/packages/core/src/renderer/kube-watch-api/kube-watch-api.ts#L107-L196)
 and its [virtual list](https://github.com/freelensapp/freelens/blob/0c8f34ac6c5fe6546e25c7591abe335c8ca2b689/packages/core/src/renderer/components/virtual-list/virtual-list.tsx#L46-L123)
 provide source references, not measured performance parity.
@@ -61,6 +78,8 @@ Regression checks:
 ```bash
 cd ui
 pnpm exec vitest run src/components/tables/ColumnFilter/useDynamicResourceColumns.test.tsx
+pnpm exec vitest run src/utils/ageClock.test.tsx src/hooks/usePodMetricsBatch.test.tsx src/components/kubernetes/table/corev1/Pod/PodMetricsProvider.test.tsx
+AGE_CLOCK_BENCH=1 pnpm exec vitest run src/components/kubernetes/table/shared/cells/AgeCell.benchmark.test.tsx --silent=false --reporter=verbose
 cd ..
 GOWORK=off go test ./pkg/plugin/resource/resourcers -count=1
 GOWORK=off go test ./pkg/plugin/resource/resourcers -run '^$' -bench 'Benchmark(MakeEventHandler|Base_ListRepresentativePods)' -benchmem
@@ -69,6 +88,14 @@ GOWORK=off go test ./pkg/plugin/resource/resourcers -run '^$' -bench 'Benchmark(
 The hook regression includes a zero-storage-write smoke check for unchanged keys
 and empty results. Release 0.8.1 consumes the published runtime 0.9.1 reducer fix
 through the `~0.9.1` dependency range and its matching pnpm lock entry.
+
+The opt-in age benchmark mounts 300 and 3,000 real cells with controlled time;
+its counters are not native CPU measurements. `AGE_CLOCK_BASELINE=1` requires
+preserved pre-change cell source and asserts its old timer behavior, so it cannot
+silently label the current implementation as the baseline. Storybook
+`Dashboard/EventsTable` fixtures `Viewport300`, `Viewport3000`, and `Viewport30000`
+exercise bounded mounting, final-item search, keyboard scrolling, varying row
+heights, resizing, reordering, loading, and empty transitions.
 
 ## Connection route encoding
 

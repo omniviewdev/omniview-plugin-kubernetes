@@ -1,6 +1,7 @@
 import { Chip, SearchInput, Spinner, Stack, Text } from '@omniviewdev/base-ui';
 import { useRightDrawer } from '@omniviewdev/runtime';
-import React, { useState, useMemo, useDeferredValue, useCallback } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import React, { useState, useMemo, useDeferredValue, useCallback, useRef, useLayoutEffect } from 'react';
 
 import { PLUGIN_ID } from '@/pluginId';
 
@@ -34,7 +35,7 @@ const toolbarStyle: React.CSSProperties = {
 };
 
 // Rows truncate rather than scroll sideways; only the list scrolls vertically.
-const eventListStyle: React.CSSProperties = { flex: 1, minHeight: 0, overflowX: 'hidden', overflowY: 'auto' };
+const eventListStyle: React.CSSProperties = { flex: 1, minHeight: 0, overflowX: 'hidden', overflowY: 'auto', overflowAnchor: 'none' };
 
 const emptyStateStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'center', paddingBlock: 32 };
 
@@ -72,6 +73,7 @@ type KubeEvent = {
 };
 
 type DedupedEvent = {
+  key: string;
   type: string;
   kind: string;
   name: string;
@@ -169,6 +171,7 @@ function deduplicateEvents(events: KubeEvent[]): DedupedEvent[] {
       }
     } else {
       map.set(key, {
+        key,
         type: ev.type ?? 'Normal',
         kind,
         name,
@@ -284,6 +287,63 @@ const EventsTable: React.FC<Props> = ({ events, loading, connectionID }) => {
     return result;
   }, [deduped, filter, deferredSearch]);
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const getItemKey = useCallback(
+    (index: number) => JSON.stringify([connectionID, filtered[index].key]),
+    [connectionID, filtered],
+  );
+  const virtualizer = useVirtualizer({
+    count: loading ? 0 : filtered.length,
+    getScrollElement: () => scrollRef.current,
+    getItemKey,
+    estimateSize: () => 58,
+    overscan: 6,
+  });
+
+  const measureMountedRows = useCallback(() => {
+    const list = listRef.current;
+    if (!list) return;
+    for (const row of list.children) {
+      if (row instanceof HTMLDivElement) virtualizer.measureElement(row);
+    }
+  }, [virtualizer]);
+
+  // Reused keyed rows can move without remounting or changing their height.
+  useLayoutEffect(() => {
+    measureMountedRows();
+  }, [filtered, loading, measureMountedRows]);
+
+  // A new query must expose its first match, even when the old list was scrolled.
+  useLayoutEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, [filter, deferredSearch, connectionID]);
+
+  // Width changes invalidate estimates for offscreen rows as well as visible rows.
+  useLayoutEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    let width = element.clientWidth;
+    const observer = new ResizeObserver(() => {
+      if (element.clientWidth === width) return;
+      width = element.clientWidth;
+      virtualizer.measure();
+      // Unchanged-height rows do not emit another ResizeObserver notification.
+      // Repopulate their cleared measurements from the bounded mounted range.
+      measureMountedRows();
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [loading, virtualizer, measureMountedRows]);
+
+  // Resource removal can leave an old offset past the end of the new list.
+  useLayoutEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    const maxOffset = Math.max(0, virtualizer.getTotalSize() - element.clientHeight);
+    if (element.scrollTop > maxOffset) element.scrollTop = maxOffset;
+  }, [filtered, loading, virtualizer]);
+
   const handleObjectClick = useCallback(
     (event: DedupedEvent) => {
       const resourceKey = KIND_TO_KEY[event.kind];
@@ -347,7 +407,9 @@ const EventsTable: React.FC<Props> = ({ events, loading, connectionID }) => {
       </Stack>
 
       {/* Event list */}
-      <div style={eventListStyle}>
+      {/* Native keyboard scrolling needs a focusable region; the list itself is not a widget. */}
+      {/* eslint-disable-next-line jsx-a11y-x/no-noninteractive-tabindex */}
+      <div ref={scrollRef} style={eventListStyle} role="region" aria-label="Scrollable events" tabIndex={0}>
         {filtered.length === 0 ? (
           <div style={emptyStateStyle}>
             <Text size="sm" tone="subtle">
@@ -355,13 +417,23 @@ const EventsTable: React.FC<Props> = ({ events, loading, connectionID }) => {
             </Text>
           </div>
         ) : (
-          filtered.map((event) => (
-            <EventRow
-              key={`${event.kind}/${event.namespace}/${event.name}::${event.reason}`}
-              event={event}
-              onObjectClick={handleObjectClick}
-            />
-          ))
+          <div ref={listRef} role="list" aria-label="Events" className={styles.virtualList} style={{ height: virtualizer.getTotalSize() }}>
+            {virtualizer.getVirtualItems().map((item) => (
+              <div
+                key={item.key}
+                ref={virtualizer.measureElement}
+                data-index={item.index}
+                data-last={item.index === filtered.length - 1}
+                role="listitem"
+                aria-setsize={filtered.length}
+                aria-posinset={item.index + 1}
+                className={styles.virtualRow}
+                style={{ transform: `translateY(${item.start}px)` }}
+              >
+                <EventRow event={filtered[item.index]} onObjectClick={handleObjectClick} />
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </Stack>

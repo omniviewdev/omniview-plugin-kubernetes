@@ -75,6 +75,8 @@ export type Props<T extends RowData = any> = {
    * the shared useConnectionNamespaces hook so all tables stay in sync.
    */
   toolbarFilters?: ToolbarFilterDef[];
+  /** Wrap table content with consumers that need persisted visibility before mounting. */
+  contentWrapper?: React.ComponentType<React.PropsWithChildren<{ columnVisibility: VisibilityState }>>;
 };
 
 const visibilityFromColumnDefs = <T extends RowData,>(defs: Array<ColumnDef<DataTableFeatures, T>>): VisibilityState => {
@@ -103,6 +105,7 @@ const ResourceTableContainer = <T extends RowData,>({
   toolbarActions,
   createEnabled = true,
   toolbarFilters,
+  contentWrapper: ContentWrapper,
 }: Props<T>) => {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'name', desc: false }]);
   const [columnVisibility, setColumnVisibility] = useStoredState<VisibilityState>(
@@ -296,7 +299,7 @@ const ResourceTableContainer = <T extends RowData,>({
     );
   }
 
-  return (
+  const content = (
     <TableDrawerContext.Provider value={drawer}>
       {/* Row menu actions run outside the drawer, so the table mounts their handlers too */}
       {drawer && <DrawerActionsBridge connectionID={connectionID} resourceKey={resourceKey} />}
@@ -370,6 +373,7 @@ const ResourceTableContainer = <T extends RowData,>({
       </div>
     </TableDrawerContext.Provider>
   );
+  return ContentWrapper ? <ContentWrapper columnVisibility={columnVisibility}>{content}</ContentWrapper> : content;
 };
 
 ResourceTableContainer.displayName = 'ResourceTableContainer';
