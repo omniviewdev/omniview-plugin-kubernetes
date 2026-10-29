@@ -39,14 +39,14 @@ const getInitialOpenState = (
  * Render a navigation menu in a sidebar layout
  */
 const NavMenu: React.FC<SidebarProps> = ({ header, size, items, sections }) => {
-  const { id } = useParams<{ id: string }>();
+  const { id = '' } = useParams<{ id: string }>();
   const { location, navigate } = usePluginRouter();
 
   const selected = location.pathname.split('/').pop();
 
   const onSelect = React.useCallback(
     (resourceID: string) => {
-      navigate(`/cluster/${id}/resources/${resourceID}`);
+      navigate(`/cluster/${encodeURIComponent(id)}/resources/${resourceID}`);
     },
     [navigate, id],
   );

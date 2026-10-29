@@ -23,6 +23,10 @@ Resource icons come from the upstream [Kubernetes Icons Set](https://github.com/
 
 Native artwork is adapted to monochrome resource glyphs without blue badges and uses inherited `currentColor` in every theme. Trusted bundled SVG geometry is imported inline, so sidebar and search icons need no image requests or cross-origin asset URLs. Sanitized assets contain no scripts, embedded HTML, external references, or style URLs; regression tests enforce the geometry and attribute allowlists. Modification details remain in `NOTICE`.
 
+## Connection route encoding
+
+Cluster IDs are opaque values, including EKS ARNs containing `/`. Encode the ID with `encodeURIComponent` whenever constructing `/cluster/:id` links, including resource navigation, dashboard shortcuts, and connection settings. React Router returns decoded parameters; encode them again when constructing a new URL. Do not encode the entire path or decode an ID before inserting it into a path.
+
 ## Local audit evidence fixture
 
 `hack/history-audit.mjs` creates a separate, randomly named local kind sandbox.

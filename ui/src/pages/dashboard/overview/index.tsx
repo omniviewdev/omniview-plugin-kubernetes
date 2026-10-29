@@ -84,7 +84,7 @@ const ClusterDashboardOverviewPage: React.FC = () => {
 
   const goToResource = React.useCallback(
     (resourceKey: string) => {
-      navigate(`/cluster/${id}/resources/${resourceKey}`);
+      navigate(`/cluster/${encodeURIComponent(id)}/resources/${resourceKey}`);
     },
     [navigate, id],
   );

@@ -205,9 +205,9 @@ function ClusterResourcesSession({ id }: { id: string }): React.ReactElement {
   const handleSelect = React.useCallback(
     (resourceID: string) => {
       if (resourceID === '__dashboard__') {
-        navigate(`/cluster/${id}/resources`);
+        navigate(`/cluster/${encodeURIComponent(id)}/resources`);
       } else {
-        navigate(`/cluster/${id}/resources/${resourceID}`);
+        navigate(`/cluster/${encodeURIComponent(id)}/resources/${resourceID}`);
       }
     },
     [navigate, id],
@@ -305,7 +305,7 @@ function ClusterResourcesSession({ id }: { id: string }): React.ReactElement {
                   {isEditing ? <LuLockOpen size={16} /> : <LuLock size={16} />}
                 </IconButton>
               </SimpleTooltip>
-              <Link to={`/cluster/${id}/edit`}>
+              <Link to={`/cluster/${encodeURIComponent(id)}/edit`}>
                 <IconButton variant="soft" size="sm" color="neutral" aria-label="Cluster settings">
                   <LuCog size={20} />
                 </IconButton>
