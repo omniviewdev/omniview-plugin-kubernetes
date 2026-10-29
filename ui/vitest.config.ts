@@ -14,6 +14,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+      // Published @omniviewdev/runtime still imports react-router-dom; the host
+      // serves it react-router 8, so tests resolve it the same way.
+      'react-router-dom': 'react-router',
     },
   },
   test: {
@@ -22,5 +25,11 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test-setup.ts'],
     css: false,
+    server: {
+      deps: {
+        // Transform the runtime so the react-router-dom alias applies to it.
+        inline: ['@omniviewdev/runtime'],
+      },
+    },
   },
 });
