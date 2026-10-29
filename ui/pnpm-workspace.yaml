@@ -1,6 +1,10 @@
 packages: []
 linkWorkspacePackages: false
 strictPeerDependencies: true
+peerDependencyRules:
+  allowedVersions:
+    # Published runtime 0.8.2 still declares base-ui ~0.7.2; the host ships it with base-ui 0.8.
+    '@omniviewdev/runtime>@omniviewdev/base-ui': 0.8.0
 pmOnFail: error
 minimumReleaseAge: 1440
 minimumReleaseAgeExclude:
