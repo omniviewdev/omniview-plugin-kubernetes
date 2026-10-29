@@ -67,9 +67,8 @@ GOWORK=off go test ./pkg/plugin/resource/resourcers -run '^$' -bench 'Benchmark(
 ```
 
 The hook regression includes a zero-storage-write smoke check for unchanged keys
-and empty results. Release 0.8.1 must consume the published runtime 0.9.1 reducer
-fix before tagging; the initial performance PR leaves runtime 0.9.0 unchanged
-until that package exists.
+and empty results. Release 0.8.1 consumes the published runtime 0.9.1 reducer fix
+through the `~0.9.1` dependency range and its matching pnpm lock entry.
 
 ## Connection route encoding
 

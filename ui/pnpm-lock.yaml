@@ -188,8 +188,8 @@ importers:
         specifier: 6.1.0
         version: 6.1.0(@omniviewdev/base-ui@0.8.0(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@omniviewdev/runtime':
-        specifier: 0.9.0
-        version: 0.9.0(@omniviewdev/base-ui@0.8.0(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@tanstack/react-query@5.105.0(@types/react@19.3.0)(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react-router@8.5.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
+        specifier: ~0.9.1
+        version: 0.9.1(@omniviewdev/base-ui@0.8.0(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@tanstack/react-query@5.105.0(@types/react@19.3.0)(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react-router@8.5.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
       '@tanstack/react-query':
         specifier: 5.105.0
         version: 5.105.0(@types/react@19.3.0)(react@19.3.1)
@@ -980,8 +980,8 @@ packages:
       react: ^19.3.1
       react-dom: ^19.3.1
 
-  '@omniviewdev/runtime@0.9.0':
-    resolution: {integrity: sha512-2DA8EvD5xIzZInWUHbITPydefBaWXTulZk+tnvIwiAbbrFjQ3Lx4JIrkzeVQTNAfIEQXiCzjsNdgiq0gjfuTlA==}
+  '@omniviewdev/runtime@0.9.1':
+    resolution: {integrity: sha512-Fhe3A1Ke83nwL/Lhk1vECYVxDZBzt1MATXx2fj8DbV7w5sBl7Lr6GEdwOaCQDVGGgwudqOK6GP6grBfNjI59xA==}
     peerDependencies:
       '@omniviewdev/base-ui': ~0.8.0
       '@tanstack/react-query': ^5.105.0
@@ -4293,7 +4293,7 @@ snapshots:
       - '@types/react'
       - supports-color
 
-  '@omniviewdev/runtime@0.9.0(@omniviewdev/base-ui@0.8.0(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@tanstack/react-query@5.105.0(@types/react@19.3.0)(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react-router@8.5.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)':
+  '@omniviewdev/runtime@0.9.1(@omniviewdev/base-ui@0.8.0(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@tanstack/react-query@5.105.0(@types/react@19.3.0)(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react-router@8.5.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)':
     dependencies:
       '@omniviewdev/base-ui': 0.8.0(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@tanstack/react-query': 5.105.0(@types/react@19.3.0)(react@19.3.1)
