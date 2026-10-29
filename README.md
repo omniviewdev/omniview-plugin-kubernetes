@@ -416,8 +416,11 @@ rather than adding unsupported manifest fields.
 
 Registry installs retain pnpm's 24-hour release-age protection. Only coordinated
 `@omniviewdev/*` packages are exempted; linked source worktrees resolve locally.
-The current UI cohort is `@omniviewdev/base-ui` 0.7.2 and
-`@omniviewdev/editors` 6.0.2, paired with host/runtime/Vite plugin 0.8.2 and Go SDK v0.7.1.
+The current UI cohort is `@omniviewdev/base-ui` 0.8.0 and
+`@omniviewdev/editors` 6.1.0, paired with host/runtime/Vite plugin 0.8.2 and Go SDK v0.7.1.
+Published runtime 0.8.2 still declares a base-ui ~0.7.2 peer and imports
+`react-router-dom`; `ui/pnpm-workspace.yaml` allows its base-ui 0.8.0 peer and the
+UI maps `react-router-dom` to `react-router` until a published runtime catches up.
 
 ### Building
 
