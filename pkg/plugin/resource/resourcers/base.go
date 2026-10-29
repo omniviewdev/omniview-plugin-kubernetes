@@ -359,10 +359,23 @@ func makeEventHandler(meta resource.ResourceMeta, sink resource.WatchEventSink) 
 				Metadata:  extractMetadata(u),
 			})
 		},
-		UpdateFunc: func(_, newObj interface{}) {
+		UpdateFunc: func(oldObj, newObj interface{}) {
 			u, ok := newObj.(*unstructured.Unstructured)
 			if !ok || u == nil {
 				return
+			}
+			// Informer resyncs can replay the same version without changing the object.
+			// Keep empty versions and replacement objects: neither proves a no-op.
+			if old, ok := oldObj.(*unstructured.Unstructured); ok && old != nil {
+				if version := u.GetResourceVersion(); version != "" &&
+					version == old.GetResourceVersion() &&
+					u.GetUID() == old.GetUID() &&
+					u.GetName() == old.GetName() &&
+					u.GetNamespace() == old.GetNamespace() &&
+					u.GetAPIVersion() == old.GetAPIVersion() &&
+					u.GetKind() == old.GetKind() {
+					return
+				}
 			}
 			data, err := u.MarshalJSON()
 			if err != nil {

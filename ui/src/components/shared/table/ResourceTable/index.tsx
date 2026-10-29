@@ -159,7 +159,7 @@ const ResourceTableContainer = <T extends RowData,>({
 
   const showSyncingIndicator = isSyncing && (resources.data?.result?.length ?? 0) > 0;
   const { labels, setLabels, annotations, setAnnotations, columnDefs } = useDynamicResourceColumns<T>({
-    connectionID,
+    resources: resources.data?.result,
     resourceKey,
   });
 
@@ -171,7 +171,7 @@ const ResourceTableContainer = <T extends RowData,>({
     setAnnotations((prev: Record<string, boolean>) => ({ ...prev, ...vals }));
   };
 
-  const allColumns = [...columns, ...columnDefs];
+  const allColumns = useMemo(() => [...columns, ...columnDefs], [columns, columnDefs]);
 
   // Auto-detect whether this resource has a namespace column
   const hasNamespaceColumn = allColumns.some((col) => col.id === 'namespace');

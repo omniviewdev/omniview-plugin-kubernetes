@@ -1,6 +1,5 @@
 import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import { Chip } from '@omniviewdev/base-ui';
-import { useResources } from '@omniviewdev/runtime';
 import { type ColumnDef, type RowData } from '@tanstack/react-table';
 import React from 'react';
 import { LuTag, LuStickyNote } from 'react-icons/lu';
@@ -10,17 +9,13 @@ import { type KubernetesResourceObject } from '../../../types/resource';
 import { useStoredState } from '@/hooks/useStoredState';
 
 type Args = {
-  connectionID: string;
+  resources: readonly KubernetesResourceObject[] | undefined;
   resourceKey: string;
 };
 
-/**
- * Tracks and generates resource label columns based on the incoming data
- * TODO: Could see this getting very innefficient, need to test. We should make indexed/calculated values
- * available in the SDK.
- */
+/** Discovers label and annotation columns from the table's unfiltered resource result. */
 export const useDynamicResourceColumns = <T extends RowData>({
-  connectionID,
+  resources,
   resourceKey,
 }: Args) => {
   const [labels, setLabels] = useStoredState<Record<string, boolean>>(
@@ -32,21 +27,8 @@ export const useDynamicResourceColumns = <T extends RowData>({
     {},
   );
 
-  const { resources } = useResources({
-    pluginID: 'kubernetes',
-    connectionID,
-    resourceKey,
-    idAccessor: 'metadata.uid',
-  });
-
-  /**
-   * When the resources change, calculate the dynamic resource columns that we
-   * can have.
-   *
-   * TODO: come back and do a perf analysis on this. Might slow things down by quite a bit
-   */
   React.useEffect(() => {
-    if (!resources.data?.result.length) {
+    if (!resources?.length) {
       // nothing to calculate
       return;
     }
@@ -57,9 +39,9 @@ export const useDynamicResourceColumns = <T extends RowData>({
     /**
      * Doing this all inline for performance reasons to prevent large object copying
      */
-    for (let i = 0; i < resources.data?.result.length; i++) {
-      const labels = Object.keys((resources.data.result[i] as KubernetesResourceObject).metadata?.labels || {});
-      const annotations = Object.keys((resources.data.result[i] as KubernetesResourceObject).metadata?.annotations || {});
+    for (let i = 0; i < resources.length; i++) {
+      const labels = Object.keys(resources[i].metadata?.labels || {});
+      const annotations = Object.keys(resources[i].metadata?.annotations || {});
 
       for (let l = 0; l < labels.length; l++) {
         if (!Object.hasOwn(discoveredLabels, labels[l])) {
@@ -77,16 +59,18 @@ export const useDynamicResourceColumns = <T extends RowData>({
      * Set labels and annotations that have not been defined, with priority going to
      * already existing ones.
      */
-    setLabels((prev) => ({
-      ...discoveredLabels,
-      ...prev,
-    }));
+    setLabels((prev) =>
+      Object.keys(discoveredLabels).some((key) => !Object.hasOwn(prev, key))
+        ? { ...discoveredLabels, ...prev }
+        : prev,
+    );
 
-    setAnnotations((prev) => ({
-      ...discoveredAnnotations,
-      ...prev,
-    }));
-  }, [resources.data?.result, setAnnotations, setLabels]);
+    setAnnotations((prev) =>
+      Object.keys(discoveredAnnotations).some((key) => !Object.hasOwn(prev, key))
+        ? { ...discoveredAnnotations, ...prev }
+        : prev,
+    );
+  }, [resources, setAnnotations, setLabels]);
 
   // Extract only the enabled keys
   const selectedLabelKeys = React.useMemo(
