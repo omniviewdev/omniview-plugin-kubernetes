@@ -1,19 +1,42 @@
 import type { SearchExecutionContextV1, SearchProviderItemV1, SearchScopeV1 } from '@omniviewdev/runtime';
 import { act, cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-const mocks = vi.hoisted(() => ({
-  get: vi.fn(),
-  hook: vi.fn(),
-  deps: {
-    createLogSession: vi.fn().mockResolvedValue({ id: 'session' }), closeDrawer: vi.fn(),
-    startDebug: vi.fn().mockResolvedValue(undefined),
-  },
-}));
+const mocks = vi.hoisted(() => {
+  // The real hook re-renders its owner when debug readiness changes; mirror that
+  // so compiler-memoized parents are not required to re-render the action context.
+  const listeners = new Set<() => void>();
+  let revision = 0;
+  return {
+    get: vi.fn(),
+    hook: vi.fn(),
+    deps: {
+      createLogSession: vi.fn().mockResolvedValue({ id: 'session' }), closeDrawer: vi.fn(),
+      startDebug: vi.fn().mockResolvedValue(undefined),
+    },
+    hookStore: {
+      subscribe: (listener: () => void) => {
+        listeners.add(listener);
+        return () => { listeners.delete(listener); };
+      },
+      revision: () => revision,
+      publish: () => {
+        revision += 1;
+        listeners.forEach((listener) => { listener(); });
+      },
+    },
+  };
+});
 vi.mock('@omniviewdev/runtime/api', () => ({ ResourceClient: { Get: mocks.get } }));
-vi.mock('../shared/drawer/DrawerActionsBridge', () => ({
-  useDrawerActionExecution: (target: unknown) => mocks.hook(target)
-    ?? { deps: mocks.deps, dialogs: null, isBusy: false, isReady: true },
-}));
+vi.mock('../shared/drawer/DrawerActionsBridge', async () => {
+  // vi.mock factories are hoisted above static imports, so load React here.
+  const { useSyncExternalStore } = await import('react');
+  return {
+    useDrawerActionExecution: (target: unknown) => {
+      useSyncExternalStore(mocks.hookStore.subscribe, mocks.hookStore.revision);
+      return mocks.hook(target) ?? { deps: mocks.deps, dialogs: null, isBusy: false, isReady: true };
+    },
+  };
+});
 
 import type { StartDebugInput } from '../shared/drawer/actionDeps';
 
@@ -125,7 +148,7 @@ describe('standalone palette Debug', () => {
       deps: { ...mocks.deps, startDebug: loadingStart },
       dialogs: null, isBusy: false, isReady: false,
     });
-    const mounted = render(<KubernetesSearchActionContext />);
+    render(<KubernetesSearchActionContext />);
     const items = await searchActions(scope, context().signal, debugPod);
     const main = items.find(item => item.label === 'Debug: main')!;
     if (main.value.kind !== 'action') throw new Error('Expected action');
@@ -145,7 +168,7 @@ describe('standalone palette Debug', () => {
         deps: { ...mocks.deps, startDebug: readyStart },
         dialogs: null, isBusy: false, isReady: true,
       });
-      await act(async () => { mounted.rerender(<KubernetesSearchActionContext />); });
+      await act(async () => { mocks.hookStore.publish(); });
       await execution;
     }
     expect(settled).toHaveBeenCalledTimes(1);
@@ -164,7 +187,7 @@ describe('standalone palette Debug', () => {
       deps: { ...mocks.deps, startDebug: loadingStart },
       dialogs: null, isBusy: false, isReady: false,
     });
-    const mounted = render(<KubernetesSearchActionContext />);
+    render(<KubernetesSearchActionContext />);
     const items = await searchActions(scope, context().signal, debugPod);
     const main = items.find(item => item.label === 'Debug: main')!;
     if (main.value.kind !== 'action') throw new Error('Expected action');
@@ -181,7 +204,7 @@ describe('standalone palette Debug', () => {
     mocks.hook.mockReturnValue({
       deps: mocks.deps, dialogs: null, isBusy: false, isReady: true,
     });
-    await act(async () => { mounted.rerender(<KubernetesSearchActionContext />); });
+    await act(async () => { mocks.hookStore.publish(); });
     expect(settled).toHaveBeenCalledTimes(1);
     expect(settled).toHaveBeenCalledWith(expect.objectContaining({ name: 'AbortError' }));
     expect(loadingStart).not.toHaveBeenCalled();
@@ -341,7 +364,7 @@ describe('standalone palette Debug', () => {
         mocks.hook.mockReturnValue({
           deps: mocks.deps, dialogs: null, isBusy: false, isReady: true,
         });
-        await act(async () => { mounted.rerender(<KubernetesSearchActionContext />); });
+        await act(async () => { mocks.hookStore.publish(); });
       } else if (outcome === 'timeout') {
         await act(async () => {
           await new Promise<void>((resolve) => {

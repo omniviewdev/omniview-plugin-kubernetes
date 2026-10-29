@@ -10,7 +10,7 @@ import {
   Text,
   TextArea,
 } from '@omniviewdev/base-ui';
-import React, { useEffect, useId, useState } from 'react';
+import React, { useId, useState } from 'react';
 
 import SimpleSelect from '../../components/connections/SimpleSelect';
 
@@ -32,7 +32,7 @@ export function DebugPreferencesDialog({
 }: DebugPreferencesDialogProps) {
   const preferences = useDebugPreferences(connectionID);
   const [scope, setScope] = useState<'plugin' | 'cluster'>('cluster');
-  const [selection, setSelection] = useState('');
+  const [selectionDraft, setSelection] = useState<string>();
   const [draft, setDraft] = useState<DebugTemplate | null>(null);
   const [command, setCommand] = useState('');
   const [env, setEnv] = useState('');
@@ -50,18 +50,27 @@ export function DebugPreferencesDialog({
     scope === 'cluster'
       ? (preferences.config.clusterDefaults[connectionID] ?? '')
       : (preferences.config.defaultTemplateId ?? '');
+  const selection = selectionDraft ?? savedSelection;
 
-  useEffect(() => {
-    if (open) {
+  // Opening the dialog, or switching connection or scope while open, discards
+  // transient edits and messages; the selection follows the saved default again.
+  const resetKey = open ? JSON.stringify([connectionID, scope]) : null;
+  const [appliedResetKey, setAppliedResetKey] = useState<string | null>(null);
+  if (appliedResetKey !== resetKey) {
+    setAppliedResetKey(resetKey);
+    if (resetKey !== null) {
       setDraft(null);
       setError(null);
       setNotice(null);
+      setSelection(undefined);
     }
-  }, [open, connectionID, scope]);
-
-  useEffect(() => {
-    if (open) setSelection(savedSelection);
-  }, [open, connectionID, scope, savedSelection]);
+  }
+  // A saved default that changes while open replaces the pending selection.
+  const [observedSelection, setObservedSelection] = useState(savedSelection);
+  if (open && observedSelection !== savedSelection) {
+    setObservedSelection(savedSelection);
+    setSelection(undefined);
+  }
 
   function edit(template: DebugTemplate, duplicate: boolean) {
     const value = {

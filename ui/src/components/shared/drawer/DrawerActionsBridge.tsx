@@ -9,9 +9,9 @@ import {
 } from '@omniviewdev/runtime';
 import React from 'react';
 
+import { useDebugActions } from '../../../features/debug/useDebugActions';
 import { useClusterPreferences } from '../../../hooks/useClusterPreferences';
 import ScaleModal from '../../kubernetes/actions/ScaleModal';
-import { useDebugActions } from '../../../features/debug/useDebugActions';
 
 import { type DrawerActionDeps, registerDrawerActionDeps, registryKey, type ScaleTarget } from './actionDeps';
 
