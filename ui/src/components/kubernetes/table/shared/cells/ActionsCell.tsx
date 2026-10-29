@@ -3,6 +3,8 @@ import {
   type DrawerComponentAction,
   type DrawerContext,
   useConfirmationModal,
+  parseAppError,
+  useSnackbar,
 } from '@omniviewdev/runtime';
 import { ResourceClient } from '@omniviewdev/runtime/api';
 import { type resource } from '@omniviewdev/runtime/models';
@@ -22,13 +24,16 @@ type ContextMenuItem = {
   color?: 'danger';
   disabled?: boolean;
   dividerAfter?: boolean;
-  onClick?: () => void;
+  onClick?: () => void | Promise<unknown>;
   children?: ContextMenuItem[];
 };
 
 const stopPropagation = (e: React.SyntheticEvent) => e.stopPropagation();
 
-function renderMenuItems(items: ContextMenuItem[]): React.ReactNode {
+function renderMenuItems(
+  items: ContextMenuItem[],
+  invoke: (callback: NonNullable<ContextMenuItem['onClick']>) => void,
+): React.ReactNode {
   return items.map((item) => (
     <React.Fragment key={item.key}>
       {item.children && item.children.length > 0 ? (
@@ -38,7 +43,7 @@ function renderMenuItems(items: ContextMenuItem[]): React.ReactNode {
           </Menu.SubmenuTrigger>
           <Menu.Portal>
             <Menu.Positioner sideOffset={4}>
-              <Menu.Popup onClick={stopPropagation}>{renderMenuItems(item.children)}</Menu.Popup>
+              <Menu.Popup onClick={stopPropagation}>{renderMenuItems(item.children, invoke)}</Menu.Popup>
             </Menu.Positioner>
           </Menu.Portal>
         </Menu.SubmenuRoot>
@@ -47,7 +52,7 @@ function renderMenuItems(items: ContextMenuItem[]): React.ReactNode {
           startDecorator={item.icon}
           color={item.color}
           disabled={item.disabled}
-          onClick={item.onClick}
+          onClick={item.onClick ? () => { invoke(item.onClick!); } : undefined}
         >
           {item.label}
         </Menu.Item>
@@ -162,6 +167,17 @@ function actionsToMenuItems(
 const ActionsCell: React.FC<Props> = ({ connectionID, resourceKey, resourceID, data, namespace }) => {
   const drawer = useTableDrawer();
   const { show } = useConfirmationModal();
+  const snackbar = useSnackbar();
+  const invoke = (callback: NonNullable<ContextMenuItem['onClick']>) => {
+    void (async () => {
+      try {
+        await callback();
+      } catch (cause) {
+        const error = parseAppError(cause);
+        snackbar.showSnackbar({ message: error.title || 'Action failed', status: 'error', details: error.detail });
+      }
+    })();
+  };
 
   const propsObj = React.useMemo<Props>(
     () => ({ connectionID, resourceKey, resourceID, data, namespace }),
@@ -202,7 +218,7 @@ const ActionsCell: React.FC<Props> = ({ connectionID, resourceKey, resourceID, d
       />
       <Menu.Portal>
         <Menu.Positioner side="bottom" align="end" sideOffset={4}>
-          <Menu.Popup onClick={stopPropagation}>{renderMenuItems(items)}</Menu.Popup>
+          <Menu.Popup onClick={stopPropagation}>{renderMenuItems(items, invoke)}</Menu.Popup>
         </Menu.Positioner>
       </Menu.Portal>
     </Menu.Root>

@@ -61,7 +61,7 @@ export function validateDebugTemplate(
     return [{ field: 'template', message: 'Invalid template.' }];
   const t = value as Record<string, unknown>;
   for (const field of ['id', 'name', 'image']) {
-    if (typeof t[field] !== 'string' || !(t[field] as string).trim())
+    if (typeof t[field] !== 'string' || !(t[field]).trim())
       issue(field, `${field} is required.`);
   }
   if (existing.some((entry) => entry?.id === t.id)) issue('id', 'Template ID already exists.');

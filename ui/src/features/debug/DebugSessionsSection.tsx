@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   Button,
   Card,
@@ -10,6 +9,8 @@ import {
 } from '@omniviewdev/base-ui';
 import { parseAppError, useExec } from '@omniviewdev/runtime';
 import type { Pod } from 'kubernetes-types/core/v1';
+import React from 'react';
+
 import {
   getDebugRecords,
   subscribeDebugRecords,
@@ -54,11 +55,12 @@ export default function DebugSessionsSection({
       setError(formatSessionError(cause));
     }
   };
-  const local = records.filter(
-    (record) =>
+  const local = React.useMemo(
+    () => records.filter((record) =>
       record.connectionID === connectionID &&
       record.resourceID === pod.metadata?.name &&
-      record.namespace === pod.metadata?.namespace,
+      record.namespace === pod.metadata?.namespace),
+    [records, connectionID, pod.metadata?.name, pod.metadata?.namespace],
   );
   const known = new Set(
     local
@@ -115,7 +117,7 @@ export default function DebugSessionsSection({
       cancelled = true;
       clearInterval(timer);
     };
-  }, [records, connectionID, pod.metadata?.uid]);
+  }, [local]);
   if (!all.length) return null;
   return (
     <section aria-label="Debug sessions">

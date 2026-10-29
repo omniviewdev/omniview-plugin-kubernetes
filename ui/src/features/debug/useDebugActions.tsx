@@ -1,9 +1,11 @@
 import React from 'react';
+
 import type { DrawerActionDeps, StartDebugInput } from '../../components/shared/drawer/actionDeps';
-import { useDebugPreferences } from './useDebugPreferences';
-import { DebugPreferencesDialog } from './DebugPreferencesDialog';
-import DebugLaunchDialog from './DebugLaunchDialog';
+
 import { startDebugSession } from './controller';
+import DebugLaunchDialog from './DebugLaunchDialog';
+import { DebugPreferencesDialog } from './DebugPreferencesDialog';
+import { useDebugPreferences } from './useDebugPreferences';
 
 export function useDebugActions(
   connectionID: string,

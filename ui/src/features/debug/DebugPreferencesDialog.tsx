@@ -1,4 +1,3 @@
-import React, { useEffect, useId, useState } from 'react';
 import {
   Button,
   Collapsible,
@@ -11,11 +10,14 @@ import {
   Text,
   TextArea,
 } from '@omniviewdev/base-ui';
+import React, { useEffect, useId, useState } from 'react';
+
 import SimpleSelect from '../../components/connections/SimpleSelect';
+
 import { BUILTIN_DEBUG_TEMPLATES, resolveDebugTemplate, validateDebugTemplate } from './config';
 import type { DebugTemplate } from './config';
-import { useDebugPreferences } from './useDebugPreferences';
 import styles from './DebugPreferencesDialog.module.css';
+import { useDebugPreferences } from './useDebugPreferences';
 
 export interface DebugPreferencesDialogProps {
   open: boolean;
@@ -300,8 +302,8 @@ export function DebugPreferencesDialog({
                 Effective: {preview.template.name} · {preview.template.image} · source:{' '}
                 {preview.source}
               </Text>
-              {preview.issues.map((issue, index) => (
-                <div role="alert" key={index}>
+              {preview.issues.map((issue) => (
+                <div role="alert" key={`${issue.field}:${issue.message}`}>
                   {issue.message}
                 </div>
               ))}

@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   Button,
   Checkbox,
@@ -12,10 +11,22 @@ import {
   Text,
   TextArea,
 } from '@omniviewdev/base-ui';
+import React from 'react';
 import { LuChevronDown, LuChevronRight } from 'react-icons/lu';
+
 import SimpleSelect from '../../components/connections/SimpleSelect';
-import type { DebugTemplate } from './config';
 import type { StartDebugInput } from '../../components/shared/drawer/actionDeps';
+
+import type { DebugTemplate } from './config';
+
+const formStyles = {
+  dialog: { width: 'calc(100% - 32px)' },
+  title: { flexShrink: 0, overflowWrap: 'anywhere' },
+  body: { minHeight: 0 },
+  fullWidth: { width: '100%' },
+  customize: { paddingTop: 'var(--ov-space-stack-md, 16px)' },
+  footer: { flexShrink: 0, flexWrap: 'wrap' },
+} satisfies Record<string, React.CSSProperties>;
 
 export default function DebugLaunchDialog({
   open,
@@ -64,12 +75,12 @@ export default function DebugLaunchDialog({
         if (!busy) onClose();
       }}
       size="md"
-      style={{ width: 'calc(100% - 32px)' }}
+      style={formStyles.dialog}
     >
-      <Dialog.Title style={{ flexShrink: 0, overflowWrap: 'anywhere' }}>
+      <Dialog.Title style={formStyles.title}>
         Debug {input.resourceID} / {input.targetContainerName}
       </Dialog.Title>
-      <Dialog.Body style={{ minHeight: 0 }}>
+      <Dialog.Body style={formStyles.body}>
         <Stack spacing={3}>
           {warnings && (
             <Text as="p" size="sm" tone="warning" role="alert">
@@ -82,7 +93,7 @@ export default function DebugLaunchDialog({
               portalContainer={popupContainer}
               value={draft.id}
               disabled={busy}
-              style={{ width: '100%' }}
+              style={formStyles.fullWidth}
               options={templates.map((template) => ({ value: template.id, label: template.name }))}
               onChange={(value) => {
                 const next = templates.find((item) => item.id === value);
@@ -100,7 +111,7 @@ export default function DebugLaunchDialog({
               id={`${id}-image`}
               size="sm"
               disabled={busy}
-              style={{ width: '100%' }}
+              style={formStyles.fullWidth}
               value={draft.image}
               onChange={(event) => setDraft({ ...draft, image: event.target.value })}
             />
@@ -119,14 +130,14 @@ export default function DebugLaunchDialog({
               inert={!customizeOpen}
               aria-hidden={!customizeOpen}
             >
-              <Stack spacing={3} style={{ paddingTop: 'var(--ov-space-stack-md, 16px)' }}>
+              <Stack spacing={3} style={formStyles.customize}>
                 <FormField label="Target" htmlFor={`${id}-target`} size="sm">
                   <Input.Control
                     id={`${id}-target`}
                     size="sm"
                     readOnly
                     disabled={busy}
-                    style={{ width: '100%' }}
+                    style={formStyles.fullWidth}
                     value={input.targetContainerName}
                   />
                 </FormField>
@@ -137,7 +148,7 @@ export default function DebugLaunchDialog({
                     mono
                     rows={2}
                     disabled={busy}
-                    style={{ width: '100%' }}
+                    style={formStyles.fullWidth}
                     value={command}
                     onChange={(event) => setCommand(event.target.value)}
                   />
@@ -148,7 +159,7 @@ export default function DebugLaunchDialog({
                     portalContainer={popupContainer}
                     value={draft.profile}
                     disabled={busy}
-                    style={{ width: '100%' }}
+                    style={formStyles.fullWidth}
                     options={[
                       { value: 'restricted', label: 'Restricted' },
                       { value: 'netadmin', label: 'Network administration' },
@@ -166,7 +177,7 @@ export default function DebugLaunchDialog({
                     portalContainer={popupContainer}
                     value={draft.imagePullPolicy}
                     disabled={busy}
-                    style={{ width: '100%' }}
+                    style={formStyles.fullWidth}
                     options={['IfNotPresent', 'Always'].map((value) => ({ value, label: value }))}
                     onChange={(value) =>
                       setDraft({
@@ -188,7 +199,7 @@ export default function DebugLaunchDialog({
                     mono
                     rows={2}
                     disabled={busy}
-                    style={{ width: '100%' }}
+                    style={formStyles.fullWidth}
                     value={env}
                     onChange={(event) => setEnv(event.target.value)}
                   />
@@ -199,7 +210,7 @@ export default function DebugLaunchDialog({
                     portalContainer={popupContainer}
                     value={volume}
                     disabled={busy}
-                    style={{ width: '100%' }}
+                    style={formStyles.fullWidth}
                     onChange={setVolume}
                     options={[
                       { value: '', label: 'None' },
@@ -216,7 +227,7 @@ export default function DebugLaunchDialog({
                       id={`${id}-mount-path`}
                       size="sm"
                       disabled={busy}
-                      style={{ width: '100%' }}
+                      style={formStyles.fullWidth}
                       value={mountPath}
                       onChange={(event) => setMountPath(event.target.value)}
                     />
@@ -246,7 +257,7 @@ export default function DebugLaunchDialog({
           )}
         </Stack>
       </Dialog.Body>
-      <Dialog.Footer style={{ flexShrink: 0, flexWrap: 'wrap' }}>
+      <Dialog.Footer style={formStyles.footer}>
         <Button variant="ghost" onClick={onSettings} disabled={busy}>
           Templates & defaults
         </Button>
@@ -265,7 +276,7 @@ export default function DebugLaunchDialog({
                 if (
                   !Array.isArray(argv) ||
                   !argv.length ||
-                  argv.some((value) => typeof value !== 'string' || !value)
+                  !argv.every((value: unknown): value is string => typeof value === 'string' && value.length > 0)
                 )
                   throw new Error('Command must be a nonempty string argv array');
                 if (

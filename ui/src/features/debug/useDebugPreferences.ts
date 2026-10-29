@@ -1,6 +1,8 @@
 import { usePluginData } from '@omniviewdev/runtime';
 import { useMemo, useState } from 'react';
+
 import { useClusterPreferences } from '../../hooks/useClusterPreferences';
+
 import {
   BUILTIN_DEBUG_TEMPLATES,
   resolveDebugTemplate,

@@ -1,8 +1,10 @@
-import type { EphemeralContainer, Pod } from 'kubernetes-types/core/v1';
-import type { DrawerActionDeps, StartDebugInput } from '../../components/shared/drawer/actionDeps';
-import type { DebugTemplate } from './config';
-import { ResourceClient } from '@omniviewdev/runtime/api';
 import { parseAppError } from '@omniviewdev/runtime';
+import { ResourceClient } from '@omniviewdev/runtime/api';
+import type { EphemeralContainer, Pod } from 'kubernetes-types/core/v1';
+
+import type { DrawerActionDeps, StartDebugInput } from '../../components/shared/drawer/actionDeps';
+
+import type { DebugTemplate } from './config';
 import { runningDebugTargets } from './targets';
 
 export type DebugRecord = Omit<StartDebugInput, 'resourceData'> & {

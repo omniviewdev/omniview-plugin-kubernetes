@@ -1,5 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { BUILTIN_DEBUG_TEMPLATES } from './config';
 import type { DebugTemplate } from './config';
 import { useDebugPreferences } from './useDebugPreferences';

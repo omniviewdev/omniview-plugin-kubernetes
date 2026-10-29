@@ -1,5 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { BUILTIN_DEBUG_TEMPLATES, resolveDebugTemplate } from './config';
 import type { DebugConfig } from './config';
 import { DebugPreferencesDialog } from './DebugPreferencesDialog';

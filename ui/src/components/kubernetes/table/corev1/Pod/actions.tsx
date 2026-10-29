@@ -2,8 +2,8 @@ import { type DrawerComponentAction, type DrawerContext, type DrawerComponentAct
 import type { Pod } from 'kubernetes-types/core/v1';
 import { LuBugPlay, LuChevronDown, LuLogs, LuScaling, LuTerminal, LuTrash } from 'react-icons/lu';
 
-import { drawerActionDeps } from '../../../../shared/drawer/actionDeps';
 import { isMissingShellError, runningDebugTargets } from '../../../../../features/debug/targets';
+import { drawerActionDeps } from '../../../../shared/drawer/actionDeps';
 
 const debugInput = (ctx: DrawerContext<Pod>, targetContainerName: string) => {
   const pod = ctx.data;

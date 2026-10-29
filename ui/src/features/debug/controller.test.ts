@@ -1,4 +1,9 @@
+import { ResourceClient } from '@omniviewdev/runtime/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type { DrawerActionDeps, StartDebugInput } from '../../components/shared/drawer/actionDeps';
+
+import { BUILTIN_DEBUG_TEMPLATES } from './config';
 import {
   getDebugRecords,
   inspectDebugRecord,
@@ -6,9 +11,6 @@ import {
   reconnectDebug,
   startDebugSession,
 } from './controller';
-import { ResourceClient } from '@omniviewdev/runtime/api';
-import { BUILTIN_DEBUG_TEMPLATES } from './config';
-import type { DrawerActionDeps, StartDebugInput } from '../../components/shared/drawer/actionDeps';
 import { isMissingShellError } from './targets';
 vi.mock('@omniviewdev/runtime/api', () => ({ ResourceClient: { Get: vi.fn() } }));
 

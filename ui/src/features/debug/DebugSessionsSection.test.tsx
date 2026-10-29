@@ -1,11 +1,14 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
-import type { Pod } from 'kubernetes-types/core/v1';
 import { ResourceClient } from '@omniviewdev/runtime/api';
-import DebugSessionsSection from './DebugSessionsSection';
-import { getDebugRecords, startDebugSession } from './controller';
-import { BUILTIN_DEBUG_TEMPLATES } from './config';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { Pod } from 'kubernetes-types/core/v1';
+import { describe, expect, it, vi } from 'vitest';
+
 import type { DrawerActionDeps, StartDebugInput } from '../../components/shared/drawer/actionDeps';
+
+import { BUILTIN_DEBUG_TEMPLATES } from './config';
+import { getDebugRecords, startDebugSession } from './controller';
+import DebugSessionsSection from './DebugSessionsSection';
+
 
 const mocks = vi.hoisted(() => ({
   createSession: vi.fn().mockResolvedValue({ id: 'replacement-stream' }),
