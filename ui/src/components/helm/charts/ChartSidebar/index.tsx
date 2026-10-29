@@ -9,13 +9,13 @@ import {
 
 import SimpleSelect from '../../../connections/SimpleSelect';
 import NamedAvatar from '../../../shared/NamedAvatar';
-
 import InstallChartDialog from '../InstallChartDialog';
-import MetaEntry from './MetaEntry';
+
 import ChartOverviewTab from './ChartOverviewTab';
 import ChartReadmeTab from './ChartReadmeTab';
 import ChartValuesTab from './ChartValuesTab';
 import ChartVersionsTab from './ChartVersionsTab';
+import MetaEntry from './MetaEntry';
 import type { HelmChart, ChartVersion, VersionsActionData, ReadmeActionData, ValuesActionData } from './types';
 
 /** Union of possible cached tab data entries. */
@@ -78,90 +78,64 @@ const scrollableContentStyle: React.CSSProperties = {
  * Renders a sidebar for a Helm Chart resource with tabbed layout,
  * version browsing, markdown README rendering, and values preview.
  */
-export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
+export const ChartSidebar: React.FC<Props> = ({ ctx }) => (
+  <ChartSidebarContent
+    key={JSON.stringify([ctx.resource?.connectionID ?? '', ctx.data?.id ?? ctx.resource?.id ?? ''])}
+    ctx={ctx}
+  />
+);
+
+// Chart and connection identity own all selections, cached reads, and dialogs.
+const ChartSidebarContent: React.FC<Props> = ({ ctx }) => {
   const [activeTab, setActiveTab] = React.useState('overview');
-  const [selectedVersion, setSelectedVersion] = React.useState('');
-  const [versions, setVersions] = React.useState<ChartVersion[]>([]);
+  const [versionDraft, setSelectedVersion] = React.useState<string>();
+  const [versionResult, setVersions] = React.useState<ChartVersion[] | null>(null);
+  const versions = versionResult ?? [];
+  const selectedVersion = versionDraft ?? versions[0]?.version ?? '';
   const [tabData, setTabData] = React.useState<Record<string, TabDataEntry>>({});
-  const [versionsLoading, setVersionsLoading] = React.useState(false);
   const [showInstall, setShowInstall] = React.useState(false);
   const [iconFailed, setIconFailed] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
   const copyTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const copyActiveRef = React.useRef(false);
   const tabDataRef = React.useRef<Record<string, TabDataEntry>>({});
 
   const connectionID = ctx.resource?.connectionID ?? '';
   const chartID = ctx.data?.id ?? ctx.resource?.id ?? '';
+  const versionsLoading = Boolean(chartID && connectionID && versionResult === null);
 
-  // Reset per-chart state when the chart changes (sidebar may stay mounted)
-  React.useEffect(() => {
-    setSelectedVersion('');
-    setActiveTab('overview');
-    setIconFailed(false);
-    setCopied(false);
-    setTabData({});
-    tabDataRef.current = {};
-  }, [chartID]);
 
   const { executeAction, isExecuting } = useExecuteAction({
     pluginID: 'kubernetes',
     connectionID,
     resourceKey: 'helm::v1::Chart',
   });
+  const executeChartRead = React.useEffectEvent(executeAction);
 
-  // Load versions on mount
+  // Commit only results belonging to the mounted chart scope.
   React.useEffect(() => {
     if (!chartID || !connectionID) return;
-    setVersionsLoading(true);
-    void executeAction({
+    let cancelled = false;
+    void executeChartRead({
       actionID: 'get-versions',
       id: chartID,
     })
       .then((result) => {
+        if (cancelled) return;
         const versionsData = result?.data as VersionsActionData | undefined;
-        const versionList = versionsData?.versions ?? [];
-        setVersions(versionList);
-        if (versionList.length > 0) {
-          setSelectedVersion(versionList[0].version);
-        }
-        setVersionsLoading(false);
+        setVersions(versionsData?.versions ?? []);
       })
       .catch((err) => {
+        if (cancelled) return;
         console.error('[ChartSidebar] Failed to fetch versions', { chartID, connectionID }, err);
-        setVersionsLoading(false);
+        setVersions([]);
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- executeAction excluded: its reference may change but should not retrigger version fetching
+    return () => {
+      cancelled = true;
+    };
   }, [chartID, connectionID]);
 
-  // Fetch tab-specific data lazily, cache by action+version
-  const fetchTabData = React.useCallback(
-    async (actionID: string) => {
-      const cacheKey = `${chartID}::${actionID}::${selectedVersion}`;
-      if (tabDataRef.current[cacheKey]) return;
-      try {
-        const result = await executeAction({
-          actionID,
-          id: chartID,
-          params: selectedVersion ? { version: selectedVersion } : undefined,
-        });
-        setTabData((prev) => {
-          const next = { ...prev, [cacheKey]: result?.data as TabDataEntry };
-          tabDataRef.current = next;
-          return next;
-        });
-      } catch (err) {
-        console.error('[ChartSidebar] Failed to fetch tab data', { actionID, chartID, selectedVersion }, err);
-        setTabData((prev) => {
-          const next = { ...prev, [cacheKey]: null };
-          tabDataRef.current = next;
-          return next;
-        });
-      }
-    },
-    [executeAction, chartID, selectedVersion],
-  );
-
-  // Fetch data when tab changes
+  // Cache successful reads. Failed tabs retry when the user revisits them.
   React.useEffect(() => {
     if (!connectionID || !chartID) return;
     const tabActionMap: Record<string, string> = {
@@ -169,10 +143,30 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
       values: 'get-values',
     };
     const actionID = tabActionMap[activeTab];
-    if (actionID) {
-      void fetchTabData(actionID);
-    }
-  }, [activeTab, connectionID, chartID, fetchTabData]);
+    if (!actionID) return;
+    const cacheKey = `${chartID}::${actionID}::${selectedVersion}`;
+    if (tabDataRef.current[cacheKey]) return;
+    let cancelled = false;
+    void executeChartRead({
+      actionID,
+      id: chartID,
+      params: selectedVersion ? { version: selectedVersion } : undefined,
+    })
+      .then((result) => {
+        if (cancelled) return;
+        const entry = result?.data as TabDataEntry;
+        tabDataRef.current[cacheKey] = entry;
+        setTabData((prev) => ({ ...prev, [cacheKey]: entry }));
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('[ChartSidebar] Failed to fetch tab data', { actionID, chartID, selectedVersion }, err);
+        setTabData((prev) => ({ ...prev, [cacheKey]: null }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, connectionID, chartID, selectedVersion]);
 
   // Invalidate cached tab data when version changes
   const handleVersionChange = React.useCallback((newVersion: string | string[]) => {
@@ -184,7 +178,9 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
 
   // Clean up pending copy timeout on unmount
   React.useEffect(() => {
+    copyActiveRef.current = true;
     return () => {
+      copyActiveRef.current = false;
       if (copyTimeoutRef.current !== null) {
         clearTimeout(copyTimeoutRef.current);
       }
@@ -197,6 +193,7 @@ export const ChartSidebar: React.FC<Props> = ({ ctx }) => {
     const valuesData = entry?.values;
     if (valuesData) {
       void navigator.clipboard.writeText(valuesData).then(() => {
+        if (!copyActiveRef.current) return;
         setCopied(true);
         if (copyTimeoutRef.current !== null) {
           clearTimeout(copyTimeoutRef.current);

@@ -7,7 +7,7 @@ import {
 } from '@omniviewdev/runtime';
 import type { Pod, Node as K8sNode, Event as K8sEvent } from 'kubernetes-types/core/v1';
 import React from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router';
 
 import type { ChartTimeRange } from '../../../components/shared/charts';
 import NamespaceSelect from '../../../components/tables/NamespaceSelect';
@@ -60,15 +60,6 @@ import {
 } from './components/WorkloadStatCards';
 import EventsTable from './EventsTable';
 
-/** Shape of the connection metadata returned by the runtime for Kubernetes clusters. */
-type ConnectionData = {
-  server_url?: string;
-  k8s_version?: string;
-  k8s_platform?: string;
-  node_count?: number;
-  api_groups?: number;
-  last_checked?: string;
-};
 
 /**
  * Generic filter for namespaced K8s resources.
@@ -162,7 +153,7 @@ const ClusterDashboardOverviewPage: React.FC = () => {
         {/* Cluster info + health status */}
         <ClusterInfoCard
           // Connection.data is Record<string, any> from the runtime; cast to the expected shape
-          data={connection.data?.data as ConnectionData | undefined}
+          data={connection.data?.data}
           loading={connection.isLoading}
           nodes={allNodes}
           pods={allPods}

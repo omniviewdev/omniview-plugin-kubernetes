@@ -8,9 +8,9 @@ import {
   type HomepageCardMeta,
   type SearchRouteHandleV1,
 } from '@omniviewdev/runtime';
-import { SiKubernetes } from 'react-icons/si';
 import React from 'react';
-import { RouteObject } from 'react-router-dom';
+import { SiKubernetes } from 'react-icons/si';
+import { RouteObject } from 'react-router';
 
 import ChartSidebar from './components/helm/charts/ChartSidebar';
 import HelmChartTable from './components/helm/charts/Table';
@@ -18,6 +18,7 @@ import ReleaseSidebar from './components/helm/releases/ReleaseSidebar';
 import HelmReleaseTable from './components/helm/releases/Table';
 import RepoSidebar from './components/helm/repos/RepoSidebar';
 import HelmRepoTable from './components/helm/repos/Table';
+import KubernetesHomepageCard from './components/homepage/KubernetesHomepageCard';
 import { resourceDrawerActions } from './components/kubernetes/drawerActions';
 import NodeSidebar from './components/kubernetes/sidebar/NodeSidebar';
 import PodSidebar from './components/kubernetes/sidebar/Pod';
@@ -112,18 +113,17 @@ import VolumeAttachmentSidebar from './components/kubernetes/table/storagev1/Vol
 import VolumeAttachmentTable from './components/kubernetes/table/storagev1/VolumeAttachment/Table';
 import { createStandardViews } from './components/shared/sidebar/createDrawerViews';
 import GenericResourceSidebar from './components/shared/sidebar/GenericResourceSidebar';
-import KubernetesHomepageCard from './components/homepage/KubernetesHomepageCard';
+import { kubernetesResourceIconSet } from './icons/resourceIcons';
 import ClusterEditPage from './pages/ClusterEditPage';
 import ClusterResourcesPage from './pages/ClusterResourcesPage';
 import ClustersPage from './pages/ClustersPage';
-import ClusterExtensionPage, { CLUSTER_PAGE_EXTENSION_POINT_ID } from './pages/extension';
 import ClusterDashboardPage from './pages/dashboard';
 import ClusterDashboardBenchmarksPage from './pages/dashboard/benchmarks';
 import ClusterDashboardExtensionPage from './pages/dashboard/extension';
 import ClusterDashboardMetricsPage from './pages/dashboard/metrics';
 import ClusterDashboardOverviewPage from './pages/dashboard/overview';
+import ClusterExtensionPage, { CLUSTER_PAGE_EXTENSION_POINT_ID } from './pages/extension';
 import { kubernetesSearchProvider } from './search/provider';
-import { kubernetesResourceIconSet } from './icons/resourceIcons';
 
 const connectionSearchHandle: SearchRouteHandleV1 = {
   searchScope: ({ params }) => params.id

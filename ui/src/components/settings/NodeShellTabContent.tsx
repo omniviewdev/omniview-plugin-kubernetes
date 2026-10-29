@@ -27,7 +27,11 @@ const infoIconStyle: React.CSSProperties = { color: 'var(--ov-color-fg-subtle)',
 
 const infoTextStyle: React.CSSProperties = { lineHeight: 1.4 };
 
-const NodeShellTabContent: React.FC<Props> = ({ pluginID, connectionID }) => {
+const NodeShellTabContent: React.FC<Props> = (props) => (
+  <NodeShellForm key={JSON.stringify([props.pluginID, props.connectionID])} {...props} />
+);
+
+const NodeShellForm: React.FC<Props> = ({ pluginID, connectionID }) => {
   const { connectionOverrides, updateOverride } = useClusterPreferences(pluginID);
   const existing = React.useMemo(
     () => connectionOverrides[connectionID] ?? {},
@@ -35,17 +39,11 @@ const NodeShellTabContent: React.FC<Props> = ({ pluginID, connectionID }) => {
   );
   const shellConfig = existing.nodeShellConfig ?? {};
 
-  const [image, setImage] = React.useState(shellConfig.image ?? '');
-  const [command, setCommand] = React.useState(shellConfig.command ?? '');
-
-  // Sync when overrides load async
-  React.useEffect(() => {
-    const cfg = connectionOverrides[connectionID]?.nodeShellConfig;
-    if (cfg) {
-      setImage((prev) => prev || cfg.image || '');
-      setCommand((prev) => prev || cfg.command || '');
-    }
-  }, [connectionOverrides, connectionID]);
+  // Untouched fields follow loaded preferences; explicit empty drafts stay empty.
+  const [imageDraft, setImage] = React.useState<string>();
+  const [commandDraft, setCommand] = React.useState<string>();
+  const image = imageDraft ?? shellConfig.image ?? '';
+  const command = commandDraft ?? shellConfig.command ?? '';
 
   const saveConfig = useCallback(async () => {
     const nc: NodeShellConfig = {};

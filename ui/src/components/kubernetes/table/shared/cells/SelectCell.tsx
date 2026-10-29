@@ -1,3 +1,4 @@
+import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import { Checkbox } from '@omniviewdev/base-ui';
 import { type Row } from '@tanstack/react-table';
 
@@ -23,9 +24,9 @@ const stopPropagation = (e: React.SyntheticEvent) => e.stopPropagation();
  * By receiving a primitive boolean, the compiler correctly detects the change.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const SelectCell = ({ row, checked }: { row: Row<any>; checked: boolean }) => (
+export const SelectCell = ({ row, checked }: { row: Row<DataTableFeatures, any>; checked: boolean }) => (
   // Clicking the checkbox must not also trigger the row click handler.
-  // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
+  // eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/no-static-element-interactions
   <div style={selectCellContainerStyle} onClick={stopPropagation}>
     <Checkbox
       size="sm"

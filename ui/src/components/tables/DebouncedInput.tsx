@@ -1,5 +1,5 @@
 import { SearchInput } from '@omniviewdev/base-ui';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { LuSearch } from 'react-icons/lu';
 
 const inputStyle = { flex: 1, maxWidth: 360 } as const;
@@ -22,35 +22,41 @@ export function DebouncedInput({
   placeholder = 'Search',
   autoFocus = true,
 }: DebounceProps) {
-  const [value, setValue] = useState(initialValue);
+  const [input, setInput] = useState({ source: initialValue, value: initialValue, pending: false });
+  const onChangeRef = useRef(onChange);
+
+  if (input.source !== initialValue) {
+    setInput({ source: initialValue, value: initialValue, pending: false });
+  }
 
   useEffect(() => {
-    setValue(initialValue);
-  }, [initialValue]);
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
   useEffect(() => {
+    if (!input.pending || input.value === initialValue) return;
     const timeout = setTimeout(() => {
-      onChange(value);
+      onChangeRef.current(input.value);
     }, debounce);
 
     return () => {
       clearTimeout(timeout);
     };
-  }, [value, debounce, onChange]);
+  }, [input.pending, input.value, initialValue, debounce]);
 
   return (
     <SearchInput
       size="sm"
       variant="outline"
-      value={value}
-      onValueChange={setValue}
+      value={input.value}
+      onValueChange={(value) => setInput({ source: initialValue, value, pending: true })}
       onClear={() => {
-        setValue('');
+        setInput({ source: initialValue, value: '', pending: false });
         onChange('');
       }}
       placeholder={placeholder}
       startDecorator={<LuSearch size={14} />}
-      // eslint-disable-next-line jsx-a11y/no-autofocus
+      // eslint-disable-next-line jsx-a11y-x/no-autofocus
       autoFocus={autoFocus}
       autoComplete="off"
       aria-label={placeholder}

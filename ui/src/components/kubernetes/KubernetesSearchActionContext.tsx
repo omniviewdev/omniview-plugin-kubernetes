@@ -1,8 +1,10 @@
-import React from 'react';
 import type { SearchActionReferenceV1, SearchExecutionContextV1, SearchProviderItemV1, SearchScopeV1 } from '@omniviewdev/runtime';
 import { ResourceClient } from '@omniviewdev/runtime/api';
-import { useDrawerActionExecution } from '../shared/drawer/DrawerActionsBridge';
+import React from 'react';
+
 import type { DrawerActionDeps } from '../shared/drawer/actionDeps';
+import { useDrawerActionExecution } from '../shared/drawer/DrawerActionsBridge';
+
 import { executeKubernetesAction, resolveKubernetesActions, type KubernetesActionTarget } from './resourceActions';
 
 type ResourceScope = Extract<SearchScopeV1, { kind: 'resource' }>;
@@ -76,7 +78,7 @@ export async function searchActions(scope: ResourceScope, signal: AbortSignal, d
   return items;
 }
 
-export async function validateSearchAction(action: SearchActionReferenceV1, context: SearchExecutionContextV1): Promise<boolean> {
+export function validateSearchAction(action: SearchActionReferenceV1, context: SearchExecutionContextV1): boolean {
   if (action.target.kind !== 'resource' || action.target.pluginId !== 'kubernetes') return false;
   context.signal.throwIfAborted();
   return Boolean(resolveContext && discovered?.scope === JSON.stringify(action.target) && discovered.ids.has(action.id));

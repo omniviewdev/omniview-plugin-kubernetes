@@ -1,8 +1,9 @@
+import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import { DrawerComponent, DrawerContext, useExtensionPoint } from '@omniviewdev/runtime';
 import { ColumnDef } from '@tanstack/react-table';
 import React from 'react';
 import { LuContainer } from 'react-icons/lu';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router'
 
 import { KubernetesResourceObject } from '../../../../types/resource';
 import { createStandardViews } from '../../../shared/sidebar/createDrawerViews';
@@ -17,7 +18,7 @@ const DefaultTable: React.FC = () => {
   const key = resourceKey.replace(/_/g, '::');
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const columns = React.useMemo<Array<ColumnDef<any>>>(
+  const columns = React.useMemo<Array<ColumnDef<DataTableFeatures, any>>>(
     () => withNamespacedResourceColumns([], { connectionID: id, resourceKey }),
     [id, resourceKey],
   );

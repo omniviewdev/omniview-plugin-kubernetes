@@ -72,7 +72,7 @@ const ResourceLinkChip: React.FC<Props> = ({
   }
 
   const handleClick = () => {
-    showResourceSidebar({
+    void showResourceSidebar({
       pluginID,
       connectionID,
       resourceKey,

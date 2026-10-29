@@ -1,6 +1,7 @@
 import type { DrawerContext, DrawerComponentAction } from '@omniviewdev/runtime';
 
 import { bindDrawerActionDeps, type DrawerActionDeps } from '../shared/drawer/actionDeps';
+
 import { resourceDrawerActions } from './drawerActions';
 
 export type KubernetesActionTarget = {

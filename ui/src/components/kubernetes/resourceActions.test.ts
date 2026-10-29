@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+
 import type { DrawerActionDeps } from '../shared/drawer/actionDeps';
+
 import { executeKubernetesAction, resolveKubernetesActions, type KubernetesActionTarget } from './resourceActions';
 
 const target = (resourceKey = 'core::v1::Pod'): KubernetesActionTarget => ({

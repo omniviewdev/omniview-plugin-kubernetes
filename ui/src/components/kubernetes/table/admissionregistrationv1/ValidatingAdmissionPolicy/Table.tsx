@@ -1,9 +1,10 @@
+import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import { DrawerComponent } from '@omniviewdev/runtime';
 import { ColumnDef } from '@tanstack/react-table';
 import { ValidatingAdmissionPolicy } from 'kubernetes-types/admissionregistration/v1';
 import React from 'react';
 import { LuShieldBan } from 'react-icons/lu';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router'
 
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
@@ -16,7 +17,7 @@ const resourceKey = 'admissionregistration::v1::ValidatingAdmissionPolicy';
 const ValidatingAdmissionPolicyTable: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
 
-  const columns = React.useMemo<Array<ColumnDef<ValidatingAdmissionPolicy>>>(
+  const columns = React.useMemo<Array<ColumnDef<DataTableFeatures, ValidatingAdmissionPolicy>>>(
     () =>
       withClusterResourceColumns(
         [

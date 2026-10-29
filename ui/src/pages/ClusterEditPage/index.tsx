@@ -2,11 +2,11 @@ import { Avatar, Chip, IconButton, NavList, Stack, Text } from '@omniviewdev/bas
 import { usePluginContext, useConnection } from '@omniviewdev/runtime';
 import React from 'react';
 import { LuArrowLeft, LuCircle, LuSave, LuX } from 'react-icons/lu';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router';
 
-import SimpleTooltip from '../../components/shared/SimpleTooltip';
 import MetricsTabContent from '../../components/settings/MetricsTabContent';
 import NodeShellTabContent from '../../components/settings/NodeShellTabContent';
+import SimpleTooltip from '../../components/shared/SimpleTooltip';
 import { useClusterPreferences } from '../../hooks/useClusterPreferences';
 import Layout from '../../layouts/resource';
 import type { ConnectionOverride } from '../../types/clusters';
@@ -15,9 +15,6 @@ import { stringToColor } from '../../utils/color';
 
 import ClusterInfoSection from './ClusterInfoSection';
 import ConnectionSection from './ConnectionSection';
-import IdentitySection from './IdentitySection';
-import SectionWrapper from './SectionWrapper';
-import TagsSection from './TagsSection';
 import {
   type SectionId,
   SECTIONS,
@@ -32,11 +29,18 @@ import {
   clusterInfoColumnStyle,
   mainPanelStyle,
 } from './constants';
+import IdentitySection from './IdentitySection';
+import SectionWrapper from './SectionWrapper';
+import TagsSection from './TagsSection';
 
 const ClusterEditPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const connectionId = id ? decodeURIComponent(id) : '';
+  const { meta } = usePluginContext();
+  return <ClusterEditForm key={JSON.stringify([meta.id, connectionId])} connectionId={connectionId} />;
+};
 
+const ClusterEditForm: React.FC<{ connectionId: string }> = ({ connectionId }) => {
   const { meta } = usePluginContext();
   const rrNavigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -48,21 +52,14 @@ const ClusterEditPage: React.FC = () => {
   const existing = connectionOverrides[connectionId] ?? {};
   const conn = connection.data;
 
-  const [displayName, setDisplayName] = React.useState(existing.displayName ?? '');
-  const [description, setDescription] = React.useState(existing.description ?? '');
-  const [avatarUrl, setAvatarUrl] = React.useState(existing.avatar ?? '');
-  const [avatarColor, setAvatarColor] = React.useState(existing.avatarColor ?? '');
-  const [tags, setTags] = React.useState<string[]>(existing.tags ?? []);
-
-  // Sync form state when overrides load or connectionId changes
-  React.useEffect(() => {
-    const o = connectionOverrides[connectionId];
-    setDisplayName(o?.displayName ?? '');
-    setDescription(o?.description ?? '');
-    setAvatarUrl(o?.avatar ?? '');
-    setAvatarColor(o?.avatarColor ?? '');
-    setTags(o?.tags ?? []);
-  }, [connectionOverrides, connectionId]);
+  // Only edited fields belong to this connection's draft. Loaded preferences
+  // remain authoritative for untouched fields, including after an async load.
+  const [draft, setDraft] = React.useState<Partial<ConnectionOverride>>({});
+  const displayName = draft.displayName ?? existing.displayName ?? '';
+  const description = draft.description ?? existing.description ?? '';
+  const avatarUrl = draft.avatar ?? existing.avatar ?? '';
+  const avatarColor = draft.avatarColor ?? existing.avatarColor ?? '';
+  const tags = draft.tags ?? existing.tags ?? [];
 
   const hasDrafts = React.useMemo(() => {
     const o = connectionOverrides[connectionId] ?? {};
@@ -89,12 +86,7 @@ const ClusterEditPage: React.FC = () => {
   const handleBack = React.useCallback(() => { void rrNavigate(-1); }, [rrNavigate]);
 
   const handleCancel = () => {
-    const o = connectionOverrides[connectionId] ?? {};
-    setDisplayName(o.displayName ?? '');
-    setDescription(o.description ?? '');
-    setAvatarUrl(o.avatar ?? '');
-    setAvatarColor(o.avatarColor ?? '');
-    setTags(o.tags ?? []);
+    setDraft({});
   };
 
   // Esc key handler
@@ -108,7 +100,7 @@ const ClusterEditPage: React.FC = () => {
 
   const connected = React.useMemo(() => {
     if (!conn) return false;
-    const refreshTime = new Date(conn.last_refresh as unknown as string);
+    const refreshTime = new Date(conn.last_refresh);
     if (refreshTime.toString() === 'Invalid Date') return false;
     // eslint-disable-next-line react-hooks/purity -- Date.now() is intentionally impure here
     return refreshTime.getTime() + conn.expiry_time > Date.now();
@@ -243,14 +235,14 @@ const ClusterEditPage: React.FC = () => {
             avatarUrl={avatarUrl}
             avatarColor={avatarColor}
             connName={conn?.name ?? connectionId}
-            onDisplayNameChange={setDisplayName}
-            onDescriptionChange={setDescription}
-            onAvatarUrlChange={setAvatarUrl}
-            onAvatarColorChange={setAvatarColor}
+            onDisplayNameChange={(value) => setDraft((prev) => ({ ...prev, displayName: value }))}
+            onDescriptionChange={(value) => setDraft((prev) => ({ ...prev, description: value }))}
+            onAvatarUrlChange={(value) => setDraft((prev) => ({ ...prev, avatar: value }))}
+            onAvatarColorChange={(value) => setDraft((prev) => ({ ...prev, avatarColor: value }))}
           />
         )}
         {section === 'tags' && (
-          <TagsSection tags={tags} availableTags={availableTags} onChange={setTags} />
+          <TagsSection tags={tags} availableTags={availableTags} onChange={(value) => setDraft((prev) => ({ ...prev, tags: value }))} />
         )}
         {section === 'cluster-info' && conn && (
           <ClusterInfoSection conn={conn} formatTime={formatTime} />

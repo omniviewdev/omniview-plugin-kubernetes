@@ -1,3 +1,4 @@
+import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import {
   DrawerComponent,
 } from '@omniviewdev/runtime';
@@ -5,7 +6,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import { Role } from 'kubernetes-types/rbac/v1';
 import React from 'react';
 import { LuShieldQuestion } from 'react-icons/lu';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router'
 
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
@@ -20,7 +21,7 @@ const RoleTable: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
 
 
-  const columns = React.useMemo<Array<ColumnDef<Role>>>(
+  const columns = React.useMemo<Array<ColumnDef<DataTableFeatures, Role>>>(
     () =>
       withNamespacedResourceColumns(
         [

@@ -18,9 +18,10 @@ import { types } from '@omniviewdev/runtime/models';
 import React from 'react';
 import { LuEllipsisVertical, LuPencil, LuTrash } from 'react-icons/lu';
 
+import NamedAvatar from '../shared/NamedAvatar';
+
 import styles from './ConnectionListItem.module.css';
 
-import NamedAvatar from '../shared/NamedAvatar';
 
 const containerStyle: React.CSSProperties = {
   display: 'flex',
@@ -123,7 +124,7 @@ const ConnectionListItem: React.FC<Props> = ({
    */
   const isConnected = () => {
     // compute from last refresh (timestamp) and expiry time (duration)
-    const refreshTime = new Date(last_refresh as unknown as string);
+    const refreshTime = new Date(last_refresh);
     // if we have no valid refresh time, we can't determine if the connection is connected, so assume we are
     if (refreshTime.toString() === 'Invalid Date') {
       console.warn('Invalid Date for refresh time', last_refresh);
@@ -136,7 +137,7 @@ const ConnectionListItem: React.FC<Props> = ({
 
   return (
     <div id={`connection-${id}`} style={containerStyle}>
-      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
+      {/* eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/no-static-element-interactions */}
       <div className={styles.clickableRow} onClick={handleClick}>
         <div style={avatarWrapperStyle}>
           <Badge variant="dot" color="success" invisible={!isConnected()} size="sm" position="top-right">

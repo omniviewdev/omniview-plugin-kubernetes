@@ -31,7 +31,7 @@ export const StatefulSetSidebar: React.FC<Props> = ({ ctx }) => {
   const spec = sts.spec;
   const status = sts.status;
   const conditions = (status?.conditions || []) as Condition[];
-  const selector = spec?.selector?.matchLabels as Record<string, string> | undefined;
+  const selector = spec?.selector?.matchLabels;
   const vcts = spec?.volumeClaimTemplates;
   const retentionPolicy = spec?.persistentVolumeClaimRetentionPolicy;
 
@@ -91,7 +91,7 @@ export const StatefulSetSidebar: React.FC<Props> = ({ ctx }) => {
             children: (
               <Stack direction="column" spacing={1} style={cardContentStyle}>
                 <LabeledEntry label="Access Modes" value={vct.spec?.accessModes?.join(', ')} />
-                <LabeledEntry label="Storage" value={(vct.spec?.resources?.requests as Record<string, string> | undefined)?.storage} />
+                <LabeledEntry label="Storage" value={(vct.spec?.resources?.requests)?.storage} />
                 <LabeledEntry label="Storage Class" value={vct.spec?.storageClassName} />
               </Stack>
             ),

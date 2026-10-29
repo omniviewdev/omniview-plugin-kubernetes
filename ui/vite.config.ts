@@ -4,19 +4,11 @@ import react from "@vitejs/plugin-react";
 import { omniviewExternals } from "@omniviewdev/vite-plugin";
 import { injectCssIntoEntry } from "./vite/omniview";
 
-const reactCompilerConfig = {
-  target: "19",
-};
-
 // https://vitejs.dev/config/
 export default defineConfig({
   cacheDir: process.env.OMNIVIEW_VITE_CACHE_DIRECTORY,
   plugins: [
-    react({
-      babel: {
-        plugins: [["babel-plugin-react-compiler", reactCompilerConfig]],
-      },
-    }),
+    react({ babel: { plugins: [["babel-plugin-react-compiler", { target: "19" }]] } }),
     omniviewExternals(),
     injectCssIntoEntry("kubernetes"),
   ],

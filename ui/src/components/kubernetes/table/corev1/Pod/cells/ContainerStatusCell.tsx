@@ -2,8 +2,8 @@ import { Stack, Text } from '@omniviewdev/base-ui';
 import { ContainerStatus } from 'kubernetes-types/core/v1';
 import React from 'react';
 
-import { getStatus } from '../../../../sidebar/Pod/utils';
 import SimpleTooltip from '../../../../../shared/SimpleTooltip';
+import { getStatus } from '../../../../sidebar/Pod/utils';
 
 type Props = {
   data?: ContainerStatus[];
@@ -94,13 +94,13 @@ export const ContainerStatusCell: React.FC<Props> = ({ data, initData }) => {
     <Stack direction="row" align="center" justify="start" spacing={2} style={rowStyle}>
       {containers.map((status) => (
         <SimpleTooltip key={status.name} placement="top" content={renderTooltipContent(status)}>
-          {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- tabIndex needed for keyboard tooltip access */}
+          {/* eslint-disable-next-line jsx-a11y-x/no-noninteractive-tabindex -- tabIndex needed for keyboard tooltip access */}
           <div role="img" tabIndex={0} aria-label={`${status.name} status`} style={chipStyle(getColor(status))} />
         </SimpleTooltip>
       ))}
       {initContainers.map((status) => (
         <SimpleTooltip key={`init-${status.name}`} placement="top" content={renderTooltipContent(status, true)}>
-          {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- tabIndex needed for keyboard tooltip access */}
+          {/* eslint-disable-next-line jsx-a11y-x/no-noninteractive-tabindex -- tabIndex needed for keyboard tooltip access */}
           <div role="img" tabIndex={0} aria-label={`${status.name} status`} style={chipStyle(getColor(status), true)} />
         </SimpleTooltip>
       ))}

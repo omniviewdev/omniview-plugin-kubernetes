@@ -24,7 +24,7 @@ export const ReplicaSetSidebar: React.FC<Props> = ({ ctx }) => {
   const spec = rs.spec;
   const status = rs.status;
   const conditions = (status?.conditions || []) as Condition[];
-  const selector = spec?.selector?.matchLabels as Record<string, string> | undefined;
+  const selector = spec?.selector?.matchLabels;
 
   return (
     <Stack direction="column" spacing={4} style={fullWidthStyle}>

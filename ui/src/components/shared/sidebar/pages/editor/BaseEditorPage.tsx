@@ -20,9 +20,22 @@ interface Props {
  * Displays the baseline editor for the monaco editor
  */
 export const BaseEditorPage: React.FC<Props> = ({ data, kind, resourceKey, onSubmit }) => {
-  const [value, setValue] = React.useState<string>(stringify(data));
+  const original = React.useMemo(() => stringify(data), [data]);
+  const scope = JSON.stringify([
+    resourceKey,
+    kind,
+    data?.metadata?.uid,
+    data?.metadata?.namespace,
+    data?.metadata?.name,
+  ]);
+  const [draft, setDraft] = React.useState<{ scope: string; value?: string }>({ scope });
   const [usingDiff, setUsingDiff] = React.useState<boolean>(false);
-  const [changed, setChanged] = React.useState<boolean>(false);
+
+  if (draft.scope !== scope) {
+    setDraft({ scope });
+  }
+  const changed = draft.scope === scope && draft.value !== undefined;
+  const value = draft.scope === scope ? draft.value ?? original : original;
 
   const filename = kind
     ? `${kind}/${data?.metadata?.uid}/spec.yaml`
@@ -32,10 +45,7 @@ export const BaseEditorPage: React.FC<Props> = ({ data, kind, resourceKey, onSub
   const editorPath = resourceKey ? `file:///${resourceKey}/spec.yaml` : undefined;
 
   const onChange = (value: string) => {
-    if (!changed) {
-      setChanged(true);
-    }
-    setValue(value);
+    setDraft({ scope, value });
   };
 
   const handleSubmit = () => {
@@ -45,18 +55,10 @@ export const BaseEditorPage: React.FC<Props> = ({ data, kind, resourceKey, onSub
     }
   };
 
-  /**
-   * Make sure we update whenever the input data changes
-   */
-  React.useEffect(() => {
-    setValue(stringify(data));
-  }, [data]);
-
   const toggleDiff = () => setUsingDiff((prev) => !prev);
 
   const resetValue = () => {
-    setChanged(false);
-    setValue(stringify(data));
+    setDraft({ scope });
   };
 
   if (!data) {
@@ -69,7 +71,7 @@ export const BaseEditorPage: React.FC<Props> = ({ data, kind, resourceKey, onSub
     <Stack style={outerStackStyle} spacing={2} direction="column">
       <CodeEditor
         diff={usingDiff}
-        original={stringify(data)}
+        original={original}
         value={value}
         onChange={onChange}
         language="yaml"

@@ -53,7 +53,7 @@ export type ResourceDrawerActions = {
 export const resourceDrawerActions: Record<string, ResourceDrawerActions> = {
   'admissionregistration::v1::ValidatingAdmissionPolicyBinding': { actions: validatingAdmissionPolicyBindingActions },
   'apps::v1::DaemonSet': { actions: daemonSetActions },
-  'apps::v1::Deployment': { actions: deploymentActions, editorSubmit: deploymentEditorSubmit as ResourceDrawerActions['editorSubmit'] },
+  'apps::v1::Deployment': { actions: deploymentActions, editorSubmit: deploymentEditorSubmit },
   'apps::v1::ReplicaSet': { actions: replicaSetActions },
   'apps::v1::StatefulSet': { actions: statefulSetActions },
   'autoscaling::v1::HorizontalPodAutoscaler': { actions: horizontalPodAutoscalerActions },
@@ -66,7 +66,7 @@ export const resourceDrawerActions: Record<string, ResourceDrawerActions> = {
   'core::v1::Node': { actions: nodeActions },
   'core::v1::PersistentVolume': { actions: persistentVolumeActions },
   'core::v1::PersistentVolumeClaim': { actions: persistentVolumeClaimActions },
-  'core::v1::Pod': { actions: podActions, editorSubmit: podEditorSubmit as ResourceDrawerActions['editorSubmit'] },
+  'core::v1::Pod': { actions: podActions, editorSubmit: podEditorSubmit },
   'core::v1::ReplicationController': { actions: replicationControllerActions },
   'core::v1::ResourceQuota': { actions: resourceQuotaActions },
   'core::v1::Service': { actions: serviceActions },

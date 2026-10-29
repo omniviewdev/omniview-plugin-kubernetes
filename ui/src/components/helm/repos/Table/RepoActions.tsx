@@ -18,7 +18,6 @@ import { SiHelm } from 'react-icons/si';
 import { stringToColor } from '../../../../utils/color';
 
 import styles from './RepoActions.module.css';
-import type { ChartEntry, DialogStep, ListChartsData } from './types';
 import {
   dialogStyle,
   validatingContainerStyle,
@@ -34,6 +33,7 @@ import {
   miniChartImgStyle,
   miniChartFallbackStyle,
 } from './styles';
+import type { ChartEntry, DialogStep, ListChartsData } from './types';
 
 const fullWidthStyle: React.CSSProperties = { width: '100%' };
 

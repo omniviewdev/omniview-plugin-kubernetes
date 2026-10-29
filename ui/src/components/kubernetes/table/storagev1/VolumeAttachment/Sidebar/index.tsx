@@ -22,7 +22,7 @@ export const VolumeAttachmentSidebar: React.FC<Props> = ({ ctx }) => {
   const connectionID = ctx.resource?.connectionID || '';
   const spec = va.spec;
   const status = va.status;
-  const attachmentMetadata = status?.attachmentMetadata as Record<string, string> | undefined;
+  const attachmentMetadata = status?.attachmentMetadata;
 
   return (
     <Stack direction="column" spacing={4} style={fullWidthStyle}>

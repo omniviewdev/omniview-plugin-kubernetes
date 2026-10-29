@@ -1,3 +1,4 @@
+import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import { ColumnDef } from '@tanstack/react-table';
 
 import { NamespaceCell } from '../cells/NamespaceCell';
@@ -5,7 +6,7 @@ import { inclusionFilter } from '../filters';
 
 export const namespaceColumn = <
   T extends { metadata?: { namespace?: string } },
->(): ColumnDef<T> => ({
+>(): ColumnDef<DataTableFeatures, T> => ({
   id: 'namespace',
   header: 'Namespace',
   accessorKey: 'metadata.namespace',

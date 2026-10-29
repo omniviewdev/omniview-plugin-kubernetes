@@ -30,7 +30,7 @@ const SearchInput: React.FC<Props> = ({ placeholder, value, onChange, autoFocus 
       size="sm"
       autoComplete="off"
       placeholder={placeholder ?? 'Search'}
-      // eslint-disable-next-line jsx-a11y/no-autofocus
+      // eslint-disable-next-line jsx-a11y-x/no-autofocus
       autoFocus={autoFocus}
       startDecorator={<LuSearch />}
       clearable

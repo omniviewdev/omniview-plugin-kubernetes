@@ -4,8 +4,8 @@ import React from 'react';
 import type { EnrichedConnection } from '../../types/clusters';
 import NamedAvatar from '../shared/NamedAvatar';
 
-import ConnectionStatusBadge from './ConnectionStatusBadge';
 import styles from './Connections.module.css';
+import ConnectionStatusBadge from './ConnectionStatusBadge';
 import FavoriteButton from './FavoriteButton';
 import ProviderIcon from './ProviderIcon';
 
@@ -40,7 +40,7 @@ const HubClusterRow: React.FC<Props> = ({
   const { provider, isConnected, displayName } = enriched;
 
   return (
-    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
+    // eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/no-static-element-interactions
     <div onClick={onClick} className={styles.tile}>
       <ConnectionStatusBadge isConnected={isConnected}>
         {enriched.avatar ? (

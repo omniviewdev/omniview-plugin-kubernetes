@@ -80,7 +80,7 @@ const ClustersToolbar: React.FC<Props> = ({
           placeholder="Search clusters..."
           value={search}
           onChange={onSearchChange}
-          // eslint-disable-next-line jsx-a11y/no-autofocus
+          // eslint-disable-next-line jsx-a11y-x/no-autofocus
           autoFocus
         />
         <GroupBySelector

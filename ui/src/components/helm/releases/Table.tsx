@@ -1,9 +1,10 @@
+import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import { Chip } from '@omniviewdev/base-ui';
 import { DrawerComponent } from '@omniviewdev/runtime';
 import { ColumnDef } from '@tanstack/react-table';
 import React from 'react';
 import { SiHelm } from 'react-icons/si';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router'
 
 import { createStandardViews } from '../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../shared/table/ResourceTable';
@@ -45,7 +46,7 @@ const statusColorMap: Record<string, 'success' | 'danger' | 'warning' | 'neutral
 const HelmReleaseTable: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
 
-  const columns = React.useMemo<Array<ColumnDef<HelmRelease>>>(
+  const columns = React.useMemo<Array<ColumnDef<DataTableFeatures, HelmRelease>>>(
     () => [
       {
         id: 'name',

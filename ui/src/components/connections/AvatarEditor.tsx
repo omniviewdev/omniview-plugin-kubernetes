@@ -116,7 +116,7 @@ const AvatarEditor: React.FC<AvatarEditorProps> = ({
           <div style={{ ...initialsStyle, backgroundColor: bgColor }}>{initials}</div>
         )}
         {/* Hover overlay */}
-        {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
+        {/* eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/no-static-element-interactions */}
         <div className={styles.avatarOverlay} onClick={() => fileInputRef.current?.click()}>
           <LuUpload size={24} color="white" />
         </div>

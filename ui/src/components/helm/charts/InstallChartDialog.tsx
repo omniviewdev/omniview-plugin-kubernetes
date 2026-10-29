@@ -49,7 +49,11 @@ interface DryRunInstallData {
   manifest?: string;
 }
 
-const InstallChartDialog: React.FC<Props> = ({
+const InstallChartDialog: React.FC<Props> = (props) => (
+  <InstallChartForm key={JSON.stringify([props.connectionID, props.chartID])} {...props} />
+);
+
+const InstallChartForm: React.FC<Props> = ({
   open,
   onClose,
   chartID,
@@ -59,12 +63,34 @@ const InstallChartDialog: React.FC<Props> = ({
 }) => {
   const [releaseName, setReleaseName] = React.useState('');
   const [namespace, setNamespace] = React.useState('default');
-  const [version, setVersion] = React.useState(initialVersion ?? '');
-  const [values, setValues] = React.useState('');
-  const [versions, setVersions] = React.useState<Array<{ version: string; appVersion: string }>>(
-    [],
-  );
+  const [versionDraft, setVersion] = React.useState<string>();
+  const [valuesDraft, setValues] = React.useState<string>();
+  const [versionResult, setVersions] = React.useState<Array<{ version: string; appVersion: string }> | null>(null);
+  const versions = versionResult ?? [];
+  const versionsPending = versionResult === null;
+  const version = versionDraft ?? (initialVersion || versions[0]?.version || '');
+  const [defaultValues, setDefaultValues] = React.useState<{ version: string; values: string } | null>(null);
+  const values = valuesDraft ?? (defaultValues?.version === version ? defaultValues.values : '');
   const [dryRunManifest, setDryRunManifest] = React.useState<string | null>(null);
+  const [wasOpen, setWasOpen] = React.useState(open);
+  const actionEpochRef = React.useRef(0);
+
+  React.useEffect(() => () => {
+    actionEpochRef.current += 1;
+  }, [open, version]);
+
+  // Name and namespace survive close/reopen within a chart. Reopening restores
+  // a supplied initial version and reloads defaults without replacing later edits.
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    if (open) {
+      if (initialVersion) setVersion(undefined);
+      setValues(undefined);
+      setVersions(null);
+      setDefaultValues(null);
+      setDryRunManifest(null);
+    }
+  }
 
   const { executeAction: executeChartAction, isExecuting: isChartExecuting } = useExecuteAction({
     pluginID: 'kubernetes',
@@ -82,49 +108,55 @@ const InstallChartDialog: React.FC<Props> = ({
 
   const isExecuting = isChartExecuting || isReleaseExecuting;
 
-  // Load default values and versions on open
+  const executeChartRead = React.useEffectEvent(executeChartAction);
+
   React.useEffect(() => {
-    if (!open || !chartID) return;
-
-    // Set initial version if provided
-    if (initialVersion) {
-      setVersion(initialVersion);
-    }
-
-    // Load default values
-    void executeChartAction({
-      actionID: 'get-values',
-      id: chartID,
-      params: initialVersion ? { version: initialVersion } : undefined,
-    })
-      .then((result) => {
-        const valuesData = result?.data as ChartValuesData | undefined;
-        setValues(valuesData?.values ?? '');
-      })
-      .catch(() => {});
-
-    // Load versions
-    void executeChartAction({
+    if (!open || !chartID || !connectionID) return;
+    let cancelled = false;
+    void executeChartRead({
       actionID: 'get-versions',
       id: chartID,
     })
       .then((result) => {
+        if (cancelled) return;
         const versionsData = result?.data as ChartVersionsData | undefined;
-        const versionList = versionsData?.versions ?? [];
-        setVersions(versionList);
-        if (versionList.length > 0 && !version && !initialVersion) {
-          setVersion(versionList[0].version);
-        }
+        setVersions(versionsData?.versions ?? []);
       })
-      .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, chartID]);
+      .catch(() => {
+        if (!cancelled) setVersions([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, chartID, connectionID]);
+
+  React.useEffect(() => {
+    if (!open || !chartID || !connectionID || (!version && versionsPending)) return;
+    let cancelled = false;
+    void executeChartRead({
+      actionID: 'get-values',
+      id: chartID,
+      params: version ? { version } : undefined,
+    })
+      .then((result) => {
+        if (cancelled) return;
+        const valuesData = result?.data as ChartValuesData | undefined;
+        setDefaultValues({ version, values: valuesData?.values ?? '' });
+      })
+      .catch(() => {
+        // The runtime reports action failures. Keep any edited values intact.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, chartID, connectionID, version, versionsPending]);
 
   const handleNamespaceChange = React.useCallback((ns: string) => {
     setNamespace(ns);
   }, []);
 
   const handleDryRun = async () => {
+    const epoch = actionEpochRef.current;
     try {
       const result = await executeReleaseAction({
         actionID: 'dry-run-install',
@@ -137,15 +169,18 @@ const InstallChartDialog: React.FC<Props> = ({
           version,
         },
       });
+      if (epoch !== actionEpochRef.current) return;
       const dryRunData = result?.data as DryRunInstallData | undefined;
       setDryRunManifest(dryRunData?.manifest ?? 'No manifest generated');
     } catch (err: unknown) {
+      if (epoch !== actionEpochRef.current) return;
       const message = err instanceof Error ? err.message : 'Dry run failed';
       setDryRunManifest(`Error: ${message}`);
     }
   };
 
   const handleInstall = async () => {
+    const epoch = actionEpochRef.current;
     try {
       await executeReleaseAction({
         actionID: 'install',
@@ -158,13 +193,14 @@ const InstallChartDialog: React.FC<Props> = ({
           version,
         },
       });
-      onClose();
+      if (epoch === actionEpochRef.current) onClose();
     } catch {
       // Error handling is done by the runtime
     }
   };
 
   const handleClose = () => {
+    actionEpochRef.current += 1;
     setDryRunManifest(null);
     onClose();
   };

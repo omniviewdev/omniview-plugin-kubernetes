@@ -1,3 +1,4 @@
+import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import {
   DrawerComponent,
 } from '@omniviewdev/runtime';
@@ -5,7 +6,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import { LocalObjectReference, ObjectReference, ServiceAccount } from 'kubernetes-types/core/v1';
 import React from 'react';
 import { LuUserCheck, LuCircleCheck } from 'react-icons/lu';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router'
 
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
@@ -24,7 +25,7 @@ const ServiceAccountTable: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
 
 
-  const columns = React.useMemo<Array<ColumnDef<ServiceAccount>>>(
+  const columns = React.useMemo<Array<ColumnDef<DataTableFeatures, ServiceAccount>>>(
     () =>
       withNamespacedResourceColumns(
         [

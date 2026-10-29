@@ -1,10 +1,11 @@
+import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import { ColumnDef } from '@tanstack/react-table';
 
 import AgeCell from '../cells/AgeCell';
 
 export const ageColumn = <
   T extends { metadata?: { creationTimestamp?: string } },
->(): ColumnDef<T> => ({
+>(): ColumnDef<DataTableFeatures, T> => ({
   id: 'age',
   header: 'Age',
   accessorKey: 'metadata.creationTimestamp',

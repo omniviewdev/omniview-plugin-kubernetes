@@ -1,3 +1,4 @@
+import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import { Chip } from '@omniviewdev/base-ui';
 import { ColumnDef } from '@tanstack/react-table';
 import React from 'react';
@@ -5,8 +6,8 @@ import React from 'react';
 import type { HelmRepo } from './types';
 
 /** Column definitions for the Helm repository table. */
-export function useRepoColumns(): Array<ColumnDef<HelmRepo>> {
-  return React.useMemo<Array<ColumnDef<HelmRepo>>>(
+export function useRepoColumns(): Array<ColumnDef<DataTableFeatures, HelmRepo>> {
+  return React.useMemo<Array<ColumnDef<DataTableFeatures, HelmRepo>>>(
     () => [
       {
         id: 'name',

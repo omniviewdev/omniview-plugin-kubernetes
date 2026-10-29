@@ -67,8 +67,8 @@ export const drawerActions: Array<DrawerComponentAction<Deployment>> = [
         onConfirm: async () => {
           await drawerActionDeps(ctx).executeAction({
             actionID: 'pause',
-            id: ctx.data?.metadata?.name as string,
-            namespace: ctx.data?.metadata?.namespace as string,
+            id: ctx.data?.metadata?.name,
+            namespace: ctx.data?.metadata?.namespace,
           });
           drawerActionDeps(ctx).closeDrawer();
         },
@@ -92,8 +92,8 @@ export const drawerActions: Array<DrawerComponentAction<Deployment>> = [
         onConfirm: async () => {
           await drawerActionDeps(ctx).executeAction({
             actionID: 'resume',
-            id: ctx.data?.metadata?.name as string,
-            namespace: ctx.data?.metadata?.namespace as string,
+            id: ctx.data?.metadata?.name,
+            namespace: ctx.data?.metadata?.namespace,
           });
           drawerActionDeps(ctx).closeDrawer();
         },
@@ -125,7 +125,7 @@ export const drawerActions: Array<DrawerComponentAction<Deployment>> = [
               connectionID: ctx.resource?.connectionID ?? '',
               resourceKey,
               resourceID: ctx.data?.metadata?.name as string,
-              namespace: ctx.data?.metadata?.namespace as string,
+              namespace: ctx.data?.metadata?.namespace,
             },
             input: {},
           });
@@ -191,7 +191,7 @@ export const editorSubmit = (ctx: DrawerContext<Deployment>, value: Record<strin
         connectionID: ctx.resource?.connectionID ?? '',
         resourceKey,
         resourceID: ctx.data?.metadata?.name as string,
-        namespace: ctx.data?.metadata?.namespace as string,
+        namespace: ctx.data?.metadata?.namespace,
       },
       input: {
         input: value,

@@ -32,7 +32,7 @@ interface UseConnectionGroupingOpts {
 }
 
 function isConnected(conn: types.Connection): boolean {
-  const refreshTime = new Date(conn.last_refresh as unknown as string);
+  const refreshTime = new Date(conn.last_refresh);
   if (refreshTime.toString() === 'Invalid Date') return false;
   return refreshTime.getTime() + conn.expiry_time > Date.now();
 }

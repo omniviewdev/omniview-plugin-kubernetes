@@ -53,13 +53,11 @@ const GroupBrowser: React.FC<Props> = ({ connections, availableAttributes, onCon
     return filteredAttributes[0].key;
   }, [filteredAttributes]);
 
-  const [browseBy, setBrowseBy] = React.useState<string>(defaultAttr ?? '');
+  const [browseBy, setBrowseBy] = React.useState(defaultAttr ?? '');
   const [drillDown, setDrillDown] = React.useState<string | null>(null);
-
-  // Update browseBy if default changes
-  React.useEffect(() => {
-    if (defaultAttr && !browseBy) setBrowseBy(defaultAttr);
-  }, [defaultAttr, browseBy]);
+  if (!browseBy && defaultAttr) {
+    setBrowseBy(defaultAttr);
+  }
 
   const selectedAttr = filteredAttributes.find((a) => a.key === browseBy);
 
@@ -141,7 +139,7 @@ const GroupBrowser: React.FC<Props> = ({ connections, availableAttributes, onCon
       </Stack>
       <div style={browseGridStyle}>
         {groups.map(([value, conns]) => (
-          // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
+          // eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/no-static-element-interactions
           <div
             key={value}
             onClick={() => setDrillDown(value)}

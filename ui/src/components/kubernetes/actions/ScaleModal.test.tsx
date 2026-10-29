@@ -91,10 +91,32 @@ describe('ScaleModal', () => {
     expect(screen.getByText('Scaling...')).toBeInTheDocument();
   });
 
-  it('resets desired when reopened with different currentReplicas', () => {
+  it('updates untouched desired replicas when current replicas change', () => {
     const { rerender } = render(<ScaleModal {...defaultProps} />);
     rerender(<ScaleModal {...defaultProps} currentReplicas={10} open={true} />);
     const input = getReplicaInput();
     expect(input).toHaveValue(10);
+  });
+
+  it('keeps edited desired replicas when live current replicas change', () => {
+    const { rerender } = render(<ScaleModal {...defaultProps} />);
+    fireEvent.change(getReplicaInput(), { target: { value: '7' } });
+    rerender(<ScaleModal {...defaultProps} currentReplicas={5} />);
+    expect(getReplicaInput()).toHaveValue(7);
+  });
+
+  it('starts a fresh desired draft after closing and reopening', () => {
+    const { rerender } = render(<ScaleModal {...defaultProps} />);
+    fireEvent.change(getReplicaInput(), { target: { value: '7' } });
+    rerender(<ScaleModal {...defaultProps} open={false} />);
+    rerender(<ScaleModal {...defaultProps} currentReplicas={5} />);
+    expect(getReplicaInput()).toHaveValue(5);
+  });
+
+  it('resets the desired draft when the selected resource changes', () => {
+    const { rerender } = render(<ScaleModal {...defaultProps} />);
+    fireEvent.change(getReplicaInput(), { target: { value: '7' } });
+    rerender(<ScaleModal {...defaultProps} resourceName="other-deployment" />);
+    expect(getReplicaInput()).toHaveValue(3);
   });
 });

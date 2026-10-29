@@ -179,7 +179,7 @@ const ResourceGraph: React.FC<{ ctx: DrawerContext }> = ({ ctx }) => {
   }
 
   const open = (n: LayoutNode) => {
-    showResourceSidebar({
+    void showResourceSidebar({
       pluginID: n.node.pluginId,
       connectionID: n.node.connectionId,
       resourceKey: n.node.resourceKey,

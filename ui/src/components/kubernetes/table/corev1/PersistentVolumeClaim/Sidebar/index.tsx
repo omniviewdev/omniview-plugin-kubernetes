@@ -41,11 +41,11 @@ export const PersistentVolumeClaimSidebar: React.FC<Props> = ({ ctx }) => {
   const status = pvc.status;
   const phase = status?.phase;
   const conditions = (status?.conditions || []) as Condition[];
-  const capacity = status?.capacity as Record<string, string> | undefined;
+  const capacity = status?.capacity;
   const accessModes = spec?.accessModes;
-  const storageRequest = (spec?.resources?.requests as Record<string, string> | undefined)
+  const storageRequest = (spec?.resources?.requests)
     ?.storage;
-  const matchLabels = spec?.selector?.matchLabels as Record<string, string> | undefined;
+  const matchLabels = spec?.selector?.matchLabels;
 
   return (
     <Stack direction="column" spacing={4} style={fullWidthStyle}>

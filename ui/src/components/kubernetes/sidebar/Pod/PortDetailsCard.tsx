@@ -160,17 +160,10 @@ interface ForwardConfigPopoverProps {
 
 function ForwardConfigPopover({ anchorEl, port, onClose, onConfirm }: ForwardConfigPopoverProps) {
   const [localPort, setLocalPort] = React.useState('');
-  const [protocol, setProtocol] = React.useState<'TCP' | 'UDP'>('TCP');
+  const [protocol, setProtocol] = React.useState<'TCP' | 'UDP'>(() =>
+    (port?.protocol as 'TCP' | 'UDP') || 'TCP',
+  );
   const [openInBrowser, setOpenInBrowser] = React.useState(true);
-
-  // Reset state when popover opens with a new port
-  React.useEffect(() => {
-    if (anchorEl && port) {
-      setLocalPort('');
-      setProtocol((port.protocol as 'TCP' | 'UDP') || 'TCP');
-      setOpenInBrowser(true);
-    }
-  }, [anchorEl, port]);
 
   const handleConfirm = () => {
     const parsed = localPort ? parseInt(localPort, 10) : undefined;
@@ -335,11 +328,17 @@ const PortDetailsCard: React.FC<PortDetailsCardProps> = ({
         openInBrowser: opts?.openInBrowser ?? true,
         parameters: {},
       },
+    }).catch((error: unknown) => {
+      // The runtime hook reports mutation failures through its snackbar.
+      console.error('Port forward request failed', error);
     });
   };
 
   const handleStopPortForward = (sessionID: string) => {
-    void close({ opts: { sessionID } });
+    close({ opts: { sessionID } }).catch((error: unknown) => {
+      // The runtime hook reports mutation failures through its snackbar.
+      console.error('Port forward close request failed', error);
+    });
   };
 
   const handleOpenConfig = (e: React.MouseEvent<HTMLElement>, port: ContainerPort) => {
@@ -403,7 +402,11 @@ const PortDetailsCard: React.FC<PortDetailsCardProps> = ({
                           size="sm"
                           variant="soft"
                           style={chipBorderRadiusSmStyle}
-                          onClick={() => void Browser.OpenURL(`http://localhost:${existing.local_port}`)}
+                          onClick={() => {
+                            Browser.OpenURL(`http://localhost:${existing.local_port}`).catch(
+                              (error: unknown) => console.error('Failed to open port in browser', error),
+                            );
+                          }}
                         >
                           {`http://localhost:${existing.local_port}`}
                         </Chip>
@@ -432,16 +435,17 @@ const PortDetailsCard: React.FC<PortDetailsCardProps> = ({
         </Grid>
       </div>
 
-      <ForwardConfigPopover
-        anchorEl={configAnchor}
-        port={configPort}
-        onClose={handleCloseConfig}
-        onConfirm={(opts) => {
-          if (configPort) {
+      {configAnchor && configPort && (
+        <ForwardConfigPopover
+          key={`${connectionID}/${resourceID}/${configPort.containerPort}/${configPort.protocol}`}
+          anchorEl={configAnchor}
+          port={configPort}
+          onClose={handleCloseConfig}
+          onConfirm={(opts) => {
             handleStartPortForward(Number(configPort.containerPort), opts);
-          }
-        }}
-      />
+          }}
+        />
+      )}
     </div>
   );
 };

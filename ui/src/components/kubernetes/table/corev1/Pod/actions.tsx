@@ -32,7 +32,7 @@ export const drawerActions: Array<DrawerComponentAction<Pod>> = [
               connectionID: ctx.resource?.connectionID ?? '',
               resourceKey,
               resourceID: ctx.data?.metadata?.name as string,
-              namespace: ctx.data?.metadata?.namespace as string,
+              namespace: ctx.data?.metadata?.namespace,
             },
             input: {},
           });
@@ -196,7 +196,7 @@ export const editorSubmit = (ctx: DrawerContext<Pod>, value: Record<string, unkn
         connectionID: ctx.resource?.connectionID ?? '',
         resourceKey,
         resourceID: ctx.data?.metadata?.name as string,
-        namespace: ctx.data?.metadata?.namespace as string,
+        namespace: ctx.data?.metadata?.namespace,
       },
       input: {
         input: value,

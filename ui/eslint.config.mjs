@@ -1,14 +1,15 @@
 import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
-import react from "eslint-plugin-react";
+import stylistic from "@stylistic/eslint-plugin";
 import reactHooks from "eslint-plugin-react-hooks";
-import reactPerf from "eslint-plugin-react-perf";
-import jsxA11y from "eslint-plugin-jsx-a11y";
+import jsxA11y from "eslint-plugin-jsx-a11y-x";
 import importX from "eslint-plugin-import-x";
 import reactRefresh from "eslint-plugin-react-refresh";
 import storybook from "eslint-plugin-storybook";
 import prettierConfig from "eslint-config-prettier";
 import globals from "globals";
+import { noUnescapedEntities } from "./scripts/eslint/jsx-text-rule.mjs";
+import { reactWithPropAllowance } from "./scripts/eslint/react-prop-allowance.mjs";
 
 export default tseslint.config(
   // Global ignores
@@ -16,11 +17,19 @@ export default tseslint.config(
 
   // Base configs
   eslint.configs.recommended,
-  ...tseslint.configs.recommendedTypeChecked,
-  react.configs.flat.recommended,
-  react.configs.flat["jsx-runtime"], // React 17+ JSX transform (no import React)
-  reactHooks.configs.flat["recommended-latest"],
-  jsxA11y.flatConfigs.recommended,
+  {
+    files: ["**/*.{ts,tsx}"],
+    extends: [...tseslint.configs.recommended],
+  },
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    extends: [...tseslint.configs.recommendedTypeChecked],
+  },
+  {
+    ...reactHooks.configs.flat["recommended-latest"],
+    files: ["src/**/*.{ts,tsx}"],
+  },
+  jsxA11y.configs.recommended,
   ...storybook.configs["flat/recommended"],
   prettierConfig,
 
@@ -35,12 +44,14 @@ export default tseslint.config(
       },
     },
     plugins: {
-      "react-perf": reactPerf,
+      "@eslint-react": reactWithPropAllowance,
+      "@stylistic": stylistic,
+      "omniview-react": { rules: { "no-unescaped-entities": noUnescapedEntities } },
       "import-x": importX,
       "react-refresh": reactRefresh,
     },
     settings: {
-      react: { version: "detect" },
+      "react-x": { version: "detect" },
       "import-x/resolver": { typescript: true },
     },
     rules: {
@@ -54,23 +65,33 @@ export default tseslint.config(
       "@typescript-eslint/no-misused-promises": "error",
       "@typescript-eslint/await-thenable": "error",
 
-      // --- React Performance ---
-      // Compiler handles function/array/jsx memoization automatically.
-      // Keep object rule to flag sx resolver overhead in hot paths.
-      "react-perf/jsx-no-new-object-as-prop": "warn",
-      "react-perf/jsx-no-new-array-as-prop": "off",
-      "react-perf/jsx-no-new-function-as-prop": "off",
-      "react-perf/jsx-no-jsx-as-prop": "off",
-
       // --- React ---
-      "react/prop-types": "off", // TypeScript handles this
-      "react/display-name": "off",
-      // Table cell renderers in ColumnDef are passed as config props, not defined during render
-      "react/no-unstable-nested-components": ["warn", { allowAsProps: true }],
-      "react/jsx-no-constructed-context-values": "warn",
-      "react/jsx-no-useless-fragment": ["warn", { allowExpressions: true }],
-      "react/no-array-index-key": "warn",
-      "react/self-closing-comp": "warn", // autofix
+      // Explicit equivalents of react/recommended, not a broader React preset.
+      // TypeScript checks duplicate/undefined JSX props, removed string refs,
+      // isMounted, and class render return types; its parser tracks JSX bindings.
+      // Keep prop-types and display-name disabled as before.
+      "@eslint-react/no-missing-key": "error",
+      "@eslint-react/jsx-no-comment-textnodes": "error",
+      "@eslint-react/dom-no-unsafe-target-blank": "error",
+      "@eslint-react/jsx-no-children-prop": "error",
+      "@eslint-react/jsx-no-children-prop-with-children": "error",
+      "@eslint-react/dom-no-dangerously-set-innerhtml-with-children": "error",
+      "@eslint-react/no-component-will-mount": "error",
+      "@eslint-react/no-component-will-receive-props": "error",
+      "@eslint-react/no-component-will-update": "error",
+      "@eslint-react/no-direct-mutation-state": "error",
+      "@eslint-react/dom-no-find-dom-node": "error",
+      "@eslint-react/dom-no-render-return-value": "error",
+      "@eslint-react/dom-no-render": "error",
+      "@eslint-react/dom-no-hydrate": "error",
+      "@eslint-react/dom-no-unknown-property": "error",
+      "omniview-react/no-unescaped-entities": "error",
+      // Local adapter preserves allowAsProps: true for ColumnDef render props.
+      "@eslint-react/no-nested-component-definitions": "warn",
+      "@eslint-react/no-unstable-context-value": "warn",
+      "@eslint-react/jsx-no-useless-fragment": ["warn", { allowExpressions: true }],
+      "@eslint-react/no-array-index-key": "warn",
+      "@stylistic/jsx-self-closing-comp": "warn", // autofix
 
       // --- React Refresh (Vite HMR) ---
       "react-refresh/only-export-components": [

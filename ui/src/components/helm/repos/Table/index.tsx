@@ -3,17 +3,16 @@ import { DrawerComponent } from '@omniviewdev/runtime';
 import React from 'react';
 import { LuPlus } from 'react-icons/lu';
 import { SiHelm } from 'react-icons/si';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router'
 
 import { createStandardViews } from '../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../shared/table/ResourceTable';
-
 import RepoSidebar from '../RepoSidebar';
 
 import AddRepoDialog from './RepoActions';
-import useRepoColumns from './useRepoColumns';
 import { resourceKey } from './styles';
 import type { HelmRepo } from './types';
+import useRepoColumns from './useRepoColumns';
 
 const HelmRepoTable: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();

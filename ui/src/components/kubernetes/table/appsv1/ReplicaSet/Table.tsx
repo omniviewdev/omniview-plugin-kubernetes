@@ -1,3 +1,4 @@
+import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import {
   DrawerComponent,
 } from '@omniviewdev/runtime';
@@ -6,7 +7,7 @@ import { ReplicaSet } from 'kubernetes-types/apps/v1';
 import { Condition, OwnerReference } from 'kubernetes-types/meta/v1';
 import React from 'react';
 import { LuScaling } from 'react-icons/lu';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router'
 
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
@@ -33,7 +34,7 @@ const ReplicaSetTable: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
 
 
-  const columns = React.useMemo<Array<ColumnDef<ReplicaSet>>>(
+  const columns = React.useMemo<Array<ColumnDef<DataTableFeatures, ReplicaSet>>>(
     () =>
       withNamespacedResourceColumns(
         [

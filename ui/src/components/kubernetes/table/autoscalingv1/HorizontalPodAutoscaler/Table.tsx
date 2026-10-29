@@ -1,3 +1,4 @@
+import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import {
   DrawerComponent,
 } from '@omniviewdev/runtime';
@@ -6,7 +7,7 @@ import { HorizontalPodAutoscaler } from 'kubernetes-types/autoscaling/v2';
 import { Condition } from 'kubernetes-types/meta/v1';
 import React from 'react';
 import { LuActivity } from 'react-icons/lu';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router'
 
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
@@ -23,7 +24,7 @@ const HorizontalPodAutoscalerTable: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
 
 
-  const columns = React.useMemo<Array<ColumnDef<HorizontalPodAutoscaler>>>(
+  const columns = React.useMemo<Array<ColumnDef<DataTableFeatures, HorizontalPodAutoscaler>>>(
     () =>
       withNamespacedResourceColumns(
         [

@@ -193,9 +193,23 @@ function parseManifestResources(
 /**
  * Renders a sidebar for a Helm Release resource.
  */
-export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
+export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => (
+  <ReleaseSidebarContent
+    key={JSON.stringify([
+      ctx.resource?.connectionID ?? '',
+      ctx.data?.namespace ?? '',
+      ctx.data?.name ?? ctx.resource?.id ?? '',
+      ctx.data?.version ?? 0,
+    ])}
+    ctx={ctx}
+  />
+);
+
+// A release revision owns its cached reads and diff/upgrade dialog state.
+const ReleaseSidebarContent: React.FC<Props> = ({ ctx }) => {
   // Per-action cached tab data
   const [tabData, setTabData] = React.useState<Record<string, TabDataEntry>>({});
+  const tabCacheRef = React.useRef<Record<string, TabDataEntry>>({});
   const [activeTab, setActiveTab] = React.useState('0');
   const [showManifestDiff, setShowManifestDiff] = React.useState(false);
   const [prevManifest, setPrevManifest] = React.useState<string | null>(null);
@@ -213,24 +227,10 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
 
   const { showResourceSidebar } = useRightDrawer();
 
-  // Fetch tab data on tab change, caching results per action
-  const fetchTabData = React.useCallback(
-    async (actionID: string) => {
-      if (tabData[actionID]) return; // Already cached
-      try {
-        const result = await executeAction({
-          actionID,
-          id: releaseName,
-          namespace,
-        });
-        setTabData((prev) => ({ ...prev, [actionID]: result?.data as TabDataEntry }));
-      } catch {
-        setTabData((prev) => ({ ...prev, [actionID]: null }));
-      }
-    },
-    [executeAction, releaseName, namespace, tabData],
-  );
+  const executeReleaseRead = React.useEffectEvent(executeAction);
 
+  // Reads commit only after external completion, never from the effect body.
+  // Failed actions remain retryable when the user revisits the tab.
   React.useEffect(() => {
     const tabActions = [
       'get-values',
@@ -241,10 +241,27 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
       'get-manifest',
     ];
     const actionID = tabActions[Number(activeTab)];
-    if (actionID && connectionID) {
-      void fetchTabData(actionID);
-    }
-  }, [activeTab, connectionID, fetchTabData]);
+    if (!actionID || !connectionID || !releaseName || tabCacheRef.current[actionID]) return;
+    let cancelled = false;
+    void executeReleaseRead({
+      actionID,
+      id: releaseName,
+      namespace,
+    })
+      .then((result) => {
+        if (cancelled) return;
+        const entry = result?.data as TabDataEntry;
+        tabCacheRef.current[actionID] = entry;
+        setTabData((prev) => ({ ...prev, [actionID]: entry }));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setTabData((prev) => ({ ...prev, [actionID]: null }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, connectionID, releaseName, namespace]);
 
   // Load previous revision manifest for diff
   const loadPrevManifest = React.useCallback(async () => {
@@ -504,12 +521,14 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => {
                   // This maps common kinds to their resource keys
                   const group = kindToGroup[res.kind];
                   if (group) {
-                    showResourceSidebar({
+                    void showResourceSidebar({
                       pluginID: 'kubernetes',
                       connectionID,
                       resourceKey: `${group}::${res.kind}`,
                       resourceID: res.name,
                       namespace: res.namespace ?? namespace,
+                    }).catch((err: unknown) => {
+                      console.error('[ReleaseSidebar] Failed to open resource sidebar', err);
                     });
                   }
                 }}
