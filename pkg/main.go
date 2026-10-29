@@ -10,6 +10,7 @@ import (
 	pluginmetric "github.com/omniview/kubernetes/pkg/plugin/metric"
 	"github.com/omniview/kubernetes/pkg/plugin/networker"
 	"github.com/omniview/kubernetes/pkg/plugin/resource"
+	"github.com/omniview/kubernetes/pkg/pluginid"
 	"github.com/omniviewdev/plugin-sdk/settings"
 
 	"github.com/omniviewdev/plugin-sdk/pkg/sdk"
@@ -51,7 +52,7 @@ func main() {
 	defer klog.Flush()
 
 	plugin := sdk.NewPlugin(sdk.PluginOpts{
-		ID: "kubernetes",
+		ID: pluginid.ID,
 		Settings: []settings.Setting{
 			{
 				ID:          "kubeconfigs",

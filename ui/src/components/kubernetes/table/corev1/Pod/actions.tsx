@@ -5,6 +5,8 @@ import { LuBugPlay, LuChevronDown, LuLogs, LuScaling, LuTerminal, LuTrash } from
 import { isMissingShellError, runningDebugTargets } from '../../../../../features/debug/targets';
 import { drawerActionDeps } from '../../../../shared/drawer/actionDeps';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 const debugInput = (ctx: DrawerContext<Pod>, targetContainerName: string) => {
   const pod = ctx.data;
   if (!pod || !runningDebugTargets(pod).includes(targetContainerName)) throw new Error('Debug target is no longer available');
@@ -80,7 +82,7 @@ export const drawerActions: Array<DrawerComponentAction<Pod>> = [
                 },
               },
               opts: {
-                resource_plugin: 'kubernetes',
+                resource_plugin: PLUGIN_ID,
                 resource_data: ctx.data,
                 resource_key: ctx.resource?.key,
                 params: { container: container.name },
@@ -98,7 +100,7 @@ export const drawerActions: Array<DrawerComponentAction<Pod>> = [
               label: `${ctx.data?.metadata?.name}/${container.name}`,
               icon: 'LuContainer',
               opts: {
-                resource_plugin: 'kubernetes',
+                resource_plugin: PLUGIN_ID,
                 resource_data: ctx.data,
                 resource_key: ctx.resource?.key,
                 params: { mode: 'attach', container: container.name, pod_uid: ctx.data?.metadata?.uid },

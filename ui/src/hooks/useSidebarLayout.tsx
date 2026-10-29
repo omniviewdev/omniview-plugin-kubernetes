@@ -21,6 +21,8 @@ import {
 } from 'react-icons/lu';
 import { SiHelm } from 'react-icons/si';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 import DynamicIcon from '../components/shared/Icon';
 import type { NavSection, NavMenuItem } from '../types/navigation';
 import { toResourceKey } from '../utils/resourceKey';
@@ -144,7 +146,7 @@ const calculateFullLayout = (
           children.push({
             id: toID(meta),
             label: meta.kind,
-            icon: <ResourceIcon pluginId="kubernetes" resourceKey={toResourceKey(toID(meta))} size={16} />,
+            icon: <ResourceIcon pluginId={PLUGIN_ID} resourceKey={toResourceKey(toID(meta))} size={16} />,
             badge: getStateBadge(toID(meta), watchStates),
           });
         });
@@ -269,7 +271,7 @@ const calculateModernLayout = (
   const withBadge = (id: string, label: string): NavMenuItem => ({
     id,
     label,
-    icon: <ResourceIcon pluginId="kubernetes" resourceKey={toResourceKey(id)} size={16} />,
+    icon: <ResourceIcon pluginId={PLUGIN_ID} resourceKey={toResourceKey(id)} size={16} />,
     badge: getStateBadge(id, watchStates),
   });
 
@@ -348,19 +350,19 @@ const calculateModernLayout = (
         {
           id: 'core_v1_Node',
           label: 'Nodes',
-          icon: <ResourceIcon pluginId="kubernetes" resourceKey="core::v1::Node" size={16} />,
+          icon: <ResourceIcon pluginId={PLUGIN_ID} resourceKey="core::v1::Node" size={16} />,
           badge: getStateBadge('core_v1_Node', watchStates),
         },
         {
           id: 'events_v1_Event',
           label: 'Events',
-          icon: <ResourceIcon pluginId="kubernetes" resourceKey="events::v1::Event" size={16} />,
+          icon: <ResourceIcon pluginId={PLUGIN_ID} resourceKey="events::v1::Event" size={16} />,
           badge: getStateBadge('events_v1_Event', watchStates),
         },
         {
           id: 'core_v1_Namespace',
           label: 'Namespaces',
-          icon: <ResourceIcon pluginId="kubernetes" resourceKey="core::v1::Namespace" size={16} />,
+          icon: <ResourceIcon pluginId={PLUGIN_ID} resourceKey="core::v1::Namespace" size={16} />,
           badge: getStateBadge('core_v1_Namespace', watchStates),
         },
         {
@@ -434,14 +436,14 @@ const calculateModernLayout = (
  */
 export const useSidebarLayout = ({ connectionID }: Opts) => {
   const { settings } = usePluginContext();
-  const { groups } = useResourceGroups({ pluginID: 'kubernetes', connectionID });
-  const { summary, isFullySynced } = useWatchState({ pluginID: 'kubernetes', connectionID });
+  const { groups } = useResourceGroups({ pluginID: PLUGIN_ID, connectionID });
+  const { summary, isFullySynced } = useWatchState({ pluginID: PLUGIN_ID, connectionID });
 
   // Stabilize the watchStates reference so we don't recalculate on every
   // watch event when the actual values haven't changed.
   const watchStates = useStableObject(summary.data?.resources);
 
-  const layoutSetting = settings['kubernetes.layout'] as string | undefined;
+  const layoutSetting = settings[`${PLUGIN_ID}.layout`] as string | undefined;
 
   const [layout, setLayout] = React.useState<Array<NavSection>>([]);
   const [isLoading, setIsLoading] = React.useState<boolean>(true);

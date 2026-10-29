@@ -1,11 +1,12 @@
 import type { DrawerContext, DrawerComponentAction } from '@omniviewdev/runtime';
 
+import { PLUGIN_ID } from '@/pluginId';
 import { bindDrawerActionDeps, type DrawerActionDeps } from '../shared/drawer/actionDeps';
 
 import { resourceDrawerActions } from './drawerActions';
 
 export type KubernetesActionTarget = {
-  pluginID: 'kubernetes';
+  pluginID: string;
   connectionID: string;
   resourceKey: string;
   resourceID: string;
@@ -16,12 +17,12 @@ export type KubernetesActionTarget = {
   };
 };
 
-const actionID = (key: string, title: string) => `kubernetes:${key}:${encodeURIComponent(title)}`;
+const actionID = (key: string, title: string) => `${PLUGIN_ID}:${key}:${encodeURIComponent(title)}`;
 
 /** Resolve only existing actions, against exact object identity and fresh data. */
 export function resolveKubernetesActions(target: KubernetesActionTarget, deps?: DrawerActionDeps) {
   const metadata = target.data.metadata;
-  if (target.pluginID !== 'kubernetes' || !target.connectionID || !target.resourceID
+  if (target.pluginID !== PLUGIN_ID || !target.connectionID || !target.resourceID
     || !metadata || metadata.name !== target.resourceID || (metadata.namespace ?? '') !== target.namespace
     || (target.uid !== undefined && metadata.uid !== target.uid)) {
     throw new Error('Kubernetes action target identity no longer matches the resource');

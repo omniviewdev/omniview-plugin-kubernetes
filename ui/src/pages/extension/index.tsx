@@ -3,13 +3,15 @@ import { useExtensionPoint } from '@omniviewdev/runtime';
 import React from 'react';
 import { useParams } from 'react-router';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 /**
  * Extension point for full pages inside a cluster, listed in the cluster's
  * side navigation next to Dashboard. Contributions provide a component and
  * `meta: { path, icon?, children? }`. Children become nested nav entries and
  * render the same component with `subPath` set.
  */
-export const CLUSTER_PAGE_EXTENSION_POINT_ID = 'kubernetes/cluster/page';
+export const CLUSTER_PAGE_EXTENSION_POINT_ID = `${PLUGIN_ID}/cluster/page`;
 
 /** Route and nav-item prefix; static so a page can never shadow a resource key. */
 export const CLUSTER_PAGE_PREFIX = 'page/';
@@ -41,7 +43,7 @@ const ClusterExtensionPage: React.FC = () => {
   if (!page) return null;
 
   const Component = page.value;
-  return <Component pluginID="kubernetes" connectionID={id} subPath={subPath} />;
+  return <Component pluginID={PLUGIN_ID} connectionID={id} subPath={subPath} />;
 };
 
 export default ClusterExtensionPage;

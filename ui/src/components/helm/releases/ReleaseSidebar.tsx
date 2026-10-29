@@ -4,6 +4,8 @@ import React from 'react';
 import { LuCircleArrowUp, LuUndo2, LuGitCompare } from 'react-icons/lu';
 import { stringify, parse } from 'yaml';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 import CodeEditor from '../../shared/CodeEditor';
 
 import styles from './ReleaseSidebar.module.css';
@@ -220,7 +222,7 @@ const ReleaseSidebarContent: React.FC<Props> = ({ ctx }) => {
   const namespace = ctx.data?.namespace ?? '';
 
   const { executeAction, isExecuting } = useExecuteAction({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID,
     resourceKey: 'helm::v1::Release',
   });
@@ -522,7 +524,7 @@ const ReleaseSidebarContent: React.FC<Props> = ({ ctx }) => {
                   const group = kindToGroup[res.kind];
                   if (group) {
                     void showResourceSidebar({
-                      pluginID: 'kubernetes',
+                      pluginID: PLUGIN_ID,
                       connectionID,
                       resourceKey: `${group}::${res.kind}`,
                       resourceID: res.name,

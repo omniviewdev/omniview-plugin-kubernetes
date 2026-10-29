@@ -3,6 +3,8 @@ import { useConnectionNamespaces } from '@omniviewdev/runtime';
 import React, { useMemo } from 'react';
 import { LuChevronDown } from 'react-icons/lu';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 interface NamespaceSelectProps {
   value: string;
   onChange: (namespace: string) => void;
@@ -30,7 +32,7 @@ export default function NamespaceSelect({
   error,
 }: NamespaceSelectProps) {
   const { namespaces } = useConnectionNamespaces({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID,
   });
 

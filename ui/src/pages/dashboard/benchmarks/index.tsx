@@ -3,6 +3,8 @@ import { useResources } from '@omniviewdev/runtime';
 import React from 'react';
 import { useParams } from 'react-router';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 import CodeEditor from '../../../components/shared/editor/Editor';
 
 import ClusterOverviewCard from './components/ClusterOverviewCard';
@@ -37,7 +39,7 @@ const ClusterDashboardBenchmarksPage: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
 
   const { resources } = useResources({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID: id,
     resourceKey: 'extras::v1::ClusterBenchmark',
   });

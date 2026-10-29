@@ -4,6 +4,8 @@ import React from 'react';
 import { LuPlus } from 'react-icons/lu';
 import { parse } from 'yaml';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 import { parseResourceKey } from '../../../../utils/resourceKey';
 
 import CreateResourceModal from './CreateResourceModal';
@@ -18,7 +20,7 @@ const CreateResourceButton: React.FC<Props> = ({ connectionID, resourceKey }) =>
   const [isCreating, setIsCreating] = React.useState(false);
 
   const { kind } = parseResourceKey(resourceKey);
-  const { create } = useResourceMutations({ pluginID: 'kubernetes' });
+  const { create } = useResourceMutations({ pluginID: PLUGIN_ID });
 
   const handleCreate = async (yaml: string, namespace: string) => {
     setIsCreating(true);

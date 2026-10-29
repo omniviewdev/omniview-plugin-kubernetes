@@ -14,6 +14,7 @@ import (
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
 
+	"github.com/omniview/kubernetes/pkg/pluginid"
 	"github.com/omniviewdev/plugin-sdk/pkg/sdk"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
 	"github.com/omniviewdev/plugin-sdk/pkg/v1/exec"
@@ -25,7 +26,7 @@ func Register(plugin *sdk.Plugin) {
 		Handlers: []exec.Handler{
 			podExecHandler(),
 			{
-				Plugin:         "kubernetes",
+				Plugin:         pluginid.ID,
 				Resource:       "core::v1::Node",
 				TTYHandler:     NodeHandler,
 				DefaultCommand: []string{"/bin/bash"},
@@ -38,7 +39,7 @@ func Register(plugin *sdk.Plugin) {
 
 func podExecHandler() exec.Handler {
 	return exec.Handler{
-		Plugin:         "kubernetes",
+		Plugin:         pluginid.ID,
 		Resource:       "core::v1::Pod",
 		TTYHandler:     PodHandler,
 		HandlesResize:  true,

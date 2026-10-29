@@ -7,6 +7,8 @@ import type { DrawerActionDeps, StartDebugInput } from '../../components/shared/
 import type { DebugTemplate } from './config';
 import { runningDebugTargets } from './targets';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 export type DebugRecord = Omit<StartDebugInput, 'resourceData'> & {
   containerName: string;
   image: string;
@@ -159,7 +161,7 @@ export async function inspectDebugRecord(
   if (record.state === 'stale') throw new Error(record.message);
   let pod: Pod;
   try {
-    const response = await ResourceClient.Get('kubernetes', record.connectionID, 'core::v1::Pod', {
+    const response = await ResourceClient.Get(PLUGIN_ID, record.connectionID, 'core::v1::Pod', {
       id: record.resourceID,
       namespace: record.namespace,
     });
@@ -195,7 +197,7 @@ export async function reconnectDebug(
       label: `${record.resourceID}/${record.targetContainerName} → ${record.containerName}`,
       icon: 'LuBugPlay',
       opts: {
-        resource_plugin: 'kubernetes',
+        resource_plugin: PLUGIN_ID,
         resource_key: 'core::v1::Pod',
         resource_data: observed.pod,
         params: { mode: 'attach', container: record.containerName, pod_uid: record.podUID },

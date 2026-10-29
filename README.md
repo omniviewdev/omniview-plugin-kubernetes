@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://omniview.dev"><img src="https://img.shields.io/badge/omniview-plugin-326CE5?style=flat-square&logo=kubernetes&logoColor=white" alt="Omniview Plugin" /></a>
-  <img src="https://img.shields.io/badge/version-0.8.0-blue?style=flat-square" alt="Version" />
+  <img src="https://img.shields.io/badge/version-0.8.1-blue?style=flat-square" alt="Version" />
   <img src="https://img.shields.io/badge/license-Apache--2.0-green?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/category-cloud-326CE5?style=flat-square" alt="Category" />
 </p>
@@ -22,6 +22,53 @@ Browse, inspect, edit, and manage Kubernetes clusters without leaving Omniview. 
 Resource icons come from the upstream [Kubernetes Icons Set](https://github.com/kubernetes/community/tree/aeee117fa02e25b68298999d699fb45bdc91acb7/icons), bundled under Apache-2.0. Source attribution and license live in `ui/src/icons/kubernetes/NOTICE` and `LICENSE`. The plugin registers one `ResourceIconSetV1` at `omniview/resource/icons`; both sidebar layouts and the host search palette reuse it. Kubernetes API versions share artwork within the same native API group and kind; unknown resources use the host fallback. Custom API groups cannot impersonate native kinds.
 
 Native artwork is adapted to monochrome resource glyphs without blue badges and uses inherited `currentColor` in every theme. Trusted bundled SVG geometry is imported inline, so sidebar and search icons need no image requests or cross-origin asset URLs. Sanitized assets contain no scripts, embedded HTML, external references, or style URLs; regression tests enforce the geometry and attribute allowlists. Modification details remain in `NOTICE`.
+
+## Resource event and table performance
+
+Informer updates with the same nonempty resource version and the same UID, name,
+namespace, API version, and kind now stop before JSON encoding and watch delivery.
+Changed or empty versions and identity replacements still emit updates. Initial
+ADD replay remains intact.
+
+Resource tables discover label and annotation columns from their existing
+unfiltered resource result, without another resource subscription. Existing
+per-resource storage keys remain shared across connections. New keys start
+unselected; updates with no new keys preserve selection state and write nothing
+to localStorage. Combined table columns retain their reference until inputs change.
+
+Synthetic provider measurements for 300 representative pods: unchanged replay
+0.054 ms, zero encoded bytes and allocations; changed updates 7.442 ms,
+1,453,200 encoded bytes and approximately 6.63 MB allocations. These are different
+workloads on the new handler, not a native before/after CPU comparison. Warm
+informer List still serializes complete objects: 300 pods took 8.132 ms and
+1,452,900 bytes; 3,000 took 75.024 ms and 14,529,000 bytes with fake clients.
+
+These changes reduce provable event and storage work. They do not establish a
+reduction in the reported 53.5% Graphics and Media / 35.6% WebContent CPU on a
+300-pod connection. Native acceptance requires matched cluster, viewport, event
+rate, warmup, and repeated dashboard/table/hidden-view captures.
+
+Remaining work includes single-owner live ingestion, bounded transport batching,
+virtualized dashboard events, projected resource representations, and source
+paging with complete query membership and sorting. Do not truncate results or
+remove initial ADD replay without proving List/watch handoff correctness.
+[FreeLens watch ownership](https://github.com/freelensapp/freelens/blob/0c8f34ac6c5fe6546e25c7591abe335c8ca2b689/packages/core/src/renderer/kube-watch-api/kube-watch-api.ts#L107-L196)
+and its [virtual list](https://github.com/freelensapp/freelens/blob/0c8f34ac6c5fe6546e25c7591abe335c8ca2b689/packages/core/src/renderer/components/virtual-list/virtual-list.tsx#L46-L123)
+provide source references, not measured performance parity.
+
+Regression checks:
+
+```bash
+cd ui
+pnpm exec vitest run src/components/tables/ColumnFilter/useDynamicResourceColumns.test.tsx
+cd ..
+GOWORK=off go test ./pkg/plugin/resource/resourcers -count=1
+GOWORK=off go test ./pkg/plugin/resource/resourcers -run '^$' -bench 'Benchmark(MakeEventHandler|Base_ListRepresentativePods)' -benchmem
+```
+
+The hook regression includes a zero-storage-write smoke check for unchanged keys
+and empty results. Release 0.8.1 consumes the published runtime 0.9.1 reducer fix
+through the `~0.9.1` dependency range and its matching pnpm lock entry.
 
 ## Connection route encoding
 

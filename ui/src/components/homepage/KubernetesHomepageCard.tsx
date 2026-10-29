@@ -6,6 +6,8 @@ import { type types } from '@omniviewdev/runtime/models';
 import React from 'react';
 import { LuFolder, LuPower } from 'react-icons/lu';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 import { useClusterPreferences } from '../../hooks/useClusterPreferences';
 import type { ConnectionOverride, ConnectionGroup } from '../../types/clusters';
 import ConnectionStatusBadge from '../connections/ConnectionStatusBadge';
@@ -16,7 +18,6 @@ import SimpleTooltip from '../shared/SimpleTooltip';
 import ConnectedClusterCard from './ConnectedClusterCard';
 import styles from './KubernetesHomepageCard.module.css';
 
-const PLUGIN_ID = 'kubernetes';
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 

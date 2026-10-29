@@ -8,6 +8,8 @@ import {
 import React from 'react';
 import { LuRefreshCw, LuLink, LuShieldCheck, LuShieldOff } from 'react-icons/lu';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 import NamedAvatar from '../../shared/NamedAvatar';
 
 import styles from './RepoSidebar.module.css';
@@ -112,14 +114,14 @@ export const RepoSidebar: React.FC<Props> = ({ ctx }) => {
   const [chartFilter, setChartFilter] = React.useState('');
 
   const { executeAction, isExecuting } = useExecuteAction({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID,
     resourceKey: 'helm::v1::Repository',
   });
 
   // Use the existing Chart resource list — cached by React Query
   const { resources: chartsQuery } = useResources({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID,
     resourceKey: 'helm::v1::Chart',
     idAccessor: 'id',
@@ -242,7 +244,7 @@ export const RepoSidebar: React.FC<Props> = ({ ctx }) => {
               variant="outline"
               onClick={() => {
                 void showResourceSidebar({
-                  pluginID: 'kubernetes',
+                  pluginID: PLUGIN_ID,
                   connectionID,
                   resourceKey: 'helm::v1::Chart',
                   resourceID: chart.id ?? '',

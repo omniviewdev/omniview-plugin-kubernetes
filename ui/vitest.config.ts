@@ -1,6 +1,9 @@
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
+import { resolvePluginId } from './vite/pluginId';
+
+process.env.VITE_OMNIVIEW_PLUGIN_ID = resolvePluginId();
 
 export default defineConfig({
   plugins: [

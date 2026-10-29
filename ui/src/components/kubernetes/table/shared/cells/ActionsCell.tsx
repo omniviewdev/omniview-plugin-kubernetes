@@ -12,6 +12,8 @@ import { ObjectMeta } from 'kubernetes-types/meta/v1';
 import React from 'react';
 import { LuEllipsis, LuTrash } from 'react-icons/lu';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 import { useTableDrawer } from '../../../../shared/table/TableDrawerContext';
 
 const triggerButtonStyle = { flex: 'none', minHeight: 28, minWidth: 28 } as const;
@@ -83,7 +85,7 @@ function buildDrawerContext(props: Props): DrawerContext {
       name: meta?.name ?? props.resourceID,
       key: props.resourceKey,
       connectionID: props.connectionID,
-      pluginID: 'kubernetes',
+      pluginID: PLUGIN_ID,
     },
   };
 }
@@ -249,7 +251,7 @@ function buildFallbackDelete(
         confirmLabel: 'Delete',
         cancelLabel: 'Cancel',
         onConfirm: async () => {
-          await ResourceClient.Delete('kubernetes', props.connectionID, props.resourceKey, {
+          await ResourceClient.Delete(PLUGIN_ID, props.connectionID, props.resourceKey, {
             id: resourceName,
             namespace: props.namespace,
             input: {},

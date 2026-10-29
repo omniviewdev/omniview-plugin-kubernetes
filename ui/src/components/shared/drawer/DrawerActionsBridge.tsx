@@ -15,7 +15,8 @@ import ScaleModal from '../../kubernetes/actions/ScaleModal';
 
 import { type DrawerActionDeps, registerDrawerActionDeps, registryKey, type ScaleTarget } from './actionDeps';
 
-const PLUGIN_ID = 'kubernetes';
+import { PLUGIN_ID } from '@/pluginId';
+
 
 /** Mounts the hook-backed handlers that drawer actions use; see `actionDeps.ts`. */
 type BridgeProps = {

@@ -21,11 +21,13 @@ import { plural } from '../utils/language';
 
 import { destinationPath, destinationScore, prependRecent, searchDestinations, type SearchDestination } from './navigation';
 
-const PLUGIN = 'kubernetes';
-const OPEN_TYPE = 'kubernetes:open-type:';
-const OPEN_LIST = 'kubernetes:open-list';
-const OPEN_RESOURCE = 'kubernetes:open-resource';
-const CONNECT = 'kubernetes:connect';
+import { PLUGIN_ID } from '@/pluginId';
+
+const PLUGIN = PLUGIN_ID;
+const OPEN_TYPE = `${PLUGIN}:open-type:`;
+const OPEN_LIST = `${PLUGIN}:open-list`;
+const OPEN_RESOURCE = `${PLUGIN}:open-resource`;
+const CONNECT = `${PLUGIN}:connect`;
 const layouts = new Map<string, SearchDestination[]>();
 let extensionRegistry: ExtensionPointRegistryContract | undefined;
 let queryClient: QueryClient | undefined;

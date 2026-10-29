@@ -6,6 +6,8 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { MetricsPanel } from '../../shared/charts';
 import type { TimeSeriesDef, ChartTimeRange } from '../../shared/charts';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 const outerBoxStyle: React.CSSProperties = {
   borderRadius: 4,
   border: '1px solid var(--ov-color-border-default)',
@@ -182,7 +184,7 @@ const NodeMetricsSection: React.FC<Props> = ({
     isLoading: currentLoading,
     error,
   } = useResourceMetrics({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID,
     resourceKey,
     resourceID,
@@ -192,7 +194,7 @@ const NodeMetricsSection: React.FC<Props> = ({
 
   // Time-series data (shape=1 TIMESERIES)
   const { data: tsData, isLoading: tsLoading } = useResourceMetrics({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID,
     resourceKey,
     resourceID,

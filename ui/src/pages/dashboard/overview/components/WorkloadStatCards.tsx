@@ -12,6 +12,8 @@ import {
   LuNetwork,
 } from 'react-icons/lu';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 import WorkloadSummaryCard from './WorkloadSummaryCard';
 
 /**
@@ -46,7 +48,7 @@ export const PodStatCard = React.memo(function PodStatCard({
   onClick,
 }: CardProps) {
   const { resources: pods } = useResources({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID,
     resourceKey: 'core::v1::Pod',
     idAccessor: 'metadata.uid',
@@ -94,7 +96,7 @@ export const DeploymentStatCard = React.memo(function DeploymentStatCard({
   onClick,
 }: CardProps) {
   const { resources: deployments } = useResources({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID,
     resourceKey: 'apps::v1::Deployment',
     idAccessor: 'metadata.uid',
@@ -140,7 +142,7 @@ export const StatefulSetStatCard = React.memo(function StatefulSetStatCard({
   onClick,
 }: CardProps) {
   const { resources: statefulSets } = useResources({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID,
     resourceKey: 'apps::v1::StatefulSet',
     idAccessor: 'metadata.uid',
@@ -186,7 +188,7 @@ export const DaemonSetStatCard = React.memo(function DaemonSetStatCard({
   onClick,
 }: CardProps) {
   const { resources: daemonSets } = useResources({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID,
     resourceKey: 'apps::v1::DaemonSet',
     idAccessor: 'metadata.uid',
@@ -232,7 +234,7 @@ export const JobStatCard = React.memo(function JobStatCard({
   onClick,
 }: CardProps) {
   const { resources: jobs } = useResources({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID,
     resourceKey: 'batch::v1::Job',
     idAccessor: 'metadata.uid',
@@ -283,7 +285,7 @@ export const CronJobStatCard = React.memo(function CronJobStatCard({
   onClick,
 }: CardProps) {
   const { resources: cronJobs } = useResources({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID,
     resourceKey: 'batch::v1::CronJob',
     idAccessor: 'metadata.uid',

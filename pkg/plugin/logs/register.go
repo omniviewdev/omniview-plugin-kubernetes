@@ -1,8 +1,9 @@
 package logs
 
 import (
-	"github.com/omniviewdev/plugin-sdk/pkg/v1/logs"
+	"github.com/omniview/kubernetes/pkg/pluginid"
 	"github.com/omniviewdev/plugin-sdk/pkg/sdk"
+	"github.com/omniviewdev/plugin-sdk/pkg/v1/logs"
 )
 
 // Register registers the log capability with the Kubernetes plugin.
@@ -10,7 +11,7 @@ func Register(plugin *sdk.Plugin) {
 	logs.RegisterPlugin(plugin, logs.PluginOpts{
 		Handlers: map[string]logs.Handler{
 			"core::v1::Pod": {
-				Plugin:        "kubernetes",
+				Plugin:        pluginid.ID,
 				Resource:      "core::v1::Pod",
 				Handler:       PodLogHandler,
 				SourceBuilder: PodSourceBuilder,

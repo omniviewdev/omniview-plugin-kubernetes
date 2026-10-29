@@ -3,6 +3,8 @@ import { useExecuteAction } from '@omniviewdev/runtime';
 import React from 'react';
 import { stringify } from 'yaml';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 import CodeEditor from '../../shared/CodeEditor';
 
 const dialogStyle: React.CSSProperties = { width: '80%', maxWidth: 800, maxHeight: '85vh' };
@@ -47,7 +49,7 @@ const UpgradeDialog: React.FC<Props> = ({
   const [valuesLoaded, setValuesLoaded] = React.useState(false);
 
   const { executeAction, isExecuting } = useExecuteAction({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID,
     resourceKey: 'helm::v1::Release',
   });

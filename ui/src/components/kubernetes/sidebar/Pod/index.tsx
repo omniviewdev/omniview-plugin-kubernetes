@@ -11,6 +11,8 @@ import PodContainersSection from './PodContainersSection';
 import PodStatusSection from './PodStatusSection';
 import PodVolumesSection from './PodVolumesSection';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 interface Props {
   ctx: DrawerContext<Pod>;
 }
@@ -23,7 +25,7 @@ export const PodSidebar: React.FC<Props> = ({ ctx }) => {
   // Fetch live CPU/memory metrics for this pod.
   // Request both metrics-server and Prometheus IDs — whichever is available responds.
   const { data: metricsData } = useResourceMetrics({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID,
     resourceKey: 'core::v1::Pod',
     resourceID,

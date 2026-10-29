@@ -16,6 +16,8 @@ import { Browser } from '@omniviewdev/runtime/runtime';
 import type { Service, ServicePort } from 'kubernetes-types/core/v1';
 import React from 'react';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 import ExpandableSections from '../../../../../shared/ExpandableSections';
 import type { ExpandableSection } from '../../../../../shared/ExpandableSections';
 import Icon from '../../../../../shared/Icon';
@@ -286,7 +288,7 @@ const ServicePortsSection: React.FC<Props> = ({ service, connectionID, resourceI
   const [configPort, setConfigPort] = React.useState<ServicePort | null>(null);
 
   const { sessions, forward, close } = useResourcePortForwarder({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID: connectionID || '',
     resourceID: resourceID || '',
   });

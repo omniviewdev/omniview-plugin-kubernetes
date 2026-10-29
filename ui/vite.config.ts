@@ -3,6 +3,13 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { omniviewExternals } from "@omniviewdev/vite-plugin";
 import { injectCssIntoEntry } from "./vite/omniview";
+import { resolvePluginId } from "./vite/pluginId";
+
+const pluginId = resolvePluginId();
+// Vite exposes VITE_* process variables as import.meta.env, which it inlines
+// into every module in dev as well as in builds; `define` is not applied to
+// modules the host loads from the dev server.
+process.env.VITE_OMNIVIEW_PLUGIN_ID = pluginId;
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -10,7 +17,7 @@ export default defineConfig({
   plugins: [
     react({ babel: { plugins: [["babel-plugin-react-compiler", { target: "19" }]] } }),
     omniviewExternals(),
-    injectCssIntoEntry("kubernetes"),
+    injectCssIntoEntry(pluginId),
   ],
   resolve: {
     alias: {

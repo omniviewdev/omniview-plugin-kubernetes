@@ -11,11 +11,13 @@ import {
 } from './config';
 import type { DebugConfig, DebugTemplate } from './config';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 const EMPTY = { customTemplates: [] as DebugTemplate[], defaultTemplateId: null as string | null };
 
 export function useDebugPreferences(connectionID: string) {
-  const store = usePluginData('kubernetes', 'debug_templates', EMPTY);
-  const clusters = useClusterPreferences('kubernetes');
+  const store = usePluginData(PLUGIN_ID, 'debug_templates', EMPTY);
+  const clusters = useClusterPreferences(PLUGIN_ID);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const config = useMemo<DebugConfig>(

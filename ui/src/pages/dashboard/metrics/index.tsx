@@ -22,6 +22,8 @@ import type {
 import { MetricsPanel } from '../../../components/shared/charts';
 import { useClusterPreferences } from '../../../hooks/useClusterPreferences';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 const emptyStateStyle: React.CSSProperties = { padding: 24, textAlign: 'center' };
 
 const pageStyle: React.CSSProperties = { padding: 12, overflow: 'auto', height: '100%', width: '100%', flex: 1 };
@@ -252,7 +254,7 @@ const ClusterDashboardMetricsPage: React.FC = () => {
     to: new Date(),
   }));
 
-  const { connectionOverrides } = useClusterPreferences('kubernetes');
+  const { connectionOverrides } = useClusterPreferences(PLUGIN_ID);
   const metricConfig = connectionOverrides[id]?.metricConfig;
 
   const resourceData = useMemo(() => {
@@ -298,7 +300,7 @@ const ClusterDashboardMetricsPage: React.FC = () => {
     providers,
     isLoading,
   } = useResourceMetrics({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID: id,
     resourceKey: 'cluster::metrics',
     resourceID: '',
@@ -315,7 +317,7 @@ const ClusterDashboardMetricsPage: React.FC = () => {
 
   // Instant data for annotations
   const { data: instantData } = useResourceMetrics({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID: id,
     resourceKey: 'cluster::metrics',
     resourceID: '',

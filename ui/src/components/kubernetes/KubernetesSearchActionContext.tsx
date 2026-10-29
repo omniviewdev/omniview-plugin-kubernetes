@@ -7,6 +7,8 @@ import { useDrawerActionExecution } from '../shared/drawer/DrawerActionsBridge';
 
 import { executeKubernetesAction, resolveKubernetesActions, type KubernetesActionTarget } from './resourceActions';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 type ResourceScope = Extract<SearchScopeV1, { kind: 'resource' }>;
 type ContextTarget = { connectionID: string; resourceKey: string };
 type Resolver = (target: ContextTarget, signal: AbortSignal) => Promise<DrawerActionDeps>;
@@ -17,9 +19,9 @@ const abortError = () => new DOMException('Kubernetes action request cancelled',
 let discovered: { scope: string; ids: Set<string> } | undefined;
 
 async function freshTarget(scope: ResourceScope, signal: AbortSignal): Promise<KubernetesActionTarget> {
-  if (scope.pluginId !== 'kubernetes') throw new Error('Kubernetes action target belongs to another plugin');
+  if (scope.pluginId !== PLUGIN_ID) throw new Error('Kubernetes action target belongs to another plugin');
   if (signal.aborted) throw abortError();
-  const request = ResourceClient.Get('kubernetes', scope.connectionId, scope.resourceKey, {
+  const request = ResourceClient.Get(PLUGIN_ID, scope.connectionId, scope.resourceKey, {
     id: scope.resourceId, namespace: scope.namespace,
   });
   const cancel = () => { void request.cancel?.(); };
@@ -46,7 +48,7 @@ function targetFromData(scope: ResourceScope, data: unknown): KubernetesActionTa
     throw new Error('Kubernetes action target identity no longer matches the resource');
   }
   return {
-    pluginID: 'kubernetes', connectionID: scope.connectionId, resourceKey: scope.resourceKey,
+    pluginID: PLUGIN_ID, connectionID: scope.connectionId, resourceKey: scope.resourceKey,
     resourceID: scope.resourceId, namespace: scope.namespace, uid: scope.uid,
     data: data as KubernetesActionTarget['data'],
   };
@@ -80,7 +82,7 @@ export async function searchActions(scope: ResourceScope, signal: AbortSignal, d
 }
 
 export function validateSearchAction(action: SearchActionReferenceV1, context: SearchExecutionContextV1): boolean {
-  if (action.target.kind !== 'resource' || action.target.pluginId !== 'kubernetes') return false;
+  if (action.target.kind !== 'resource' || action.target.pluginId !== PLUGIN_ID) return false;
   context.signal.throwIfAborted();
   return Boolean(resolveContext && discovered?.scope === JSON.stringify(action.target) && discovered.ids.has(action.id));
 }

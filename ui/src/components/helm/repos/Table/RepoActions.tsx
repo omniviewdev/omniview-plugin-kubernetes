@@ -15,6 +15,8 @@ import React from 'react';
 import { LuCheck, LuPackage, LuChevronDown, LuChevronRight, LuLock } from 'react-icons/lu';
 import { SiHelm } from 'react-icons/si';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 import { stringToColor } from '../../../../utils/color';
 
 import styles from './RepoActions.module.css';
@@ -175,7 +177,7 @@ const AddRepoDialog: React.FC<{
   const [chartFilter, setChartFilter] = React.useState('');
 
   const { executeAction } = useExecuteAction({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID,
     resourceKey: 'helm::v1::Repository',
   });

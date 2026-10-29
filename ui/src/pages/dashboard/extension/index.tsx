@@ -2,6 +2,8 @@ import { useExtensionPoint } from '@omniviewdev/runtime';
 import React from 'react';
 import { useParams } from 'react-router';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 import { extensionTabPath } from '..';
 
 type DashboardTabProps = { pluginID: string; connectionID: string };
@@ -15,7 +17,7 @@ const ClusterDashboardExtensionPage: React.FC = () => {
   if (!tab) return null;
 
   const Component = tab.value;
-  return <Component pluginID="kubernetes" connectionID={id} />;
+  return <Component pluginID={PLUGIN_ID} connectionID={id} />;
 };
 
 export default ClusterDashboardExtensionPage;

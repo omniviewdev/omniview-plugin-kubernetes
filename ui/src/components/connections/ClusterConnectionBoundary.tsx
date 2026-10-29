@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import type { ConnectionOverride } from '../../types/clusters';
 
 import ClusterConnectionDetails from './ClusterConnectionDetails';
+import { PLUGIN_ID } from '@/pluginId';
 
 const EMPTY_OVERRIDES: Record<string, ConnectionOverride> = {};
 
@@ -16,11 +17,11 @@ interface Props {
 
 /** Keep cluster resource hooks unmounted until their connection is ready. */
 export default function ClusterConnectionBoundary({ connectionID, children, onEditConnection, onBack }: Props) {
-  const { connection } = useConnection({ pluginID: 'kubernetes', connectionID });
-  const overrides = usePluginData<Record<string, ConnectionOverride>>('kubernetes', 'cluster_overrides', EMPTY_OVERRIDES);
+  const { connection } = useConnection({ pluginID: PLUGIN_ID, connectionID });
+  const overrides = usePluginData<Record<string, ConnectionOverride>>(PLUGIN_ID, 'cluster_overrides', EMPTY_OVERRIDES);
   return (
     <ConnectionBoundary
-      pluginID="kubernetes"
+      pluginID={PLUGIN_ID}
       connectionID={connectionID}
       fallback={(state) => (
         <ConnectionBoundaryFallback

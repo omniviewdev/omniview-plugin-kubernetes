@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/omniview/kubernetes/pkg/pluginid"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
 	sdkexec "github.com/omniviewdev/plugin-sdk/pkg/v1/exec"
 	"github.com/omniviewdev/plugin-sdk/pkg/v1/exec/exectest"
@@ -35,7 +36,7 @@ func TestPodRegistrationForwardsSessionResizesToRemoteQueue(t *testing.T) {
 	_, err := harness.Manager.Stream(ctx, make(chan sdkexec.StreamInput))
 	require.NoError(t, err)
 	session, err := harness.CreateSession(sdkexec.SessionOptions{
-		ResourcePlugin: "kubernetes",
+		ResourcePlugin: pluginid.ID,
 		ResourceKey:    "core::v1::Pod",
 		Params:         map[string]string{"mode": "attach"},
 	})

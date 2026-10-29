@@ -21,6 +21,8 @@ import {
   type DebugRecord,
 } from './controller';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 function formatSessionError(cause: unknown): string {
   const error = parseAppError(cause);
   if (error.code) return `${error.title}: ${error.detail}`;
@@ -35,7 +37,7 @@ export default function DebugSessionsSection({
   pod: Pod;
 }) {
   const records = React.useSyncExternalStore(subscribeDebugRecords, getDebugRecords);
-  const { createSession } = useExec({ pluginID: 'kubernetes' });
+  const { createSession } = useExec({ pluginID: PLUGIN_ID });
   const [error, setError] = React.useState('');
   const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
   const detailsID = React.useId();

@@ -5,6 +5,8 @@ import type { Pod, Event as K8sEvent } from 'kubernetes-types/core/v1';
 import React from 'react';
 import { LuCircleAlert, LuClock, LuTriangleAlert, LuBox, LuServer, LuLayers, LuPower } from 'react-icons/lu';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 import type { ConnectionOverride } from '../../types/clusters';
 import ConnectionStatusBadge from '../connections/ConnectionStatusBadge';
 import NamedAvatar from '../shared/NamedAvatar';
@@ -12,7 +14,6 @@ import SimpleTooltip from '../shared/SimpleTooltip';
 
 import styles from './ConnectedClusterCard.module.css';
 
-const PLUGIN_ID = 'kubernetes';
 
 const METRIC_IDS = [
   'prom_cluster_cpu_utilization',

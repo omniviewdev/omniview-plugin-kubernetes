@@ -12,6 +12,8 @@ import React from 'react';
 import { SiKubernetes } from 'react-icons/si';
 import { RouteObject } from 'react-router';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 import ChartSidebar from './components/helm/charts/ChartSidebar';
 import HelmChartTable from './components/helm/charts/Table';
 import ReleaseSidebar from './components/helm/releases/ReleaseSidebar';
@@ -127,7 +129,7 @@ import { kubernetesSearchProvider } from './search/provider';
 
 const connectionSearchHandle: SearchRouteHandleV1 = {
   searchScope: ({ params }) => params.id
-    ? { kind: 'connection', pluginId: 'kubernetes', connectionId: params.id, label: params.id }
+    ? { kind: 'connection', pluginId: PLUGIN_ID, connectionId: params.id, label: params.id }
     : undefined,
 };
 
@@ -424,7 +426,7 @@ export const extensionRegistrations: ExtensionRegistration[] = [
     extensionPointId: 'omniview/resource/icons',
     registration: {
       id: 'resource-icons',
-      plugin: 'kubernetes',
+      plugin: PLUGIN_ID,
       label: 'Kubernetes resource icons',
       value: kubernetesResourceIconSet,
     },
@@ -432,8 +434,8 @@ export const extensionRegistrations: ExtensionRegistration[] = [
   {
     extensionPointId: 'omniview/global-search',
     registration: {
-      id: 'kubernetes/global-search',
-      plugin: 'kubernetes',
+      id: `${PLUGIN_ID}/global-search`,
+      plugin: PLUGIN_ID,
       label: 'Kubernetes',
       value: kubernetesSearchProvider,
     },
@@ -441,8 +443,8 @@ export const extensionRegistrations: ExtensionRegistration[] = [
   {
     extensionPointId: 'omniview/home/card',
     registration: {
-      id: 'kubernetes/home/card',
-      plugin: 'kubernetes',
+      id: `${PLUGIN_ID}/home/card`,
+      plugin: PLUGIN_ID,
       label: 'Kubernetes',
       value: KubernetesHomepageCard,
       meta: {

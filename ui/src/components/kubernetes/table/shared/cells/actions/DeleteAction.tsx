@@ -2,6 +2,8 @@ import { Banner, Button, Dialog, Spinner, Stack, Text } from '@omniviewdev/base-
 import { useResource } from '@omniviewdev/runtime';
 import * as React from 'react';
 import { LuCircleAlert, LuTrash, LuTriangleAlert } from 'react-icons/lu';
+
+import { PLUGIN_ID } from '@/pluginId';
 const triggerWrapperStyle: React.CSSProperties = { display: 'flex' };
 
 const deleteTextStyle = { paddingLeft: 4 } as const;
@@ -39,7 +41,7 @@ export const DeleteAction: React.FC<Props> = ({
   const [alert, setAlert] = React.useState<string>('');
 
   const { remove } = useResource({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID,
     resourceKey,
     resourceID,

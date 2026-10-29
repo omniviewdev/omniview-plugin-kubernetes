@@ -9,6 +9,8 @@ import type { Pod, Node as K8sNode, Event as K8sEvent } from 'kubernetes-types/c
 import React from 'react';
 import { useParams } from 'react-router';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 import type { ChartTimeRange } from '../../../components/shared/charts';
 import NamespaceSelect from '../../../components/tables/NamespaceSelect';
 import { useClusterPreferences } from '../../../hooks/useClusterPreferences';
@@ -103,27 +105,27 @@ const ClusterDashboardOverviewPage: React.FC = () => {
   const goToJobs = React.useCallback(() => goToResource('batch_v1_Job'), [goToResource]);
   const goToCronJobs = React.useCallback(() => goToResource('batch_v1_CronJob'), [goToResource]);
 
-  const { connection } = useConnection({ pluginID: 'kubernetes', connectionID: id });
-  const { connectionOverrides } = useClusterPreferences('kubernetes');
+  const { connection } = useConnection({ pluginID: PLUGIN_ID, connectionID: id });
+  const { connectionOverrides } = useClusterPreferences(PLUGIN_ID);
   const metricConfig = connectionOverrides[id]?.metricConfig;
 
   // Only keep the resource hooks needed for ClusterInfoCard and EventsTable
   const { resources: pods } = useResources({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID: id,
     resourceKey: 'core::v1::Pod',
     idAccessor: 'metadata.uid',
   });
 
   const { resources: nodes } = useResources({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID: id,
     resourceKey: 'core::v1::Node',
     idAccessor: 'metadata.uid',
   });
 
   const { resources: events } = useResources({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID: id,
     resourceKey: 'core::v1::Event',
     idAccessor: 'metadata.uid',
@@ -197,7 +199,7 @@ const ClusterDashboardOverviewPage: React.FC = () => {
               const Component = w.value;
               return (
                 <div key={w.id} style={{ minWidth: 0 }}>
-                  <Component pluginID="kubernetes" connectionID={id} />
+                  <Component pluginID={PLUGIN_ID} connectionID={id} />
                 </div>
               );
             })}

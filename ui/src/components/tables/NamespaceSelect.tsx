@@ -3,6 +3,8 @@ import { useResources } from '@omniviewdev/runtime';
 import type { Namespace } from 'kubernetes-types/core/v1';
 import React from 'react';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 import styles from './toolbarInputs.module.css';
 
 type Props = {
@@ -22,7 +24,7 @@ type Props = {
  */
 const NamespaceSelect: React.FC<Props> = ({ connectionID, selected, setNamespaces }) => {
   const { resources } = useResources({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID,
     resourceKey: 'core::v1::Namespace',
     idAccessor: 'metadata.name',

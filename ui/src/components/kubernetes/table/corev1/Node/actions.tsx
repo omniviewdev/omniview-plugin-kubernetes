@@ -2,6 +2,8 @@ import { type DrawerComponentAction, type DrawerContext } from '@omniviewdev/run
 import type { Node } from 'kubernetes-types/core/v1';
 import { LuArrowDownToLine, LuShieldBan, LuShieldCheck, LuTerminal, LuTrash } from 'react-icons/lu';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 import { drawerActionDeps } from '../../../../shared/drawer/actionDeps';
 
 const resourceKey = 'core::v1::Node';
@@ -101,7 +103,7 @@ export const drawerActions: Array<DrawerComponentAction<Node>> = [
         label: `node/${ctx.data?.metadata?.name}`,
         icon: 'LuTerminal',
         opts: {
-          resource_plugin: 'kubernetes',
+          resource_plugin: PLUGIN_ID,
           resource_data: ctx.data,
           resource_key: resourceKey,
           params: {

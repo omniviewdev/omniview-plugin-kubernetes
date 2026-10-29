@@ -15,6 +15,8 @@ import { Browser } from '@omniviewdev/runtime/runtime';
 import type { ContainerPort, PodSpec } from 'kubernetes-types/core/v1';
 import React from 'react';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 import Icon from './Icon';
 import SimpleTooltip from './SimpleTooltip';
 
@@ -295,7 +297,7 @@ const WorkloadPortsCard: React.FC<WorkloadPortsCardProps> = ({
   const [configPort, setConfigPort] = React.useState<ContainerPort | null>(null);
 
   const { sessions, forward, close } = useResourcePortForwarder({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID,
     resourceID,
   });

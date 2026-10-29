@@ -4,6 +4,8 @@ import type { metric } from '@omniviewdev/runtime/models';
 import React, { useMemo } from 'react';
 import { LuCpu, LuMemoryStick, LuBox, LuHardDrive } from 'react-icons/lu';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 const gaugeGridStyle: React.CSSProperties = {
   display: 'grid',
   gridTemplateColumns: 'repeat(4, 1fr)',
@@ -121,7 +123,7 @@ const ClusterResourceGauges: React.FC<ClusterResourceGaugesProps> = ({
   }, [metricConfig]);
 
   const { data, providers, isLoading } = useResourceMetrics({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID,
     resourceKey: 'cluster::metrics',
     resourceID: '',

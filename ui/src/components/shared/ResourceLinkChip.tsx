@@ -4,6 +4,8 @@ import type { OwnerReference } from 'kubernetes-types/meta/v1';
 import React from 'react';
 import { LuCopy, LuLayers, LuDatabase, LuPlay, LuClock, LuServer, LuUser } from 'react-icons/lu';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 type KindConfig = {
   color: ComponentColor;
   icon: React.ReactElement;
@@ -58,7 +60,7 @@ type Props = {
  * Shared between table cells and sidebar sections.
  */
 const ResourceLinkChip: React.FC<Props> = ({
-  pluginID = 'kubernetes',
+  pluginID = PLUGIN_ID,
   connectionID,
   namespace,
   resourceID,

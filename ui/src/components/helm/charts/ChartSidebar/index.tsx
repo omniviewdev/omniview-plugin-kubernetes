@@ -7,6 +7,8 @@ import {
   LuTriangleAlert,
 } from 'react-icons/lu';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 import SimpleSelect from '../../../connections/SimpleSelect';
 import NamedAvatar from '../../../shared/NamedAvatar';
 import InstallChartDialog from '../InstallChartDialog';
@@ -106,7 +108,7 @@ const ChartSidebarContent: React.FC<Props> = ({ ctx }) => {
 
 
   const { executeAction, isExecuting } = useExecuteAction({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID,
     resourceKey: 'helm::v1::Chart',
   });

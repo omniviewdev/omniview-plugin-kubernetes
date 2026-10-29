@@ -2,6 +2,8 @@ import { Chip, SearchInput, Spinner, Stack, Text } from '@omniviewdev/base-ui';
 import { useRightDrawer } from '@omniviewdev/runtime';
 import React, { useState, useMemo, useDeferredValue, useCallback } from 'react';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 import { formatTimeDifference } from '../../../utils/time';
 
 import styles from './EventsTable.module.css';
@@ -288,7 +290,7 @@ const EventsTable: React.FC<Props> = ({ events, loading, connectionID }) => {
       if (!resourceKey || !connectionID) return;
 
       void showResourceSidebar({
-        pluginID: 'kubernetes',
+        pluginID: PLUGIN_ID,
         connectionID,
         resourceKey,
         resourceID: event.name,

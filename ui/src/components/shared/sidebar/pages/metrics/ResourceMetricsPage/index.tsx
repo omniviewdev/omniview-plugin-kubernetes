@@ -3,6 +3,8 @@ import { DrawerComponentView, DrawerContext, useResourceMetrics } from '@omnivie
 import React, { useState, useMemo } from 'react';
 import { LuActivity } from 'react-icons/lu';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 import { useClusterPreferences } from '../../../../../../hooks/useClusterPreferences';
 import { MetricsPanel, TimeRangePicker } from '../../../../charts';
 import type { TimeSeriesDef, ChartTimeRange } from '../../../../charts';
@@ -50,7 +52,7 @@ const ResourceMetricsPage: React.FC<Props> = ({ ctx }) => {
   const metadata = (ctx.data)?.metadata as Record<string, unknown> | undefined;
   const resourceNamespace = (metadata?.namespace as string) ?? '';
 
-  const { connectionOverrides } = useClusterPreferences('kubernetes');
+  const { connectionOverrides } = useClusterPreferences(PLUGIN_ID);
   const metricConfig = connectionOverrides[connectionID]?.metricConfig;
 
   const enrichedData = useMemo(() => {
@@ -85,7 +87,7 @@ const ResourceMetricsPage: React.FC<Props> = ({ ctx }) => {
     isLoading: currentLoading,
     error,
   } = useResourceMetrics({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID,
     resourceKey,
     resourceID,
@@ -100,7 +102,7 @@ const ResourceMetricsPage: React.FC<Props> = ({ ctx }) => {
 
   // Time-series query (shape=1) - only if descriptors declare time-series support
   const { data: tsData, isLoading: tsLoading, error: tsError } = useResourceMetrics({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID,
     resourceKey,
     resourceID,

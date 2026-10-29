@@ -3,6 +3,8 @@ import { useExecuteAction } from '@omniviewdev/runtime';
 import React from 'react';
 import { SiHelm } from 'react-icons/si';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 import SimpleSelect from '../../connections/SimpleSelect';
 import CodeEditor from '../../shared/CodeEditor';
 import NamespaceSelect from '../../shared/NamespaceSelect';
@@ -93,14 +95,14 @@ const InstallChartForm: React.FC<Props> = ({
   }
 
   const { executeAction: executeChartAction, isExecuting: isChartExecuting } = useExecuteAction({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID,
     resourceKey: 'helm::v1::Chart',
   });
 
   const { executeAction: executeReleaseAction, isExecuting: isReleaseExecuting } = useExecuteAction(
     {
-      pluginID: 'kubernetes',
+      pluginID: PLUGIN_ID,
       connectionID,
       resourceKey: 'helm::v1::Release',
     },

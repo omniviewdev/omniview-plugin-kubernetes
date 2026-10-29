@@ -18,6 +18,8 @@ import type {
   ChartAnnotation,
 } from '../../../../components/shared/charts';
 
+import { PLUGIN_ID } from '@/pluginId';
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -314,7 +316,7 @@ const ClusterMetricsSection: React.FC<ClusterMetricsSectionProps> = ({
     providers,
     isLoading,
   } = useResourceMetrics({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID,
     resourceKey: 'cluster::metrics',
     resourceID: '',
@@ -332,7 +334,7 @@ const ClusterMetricsSection: React.FC<ClusterMetricsSectionProps> = ({
 
   // Instant query for annotation values (capacity lines)
   const { data: instantData } = useResourceMetrics({
-    pluginID: 'kubernetes',
+    pluginID: PLUGIN_ID,
     connectionID,
     resourceKey: 'cluster::metrics',
     resourceID: '',
