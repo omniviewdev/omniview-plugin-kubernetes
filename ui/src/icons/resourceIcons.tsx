@@ -1,33 +1,34 @@
-import type { ComponentType } from 'react';
 import type { ResourceIconProps, ResourceIconSetV1 } from '@omniviewdev/runtime';
-import nodeIcon from './kubernetes/node.svg?raw';
-import podIcon from './kubernetes/pod.svg?raw';
-import replicaSetIcon from './kubernetes/rs.svg?raw';
+import type { ComponentType } from 'react';
+
+import clusterRoleIcon from './kubernetes/c-role.svg?raw';
 import configMapIcon from './kubernetes/cm.svg?raw';
-import secretIcon from './kubernetes/secret.svg?raw';
-import namespaceIcon from './kubernetes/ns.svg?raw';
-import serviceIcon from './kubernetes/svc.svg?raw';
+import clusterRoleBindingIcon from './kubernetes/crb.svg?raw';
+import customResourceDefinitionIcon from './kubernetes/crd.svg?raw';
+import cronJobIcon from './kubernetes/cronjob.svg?raw';
+import deploymentIcon from './kubernetes/deploy.svg?raw';
+import daemonSetIcon from './kubernetes/ds.svg?raw';
 import endpointsIcon from './kubernetes/ep.svg?raw';
+import horizontalPodAutoscalerIcon from './kubernetes/hpa.svg?raw';
+import ingressIcon from './kubernetes/ing.svg?raw';
+import jobIcon from './kubernetes/job.svg?raw';
+import limitRangeIcon from './kubernetes/limits.svg?raw';
+import networkPolicyIcon from './kubernetes/netpol.svg?raw';
+import nodeIcon from './kubernetes/node.svg?raw';
+import namespaceIcon from './kubernetes/ns.svg?raw';
+import podIcon from './kubernetes/pod.svg?raw';
+import podSecurityPolicyIcon from './kubernetes/psp.svg?raw';
 import persistentVolumeIcon from './kubernetes/pv.svg?raw';
 import persistentVolumeClaimIcon from './kubernetes/pvc.svg?raw';
 import resourceQuotaIcon from './kubernetes/quota.svg?raw';
-import limitRangeIcon from './kubernetes/limits.svg?raw';
-import serviceAccountIcon from './kubernetes/sa.svg?raw';
-import deploymentIcon from './kubernetes/deploy.svg?raw';
-import daemonSetIcon from './kubernetes/ds.svg?raw';
-import statefulSetIcon from './kubernetes/sts.svg?raw';
-import jobIcon from './kubernetes/job.svg?raw';
-import cronJobIcon from './kubernetes/cronjob.svg?raw';
-import horizontalPodAutoscalerIcon from './kubernetes/hpa.svg?raw';
-import ingressIcon from './kubernetes/ing.svg?raw';
-import networkPolicyIcon from './kubernetes/netpol.svg?raw';
-import roleIcon from './kubernetes/role.svg?raw';
-import clusterRoleIcon from './kubernetes/c-role.svg?raw';
 import roleBindingIcon from './kubernetes/rb.svg?raw';
-import clusterRoleBindingIcon from './kubernetes/crb.svg?raw';
+import roleIcon from './kubernetes/role.svg?raw';
+import replicaSetIcon from './kubernetes/rs.svg?raw';
+import secretIcon from './kubernetes/secret.svg?raw';
+import statefulSetIcon from './kubernetes/sts.svg?raw';
+import serviceIcon from './kubernetes/svc.svg?raw';
+import serviceAccountIcon from './kubernetes/sa.svg?raw';
 import storageClassIcon from './kubernetes/sc.svg?raw';
-import customResourceDefinitionIcon from './kubernetes/crd.svg?raw';
-import podSecurityPolicyIcon from './kubernetes/psp.svg?raw';
 
 function nativeIcon(source: string): ComponentType<ResourceIconProps> {
   // Only sanitized, repository-owned SVGs enter this path. Never accept runtime markup.

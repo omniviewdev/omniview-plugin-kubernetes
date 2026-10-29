@@ -34,18 +34,18 @@ export function createStandardViews<T = KubernetesResourceObject>(opts: {
     {
       title: 'Related',
       icon: <LuWaypoints />,
-      component: (ctx) => <RelatedResourcesView ctx={ctx as DrawerContext} />,
+      component: (ctx) => <RelatedResourcesView ctx={ctx} />,
     },
     {
       title: 'Graph',
       icon: <LuNetwork />,
-      component: (ctx) => <ResourceGraphView ctx={ctx as DrawerContext} />,
+      component: (ctx) => <ResourceGraphView ctx={ctx} />,
     },
     createMetricsView() as unknown as DrawerComponentView<T>,
     {
       title: 'Events',
       icon: <LuZap />,
-      component: (ctx) => <ResourceEventsView ctx={ctx as DrawerContext} />,
+      component: (ctx) => <ResourceEventsView ctx={ctx} />,
     },
     {
       title: 'Editor',

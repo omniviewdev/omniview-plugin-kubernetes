@@ -33,7 +33,7 @@ export const drawerActions: Array<DrawerComponentAction<ReplicationController>> 
               connectionID: ctx.resource?.connectionID ?? '',
               resourceKey,
               resourceID: ctx.data?.metadata?.name as string,
-              namespace: ctx.data?.metadata?.namespace as string,
+              namespace: ctx.data?.metadata?.namespace,
             },
             input: {},
           });

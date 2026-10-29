@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, act } from '@testing-library/react';
-import type React from 'react';
-import { MemoryRouter } from 'react-router-dom';
+import React from 'react';
+import { MemoryRouter } from 'react-router';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 
 import type { ConnectionOverride } from '../../types/clusters';
@@ -26,19 +26,27 @@ interface MockConnectionData {
 
 const mockNavigate = vi.fn();
 let mockConnectionData: MockConnectionData | null = null;
+let mockConnectionID = 'test-cluster';
 let mockConnectionOverrides: Record<string, ConnectionOverride> = {};
 let mockAvailableTags: string[] = [];
 const mockUpdateOverride = vi.fn().mockResolvedValue(undefined);
+const mockPreferenceListeners = new Set<() => void>();
+const mockSubscribePreferences = (listener: () => void) => {
+  mockPreferenceListeners.add(listener);
+  return () => {
+    mockPreferenceListeners.delete(listener);
+  };
+};
 
 // ---------------------------------------------------------------------------
 // Mocks
 // ---------------------------------------------------------------------------
 
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+vi.mock('react-router', async () => {
+  const actual = await vi.importActual<typeof import('react-router')>('react-router');
   return {
     ...actual,
-    useParams: () => ({ id: 'test-cluster' }),
+    useParams: () => ({ id: mockConnectionID }),
     useNavigate: () => mockNavigate,
   };
 });
@@ -50,7 +58,12 @@ vi.mock('@omniviewdev/runtime', () => ({
 
 vi.mock('../../hooks/useClusterPreferences', () => ({
   useClusterPreferences: () => ({
-    connectionOverrides: mockConnectionOverrides,
+    // Preference updates must reach the subscribing form even when the compiler
+    // reuses its parent's unchanged JSX. Each published map is immutable.
+    connectionOverrides: React.useSyncExternalStore(
+      mockSubscribePreferences,
+      () => mockConnectionOverrides,
+    ),
     availableTags: mockAvailableTags,
     updateOverride: mockUpdateOverride,
   }),
@@ -188,6 +201,7 @@ function makeConnection(overrides: Partial<MockConnectionData> = {}): MockConnec
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockConnectionID = 'test-cluster';
   mockConnectionData = makeConnection();
   mockConnectionOverrides = {};
   mockAvailableTags = [];
@@ -381,6 +395,54 @@ describe('Save / Cancel / Dirty state', () => {
     fireEvent.click(getCancelBtn(container)!);
     expect(getSaveBtn(container)).toBeNull();
     expect(getCancelBtn(container)).toBeNull();
+  });
+
+  it('loads untouched fields without creating a draft', () => {
+    const { container } = renderPage('identity');
+    act(() => {
+      mockConnectionOverrides = {
+        'test-cluster': { displayName: 'Loaded name', description: 'Loaded description' },
+      };
+      mockPreferenceListeners.forEach((listener) => listener());
+    });
+    expect(screen.getByRole('textbox', { name: 'Display name' })).toHaveValue('Loaded name');
+    expect(screen.getByRole('textbox', { name: 'Description' })).toHaveValue('Loaded description');
+    expect(getSaveBtn(container)).toBeNull();
+  });
+
+  it('keeps explicit empty edits through preference loads and discards to the latest values', () => {
+    mockConnectionOverrides = { 'test-cluster': { displayName: 'Old name' } };
+    const { container } = renderPage('identity');
+    fireEvent.change(screen.getByRole('textbox', { name: 'Display name' }), {
+      target: { value: '' },
+    });
+    act(() => {
+      mockConnectionOverrides = {
+        'test-cluster': { displayName: 'Loaded name', description: 'Loaded description' },
+      };
+      mockPreferenceListeners.forEach((listener) => listener());
+    });
+    expect(screen.getByRole('textbox', { name: 'Display name' })).toHaveValue('');
+    expect(screen.getByRole('textbox', { name: 'Description' })).toHaveValue('Loaded description');
+    fireEvent.click(getCancelBtn(container)!);
+    expect(screen.getByRole('textbox', { name: 'Display name' })).toHaveValue('Loaded name');
+    expect(getSaveBtn(container)).toBeNull();
+  });
+
+  it('starts a fresh identity draft when the route connection changes', () => {
+    const { container, rerender } = renderPage('identity');
+    fireEvent.change(screen.getByRole('textbox', { name: 'Display name' }), {
+      target: { value: 'Unsaved name' },
+    });
+    mockConnectionID = 'other-cluster';
+    mockConnectionOverrides = { 'other-cluster': { displayName: 'Other cluster' } };
+    rerender(
+      <MemoryRouter initialEntries={['/?section=identity']}>
+        <ClusterEditPage />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('textbox', { name: 'Display name' })).toHaveValue('Other cluster');
+    expect(getSaveBtn(container)).toBeNull();
   });
 });
 

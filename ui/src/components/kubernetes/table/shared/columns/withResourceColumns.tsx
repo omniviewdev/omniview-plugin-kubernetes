@@ -1,3 +1,4 @@
+import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import { ColumnDef } from '@tanstack/react-table';
 import { ObjectMeta } from 'kubernetes-types/meta/v1';
 
@@ -16,9 +17,9 @@ type Resource = {
  * Provides the standard columns for cluster-scoped resources (non-namespaced)
  */
 export function withClusterResourceColumns<T extends Resource>(
-  columns: Array<ColumnDef<T>>,
+  columns: Array<ColumnDef<DataTableFeatures, T>>,
   args: ColumnArgs,
-): Array<ColumnDef<T>> {
+): Array<ColumnDef<DataTableFeatures, T>> {
   return [selectColumn(), nameColumn(), ...columns, ageColumn(), actionsColumn(args)];
 }
 
@@ -26,9 +27,9 @@ export function withClusterResourceColumns<T extends Resource>(
  * Provides the standard columns for namespace-scoped resources
  */
 export function withNamespacedResourceColumns<T extends Resource>(
-  columns: Array<ColumnDef<T>>,
+  columns: Array<ColumnDef<DataTableFeatures, T>>,
   args: ColumnArgs,
-): Array<ColumnDef<T>> {
+): Array<ColumnDef<DataTableFeatures, T>> {
   return [
     selectColumn(),
     nameColumn(),

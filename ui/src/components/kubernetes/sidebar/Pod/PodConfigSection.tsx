@@ -157,7 +157,7 @@ const PodConfigSection: React.FC<Props> = ({ pod, connectionID }) => {
       sc.fsGroup != null ||
       sc.runAsNonRoot != null);
 
-  const nodeSelector = spec.nodeSelector as Record<string, string> | undefined;
+  const nodeSelector = spec.nodeSelector;
   const tolerations = spec.tolerations;
   const hasTolerations = tolerations && tolerations.length > 0;
 

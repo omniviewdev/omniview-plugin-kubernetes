@@ -28,7 +28,7 @@ function extractValue(data: Record<string, unknown>, accessor: string): string {
       val = get(data, trimmed);
     }
     if (val !== undefined && val !== null && val !== '') {
-      return typeof val === 'object' ? JSON.stringify(val) : String(val as string | number | boolean);
+      return typeof val === 'string' ? val : JSON.stringify(val);
     }
   }
   return '';

@@ -25,7 +25,7 @@ export const DaemonSetSidebar: React.FC<Props> = ({ ctx }) => {
   const spec = ds.spec;
   const status = ds.status;
   const conditions = (status?.conditions || []) as Condition[];
-  const selector = spec?.selector?.matchLabels as Record<string, string> | undefined;
+  const selector = spec?.selector?.matchLabels;
   const strategy = spec?.updateStrategy;
 
   return (

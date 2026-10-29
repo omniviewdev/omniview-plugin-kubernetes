@@ -21,7 +21,7 @@ export const ReplicationControllerSidebar: React.FC<Props> = ({ ctx }) => {
   const rc = ctx.data;
   const status = rc.status;
   const conditions = (status?.conditions || []) as Condition[];
-  const selector = rc.spec?.selector as Record<string, string> | undefined;
+  const selector = rc.spec?.selector;
 
   return (
     <Stack direction="column" spacing={4} style={fullWidthStyle}>

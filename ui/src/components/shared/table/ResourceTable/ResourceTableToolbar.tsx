@@ -1,5 +1,6 @@
+import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import { IconButton, Stack, Tooltip } from '@omniviewdev/base-ui';
-import { type Column } from '@tanstack/react-table';
+import { type Column, type RowData } from '@tanstack/react-table';
 import React from 'react';
 import { LuColumns3 } from 'react-icons/lu';
 
@@ -9,10 +10,11 @@ import { DebouncedInput } from '../../../tables/DebouncedInput';
 import NamespaceSelect from '../../../tables/NamespaceSelect';
 import ResourceFilterSelect from '../../../tables/ResourceFilterSelect';
 
-import type { ToolbarFilterDef } from './index';
 import styles from './ResourceTable.module.css';
 
-type ResourceTableToolbarProps = {
+import type { ToolbarFilterDef } from './index';
+
+type ResourceTableToolbarProps<T extends RowData> = {
   connectionID: string;
   resourceKey: string;
   search: string;
@@ -37,11 +39,10 @@ type ResourceTableToolbarProps = {
   handleAnnotations: (vals: Record<string, boolean>) => void;
   filterOpen: boolean;
   setFilterOpen: (open: boolean) => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  allFlatColumns: Column<any, unknown>[];
+  allFlatColumns: Column<DataTableFeatures, T, unknown>[];
 };
 
-const ResourceTableToolbar: React.FC<ResourceTableToolbarProps> = ({
+const ResourceTableToolbar = <T extends RowData,>({
   connectionID,
   resourceKey,
   search,
@@ -66,7 +67,7 @@ const ResourceTableToolbar: React.FC<ResourceTableToolbarProps> = ({
   filterOpen,
   setFilterOpen,
   allFlatColumns,
-}) => (
+}: ResourceTableToolbarProps<T>) => (
   <div className={styles.toolbar}>
     <DebouncedInput
       value={search ?? ''}

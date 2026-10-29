@@ -1,6 +1,6 @@
 import React from 'react';
-import { LuContainer, LuBox, LuServer } from 'react-icons/lu';
 import { FaAws } from 'react-icons/fa';
+import { LuContainer, LuBox, LuServer } from 'react-icons/lu';
 import { SiKubernetes, SiGooglecloud } from 'react-icons/si';
 import { VscAzure } from 'react-icons/vsc';
 

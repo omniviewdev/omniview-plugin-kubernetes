@@ -18,8 +18,8 @@ export const ResourceQuotaSidebar: React.FC<Props> = ({ ctx }) => {
   if (!ctx.data) return null;
 
   const rq = ctx.data;
-  const hard = rq.status?.hard as Record<string, string> | undefined;
-  const used = rq.status?.used as Record<string, string> | undefined;
+  const hard = rq.status?.hard;
+  const used = rq.status?.used;
   const scopes = rq.spec?.scopes;
 
   return (

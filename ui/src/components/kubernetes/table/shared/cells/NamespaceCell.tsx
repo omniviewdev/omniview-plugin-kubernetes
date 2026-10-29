@@ -1,5 +1,6 @@
+import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import { IconButton } from '@omniviewdev/base-ui';
-import type { CellContext } from '@tanstack/react-table';
+import type { CellContext, RowData } from '@tanstack/react-table';
 import { useState } from 'react';
 import { LuCheck, LuCopy, LuFilter } from 'react-icons/lu';
 
@@ -23,7 +24,7 @@ const stopPropagation = (e: React.SyntheticEvent) => e.stopPropagation();
  * - Copy to clipboard
  * - Filter table to show only this namespace
  */
-export const NamespaceCell = <T,>({ getValue, table, column }: CellContext<T, unknown>) => {
+export const NamespaceCell = <T extends RowData,>({ getValue, table, column }: CellContext<DataTableFeatures, T, unknown>) => {
   const val = getValue() as string | undefined;
   const [copied, setCopied] = useState(false);
 
@@ -56,7 +57,7 @@ export const NamespaceCell = <T,>({ getValue, table, column }: CellContext<T, un
   return (
     <span className={styles.namespaceCell}>
       <span style={namespaceTextStyle}>{val}</span>
-      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
+      {/* eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/no-static-element-interactions */}
       <span className={styles.namespaceActions} onClick={stopPropagation}>
         <IconButton
           size="xs"

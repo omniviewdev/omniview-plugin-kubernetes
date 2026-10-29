@@ -1,10 +1,10 @@
-import React from 'react';
-import { createRoot, type Root } from 'react-dom/client';
-import { act } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SearchExecutionContextV1, SearchProviderRequestV1, SearchScopeV1 } from '@omniviewdev/runtime';
 import type * as Runtime from '@omniviewdev/runtime';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { act } from '@testing-library/react';
+import React from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@omniviewdev/runtime', async (original) => ({
   ...(await original<typeof Runtime>()),

@@ -256,7 +256,7 @@ export const SecretSidebar: React.FC<Props> = ({ ctx }) => {
         )}
         {/* Index keys are correct here: entries are user-editable form inputs with mutable keys */}
         {newValues.map((entry, index) => (
-          // eslint-disable-next-line react/no-array-index-key
+          // eslint-disable-next-line @eslint-react/no-array-index-key
           <Grid columns={12} spacing={1} key={index}>
             <Grid.Item span={4}>
               <Input.Root invalid={!!newErrors[index]} style={fullWidthStyle}>

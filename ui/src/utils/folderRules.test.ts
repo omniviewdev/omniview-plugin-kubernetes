@@ -1,6 +1,8 @@
-import { compileRuleSet, matchConnections, computeEffectiveMembers } from './folderRules';
-import type { EnrichedConnection, FolderRuleSet } from '../types/clusters';
 import { type types } from '@omniviewdev/runtime/models';
+
+import type { EnrichedConnection, FolderRuleSet } from '../types/clusters';
+
+import { compileRuleSet, matchConnections, computeEffectiveMembers } from './folderRules';
 
 /** Helper to build a minimal EnrichedConnection with controlled props. */
 function makeConn(overrides: {

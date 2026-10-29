@@ -1,10 +1,11 @@
+import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import { Chip } from '@omniviewdev/base-ui';
 import { DrawerComponent, DrawerContext } from '@omniviewdev/runtime';
 import { ColumnDef } from '@tanstack/react-table';
 import { Lease } from 'kubernetes-types/coordination/v1';
 import React from 'react';
 import { LuBox } from 'react-icons/lu';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router'
 
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import BaseOverviewPage from '../../../../shared/sidebar/pages/overview/BaseOverviewPage';
@@ -22,7 +23,7 @@ const LeaseOverview: React.FC<{ ctx: DrawerContext<Lease> }> = ({ ctx }) => (
 const LeaseTable: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
 
-  const columns = React.useMemo<Array<ColumnDef<Lease>>>(
+  const columns = React.useMemo<Array<ColumnDef<DataTableFeatures, Lease>>>(
     () =>
       withClusterResourceColumns(
         [

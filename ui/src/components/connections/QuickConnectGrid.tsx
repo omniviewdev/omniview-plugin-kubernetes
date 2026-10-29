@@ -3,9 +3,9 @@ import React, { useMemo, useState } from 'react';
 import { LuFolderPlus, LuChevronLeft, LuChevronRight } from 'react-icons/lu';
 
 import type { EnrichedConnection } from '../../types/clusters';
+import SimpleTooltip from '../shared/SimpleTooltip';
 
 import RowHandler from './RowHandler';
-import SimpleTooltip from '../shared/SimpleTooltip';
 
 const containerStyle: React.CSSProperties = { padding: '4px 4px 0', gap: 8 };
 
@@ -124,7 +124,7 @@ const QuickConnectGrid: React.FC<Props> = ({
             placeholder="Search clusters..."
             value={search}
             onValueChange={setSearch}
-            // eslint-disable-next-line jsx-a11y/no-autofocus
+            // eslint-disable-next-line jsx-a11y-x/no-autofocus
             autoFocus
             style={searchFieldStyle}
           />

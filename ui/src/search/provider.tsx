@@ -1,5 +1,3 @@
-import React, { useEffect } from 'react';
-import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import {
   ErrorTypes, isCancelledError, parseAppError, resourceQueryKeys, useExtensionRegistry,
   type ExtensionPointRegistryContract, type SearchActionReferenceV1, type SearchExecutionContextV1,
@@ -7,7 +5,10 @@ import {
   type SearchProviderV1, type SearchScopeV1,
 } from '@omniviewdev/runtime';
 import { DataClient, ResourceClient } from '@omniviewdev/runtime/api';
-import { ListInput } from '@omniviewdev/runtime/models';
+import { ConnectionStatusCode, ListInput } from '@omniviewdev/runtime/models';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
+import React, { useEffect } from 'react';
+
 import KubernetesSearchActionContext, {
   searchActions, executeSearchAction, validateSearchAction,
 } from '../components/kubernetes/KubernetesSearchActionContext';
@@ -17,6 +18,7 @@ import {
 } from '../pages/extension';
 import type { NavSection } from '../types/navigation';
 import { plural } from '../utils/language';
+
 import { destinationPath, destinationScore, prependRecent, searchDestinations, type SearchDestination } from './navigation';
 
 const PLUGIN = 'kubernetes';
@@ -85,8 +87,8 @@ async function ready(scope: SearchScopeV1, signal: AbortSignal, fresh = false): 
       queryFn: ({ signal: cacheSignal }) => read(ResourceClient.CheckConnection(PLUGIN, scope.connectionId), cacheSignal),
     });
   signal.throwIfAborted();
-  if (status.status === 'UNAUTHORIZED' || status.status === 'FORBIDDEN') {
-    const unauthorized = status.status === 'UNAUTHORIZED';
+  if (status.status === ConnectionStatusCode.ConnectionStatusUnauthorized || status.status === ConnectionStatusCode.ConnectionStatusForbidden) {
+    const unauthorized = status.status === ConnectionStatusCode.ConnectionStatusUnauthorized;
     throw Object.assign(new Error(unauthorized ? 'Authentication required.' : 'Access denied.'), {
       type: unauthorized ? ErrorTypes.RESOURCE_UNAUTHORIZED : ErrorTypes.RESOURCE_FORBIDDEN,
       status: unauthorized ? 401 : 403,
@@ -94,17 +96,17 @@ async function ready(scope: SearchScopeV1, signal: AbortSignal, fresh = false): 
       detail: unauthorized ? 'Refresh connection credentials before searching.' : 'Current credentials cannot access these resources.',
     });
   }
-  if (status.status === 'PENDING') {
+  if (status.status === ConnectionStatusCode.ConnectionStatusPending) {
     throw Object.assign(new Error('Connection is starting.'), {
       type: ErrorTypes.CONNECTION_FAILED, status: 503, title: 'Connecting', detail: 'Connection is starting.',
       code: 'CONNECTION_PENDING',
     });
   }
-  if (status.status === 'ERROR' && status.error === 'client is required') return false;
-  if (status.status !== 'CONNECTED' && status.status !== 'DISCONNECTED') {
+  if (status.status === ConnectionStatusCode.ConnectionStatusError && status.error === 'client is required') return false;
+  if (status.status !== ConnectionStatusCode.ConnectionStatusConnected && status.status !== ConnectionStatusCode.ConnectionStatusDisconnected) {
     throw new Error(status.details || 'Connection is unavailable. Review its status before retrying.');
   }
-  return status.status === 'CONNECTED';
+  return status.status === ConnectionStatusCode.ConnectionStatusConnected;
 }
 
 async function destinations(connectionID: string, signal: AbortSignal): Promise<SearchDestination[]> {
@@ -272,7 +274,7 @@ async function executeAction(action: SearchActionReferenceV1, context: SearchExe
     try { status = await ResourceClient.StartConnection(PLUGIN, target.connectionId); }
     finally { void cache().invalidateQueries({ queryKey: ['search-connection-status', PLUGIN, target.connectionId] }); }
     context.signal.throwIfAborted();
-    if (status.status !== 'CONNECTED') throw new Error('Connection is not ready. Review credentials and retry.');
+    if (status.status !== ConnectionStatusCode.ConnectionStatusConnected) throw new Error('Connection is not ready. Review credentials and retry.');
     return { keepOpen: true };
   }
   if (id === OPEN_RESOURCE && target.kind === 'resource') { await context.openResource(target); return; }

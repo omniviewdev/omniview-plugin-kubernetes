@@ -1,3 +1,4 @@
+import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import {
   DrawerComponent,
 } from '@omniviewdev/runtime';
@@ -6,7 +7,7 @@ import { Deployment } from 'kubernetes-types/apps/v1';
 import { Condition } from 'kubernetes-types/meta/v1';
 import React from 'react';
 import { LuScaling } from 'react-icons/lu';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router'
 
 // import ResourceLinkCell from '../../corev1/Pod/cells/ResourceLinkCell'
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
@@ -29,7 +30,7 @@ const DeploymentTable: React.FC = () => {
    * Handler to go ahead and submit a resource change
    */
 
-  const columns = React.useMemo<Array<ColumnDef<Deployment>>>(
+  const columns = React.useMemo<Array<ColumnDef<DataTableFeatures, Deployment>>>(
     () =>
       withNamespacedResourceColumns(
         [
@@ -76,7 +77,7 @@ const DeploymentTable: React.FC = () => {
             id: 'strategy',
             header: 'Strategy',
             accessorFn: (row) => row.spec?.strategy?.type ?? 'RollingUpdate',
-            filterFn: inclusionFilter as FilterFn<Deployment>,
+            filterFn: inclusionFilter as FilterFn<DataTableFeatures, Deployment>,
             size: 120,
           },
           {

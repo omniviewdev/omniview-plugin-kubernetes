@@ -1,7 +1,7 @@
 import { Tabs } from '@omniviewdev/base-ui';
 import { useExtensionPoint, usePluginRouter } from '@omniviewdev/runtime';
 import React from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet } from 'react-router';
 
 const rootStyle: React.CSSProperties = {
   display: 'flex',

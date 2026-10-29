@@ -1,9 +1,10 @@
 import { Spinner, Stack, Text } from '@omniviewdev/base-ui';
 import { useResourceMetrics } from '@omniviewdev/runtime';
 import { metric } from '@omniviewdev/runtime/models';
+import React, { useState, useMemo, useCallback } from 'react';
+
 import { MetricsPanel } from '../../../shared/charts';
 import type { TimeSeriesDef, ChartTimeRange } from '../../../shared/charts';
-import React, { useState, useMemo, useCallback } from 'react';
 
 const metricTileBoxStyle: React.CSSProperties = {
   paddingBlock: 6,
@@ -162,7 +163,7 @@ function toTimeSeriesDef(ts: metric.TimeSeries, label: string, color?: string): 
     label,
     // dp.timestamp is a Wails-serialized time.Time (ISO string at runtime)
     data: (ts.data_points ?? []).map((dp) => ({
-      timestamp: new Date(dp.timestamp as unknown as string).getTime(),
+      timestamp: new Date(dp.timestamp).getTime(),
       value: dp.value,
     })),
     color,

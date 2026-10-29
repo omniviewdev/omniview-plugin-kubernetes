@@ -1,3 +1,4 @@
+import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import {
   DrawerComponent,
 } from '@omniviewdev/runtime';
@@ -6,7 +7,7 @@ import { StatefulSet } from 'kubernetes-types/apps/v1';
 import { Condition } from 'kubernetes-types/meta/v1';
 import React from 'react';
 import { LuClipboardList } from 'react-icons/lu';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router'
 
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
@@ -24,7 +25,7 @@ const StatefulSetTable: React.FC = () => {
 
 
 
-  const columns = React.useMemo<Array<ColumnDef<StatefulSet>>>(
+  const columns = React.useMemo<Array<ColumnDef<DataTableFeatures, StatefulSet>>>(
     () =>
       withNamespacedResourceColumns(
         [

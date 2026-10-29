@@ -5,8 +5,8 @@ import type { EnrichedConnection, ConnectionGroup } from '../../types/clusters';
 import NamedAvatar from '../shared/NamedAvatar';
 
 import ConnectionContextMenu from './ConnectionContextMenu';
-import ConnectionStatusBadge from './ConnectionStatusBadge';
 import styles from './Connections.module.css';
+import ConnectionStatusBadge from './ConnectionStatusBadge';
 import FavoriteButton from './FavoriteButton';
 import ProviderIcon from './ProviderIcon';
 

@@ -70,7 +70,7 @@ function parseContainers(pod: Pod, resourceID: string, connectionID: string): Pa
     result.push({
       resourceID,
       connectionID,
-      container: ec as unknown as Container,
+      container: ec,
       status: ephemeralStatusMap[ec.name],
       type: 'ephemeral',
     });

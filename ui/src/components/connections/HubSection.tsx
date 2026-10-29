@@ -84,7 +84,7 @@ const HubSection: React.FC<Props> = ({
         <div {...attributes} {...listeners} className={styles.dragHandle}>
           <LuGripVertical size={14} />
         </div>
-        {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
+        {/* eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/no-static-element-interactions */}
         <div className={styles.sectionToggle} onClick={onToggleCollapse}>
           {collapsed ? <LuChevronRight size={14} /> : <LuChevronDown size={14} />}
           {isFolder && (

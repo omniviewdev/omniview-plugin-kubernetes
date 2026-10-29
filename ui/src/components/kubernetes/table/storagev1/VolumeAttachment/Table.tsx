@@ -1,3 +1,4 @@
+import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import {
   DrawerComponent,
 } from '@omniviewdev/runtime';
@@ -5,7 +6,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import { VolumeAttachment } from 'kubernetes-types/storage/v1';
 import React from 'react';
 import { LuPlugZap } from 'react-icons/lu';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router'
 
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
@@ -21,7 +22,7 @@ const VolumeAttachmentTable: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
 
 
-  const columns = React.useMemo<Array<ColumnDef<VolumeAttachment>>>(
+  const columns = React.useMemo<Array<ColumnDef<DataTableFeatures, VolumeAttachment>>>(
     () =>
       withClusterResourceColumns(
         [

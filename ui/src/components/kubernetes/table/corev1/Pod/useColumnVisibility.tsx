@@ -1,13 +1,14 @@
-import { type ColumnDef, type VisibilityState } from '@tanstack/react-table';
+import type { DataTableFeatures } from '@omniviewdev/base-ui';
+import { type ColumnDef, type ColumnVisibilityState as VisibilityState } from '@tanstack/react-table';
 import React from 'react';
 
 type Props = {
   pluginID?: string;
   resourceKey: string;
-  columnDefs: Array<ColumnDef<Record<string, unknown>>>;
+  columnDefs: Array<ColumnDef<DataTableFeatures, Record<string, unknown>>>;
 };
 
-const fromColumnDefs = (defs: Array<ColumnDef<Record<string, unknown>>>): VisibilityState => {
+const fromColumnDefs = (defs: Array<ColumnDef<DataTableFeatures, Record<string, unknown>>>): VisibilityState => {
   const visibility: VisibilityState = {};
   defs.forEach((def) => {
     let meta = (def?.meta as { defaultHidden?: boolean }) || undefined;

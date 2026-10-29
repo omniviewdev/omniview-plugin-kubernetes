@@ -1,5 +1,6 @@
 import type { UseResourceMetricsResult } from '@omniviewdev/runtime';
 import type { metric } from '@omniviewdev/runtime/models';
+
 import type { TimeSeriesDef, MetricFormat } from '../../../../charts';
 
 import { CHART_COLORS, ICON_CATEGORIES, CATEGORY_ORDER } from './constants';
@@ -95,7 +96,7 @@ export function toTimeSeriesDef(
     id: ts.metric_id,
     label,
     data: (ts.data_points ?? []).map((dp) => ({
-      timestamp: new Date(dp.timestamp as unknown as string).getTime(),
+      timestamp: new Date(dp.timestamp).getTime(),
       value: dp.value,
     })),
     color,

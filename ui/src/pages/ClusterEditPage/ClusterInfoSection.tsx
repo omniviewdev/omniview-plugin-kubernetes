@@ -1,5 +1,6 @@
-import { type types } from '@omniviewdev/runtime/models';
 import { Stack } from '@omniviewdev/base-ui';
+import { type types } from '@omniviewdev/runtime/models';
+
 import InfoRow from './InfoRow';
 import SectionWrapper from './SectionWrapper';
 

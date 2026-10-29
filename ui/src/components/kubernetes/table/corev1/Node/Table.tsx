@@ -1,10 +1,11 @@
+import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import { DrawerComponent } from '@omniviewdev/runtime';
 import { ColumnDef } from '@tanstack/react-table';
 import { Node } from 'kubernetes-types/core/v1';
 import { Condition } from 'kubernetes-types/meta/v1';
 import React from 'react';
 import { LuBox } from 'react-icons/lu';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router'
 
 import { convertByteUnits } from '../../../../../utils/units';
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
@@ -21,7 +22,7 @@ const resourceKey = 'core::v1::Node';
 const NodeTable: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
 
-  const columns = React.useMemo<Array<ColumnDef<Node>>>(
+  const columns = React.useMemo<Array<ColumnDef<DataTableFeatures, Node>>>(
     () =>
       withClusterResourceColumns(
         [

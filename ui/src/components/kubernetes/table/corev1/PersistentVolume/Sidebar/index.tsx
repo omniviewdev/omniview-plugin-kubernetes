@@ -38,7 +38,7 @@ export const PersistentVolumeSidebar: React.FC<Props> = ({ ctx }) => {
   const connectionID = ctx.resource?.connectionID || '';
   const spec = pv.spec;
   const phase = pv.status?.phase;
-  const capacity = spec?.capacity as Record<string, string> | undefined;
+  const capacity = spec?.capacity;
   const accessModes = spec?.accessModes;
 
   return (

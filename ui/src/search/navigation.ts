@@ -1,6 +1,6 @@
 import type { NavMenuItem, NavSection } from '../types/navigation';
-import { toResourceKey } from '../utils/resourceKey';
 import { plural } from '../utils/language';
+import { toResourceKey } from '../utils/resourceKey';
 
 export type SearchDestination = {
   id: string;

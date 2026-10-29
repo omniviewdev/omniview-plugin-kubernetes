@@ -287,7 +287,7 @@ const EventsTable: React.FC<Props> = ({ events, loading, connectionID }) => {
       const resourceKey = KIND_TO_KEY[event.kind];
       if (!resourceKey || !connectionID) return;
 
-      showResourceSidebar({
+      void showResourceSidebar({
         pluginID: 'kubernetes',
         connectionID,
         resourceKey,
@@ -336,7 +336,7 @@ const EventsTable: React.FC<Props> = ({ events, loading, connectionID }) => {
           size="sm"
           placeholder="Search events..."
           aria-label="Search events"
-          // eslint-disable-next-line jsx-a11y/no-autofocus
+          // eslint-disable-next-line jsx-a11y-x/no-autofocus
           autoFocus
           value={search}
           onValueChange={setSearch}

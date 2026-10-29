@@ -163,7 +163,7 @@ const FolderDialog: React.FC<Props> = ({
         for (const key of Object.keys(conn.connection.labels)) labelKeys.add(key);
       }
       if (conn.connection.data) {
-        for (const key of Object.keys(conn.connection.data as Record<string, unknown>)) dataKeys.add(key);
+        for (const key of Object.keys(conn.connection.data)) dataKeys.add(key);
       }
     }
     for (const key of [...labelKeys].sort()) {
@@ -300,7 +300,7 @@ const FolderDialog: React.FC<Props> = ({
             >
               <Input.Control
                 id="folder-dialog-name"
-                // eslint-disable-next-line jsx-a11y/no-autofocus
+                // eslint-disable-next-line jsx-a11y-x/no-autofocus
                 autoFocus
                 size="sm"
                 placeholder="e.g. Production Suite"
@@ -377,7 +377,7 @@ const FolderDialog: React.FC<Props> = ({
               ) : (
                 <Stack direction="column" align="stretch" spacing={2}>
                   {/* Drag-and-drop zone */}
-                  {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
+                  {/* eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/no-static-element-interactions */}
                   <div
                     onDragOver={handleDragOver}
                     onDragLeave={handleDragLeave}

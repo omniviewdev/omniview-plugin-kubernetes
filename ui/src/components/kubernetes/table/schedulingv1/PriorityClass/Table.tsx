@@ -1,9 +1,10 @@
+import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import { DrawerComponent } from '@omniviewdev/runtime';
 import { ColumnDef } from '@tanstack/react-table';
 import { PriorityClass } from 'kubernetes-types/scheduling/v1';
 import React from 'react';
 import { LuBox, LuCode } from 'react-icons/lu';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router'
 
 import BaseEditorPage from '../../../../shared/sidebar/pages/editor/BaseEditorPage';
 import ResourceTable from '../../../../shared/table/ResourceTable';
@@ -15,7 +16,7 @@ const resourceKey = 'scheduling::v1::PriorityClass';
 const PriorityClassTable: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
 
-  const columns = React.useMemo<Array<ColumnDef<PriorityClass>>>(
+  const columns = React.useMemo<Array<ColumnDef<DataTableFeatures, PriorityClass>>>(
     () =>
       withClusterResourceColumns(
         [

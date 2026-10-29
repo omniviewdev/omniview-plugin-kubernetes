@@ -1,9 +1,10 @@
+import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import { DrawerComponent } from '@omniviewdev/runtime';
 import { ColumnDef } from '@tanstack/react-table';
 import { PriorityLevelConfiguration } from 'kubernetes-types/flowcontrol/v1';
 import React from 'react';
 import { LuBox, LuCode } from 'react-icons/lu';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router'
 
 import BaseEditorPage from '../../../../shared/sidebar/pages/editor/BaseEditorPage';
 import ResourceTable from '../../../../shared/table/ResourceTable';
@@ -14,7 +15,7 @@ const resourceKey = 'flowcontrol::v1::PriorityLevelConfiguration';
 const IngressTable: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
 
-  const columns = React.useMemo<Array<ColumnDef<PriorityLevelConfiguration>>>(
+  const columns = React.useMemo<Array<ColumnDef<DataTableFeatures, PriorityLevelConfiguration>>>(
     () =>
       withClusterResourceColumns(
         [

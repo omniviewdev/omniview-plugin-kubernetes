@@ -26,7 +26,7 @@ export const DeploymentSidebar: React.FC<Props> = ({ ctx }) => {
   const status = dep.status;
   const conditions = (status?.conditions || []) as Condition[];
   const paused = spec?.paused;
-  const selector = spec?.selector?.matchLabels as Record<string, string> | undefined;
+  const selector = spec?.selector?.matchLabels;
   const strategy = spec?.strategy;
 
   return (

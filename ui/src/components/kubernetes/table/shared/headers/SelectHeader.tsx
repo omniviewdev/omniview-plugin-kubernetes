@@ -27,7 +27,7 @@ export const SelectBoxHeader = ({
   onToggle: (checked: boolean) => void;
 }) => (
   // Prevent the click from reaching header handlers (sorting, resizing).
-  // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
+  // eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/no-static-element-interactions
   <div style={selectHeaderContainerStyle} onClick={stopPropagation}>
     <Checkbox
       size="sm"

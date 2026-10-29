@@ -30,7 +30,7 @@ export const ServiceSidebar: React.FC<Props> = ({ ctx }) => {
   const svc = ctx.data;
   const spec = svc.spec;
   const connectionID = ctx.resource?.connectionID || '';
-  const selector = spec?.selector as Record<string, string> | undefined;
+  const selector = spec?.selector;
 
   const hasConfig =
     spec?.sessionAffinity ||

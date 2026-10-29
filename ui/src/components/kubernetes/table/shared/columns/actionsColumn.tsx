@@ -1,3 +1,4 @@
+import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import { ColumnDef } from '@tanstack/react-table';
 import { type ObjectMeta } from 'kubernetes-types/meta/v1';
 
@@ -8,7 +9,7 @@ import { ColumnArgs } from './types';
 export const actionsColumn = <T extends { metadata?: ObjectMeta }>({
   connectionID,
   resourceKey,
-}: ColumnArgs): ColumnDef<T> => ({
+}: ColumnArgs): ColumnDef<DataTableFeatures, T> => ({
   id: 'menu',
   cell: ({ row }) => (
     <ActionsCell

@@ -22,7 +22,7 @@ export const PodDisruptionBudgetSidebar: React.FC<Props> = ({ ctx }) => {
   const spec = pdb.spec;
   const status = pdb.status;
   const conditions = status?.conditions || [];
-  const selector = spec?.selector?.matchLabels as Record<string, string> | undefined;
+  const selector = spec?.selector?.matchLabels;
 
   return (
     <Stack direction="column" spacing={4} style={fullWidthStyle}>

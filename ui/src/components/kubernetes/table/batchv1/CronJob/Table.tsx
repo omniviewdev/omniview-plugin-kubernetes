@@ -1,3 +1,4 @@
+import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import {
   DrawerComponent,
 } from '@omniviewdev/runtime';
@@ -5,7 +6,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import { CronJob } from 'kubernetes-types/batch/v1';
 import React from 'react';
 import { LuCalendarClock } from 'react-icons/lu';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router'
 
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
@@ -21,7 +22,7 @@ const CronJobTable: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
 
 
-  const columns = React.useMemo<Array<ColumnDef<CronJob>>>(
+  const columns = React.useMemo<Array<ColumnDef<DataTableFeatures, CronJob>>>(
     () =>
       withNamespacedResourceColumns(
         [

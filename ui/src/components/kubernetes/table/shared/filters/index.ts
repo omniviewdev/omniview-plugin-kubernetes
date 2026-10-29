@@ -1,3 +1,4 @@
+import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import { FilterFn } from '@tanstack/react-table';
 
 /**
@@ -5,7 +6,7 @@ import { FilterFn } from '@tanstack/react-table';
  * Pass a string[] of allowed values; empty array means "show all".
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const inclusionFilter: FilterFn<any> = (row, columnId, value: string[]) => {
+export const inclusionFilter: FilterFn<DataTableFeatures, any> = (row, columnId, value: string[]) => {
   if (!Array.isArray(value) || !value.length) {
     return true;
   }
@@ -19,7 +20,7 @@ export const inclusionFilter: FilterFn<any> = (row, columnId, value: string[]) =
  * extract the first ref's name before matching against the filter value set.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const ownerRefFilter: FilterFn<any> = (row, columnId, value: string[]) => {
+export const ownerRefFilter: FilterFn<DataTableFeatures, any> = (row, columnId, value: string[]) => {
   if (!Array.isArray(value) || !value.length) {
     return true;
   }

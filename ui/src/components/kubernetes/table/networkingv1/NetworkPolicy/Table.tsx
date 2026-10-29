@@ -1,3 +1,4 @@
+import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import {
   DrawerComponent,
 } from '@omniviewdev/runtime';
@@ -5,7 +6,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import { NetworkPolicy } from 'kubernetes-types/networking/v1';
 import React from 'react';
 import { LuShield } from 'react-icons/lu';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router'
 
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
@@ -21,7 +22,7 @@ const NetworkPolicyTable: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
 
 
-  const columns = React.useMemo<Array<ColumnDef<NetworkPolicy>>>(
+  const columns = React.useMemo<Array<ColumnDef<DataTableFeatures, NetworkPolicy>>>(
     () =>
       withNamespacedResourceColumns(
         [

@@ -1,10 +1,12 @@
+import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import { Chip } from '@omniviewdev/base-ui';
 import { useResources } from '@omniviewdev/runtime';
-import { type ColumnDef } from '@tanstack/react-table';
+import { type ColumnDef, type RowData } from '@tanstack/react-table';
 import React from 'react';
 import { LuTag, LuStickyNote } from 'react-icons/lu';
 
 import { type KubernetesResourceObject } from '../../../types/resource';
+
 import { useStoredState } from '@/hooks/useStoredState';
 
 type Args = {
@@ -17,7 +19,7 @@ type Args = {
  * TODO: Could see this getting very innefficient, need to test. We should make indexed/calculated values
  * available in the SDK.
  */
-export const useDynamicResourceColumns = <T extends KubernetesResourceObject>({
+export const useDynamicResourceColumns = <T extends RowData>({
   connectionID,
   resourceKey,
 }: Args) => {
@@ -56,8 +58,8 @@ export const useDynamicResourceColumns = <T extends KubernetesResourceObject>({
      * Doing this all inline for performance reasons to prevent large object copying
      */
     for (let i = 0; i < resources.data?.result.length; i++) {
-      const labels = Object.keys((resources.data.result[i] as T).metadata?.labels || {});
-      const annotations = Object.keys((resources.data.result[i] as T).metadata?.annotations || {});
+      const labels = Object.keys((resources.data.result[i] as KubernetesResourceObject).metadata?.labels || {});
+      const annotations = Object.keys((resources.data.result[i] as KubernetesResourceObject).metadata?.annotations || {});
 
       for (let l = 0; l < labels.length; l++) {
         if (!Object.hasOwn(discoveredLabels, labels[l])) {
@@ -110,15 +112,15 @@ export const useDynamicResourceColumns = <T extends KubernetesResourceObject>({
    * we keep a stable reference if the actual TRUE selections do not change. Don't want to keep rerendering
    * column definitions if they end up being the same.
    */
-  const columnDefs = React.useMemo<Array<ColumnDef<KubernetesResourceObject>>>(() => {
-    const labelCols: Array<ColumnDef<KubernetesResourceObject>> = selectedLabelKeys.map((key) => ({
+  const columnDefs = React.useMemo<Array<ColumnDef<DataTableFeatures, T>>>(() => {
+    const labelCols: Array<ColumnDef<DataTableFeatures, T>> = selectedLabelKeys.map((key) => ({
       id: `label-${key}`,
       header: () => (
         <Chip size="sm" color="neutral" variant="soft" startDecorator={<LuTag />}>
           {key}
         </Chip>
       ),
-      accessorFn: (row: KubernetesResourceObject) => row.metadata?.labels?.[key] ?? '',
+      accessorFn: (row) => (row as KubernetesResourceObject).metadata?.labels?.[key] ?? '',
       size: Math.max(100, key.length * 7 + 50),
       enableHiding: false,
       meta: {
@@ -127,14 +129,14 @@ export const useDynamicResourceColumns = <T extends KubernetesResourceObject>({
       },
     }));
 
-    const annotationCols: Array<ColumnDef<KubernetesResourceObject>> = selectedAnnotationKeys.map((key) => ({
+    const annotationCols: Array<ColumnDef<DataTableFeatures, T>> = selectedAnnotationKeys.map((key) => ({
       id: `annotation-${key}`,
       header: () => (
         <Chip size="sm" color="neutral" variant="soft" startDecorator={<LuStickyNote />}>
           {key}
         </Chip>
       ),
-      accessorFn: (row: KubernetesResourceObject) => row.metadata?.annotations?.[key] ?? '',
+      accessorFn: (row) => (row as KubernetesResourceObject).metadata?.annotations?.[key] ?? '',
       size: Math.max(100, key.length * 7 + 50),
       enableHiding: false,
       meta: {

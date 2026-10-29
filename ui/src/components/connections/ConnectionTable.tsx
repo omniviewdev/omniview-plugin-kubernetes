@@ -130,8 +130,18 @@ const GridCardWrapper: React.FC<{
   };
 
   const handleCopyId = () => {
-    void navigator.clipboard.writeText(enriched.connection.id);
-    showSnackbar({ status: 'success', message: 'Connection ID copied' });
+    navigator.clipboard
+      .writeText(enriched.connection.id)
+      .then(() => {
+        showSnackbar({ status: 'success', message: 'Connection ID copied' });
+      })
+      .catch((error: unknown) => {
+        showSnackbar({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to copy connection ID',
+          icon: 'LuCircleAlert',
+        });
+      });
   };
 
   return (
@@ -223,12 +233,13 @@ const ConnectionTable: React.FC<Props> = ({
 
   const PAGE_SIZE = 40;
   const [page, setPage] = React.useState(0);
-
-  // Reset to first page when source data changes
   const dataKey = grouped.groups.map((g) => g.key).join(',');
-  React.useEffect(() => {
+  const [pageScope, setPageScope] = React.useState(dataKey);
+
+  if (pageScope !== dataKey) {
+    setPageScope(dataKey);
     setPage(0);
-  }, [dataKey]);
+  }
 
   if (viewMode === 'grid') {
     return (

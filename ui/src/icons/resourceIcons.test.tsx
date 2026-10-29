@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import React from 'react';
 import { cleanup, render } from '@testing-library/react';
+import React from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
+
 import { kubernetesResourceIconSet as icons } from './resourceIcons';
 
 const artwork = import.meta.glob('./kubernetes/*.svg', { eager: true, query: '?raw', import: 'default' }) as Record<string, string>;

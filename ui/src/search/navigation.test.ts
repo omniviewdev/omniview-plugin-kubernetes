@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+
 import { destinationPath, destinationScore, prependRecent, searchDestinations } from './navigation';
 
 describe('global resource navigation', () => {

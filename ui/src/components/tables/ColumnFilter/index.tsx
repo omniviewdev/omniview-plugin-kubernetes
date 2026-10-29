@@ -1,5 +1,6 @@
+import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import { Checkbox, IconButton, Popover, SearchInput, Text } from '@omniviewdev/base-ui';
-import { type Column } from '@tanstack/react-table';
+import { type Column, type RowData } from '@tanstack/react-table';
 import React, { useState } from 'react';
 import { LuColumns2, LuSettings2, LuTag, LuStickyNote, LuSearch } from 'react-icons/lu';
 
@@ -7,15 +8,14 @@ import SectionHeader from '../../shared/SectionHeader';
 
 import styles from './ColumnFilter.module.css';
 
-type Props = {
+type Props<T extends RowData> = {
   labels: Record<string, boolean>;
   setLabels: (vals: Record<string, boolean>) => void;
   annotations: Record<string, boolean>;
   setAnnotations: (vals: Record<string, boolean>) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  columns: Array<Column<any>>;
+  columns: Array<Column<DataTableFeatures, T>>;
 };
 
 /** Compact checkbox row */
@@ -54,7 +54,7 @@ const ListSearch: React.FC<{
   </div>
 );
 
-const ColumnFilter: React.FC<Props> = ({
+const ColumnFilter = <T extends RowData,>({
   labels,
   setLabels,
   annotations,
@@ -62,7 +62,7 @@ const ColumnFilter: React.FC<Props> = ({
   open,
   onOpenChange,
   columns,
-}) => {
+}: Props<T>) => {
   const [labelSearch, setLabelSearch] = useState('');
   const [annotationSearch, setAnnotationSearch] = useState('');
 

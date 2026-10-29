@@ -1,3 +1,4 @@
+import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import {
   DrawerComponent,
 } from '@omniviewdev/runtime';
@@ -5,7 +6,7 @@ import { ColumnDef, FilterFn } from '@tanstack/react-table';
 import { PersistentVolumeClaim } from 'kubernetes-types/core/v1';
 import React from 'react';
 import { LuHardDrive } from 'react-icons/lu';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router'
 
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
@@ -23,7 +24,7 @@ const PersistentVolumeClaimTable: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
 
 
-  const columns = React.useMemo<Array<ColumnDef<PersistentVolumeClaim>>>(
+  const columns = React.useMemo<Array<ColumnDef<DataTableFeatures, PersistentVolumeClaim>>>(
     () =>
       withNamespacedResourceColumns(
         [
@@ -38,7 +39,7 @@ const PersistentVolumeClaimTable: React.FC = () => {
             id: 'status',
             header: 'Status',
             accessorFn: (row) => row.status?.phase ?? 'Pending',
-            filterFn: inclusionFilter as FilterFn<PersistentVolumeClaim>,
+            filterFn: inclusionFilter as FilterFn<DataTableFeatures, PersistentVolumeClaim>,
             size: 100,
           },
           {
@@ -78,7 +79,7 @@ const PersistentVolumeClaimTable: React.FC = () => {
             id: 'storageClass',
             header: 'Storage Class',
             accessorFn: (row) => row.spec?.storageClassName ?? '—',
-            filterFn: inclusionFilter as FilterFn<PersistentVolumeClaim>,
+            filterFn: inclusionFilter as FilterFn<DataTableFeatures, PersistentVolumeClaim>,
             size: 160,
             cell: CopyableCell,
             meta: {

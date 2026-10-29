@@ -64,7 +64,7 @@ const UpgradeDialog: React.FC<Props> = ({
     })
       .then((result) => {
         // result?.data is Record<string, any> (the values object); stringify it for the editor
-        setValues(result?.data ? stringify(result?.data as Record<string, unknown>) : '');
+        setValues(result?.data ? stringify(result?.data) : '');
         setValuesLoaded(true);
       })
       .catch(() => {

@@ -9,7 +9,6 @@ import DeleteConfirmationModal from '../components/connections/DeleteConfirmatio
 import EmptyState from '../components/connections/EmptyState';
 import FilterChips from '../components/connections/FilterChips';
 import FolderDialog, { type FolderDialogValues } from '../components/connections/FolderDialog';
-import { useStoredState } from '@/hooks/useStoredState';
 import { useClusterPreferences } from '../hooks/useClusterPreferences';
 import { useConnectionGrouping } from '../hooks/useConnectionGrouping';
 import type {
@@ -20,6 +19,8 @@ import type {
   ViewMode,
   FilterState,
 } from '../types/clusters';
+
+import { useStoredState } from '@/hooks/useStoredState';
 
 const DEFAULT_VISIBLE_COLUMNS = ['cluster', 'kubeconfig', 'user'];
 

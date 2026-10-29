@@ -1,10 +1,11 @@
+import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import { Chip } from '@omniviewdev/base-ui';
 import { DrawerComponent } from '@omniviewdev/runtime';
 import { ColumnDef } from '@tanstack/react-table';
 import { ConfigMap } from 'kubernetes-types/core/v1';
 import React from 'react';
 import { LuBox, LuCircleCheck } from 'react-icons/lu';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router'
 
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
@@ -21,7 +22,7 @@ const resourceKey = 'core::v1::ConfigMap';
 const ConfigMapTable: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
 
-  const columns = React.useMemo<Array<ColumnDef<ConfigMap>>>(
+  const columns = React.useMemo<Array<ColumnDef<DataTableFeatures, ConfigMap>>>(
     () =>
       withNamespacedResourceColumns(
         [

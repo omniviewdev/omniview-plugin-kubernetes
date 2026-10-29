@@ -1,4 +1,3 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -8,6 +7,7 @@ import {
   useSensors,
   type DragEndEvent,
 } from '@dnd-kit/core';
+import { restrictToVerticalAxis, restrictToParentElement } from '@dnd-kit/modifiers';
 import {
   SortableContext,
   useSortable,
@@ -15,8 +15,9 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { restrictToVerticalAxis, restrictToParentElement } from '@dnd-kit/modifiers';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { LuChevronRight, LuChevronDown, LuGripVertical } from 'react-icons/lu';
+
 import { type SidebarOrder, extractOrder } from '../../../hooks/useSidebarOrder';
 import type { NavSection, NavMenuItem as NavMenuItemType } from '../../../types/navigation';
 
@@ -157,7 +158,7 @@ function SortableItem({
       >
         {isEditing && (
           // dnd-kit's `attributes`/`listeners` supply role, tabIndex and keyboard handlers.
-          // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
+          // eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/no-static-element-interactions
           <div
             {...attributes}
             {...listeners}

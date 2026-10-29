@@ -13,7 +13,6 @@ function renderWithOperations() {
   let contextValue: OperationsContextType | undefined;
 
   function Consumer() {
-    // eslint-disable-next-line react-hooks/globals
     contextValue = React.useContext(OperationsContext);
     return null;
   }

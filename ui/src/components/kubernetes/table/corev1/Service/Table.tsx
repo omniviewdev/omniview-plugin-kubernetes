@@ -1,3 +1,4 @@
+import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import {
   DrawerComponent,
 } from '@omniviewdev/runtime';
@@ -5,7 +6,7 @@ import { ColumnDef, FilterFn } from '@tanstack/react-table';
 import { Service } from 'kubernetes-types/core/v1';
 import React from 'react';
 import { LuNetwork } from 'react-icons/lu';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router'
 
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
@@ -23,7 +24,7 @@ const ServiceTable: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
 
 
-  const columns = React.useMemo<Array<ColumnDef<Service>>>(
+  const columns = React.useMemo<Array<ColumnDef<DataTableFeatures, Service>>>(
     () =>
       withNamespacedResourceColumns(
         [
@@ -31,7 +32,7 @@ const ServiceTable: React.FC = () => {
             id: 'type',
             header: 'Type',
             accessorFn: (row) => row.spec?.type ?? 'ClusterIP',
-            filterFn: inclusionFilter as FilterFn<Service>,
+            filterFn: inclusionFilter as FilterFn<DataTableFeatures, Service>,
             size: 120,
             cell: CopyableCell,
           },

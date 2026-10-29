@@ -50,7 +50,11 @@ type ScaleModalProps = {
   isExecuting?: boolean;
 };
 
-const ScaleModal: React.FC<ScaleModalProps> = ({
+const ScaleModal: React.FC<ScaleModalProps> = (props) =>
+  props.open ? <ScaleForm key={JSON.stringify([props.resourceType, props.resourceName])} {...props} /> : null;
+
+// Each open resource owns its draft. Live replica updates never overwrite an edit.
+const ScaleForm: React.FC<ScaleModalProps> = ({
   open,
   onClose,
   onConfirm,
@@ -59,11 +63,8 @@ const ScaleModal: React.FC<ScaleModalProps> = ({
   currentReplicas,
   isExecuting,
 }) => {
-  const [replicas, setReplicas] = React.useState(currentReplicas);
-
-  React.useEffect(() => {
-    if (open) setReplicas(currentReplicas);
-  }, [open, currentReplicas]);
+  const [replicaDraft, setReplicas] = React.useState<number>();
+  const replicas = replicaDraft ?? currentReplicas;
 
   const maxSlider = Math.max(currentReplicas * 3, 10);
 
