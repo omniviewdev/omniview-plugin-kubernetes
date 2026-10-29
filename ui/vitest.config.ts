@@ -1,8 +1,23 @@
+import { createHash } from 'node:crypto';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
+// The Omniview dev workspace supervisor owns node_modules and refuses changes
+// it did not write. Keep Vitest's result and module caches outside it.
+const testCache = path.join(
+  tmpdir(),
+  'omniview-vitest',
+  createHash('sha256')
+    .update(import.meta.dirname)
+    .digest('hex')
+    .slice(0, 16),
+);
+
 export default defineConfig({
+  cacheDir: testCache,
   plugins: [
     react({
       babel: (id) => ({
@@ -20,6 +35,7 @@ export default defineConfig({
     },
   },
   test: {
+    fsModuleCachePath: path.join(testCache, 'modules'),
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
     globals: true,
     environment: 'jsdom',
