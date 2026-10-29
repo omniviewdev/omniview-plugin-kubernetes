@@ -1,15 +1,56 @@
 package exec
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/omniviewdev/plugin-sdk/pkg/types"
 	sdkexec "github.com/omniviewdev/plugin-sdk/pkg/v1/exec"
+	"github.com/omniviewdev/plugin-sdk/pkg/v1/exec/exectest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"k8s.io/client-go/tools/remotecommand"
 )
+
+func TestPodRegistrationForwardsSessionResizesToRemoteQueue(t *testing.T) {
+	handler := podExecHandler()
+	sizes := make(chan remotecommand.TerminalSize, 2)
+	handler.TTYHandler = func(ctx *types.PluginContext, _ sdkexec.SessionOptions, _ *os.File, _ chan error, resize <-chan sdkexec.SessionResizeInput) error {
+		go func() {
+			queue := &terminalSizeQueue{ctx: ctx.Context, resize: resize}
+			for size := queue.Next(); size != nil; size = queue.Next() {
+				sizes <- *size
+			}
+		}()
+		return nil
+	}
+	harness := exectest.Mount(t, exectest.WithHandler(handler))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	_, err := harness.Manager.Stream(ctx, make(chan sdkexec.StreamInput))
+	require.NoError(t, err)
+	session, err := harness.CreateSession(sdkexec.SessionOptions{
+		ResourcePlugin: "kubernetes",
+		ResourceKey:    "core::v1::Pod",
+		Params:         map[string]string{"mode": "attach"},
+	})
+	require.NoError(t, err)
+
+	for _, size := range []remotecommand.TerminalSize{{Width: 80, Height: 24}, {Width: 132, Height: 43}} {
+		require.NoError(t, harness.Manager.ResizeSession(nil, session.ID, int32(size.Height), int32(size.Width)))
+		select {
+		case got := <-sizes:
+			assert.Equal(t, size, got)
+		case <-time.After(time.Second):
+			t.Fatal("session resize did not reach the remote terminal size queue")
+		}
+	}
+}
 
 func TestClassifyExecError(t *testing.T) {
 	type expected struct {

@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://omniview.dev"><img src="https://img.shields.io/badge/omniview-plugin-326CE5?style=flat-square&logo=kubernetes&logoColor=white" alt="Omniview Plugin" /></a>
-  <img src="https://img.shields.io/badge/version-0.7.1-blue?style=flat-square" alt="Version" />
+  <img src="https://img.shields.io/badge/version-0.7.3-blue?style=flat-square" alt="Version" />
   <img src="https://img.shields.io/badge/license-Apache--2.0-green?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/category-cloud-326CE5?style=flat-square" alt="Category" />
 </p>
@@ -187,7 +187,7 @@ Every resource type gets a dedicated, sortable table with:
 
 ### Scoped Command Search
 
-Requires Omniview 0.7.4 or later in the compatible 0.7.x cohort for the shared search and resource-icon runtime contracts.
+Requires Omniview 0.8.2 or later in the compatible 0.8.x cohort for live-Pod debug recovery, asynchronous resource actions, and the shared search and resource-icon runtime contracts. Update Omniview before updating the Kubernetes plugin.
 
 Cmd/Ctrl-K opens Omniview's single global search surface, including on Kubernetes pages. Type a connection name and press Tab to scope it, then scope a resource type and resource. Enter opens the selected destination or existing action. The sidebar's **Find in this connection** control opens that same surface with a visible connection chip.
 
@@ -227,10 +227,48 @@ Exec into any running container directly from the resource table. The plugin han
 
 - Multi-container pods with container selection
 - Intelligent shell detection (`bash` > `sh` > `ash`)
-- Distroless image fallback with debug containers
+- Explicit distroless recovery with targeted ephemeral containers
 - Node-level shell access via ephemeral debug pods
 - Terminal resize support
 - SPDY and WebSocket protocol fallback
+
+### Live Pod Debug
+
+Use **Debug** beside Exec and Logs in a Pod header. One running application
+container opens a toolbox shell immediately; multiple containers show a
+names-only target picker. No shell is required in the application image.
+The command palette exposes the same **Debug: container** actions after scoping
+to a Pod, including when its details drawer is closed.
+Named targets remain pinned when other containers start or stop; a vanished
+target never redirects the action to another container.
+
+**Debug options** is secondary: choose a template or image, then expand
+**Customize** only when needed. Its controls use `@omniviewdev/base-ui`.
+Genuine missing-shell Exec errors offer **Debug this container**; other Exec
+errors do not inject a debugger automatically. Node shell remains a separate
+Node action.
+
+The toolbox shares Pod networking and requests the selected container's process
+namespace. Runtime support controls process visibility. Its root filesystem,
+environment, user and trust store remain separate. `/proc/PID/root` inspection
+also depends on permissions; the plugin does not automatically chroot, mount
+credentials or elevate privileges.
+
+The restricted default runs as UID 1000, drops all capabilities and disables
+privilege escalation. Network-admin and privileged profiles require explicit
+confirmation on every launch and remain subject to admission policy.
+Required feature permissions are `get` on `pods`, `update` on
+`pods/ephemeralcontainers`, and `get` plus `create` on `pods/attach` for the two
+streaming transports.
+
+Debug sessions retain their original Pod UID and exact container name.
+Image failures show the actual waiting reason; inspect status before opening
+a terminal. Reconnect attaches an existing running debugger rather than adding
+another container. Completed entries cannot restart or reconnect. Closing a
+terminal does not remove an ephemeral container, and Kubernetes does not allow
+editing or deleting individual ephemeral entries. Correcting an image requires
+an explicit new launch. An unconfirmed creation blocks duplicate submissions
+until status can establish its outcome.
 
 ### Log Viewer
 
@@ -307,6 +345,34 @@ The plugin automatically discovers clusters from your `~/.kube/config` file. You
 - Set namespace restrictions per connection
 - Configure node shell image and command overrides
 
+### Debug templates and defaults
+
+Open **Templates & defaults** from the Pod's secondary Debug options. Shell
+(`busybox:1.37.0`) and Network toolbox (`nicolaka/netshoot:v0.14`) are immutable
+starters: duplicate them to customize. Custom templates support a unique name,
+image, JSON argv array, access profile, image pull policy and explicitly entered
+non-secret environment values. Customize starts collapsed. Do not store secrets:
+template values are ordinary plugin preferences, not a secret store.
+Per-launch drafts reset when the Pod, target or resolved default changes.
+Existing-volume mounts require canonical absolute paths; validation errors stay
+beside the mount field before any creation request.
+
+Templates and the all-cluster default persist in the plugin Data Store under
+`debug_templates`. A cluster stores only its chosen template ID in its existing
+connection-ID-keyed preferences (`cluster_overrides.debugDefaultTemplateId`).
+The cluster choice wins over the all-cluster choice, then built-in Shell.
+**Inherit all-cluster default** follows later parent changes rather than copying
+the current image. Missing or invalid selections show an error and resolve to
+restricted Shell.
+
+**Save template** does not select a default or launch a container. **Save default**
+persists the scope's selection separately. Cancel discards template drafts;
+persistence errors remain visible without reporting success. Changes affect
+future launches only. Pod identity, target container and volume bindings are
+never template fields. An elevated saved template or default never authorizes
+an elevated launch: each invocation still requires fresh confirmation and remains
+subject to Kubernetes authorization and admission policy.
+
 ### Prometheus Integration
 
 To enable advanced metrics, configure a Prometheus endpoint in the cluster settings. The plugin will query Prometheus for time-series data and display it alongside metrics-server data.
@@ -350,8 +416,8 @@ rather than adding unsupported manifest fields.
 
 Registry installs retain pnpm's 24-hour release-age protection. Only coordinated
 `@omniviewdev/*` packages are exempted; linked source worktrees resolve locally.
-The current UI cohort is `@omniviewdev/base-ui` 0.7.1 and
-`@omniviewdev/editors` 6.0.1, paired with host/runtime/Vite plugin 0.7.4 and Go SDK v0.7.1.
+The current UI cohort is `@omniviewdev/base-ui` 0.7.2 and
+`@omniviewdev/editors` 6.0.2, paired with host/runtime/Vite plugin 0.8.2 and Go SDK v0.7.1.
 
 ### Building
 

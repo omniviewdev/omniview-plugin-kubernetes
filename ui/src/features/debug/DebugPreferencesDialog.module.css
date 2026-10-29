@@ -1,0 +1,14 @@
+.template {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--ov-color-border-default);
+}
+
+.image {
+  color: var(--ov-color-fg-subtle);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}

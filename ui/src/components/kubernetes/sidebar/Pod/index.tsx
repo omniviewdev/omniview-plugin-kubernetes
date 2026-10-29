@@ -9,6 +9,7 @@ import PodConfigSection from './PodConfigSection';
 import PodContainersSection from './PodContainersSection';
 import PodStatusSection from './PodStatusSection';
 import PodVolumesSection from './PodVolumesSection';
+import DebugSessionsSection from '../../../../features/debug/DebugSessionsSection';
 
 interface Props {
   ctx: DrawerContext<Pod>;
@@ -75,6 +76,7 @@ export const PodSidebar: React.FC<Props> = ({ ctx }) => {
         <PodStatusSection pod={pod} connectionID={connectionID} />
         <PodConfigSection pod={pod} connectionID={connectionID} />
       </Stack>
+      <DebugSessionsSection connectionID={connectionID} pod={pod} />
 
       {/* Containers — separated by section heading */}
       <PodContainersSection

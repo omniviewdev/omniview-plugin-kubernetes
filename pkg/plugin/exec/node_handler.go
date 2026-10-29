@@ -12,8 +12,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/omniviewdev/plugin-sdk/pkg/v1/exec"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
+	"github.com/omniviewdev/plugin-sdk/pkg/v1/exec"
 )
 
 const (
@@ -160,13 +160,16 @@ func nodeHandlerWithProvider(
 	// Listen for both the exec finishing and context cancellation to ensure
 	// the debug pod is always deleted.
 	go func() {
+		var completion error
 		select {
-		case execErr := <-innerStopCh:
-			cleanup()
-			stopCh <- execErr
+		case completion = <-innerStopCh:
 		case <-ctx.Context.Done():
-			cleanup()
-			stopCh <- ctx.Context.Err()
+			completion = ctx.Context.Err()
+		}
+		cleanup()
+		select {
+		case stopCh <- completion:
+		case <-ctx.Context.Done():
 		}
 	}()
 
