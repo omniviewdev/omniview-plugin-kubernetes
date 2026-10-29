@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@omniviewdev/base-ui/styles.css";
 import "@omniviewdev/editors/styles.css";
 
-import { ThemeProvider } from "@omniviewdev/base-ui";
+import { ThemeProvider, ToastProvider } from "@omniviewdev/base-ui";
 import { RightDrawerContext, SnackbarProvider } from "@omniviewdev/runtime";
 
 const noopDrawerContext = {
@@ -25,11 +25,13 @@ const withProviders = (Story: React.FC) => {
   return (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider initialTheme="dark" persist={false}>
-      <SnackbarProvider>
-        <RightDrawerContext.Provider value={noopDrawerContext}>
-          <Story />
-        </RightDrawerContext.Provider>
-      </SnackbarProvider>
+      <ToastProvider maxVisible={5} position="bottom-right">
+        <SnackbarProvider>
+          <RightDrawerContext.Provider value={noopDrawerContext}>
+            <Story />
+          </RightDrawerContext.Provider>
+        </SnackbarProvider>
+      </ToastProvider>
     </ThemeProvider>
   </QueryClientProvider>
   );

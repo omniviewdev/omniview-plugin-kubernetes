@@ -1,0 +1,72 @@
+.identity {
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+  color: var(--ov-color-fg-default);
+}
+
+.heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+}
+
+.provider {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ov-color-fg-muted);
+  font-size: 0.75rem;
+}
+
+.name {
+  margin: 6px 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.description {
+  margin: 0;
+  color: var(--ov-color-fg-muted);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.fields {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--ov-color-border-default);
+  border-radius: var(--ov-radius-md, 6px);
+  background: var(--ov-color-bg-surface);
+}
+
+.field + .field {
+  margin-top: 12px;
+}
+
+.field dt {
+  margin-bottom: 3px;
+  font-size: 0.75rem;
+  color: var(--ov-color-fg-muted);
+}
+
+.field dd {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.hint {
+  margin: 10px 0 0;
+  font-size: 0.75rem;
+  color: var(--ov-color-fg-muted);
+}

@@ -27,6 +27,18 @@ Native artwork is adapted to monochrome resource glyphs without blue badges and 
 
 Cluster IDs are opaque values, including EKS ARNs containing `/`. Encode the ID with `encodeURIComponent` whenever constructing `/cluster/:id` links, including resource navigation, dashboard shortcuts, and connection settings. React Router returns decoded parameters; encode them again when constructing a new URL. Do not encode the entire path or decode an ID before inserting it into a path.
 
+## Connection readiness
+
+The resource route subtree uses the shared runtime `ConnectionBoundary`, so direct URLs, history, search, and sidebar navigation cannot mount resource hooks before the connection is ready. Navigation does not connect automatically: use **Connect and continue** to start the connection and resume the exact destination. Cluster selection and connection editing remain available offline.
+
+Connection failures offer retry and credential-edit recovery. A disconnect removes protected resource content; watch progress and individual resource permission errors remain separate from connection readiness. The host protects detached resource drawers using the same runtime boundary.
+
+The splash shows the saved cluster identity while checking, connecting, or recovering: avatar, provider, display name and description, context, auth-user name, kubeconfig path, and full connection ID. Display overrides are honored. Metadata loads independently without connecting; a missing or failed metadata read leaves the route ID and recovery controls visible. Credential contents and arbitrary metadata are not displayed. Successful connection replaces the splash with the requested resources.
+
+Storybook's **Connections/ConnectionBoundary** stories provide mocked loading, disconnected, connecting, authorization, missing-connection, and error states, including metadata loading/failure. Interactive recovery opens a mocked Pod table instead of a redundant connected splash. The preview makes no backend connection requests.
+
+This integration requires a matching host/runtime and Vite-plugin release containing the connection boundary and identity-slot exports. Update both exact frontend dependency pins and the lockfile together before publishing; an older runtime or generated shared-module shim cannot load the resource route.
+
 ## Local audit evidence fixture
 
 `hack/history-audit.mjs` creates a separate, randomly named local kind sandbox.
