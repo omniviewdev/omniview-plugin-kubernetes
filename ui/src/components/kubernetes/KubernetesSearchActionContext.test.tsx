@@ -5,16 +5,27 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
   hook: vi.fn(),
+  revision: 0,
+  listeners: new Set<() => void>(),
   deps: {
     createLogSession: vi.fn().mockResolvedValue({ id: 'session' }), closeDrawer: vi.fn(),
     startDebug: vi.fn().mockResolvedValue(undefined),
   },
 }));
 vi.mock('@omniviewdev/runtime/api', () => ({ ResourceClient: { Get: mocks.get } }));
-vi.mock('../shared/drawer/DrawerActionsBridge', () => ({
-  useDrawerActionExecution: (target: unknown) => mocks.hook(target)
-    ?? { deps: mocks.deps, dialogs: null, isBusy: false, isReady: true },
-}));
+vi.mock('../shared/drawer/DrawerActionsBridge', () => {
+  const subscribe = (listener: () => void) => {
+    mocks.listeners.add(listener);
+    return () => { mocks.listeners.delete(listener); };
+  };
+  return {
+    useDrawerActionExecution: (target: unknown) => {
+      React.useSyncExternalStore(subscribe, () => mocks.revision);
+      return mocks.hook(target)
+        ?? { deps: mocks.deps, dialogs: null, isBusy: false, isReady: true };
+    },
+  };
+});
 
 import type { StartDebugInput } from '../shared/drawer/actionDeps';
 
@@ -38,6 +49,14 @@ beforeEach(() => {
   mocks.deps.startDebug.mockReset().mockResolvedValue(undefined);
 });
 afterEach(cleanup);
+
+function mockDrawerState(value: unknown) {
+  act(() => {
+    mocks.hook.mockReturnValue(value);
+    mocks.revision += 1;
+    for (const listener of mocks.listeners) listener();
+  });
+}
 
 describe('global Kubernetes action context', () => {
   it('discovers and dispatches logs without a mounted table or plugin page', async () => {
@@ -122,11 +141,11 @@ const debugPod = {
 describe('standalone palette Debug', () => {
   it('waits for preferences on the first Debug command and invokes the latest launch handler once', async () => {
     const loadingStart = vi.fn().mockRejectedValue(new Error('Debug preferences are loading'));
-    mocks.hook.mockReturnValue({
+    mockDrawerState({
       deps: { ...mocks.deps, startDebug: loadingStart },
       dialogs: null, isBusy: false, isReady: false,
     });
-    const mounted = render(<KubernetesSearchActionContext />);
+    render(<KubernetesSearchActionContext />);
     const items = await searchActions(scope, context().signal, debugPod);
     const main = items.find(item => item.label === 'Debug: main')!;
     if (main.value.kind !== 'action') throw new Error('Expected action');
@@ -142,11 +161,10 @@ describe('standalone palette Debug', () => {
       expect(settled).not.toHaveBeenCalled();
       expect(loadingStart).not.toHaveBeenCalled();
     } finally {
-      mocks.hook.mockReturnValue({
+      mockDrawerState({
         deps: { ...mocks.deps, startDebug: readyStart },
         dialogs: null, isBusy: false, isReady: true,
       });
-      await act(async () => { mounted.rerender(<KubernetesSearchActionContext />); });
       await execution;
     }
     expect(settled).toHaveBeenCalledTimes(1);
@@ -161,11 +179,11 @@ describe('standalone palette Debug', () => {
 
   it('cancels a first Debug command during preference loading and never launches after readiness', async () => {
     const loadingStart = vi.fn().mockRejectedValue(new Error('Debug preferences are loading'));
-    mocks.hook.mockReturnValue({
+    mockDrawerState({
       deps: { ...mocks.deps, startDebug: loadingStart },
       dialogs: null, isBusy: false, isReady: false,
     });
-    const mounted = render(<KubernetesSearchActionContext />);
+    render(<KubernetesSearchActionContext />);
     const items = await searchActions(scope, context().signal, debugPod);
     const main = items.find(item => item.label === 'Debug: main')!;
     if (main.value.kind !== 'action') throw new Error('Expected action');
@@ -179,10 +197,9 @@ describe('standalone palette Debug', () => {
     await act(async () => { await Promise.resolve(); });
     await act(async () => { controller.abort(); });
     await execution;
-    mocks.hook.mockReturnValue({
+    mockDrawerState({
       deps: mocks.deps, dialogs: null, isBusy: false, isReady: true,
     });
-    await act(async () => { mounted.rerender(<KubernetesSearchActionContext />); });
     expect(settled).toHaveBeenCalledTimes(1);
     expect(settled).toHaveBeenCalledWith(expect.objectContaining({ name: 'AbortError' }));
     expect(loadingStart).not.toHaveBeenCalled();
@@ -317,7 +334,7 @@ describe('standalone palette Debug', () => {
   it.each(['ready', 'timeout', 'unmount'])('settles deferred resolution on %s without Promise.withResolvers', async (outcome) => {
     const intrinsic = Object.getOwnPropertyDescriptor(Promise, 'withResolvers');
     Object.defineProperty(Promise, 'withResolvers', { configurable: true, writable: true, value: undefined });
-    mocks.hook.mockReturnValue({
+    mockDrawerState({
       deps: mocks.deps, dialogs: null, isBusy: false, isReady: false,
     });
     const mounted = render(<KubernetesSearchActionContext />);
@@ -339,10 +356,9 @@ describe('standalone palette Debug', () => {
       expect(settled).not.toHaveBeenCalled();
       expect(mocks.deps.startDebug).not.toHaveBeenCalled();
       if (outcome === 'ready') {
-        mocks.hook.mockReturnValue({
+        mockDrawerState({
           deps: mocks.deps, dialogs: null, isBusy: false, isReady: true,
         });
-        await act(async () => { mounted.rerender(<KubernetesSearchActionContext />); });
       } else if (outcome === 'timeout') {
         await act(async () => {
           await new Promise<void>((resolve) => {

@@ -101,6 +101,41 @@ describe('debug preferences', () => {
     expect(screen.queryByRole('status')).toBeNull();
   });
 
+  it('discards failed drafts when reopened for another connection', async () => {
+    state.saveTemplate.mockRejectedValue(new Error('Disk unavailable'));
+    const view = open();
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate Shell' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save template' }));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Disk unavailable'));
+
+    view.rerender(
+      <DebugPreferencesDialog open={false} connectionID="connection-a" onClose={vi.fn()} />,
+    );
+    config.clusterDefaults['connection-b'] = BUILTIN_DEBUG_TEMPLATES[1].id;
+    view.rerender(
+      <DebugPreferencesDialog open connectionID="connection-b" onClose={vi.fn()} />,
+    );
+
+    expect(screen.queryByLabelText('Name')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByText(/Effective: Network toolbox.*source: cluster/)).toBeVisible();
+  });
+
+  it('refreshes saved defaults without discarding an open template draft', () => {
+    const view = open();
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate Shell' }));
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Unsaved toolbox' } });
+    config.clusterDefaults['connection-a'] = BUILTIN_DEBUG_TEMPLATES[1].id;
+    view.rerender(
+      <DebugPreferencesDialog open connectionID="connection-a" onClose={vi.fn()} />,
+    );
+
+    expect(screen.getByLabelText('Name')).toHaveValue('Unsaved toolbox');
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.getByText(/Effective: Network toolbox.*source: cluster/)).toBeVisible();
+    expect(state.saveTemplate).not.toHaveBeenCalled();
+  });
+
   it('warns elevated inherited default never authorizes launches', () => {
     config.customTemplates = [
       { ...BUILTIN_DEBUG_TEMPLATES[0], id: 'admin', name: 'Admin', profile: 'sysadmin' },

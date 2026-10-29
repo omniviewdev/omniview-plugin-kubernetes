@@ -222,7 +222,7 @@ export async function reconnectDebug(
       ['stale', 'terminated', 'rejected'].includes(current.state) ||
       (refreshed && current.state === 'waiting')
     )
-      throw new Error(current.message);
+      throw new Error(current.message, { cause: error });
     const parsed = parseAppError(error);
     publish({ ...current, state: 'disconnected', message: `${parsed.title}: ${parsed.detail}` });
     throw error;

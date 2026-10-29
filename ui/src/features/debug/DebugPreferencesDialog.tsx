@@ -10,7 +10,7 @@ import {
   Text,
   TextArea,
 } from '@omniviewdev/base-ui';
-import React, { useEffect, useId, useState } from 'react';
+import React, { useId, useState } from 'react';
 
 import SimpleSelect from '../../components/connections/SimpleSelect';
 
@@ -32,7 +32,11 @@ export function DebugPreferencesDialog({
 }: DebugPreferencesDialogProps) {
   const preferences = useDebugPreferences(connectionID);
   const [scope, setScope] = useState<'plugin' | 'cluster'>('cluster');
-  const [selection, setSelection] = useState('');
+  const savedSelection =
+    scope === 'cluster'
+      ? (preferences.config.clusterDefaults[connectionID] ?? '')
+      : (preferences.config.defaultTemplateId ?? '');
+  const [selection, setSelection] = useState(savedSelection);
   const [draft, setDraft] = useState<DebugTemplate | null>(null);
   const [command, setCommand] = useState('');
   const [env, setEnv] = useState('');
@@ -46,22 +50,27 @@ export function DebugPreferencesDialog({
   React.useLayoutEffect(() => {
     setPopupContainer(open ? dialogRef.current : null);
   }, [open]);
-  const savedSelection =
-    scope === 'cluster'
-      ? (preferences.config.clusterDefaults[connectionID] ?? '')
-      : (preferences.config.defaultTemplateId ?? '');
-
-  useEffect(() => {
+  const [previousContext, setPreviousContext] = useState({
+    open,
+    connectionID,
+    scope,
+    savedSelection,
+  });
+  const contextChanged =
+    previousContext.open !== open ||
+    previousContext.connectionID !== connectionID ||
+    previousContext.scope !== scope;
+  if (contextChanged || previousContext.savedSelection !== savedSelection) {
+    setPreviousContext({ open, connectionID, scope, savedSelection });
     if (open) {
-      setDraft(null);
-      setError(null);
-      setNotice(null);
+      setSelection(savedSelection);
+      if (contextChanged) {
+        setDraft(null);
+        setError(null);
+        setNotice(null);
+      }
     }
-  }, [open, connectionID, scope]);
-
-  useEffect(() => {
-    if (open) setSelection(savedSelection);
-  }, [open, connectionID, scope, savedSelection]);
+  }
 
   function edit(template: DebugTemplate, duplicate: boolean) {
     const value = {
