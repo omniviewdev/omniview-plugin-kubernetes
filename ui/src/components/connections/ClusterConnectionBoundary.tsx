@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import type { ConnectionOverride } from '../../types/clusters';
 
 import ClusterConnectionDetails from './ClusterConnectionDetails';
+
 import { PLUGIN_ID } from '@/pluginId';
 
 const EMPTY_OVERRIDES: Record<string, ConnectionOverride> = {};
