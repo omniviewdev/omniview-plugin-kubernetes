@@ -84,7 +84,7 @@ The splash shows the saved cluster identity while checking, connecting, or recov
 
 Storybook's **Connections/ConnectionBoundary** stories provide mocked loading, disconnected, connecting, authorization, missing-connection, and error states, including metadata loading/failure. Interactive recovery opens a mocked Pod table instead of a redundant connected splash. The preview makes no backend connection requests.
 
-This integration requires Omniview 0.9.2 or later in the compatible 0.9.x producer cohort. The standalone frontend pins published runtime and Vite-plugin 0.9.2, which contain the connection boundary and identity-slot exports. Update both exact frontend dependency pins and the lockfile together before publishing; an older runtime or generated shared-module shim cannot load the resource route.
+Kubernetes plugin 0.8.2 requires Omniview 0.9.2 or later in the compatible 0.9.x producer cohort. The standalone frontend pins published runtime and Vite-plugin 0.9.2, which contain the connection boundary and identity-slot exports. Update both exact frontend dependency pins and the lockfile together before publishing; an older runtime or generated shared-module shim cannot load the resource route.
 
 ## Local audit evidence fixture
 
@@ -608,9 +608,12 @@ dependencies without a sibling checkout or workspace replacements. Local
 `go.work` files are not release inputs: development SDK selection belongs to the
 host's isolated workspace, and direct Go commands must use `GOWORK=off GOFLAGS=`.
 
-The reusable marketplace workflow uses Go 1.25, Node.js 26.13.0 and native pnpm
-12.14.0, then builds five platform archives. `OMNIVIEW_API_KEY` must authorize
-publisher `omniview` on `https://api.omniview.dev`.
+The release workflow uses the Go version declared in `go.mod`, Node.js 26.13.0,
+and native pnpm 12.14.0 to build five platform archives on a GitHub-hosted runner.
+Marketplace publishing runs on the self-hosted `omniview` runners, which can
+reach the API inside its cluster. Set `OMNIVIEW_API_URL` to the intended marketplace;
+the publisher action's default is not a substitute for the configured target.
+`OMNIVIEW_API_KEY` must authorize publisher `omniview` on that marketplace.
 The publisher action submits the version for review; a successful workflow does
 not establish marketplace approval. Confirm approval and installability in the
 target registry before announcing availability. GitHub release notes are only
