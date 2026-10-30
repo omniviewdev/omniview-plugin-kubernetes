@@ -274,7 +274,7 @@ func getPodLogs(ctx *types.PluginContext, clients *Clients, args podLogsArgs) (*
 	if err != nil {
 		return sdktools.ErrorResult("%v", err), nil
 	}
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 	data, err := io.ReadAll(io.LimitReader(stream, maxLogBytes+1))
 	if err != nil {
 		return sdktools.ErrorResult("read logs: %v", err), nil
