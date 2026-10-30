@@ -26,6 +26,7 @@ capabilities:
     - networker
     - log
     - metric
+    - tools
 theme:
     colors:
         primary: '#326CE5'

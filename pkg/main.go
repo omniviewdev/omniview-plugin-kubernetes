@@ -10,6 +10,7 @@ import (
 	pluginmetric "github.com/omniview/kubernetes/pkg/plugin/metric"
 	"github.com/omniview/kubernetes/pkg/plugin/networker"
 	"github.com/omniview/kubernetes/pkg/plugin/resource"
+	"github.com/omniview/kubernetes/pkg/plugin/tools"
 	"github.com/omniview/kubernetes/pkg/pluginid"
 	"github.com/omniviewdev/plugin-sdk/settings"
 
@@ -128,6 +129,7 @@ func main() {
 	networker.Register(plugin)
 	pluginlogs.Register(plugin)
 	pluginmetric.Register(plugin)
+	tools.Register(plugin)
 
 	// Serve the plugin
 	plugin.Serve()
