@@ -208,7 +208,7 @@ The splash shows the saved cluster identity while checking, connecting, or recov
 
 Storybook's **Connections/ConnectionBoundary** stories provide mocked loading, disconnected, connecting, authorization, missing-connection, and error states, including metadata loading/failure. Interactive recovery opens a mocked Pod table instead of a redundant connected splash. The preview makes no backend connection requests.
 
-Published Kubernetes plugin 0.8.2 requires Omniview 0.9.2 or later in its compatible producer cohort. That published baseline does not contain this resource-v2/MCP candidate. Test this candidate through the reviewed source cohort, including source-built runtime and Vite-plugin packages. Select and publish compatible dependency versions only after separate release authorization; do not infer compatibility from existing tags.
+Kubernetes plugin 0.9.0 requires Omniview 0.12.0 or later for resource-v2 integration and collection-wide tables and dashboards. Update the desktop app before updating the plugin. The historical 0.8.2 release requires its older compatible producer cohort and does not contain these changes.
 
 ## Local audit evidence fixture
 
@@ -374,7 +374,7 @@ Every resource type gets a dedicated, sortable table with:
 
 ### Scoped Command Search
 
-The current Kubernetes plugin source requires Omniview 0.10.0 in the compatible 0.10.x producer cohort for connection-route protection, live-Pod debug recovery, asynchronous resource actions, opening a connection in a new tab or window, and the shared search and resource-icon runtime contracts. Its standalone frontend pins published `@omniviewdev/runtime` and `@omniviewdev/vite-plugin` 0.10.0, `@omniviewdev/base-ui` 0.9.0, and `@omniviewdev/editors` 6.1.1 in `ui/package.json` and `ui/pnpm-lock.yaml`. Update Omniview before updating the Kubernetes plugin; the plugin's minor version is independent of the host version.
+Kubernetes plugin 0.9.0 requires Omniview 0.12.0 for collection-wide resource views, connection-route protection, live-Pod debug recovery, asynchronous resource actions, opening a connection in a new tab or window, and the shared search and resource-icon runtime contracts. Its standalone frontend pins published `@omniviewdev/runtime` 0.12.0, `@omniviewdev/vite-plugin` 0.11.0, `@omniviewdev/base-ui` 0.9.0, and `@omniviewdev/editors` 6.1.1 in `ui/package.json` and `ui/pnpm-lock.yaml`. Update Omniview before updating the Kubernetes plugin; the plugin's minor version is independent of the host version.
 
 Cmd/Ctrl-K opens Omniview's single global search surface, including on Kubernetes pages. Type a connection name and press Tab to scope it, then scope a resource type and resource. Enter opens the selected destination or existing action. The sidebar's **Find in this connection** control opens that same surface with a visible connection chip.
 
@@ -604,7 +604,7 @@ rather than adding unsupported manifest fields.
 Registry installs retain pnpm's 24-hour release-age protection. Only coordinated
 `@omniviewdev/*` packages are exempted; linked source worktrees resolve locally.
 The current UI cohort is `@omniviewdev/base-ui` 0.9.0 and
-`@omniviewdev/editors` 6.1.1, paired with host/runtime/Vite plugin 0.10.0 and Go SDK v0.7.1.
+`@omniviewdev/editors` 6.1.1, paired with host/runtime 0.12.0, Vite plugin 0.11.0, and Go SDK v0.9.0.
 Debug preferences discard unsaved drafts when reopened or switched to another
 connection, but preserve active drafts when saved defaults refresh.
 
