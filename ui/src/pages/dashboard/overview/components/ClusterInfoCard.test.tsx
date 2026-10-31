@@ -17,7 +17,6 @@ describe('overview connection facts', () => {
     render(<ClusterInfoCard connectionID="owned" nodes={[]} pods={[]} events={[]} />);
     expect(screen.getByText('v1.34')).toBeTruthy();
     expect(screen.getByText('kind')).toBeTruthy();
-    expect(screen.getByLabelText(/kind\. Inferred from mutable connection configuration; not verified hosting\. Saved observation/)).toBeTruthy();
-    expect(screen.getByRole('img', { name: /Kubernetes version: Saved observation/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Kubernetes version: Saved observation/ })).toBeTruthy();
   });
 });

@@ -3,7 +3,6 @@ import type { ConnectionMetadataSnapshot } from '@omniviewdev/runtime';
 import { describe, expect, it } from 'vitest';
 import ConnectionEnvironment from './ConnectionEnvironment';
 
-
 function snapshot(values: Record<string, string>): ConnectionMetadataSnapshot {
   return {
     connectionID: 'kind-kind', generation: '1', revision: '1', active: true, refreshing: false,
@@ -13,22 +12,7 @@ function snapshot(values: Record<string, string>): ConnectionMetadataSnapshot {
   } as ConnectionMetadataSnapshot;
 }
 
-it('keeps location provenance separate from server-version provider inference', () => {
-  render(<ConnectionEnvironment snapshot={snapshot({
-    'kubernetes.provider': 'eks', 'kubernetes.provider_source': 'server_version', 'aws.region': 'us-east-1',
-  })} transportAvailable={false} />);
-  expect(screen.getByLabelText(/Amazon EKS\. Inferred from the API server version/)).toBeTruthy();
-  expect(screen.getByLabelText(/Region: us-east-1\. Inferred from available connection details; not verified hosting\. Saved observation/)).toBeTruthy();
-});
-
 describe('connection environment hints', () => {
-  it('shows kind from metadata with focusable configuration provenance and stale state', () => {
-    render(<ConnectionEnvironment snapshot={snapshot({ 'kubernetes.provider': 'kind', 'kubernetes.provider_source': 'connection_config' })} transportAvailable={false} />);
-    expect(screen.getByText('kind')).toBeTruthy();
-    const badge = screen.getByLabelText(/kind\. Inferred from mutable connection configuration; not verified hosting\. Saved observation/);
-    expect(badge.tabIndex).toBe(0);
-  });
-
   it('hides absent and unknown optional hints', () => {
     const { container } = render(<ConnectionEnvironment snapshot={snapshot({ 'kubernetes.provider': 'unknown' })} transportAvailable />);
     expect(container.childElementCount).toBe(0);

@@ -29,14 +29,13 @@ export default function ConnectionMetadataValue({ snapshot, transportAvailable, 
         {mono ? <code style={{ fontSize: 'inherit', fontFamily: 'monospace' }}>{fact.value}</code> : fact.value}
       </Text>
       <SimpleTooltip content={<span><strong>{status}</strong><br />{fact.detail}</span>}>
-        <span
-          tabIndex={0}
-          role="img"
-          aria-label={`${label}: ${status}. ${fact.detail}`}
-          style={{ display: 'inline-flex', flexShrink: 0, padding: 2, borderRadius: 4, color: warning ? 'var(--ov-color-warning)' : 'var(--ov-color-fg-subtle)' }}
+        <button
+          type="button"
+          aria-label={`${label}: ${status}`}
+          style={{ display: 'inline-flex', flexShrink: 0, padding: 2, border: 0, background: 'none', cursor: 'help', borderRadius: 4, color: warning ? 'var(--ov-color-warning)' : 'var(--ov-color-fg-subtle)' }}
         >
           <Icon size={13} aria-hidden="true" />
-        </span>
+        </button>
       </SimpleTooltip>
     </span>
   );

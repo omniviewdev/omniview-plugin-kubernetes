@@ -17,6 +17,7 @@ import type {
 } from '../types/clusters';
 import { LEGACY_GROUP_ALIASES, LEGACY_SORT_ALIASES } from '../types/clusters';
 import { computeEffectiveMembers } from '../utils/folderRules';
+import { isRetiredConnectionDataKey } from '../utils/migrateFolderMetadataRules';
 import { detectProvider, getProviderLabel } from '../utils/providers';
 
 interface UseConnectionGroupingOpts {
@@ -86,7 +87,7 @@ function matchesSearch(enriched: EnrichedConnection, search: string): boolean {
   // Search across all data values
   if (conn.data) {
     for (const [key, val] of Object.entries(conn.data)) {
-      if (['server_url', 'k8s_version', 'k8s_platform', 'node_count', 'api_groups', 'last_checked'].includes(key)) continue;
+      if (isRetiredConnectionDataKey(key)) continue;
       if (String(val).toLowerCase().includes(s)) return true;
     }
   }

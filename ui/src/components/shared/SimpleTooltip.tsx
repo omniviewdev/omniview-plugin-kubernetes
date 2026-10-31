@@ -27,16 +27,21 @@ const SimpleTooltip: React.FC<SimpleTooltipProps> = ({
   disabled,
   popupStyle,
 }) => {
+  const tooltipID = React.useId();
+  const triggerProps = children.props;
+  const describedBy = triggerProps !== null && typeof triggerProps === 'object'
+    && 'aria-describedby' in triggerProps && typeof triggerProps['aria-describedby'] === 'string'
+    ? triggerProps['aria-describedby'] : undefined;
   if (content === undefined || content === null || content === '' || disabled) {
     return children;
   }
 
   return (
     <Tooltip.Root lazy size={size}>
-      <Tooltip.Trigger render={children} delay={delay} />
+      <Tooltip.Trigger render={children} delay={delay} aria-describedby={describedBy ? `${describedBy} ${tooltipID}` : tooltipID} />
       <Tooltip.Portal>
         <Tooltip.Positioner side={placement} sideOffset={6}>
-          <Tooltip.Popup style={popupStyle}>{content}</Tooltip.Popup>
+          <Tooltip.Popup id={tooltipID} role="tooltip" style={popupStyle}>{content}</Tooltip.Popup>
         </Tooltip.Positioner>
       </Tooltip.Portal>
     </Tooltip.Root>

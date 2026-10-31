@@ -19,6 +19,11 @@ const sourceLabels: Record<string, string> = {
   server_version: 'Inferred from the API server version; not verified hosting.',
 };
 
+const provenanceTriggerStyle = {
+  display: 'inline-flex', maxWidth: '100%', minWidth: 0,
+  border: 0, padding: 0, background: 'none', color: 'inherit', font: 'inherit', cursor: 'help',
+} as const;
+
 /** Optional environment hints never determine cluster capabilities. */
 export default function ConnectionEnvironment({ snapshot, transportAvailable, settings = false }: Props) {
   const facts = new Map<string, ConnectionMetadataDisplay>();
@@ -48,11 +53,11 @@ export default function ConnectionEnvironment({ snapshot, transportAvailable, se
     const stale = display(key).state === 'stale';
     return (
       <SimpleTooltip key={key} content={detail}>
-        <span tabIndex={0} aria-label={`${label}. ${detail}`} style={{ display: 'inline-flex', maxWidth: '100%', minWidth: 0 }}>
+        <button type="button" aria-label={label} style={provenanceTriggerStyle}>
           <Chip size="sm" variant="soft" color={stale ? 'warning' : 'neutral'} startDecorator={<ProviderIcon provider={id} size={13} />} endDecorator={stale ? <LuHistory size={12} aria-hidden="true" /> : undefined} style={{ maxWidth: '100%' }}>
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
           </Chip>
-        </span>
+        </button>
       </SimpleTooltip>
     );
   };
@@ -77,17 +82,17 @@ export default function ConnectionEnvironment({ snapshot, transportAvailable, se
           const detail = `${label}: ${value(key)}. ${hint(key)}`;
           const stale = display(key).state === 'stale';
           return <SimpleTooltip key={key} content={detail}>
-            <span tabIndex={0} aria-label={detail} style={{ display: 'inline-flex', maxWidth: '100%', minWidth: 0 }}>
+            <button type="button" aria-label={`${label}: ${value(key)}`} style={provenanceTriggerStyle}>
               <Chip size="sm" variant="outline" color={stale ? 'warning' : 'neutral'} endDecorator={stale ? <LuHistory size={12} aria-hidden="true" /> : undefined} style={{ maxWidth: '100%' }}>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value(key)}</span>
               </Chip>
-            </span>
+            </button>
           </SimpleTooltip>;
         })}
       </div>}
       {identifiers.map(({ key, label, detail }) => <div key={key} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, minWidth: 0 }}>
         <SimpleTooltip content={`${detail} ${hint(key)}`}>
-          <span tabIndex={0} aria-label={`${label}. ${detail} ${hint(key)}`}><Text size="xs" tone="muted">{label}</Text></span>
+          <button type="button" aria-label={label} style={provenanceTriggerStyle}><Text size="xs" tone="muted">{label}</Text></button>
         </SimpleTooltip>
         <ClipboardText value={value(key)!} truncate style={{ fontSize: 12, minWidth: 0, maxWidth: '100%' }} />
       </div>)}

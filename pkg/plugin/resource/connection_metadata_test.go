@@ -2,6 +2,7 @@ package resource
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,9 +16,60 @@ import (
 )
 
 func TestMetadataEndpointSanitization(t *testing.T) {
-	require.Equal(t, "https://cluster.example/prefix", sanitizedMetadataEndpoint("https://user:password@cluster.example/prefix?token=secret#secret"))
-	for _, raw := range []string{"", "not-a-url", "file:///secret", "https://%xx"} {
-		require.Empty(t, sanitizedMetadataEndpoint(raw))
+	require.Equal(t, "https://cluster.example/prefix", sanitizedMetadataEndpoint(&rest.Config{Host: "https://user:password@cluster.example/prefix?token=secret#secret"}))
+	require.Empty(t, sanitizedMetadataEndpoint(nil))
+	for _, raw := range []string{"", "cluster.example/prefix", "file:///secret", "ftp://cluster.example", "https://%xx", "https://cluster.example:invalid", "https://"} {
+		require.Empty(t, sanitizedMetadataEndpoint(&rest.Config{Host: raw}), raw)
+	}
+}
+
+func TestConnectionMetadataRESTConfigEndpointNormalization(t *testing.T) {
+	tests := []struct {
+		name   string
+		config rest.Config
+		want   string
+	}{
+		{name: "bare IPv4", config: rest.Config{Host: "127.0.0.1"}, want: "http://127.0.0.1"},
+		{name: "bare IPv4 port", config: rest.Config{Host: "127.0.0.1:6443"}, want: "http://127.0.0.1:6443"},
+		{name: "bare DNS", config: rest.Config{Host: "cluster.example"}, want: "http://cluster.example"},
+		{name: "bare DNS port", config: rest.Config{Host: "cluster.example:443"}, want: "http://cluster.example:443"},
+		{name: "bare IPv6", config: rest.Config{Host: "[2001:db8::1]"}, want: "http://[2001:db8::1]"},
+		{name: "bare IPv6 port", config: rest.Config{Host: "[2001:db8::1]:6443"}, want: "http://[2001:db8::1]:6443"},
+		{name: "CA file selects TLS", config: rest.Config{Host: "cluster.example:6443", TLSClientConfig: rest.TLSClientConfig{CAFile: "/not-read/ca.crt"}}, want: "https://cluster.example:6443"},
+		{name: "CA data selects TLS", config: rest.Config{Host: "127.0.0.1:6443", TLSClientConfig: rest.TLSClientConfig{CAData: []byte("secret-ca")}}, want: "https://127.0.0.1:6443"},
+		{name: "certificate file selects TLS", config: rest.Config{Host: "cluster.example", TLSClientConfig: rest.TLSClientConfig{CertFile: "/not-read/client.crt"}}, want: "https://cluster.example"},
+		{name: "certificate data selects TLS", config: rest.Config{Host: "[2001:db8::1]:6443", TLSClientConfig: rest.TLSClientConfig{CertData: []byte("secret-cert")}}, want: "https://[2001:db8::1]:6443"},
+		{name: "insecure selects TLS", config: rest.Config{Host: "cluster.example", TLSClientConfig: rest.TLSClientConfig{Insecure: true}}, want: "https://cluster.example"},
+		{name: "server name alone does not select TLS", config: rest.Config{Host: "cluster.example", TLSClientConfig: rest.TLSClientConfig{ServerName: "cluster.example"}}, want: "http://cluster.example"},
+		{name: "explicit HTTP overrides TLS default", config: rest.Config{Host: "http://cluster.example/prefix", TLSClientConfig: rest.TLSClientConfig{Insecure: true}}, want: "http://cluster.example/prefix"},
+		{name: "explicit HTTPS keeps prefix", config: rest.Config{Host: "https://cluster.example/prefix", APIPath: "/api"}, want: "https://cluster.example/prefix"},
+		{name: "explicit URL strips secrets", config: rest.Config{Host: "https://user:secret@cluster.example/prefix%2Ftenant?token=secret#secret"}, want: "https://cluster.example/prefix%2Ftenant"},
+		{name: "explicit IPv6 strips secrets", config: rest.Config{Host: "http://user:secret@[2001:db8::1]:6443/prefix?token=secret#secret"}, want: "http://[2001:db8::1]:6443/prefix"},
+		{name: "bare host strips secrets", config: rest.Config{Host: "user:secret@cluster.example:6443?token=secret#secret"}, want: "http://cluster.example:6443"},
+		{name: "missing host stays unknown", config: rest.Config{}},
+		{name: "invalid host stays unknown", config: rest.Config{Host: "https://%xx"}},
+		{name: "non HTTP scheme stays unknown", config: rest.Config{Host: "ftp://user:secret@cluster.example?token=secret#secret"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			before := rest.CopyConfig(&tt.config)
+			update, err := connectionMetadata(context.Background(), types.Connection{}, &clients.ClientSet{RESTConfig: &tt.config})
+			require.NoError(t, err)
+			require.Equal(t, before, &tt.config)
+			endpoint := update.Set["kubernetes.server_url"]
+			if tt.want == "" {
+				require.Equal(t, "unavailable", endpoint.State)
+				require.Nil(t, endpoint.Value)
+			} else {
+				require.Equal(t, "success", endpoint.State)
+				require.Equal(t, tt.want, endpoint.Value)
+			}
+			require.Equal(t, "unavailable", update.Set["kubernetes.server_version"].State)
+			require.Equal(t, "unavailable", update.Set["kubernetes.server_platform"].State)
+			encoded, err := json.Marshal(update)
+			require.NoError(t, err)
+			require.NotContains(t, string(encoded), "secret")
+		})
 	}
 }
 

@@ -235,13 +235,19 @@ Unknown optional facts are omitted, and obsolete hints are explicitly removed on
 
 Environment badges and location chips appear in Cluster Info and the compact overview. Provenance is available on hover or keyboard focus; stale hints use amber history indicators. Account/project/subscription identifiers appear only in settings and support copying. The server platform field is labeled **Server OS / architecture** to distinguish it from hosting.
 
+Badges and observation indicators use keyboard-focusable buttons with concise names. Tooltips provide accessible descriptions without repeating the full provenance in the control name.
+
 The metadata callback makes a bounded `/version` request; it does not list Nodes or other resources. Overview and Cluster Info read the shared runtime metadata store rather than enriched `Connection.Data`. Stop retains stale display values; reconnect observes a new client generation. Metadata never grants resource support or authorization.
+
+Endpoint metadata uses client-go's effective URL normalization, including scheme-less hosts and configuration-based TLS defaults, before removing credentials, query strings, and fragments.
 
 Cluster Info presents a compact server identity panel; overview keeps an inline fact strip. Values remain primary. Clock indicators expose observation times on hover or keyboard focus, amber history indicators identify stale values, and unavailable facts show a dash with their reason in a tooltip. Initial reads use skeletons rather than status prose. Connected Cluster Info offers an explicit refresh action.
 
 The overview's node count uses the full acquired node collection, and health uses the acquired node, pod, and event collections with the selected namespace scope applied to pods and events. API-group counts and resource health remain resource/catalog information, not metadata.
 
 Folder rules use `metadata:<namespaced-key>` for observed facts. Existing endpoint/version/platform rules migrate in memory and persist through normal folder edits. Retired inventory/last-checked rules remain visible for review and do not match, including negative operators. Configuration-backed `data:*` rules retain their existing meaning.
+
+Metadata folder rules read only own string-valued keys. Inherited properties and invalid values remain unknown, including for negative operators.
 
 
 ## Local audit evidence fixture

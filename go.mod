@@ -11,7 +11,7 @@ require (
 	github.com/fairwindsops/polaris v0.0.0-20250421200712-d7d30ac6116e
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/gobuffalo/flect v1.0.2
-	github.com/omniviewdev/plugin-sdk v0.9.0
+	github.com/omniviewdev/plugin-sdk v0.9.1-0.20261031225250-85d184bd4557
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/zap v1.27.0
 	google.golang.org/protobuf v1.36.11

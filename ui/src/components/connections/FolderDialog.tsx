@@ -6,6 +6,7 @@ import type { EnrichedConnection, FolderRuleSet } from '../../types/clusters';
 import { processImageFile } from '../../utils/avatarUtils';
 import { FOLDER_ICON_MAP, PRESET_COLORS } from '../../utils/folderIcons';
 import { compileRuleSet, matchConnections } from '../../utils/folderRules';
+import { isRetiredConnectionDataKey, isRetiredInventoryDataKey } from '../../utils/migrateFolderMetadataRules';
 
 import styles from './FolderDialog.module.css';
 import RuleBuilder from './RuleBuilder';
@@ -164,7 +165,7 @@ const FolderDialog: React.FC<Props> = ({
       }
       if (conn.connection.data) {
         for (const key of Object.keys(conn.connection.data)) {
-          if (!['server_url', 'k8s_version', 'k8s_platform', 'node_count', 'api_groups', 'last_checked'].includes(key)) dataKeys.add(key);
+          if (!isRetiredConnectionDataKey(key)) dataKeys.add(key);
         }
       }
     }
@@ -473,7 +474,7 @@ const FolderDialog: React.FC<Props> = ({
                   </Text>
                 )}
               </button>
-              {ruleSet.rules.some((rule) => ['data:node_count', 'data:api_groups', 'data:last_checked'].includes(rule.field)) && (
+              {ruleSet.rules.some((rule) => rule.field.startsWith('data:') && isRetiredInventoryDataKey(rule.field.slice(5))) && (
                 <Text size="sm" role="alert">
                   Review required: saved inventory and last-checked rules are unsupported. These rules never match, including negative rules. Edit or remove them explicitly.
                 </Text>

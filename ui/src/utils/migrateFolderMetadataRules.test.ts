@@ -1,8 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import type { ConnectionGroup } from '../types/clusters';
-import { migrateFolderMetadataRules } from './migrateFolderMetadataRules';
+import { isRetiredConnectionDataKey, isRetiredInventoryDataKey, migrateFolderMetadataRules } from './migrateFolderMetadataRules';
 
 describe('persisted metadata rule migration', () => {
+  it('classifies all retired keys without hiding custom data or inherited property names', () => {
+    for (const key of ['server_url', 'k8s_version', 'k8s_platform']) {
+      expect(isRetiredConnectionDataKey(key)).toBe(true);
+      expect(isRetiredInventoryDataKey(key)).toBe(false);
+    }
+    for (const key of ['node_count', 'api_groups', 'last_checked']) {
+      expect(isRetiredConnectionDataKey(key)).toBe(true);
+      expect(isRetiredInventoryDataKey(key)).toBe(true);
+    }
+    for (const key of ['cluster', 'custom.fact', 'constructor', 'toString']) {
+      expect(isRetiredConnectionDataKey(key)).toBe(false);
+      expect(isRetiredInventoryDataKey(key)).toBe(false);
+    }
+  });
+
   it('migrates only observed server facts once, preserving configuration and unsupported inventory rules', () => {
     const groups: ConnectionGroup[] = [{ id: 'owned', name: 'Owned', connectionIds: ['manual'], ruleSet: { logic: 'and', rules: [
       { id: '1', field: 'data:server_url', operator: 'equals', value: 'https://cluster' },

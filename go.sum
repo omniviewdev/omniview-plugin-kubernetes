@@ -274,6 +274,8 @@ github.com/omniviewdev/plugin-sdk v0.8.0 h1:CibBmPIFvGc/NOcd7nL+3AiM/O4JZ7ylXCiU
 github.com/omniviewdev/plugin-sdk v0.8.0/go.mod h1:HK/2ko8mBLEhp1o13io1dBgmQYnrATYsmEyiFVoOy3U=
 github.com/omniviewdev/plugin-sdk v0.9.0 h1:ym7jC0enfC6sFavD4nPqeasN72+6PfYbMXU81ILsxps=
 github.com/omniviewdev/plugin-sdk v0.9.0/go.mod h1:VReFHa5ZuQmSbY654Humc8HmLShtexhid0a2TOxci9g=
+github.com/omniviewdev/plugin-sdk v0.9.1-0.20261031225250-85d184bd4557 h1:NxZn0AfMsOhwZf7kkXp7qU65e2xr8W2XsIw/1dNJJf0=
+github.com/omniviewdev/plugin-sdk v0.9.1-0.20261031225250-85d184bd4557/go.mod h1:VReFHa5ZuQmSbY654Humc8HmLShtexhid0a2TOxci9g=
 github.com/onsi/ginkgo/v2 v2.27.2 h1:LzwLj0b89qtIy6SSASkzlNvX6WktqurSHwkk2ipF/Ns=
 github.com/onsi/ginkgo/v2 v2.27.2/go.mod h1:ArE1D/XhNXBXCBkKOLkbsb2c81dQHCRcF5zwn/ykDRo=
 github.com/onsi/gomega v1.38.2 h1:eZCjf2xjZAqe+LeWvKb5weQ+NcPwX84kqJ0cZNxok2A=

@@ -104,6 +104,41 @@ describe('field resolution', () => {
     }
   });
 
+  it('treats inherited and nonstring metadata as unknown for every operator', () => {
+    const operators = ['equals', 'not_equals', 'contains', 'not_contains', 'matches_regex', 'exists', 'not_exists'] as const;
+    const invalidMetadata: Record<string, unknown>[] = [
+      {},
+      Object.create({ constructor: 'valid', toString: 'valid', 'custom.fact': 'valid' }),
+      { constructor: 42, toString: false, 'custom.fact': ['valid'] },
+      { constructor: null, toString: {}, 'custom.fact': undefined },
+    ];
+    for (const metadata of invalidMetadata) {
+      for (const key of ['constructor', 'toString', 'custom.fact']) {
+        for (const operator of operators) {
+          const rs: FolderRuleSet = {
+            logic: 'and',
+            rules: [{ id: '1', field: `metadata:${key}`, operator, value: 'valid' }],
+          };
+          const conn = makeConn({ metadata: metadata as Record<string, string> });
+          expect(matchConnections(compileRuleSet(rs), [conn]).size).toBe(0);
+        }
+      }
+    }
+  });
+
+  it('matches legitimate own metadata strings, including literal dotted keys', () => {
+    const metadata = { constructor: 'valid', toString: 'valid', 'custom.fact': 'valid' };
+    for (const key of Object.keys(metadata)) {
+      for (const operator of ['equals', 'contains', 'matches_regex', 'exists', 'not_equals', 'not_contains'] as const) {
+        const rs: FolderRuleSet = {
+          logic: 'and',
+          rules: [{ id: '1', field: `metadata:${key}`, operator, value: operator.startsWith('not_') ? 'other' : 'valid' }],
+        };
+        expect(matchConnections(compileRuleSet(rs), [makeConn({ metadata })])).toEqual(new Set(['conn-1']));
+      }
+    }
+  });
+
   it('matches by tag (any element)', () => {
     const conns = [
       makeConn({ id: 'a', tags: ['production', 'critical'] }),

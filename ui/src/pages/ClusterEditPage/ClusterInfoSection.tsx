@@ -23,7 +23,7 @@ function ClusterInfoSection({ conn }: { conn: types.Connection; formatTime: (t: 
               <ConnectionMetadataValue {...metadata} metadataKey="kubernetes.server_url" label="API server" size="sm" mono />
             </Stack>
             {metadata.snapshot?.active && metadata.transportAvailable && (
-              <SimpleTooltip content="Refresh server details">
+              <SimpleTooltip content="Queries the server version endpoint without reading resource inventory.">
                 <IconButton size="sm" color="neutral" variant="ghost" aria-label="Refresh server details" disabled={refreshing} onClick={() => { void metadata.refresh(); }}>
                   {refreshing ? <Spinner size="sm" /> : <LuRefreshCw size={15} />}
                 </IconButton>

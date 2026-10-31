@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"net/url"
 	"time"
 
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
+	"k8s.io/client-go/rest"
 )
 
 // connectionMetadata observes public server facts and bounded configuration hints.
@@ -27,7 +27,7 @@ func connectionMetadata(ctx context.Context, connection types.Connection, client
 	}
 	endpoint := ""
 	if client != nil && client.RESTConfig != nil {
-		endpoint = sanitizedMetadataEndpoint(client.RESTConfig.Host)
+		endpoint = sanitizedMetadataEndpoint(client.RESTConfig)
 	}
 	observe("kubernetes.server_url", endpoint)
 	version := ""
@@ -70,8 +70,12 @@ func connectionMetadata(ctx context.Context, connection types.Connection, client
 	return update, nil
 }
 
-func sanitizedMetadataEndpoint(raw string) string {
-	endpoint, err := url.Parse(raw)
+func sanitizedMetadataEndpoint(config *rest.Config) string {
+	if config == nil || config.Host == "" {
+		return ""
+	}
+	// Match the REST client's host normalization and configuration-based TLS default.
+	endpoint, _, err := rest.DefaultServerUrlFor(config)
 	if err != nil || endpoint.Host == "" || (endpoint.Scheme != "https" && endpoint.Scheme != "http") {
 		return ""
 	}
