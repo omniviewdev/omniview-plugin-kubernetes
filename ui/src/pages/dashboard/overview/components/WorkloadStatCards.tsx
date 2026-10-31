@@ -13,7 +13,7 @@ import {
 } from 'react-icons/lu';
 
 import WorkloadSummaryCard from './WorkloadSummaryCard';
-import { SourcePageControls } from '../../../../components/shared/SourcePageControls';
+import { CollectionStatus } from '../../../../components/shared/CollectionStatus';
 
 /**
  * Generic filter for namespaced K8s resources.
@@ -76,7 +76,7 @@ export const PodStatCard = React.memo(function PodStatCard({
 
   return (
     <WorkloadSummaryCard
-      title="Pods on this page"
+      title="Pods"
       icon={ICON_POD}
       total={stats.total}
       statuses={stats.statuses}
@@ -117,13 +117,13 @@ export const DeploymentStatCard = React.memo(function DeploymentStatCard({
 
   return (
     <WorkloadSummaryCard
-      title="Deployments on this page"
+      title="Deployments"
       icon={ICON_DEPLOY}
       total={stats.total}
       statuses={stats.statuses}
       loading={deployments.isLoading}
       onClick={onClick}
-      footer={<SourcePageControls {...deployments.pageControls} label="Deployments" compact />}
+      footer={<CollectionStatus {...deployments} label="Deployments" />}
     />
   );
 });
@@ -159,13 +159,13 @@ export const StatefulSetStatCard = React.memo(function StatefulSetStatCard({
 
   return (
     <WorkloadSummaryCard
-      title="StatefulSets on this page"
+      title="StatefulSets"
       icon={ICON_STS}
       total={stats.total}
       statuses={stats.statuses}
       loading={statefulSets.isLoading}
       onClick={onClick}
-      footer={<SourcePageControls {...statefulSets.pageControls} label="StatefulSets" compact />}
+      footer={<CollectionStatus {...statefulSets} label="StatefulSets" />}
     />
   );
 });
@@ -201,13 +201,13 @@ export const DaemonSetStatCard = React.memo(function DaemonSetStatCard({
 
   return (
     <WorkloadSummaryCard
-      title="DaemonSets on this page"
+      title="DaemonSets"
       icon={ICON_DS}
       total={stats.total}
       statuses={stats.statuses}
       loading={daemonSets.isLoading}
       onClick={onClick}
-      footer={<SourcePageControls {...daemonSets.pageControls} label="DaemonSets" compact />}
+      footer={<CollectionStatus {...daemonSets} label="DaemonSets" />}
     />
   );
 });
@@ -248,13 +248,13 @@ export const JobStatCard = React.memo(function JobStatCard({
 
   return (
     <WorkloadSummaryCard
-      title="Jobs on this page"
+      title="Jobs"
       icon={ICON_JOB}
       total={stats.total}
       statuses={stats.statuses}
       loading={jobs.isLoading}
       onClick={onClick}
-      footer={<SourcePageControls {...jobs.pageControls} label="Jobs" compact />}
+      footer={<CollectionStatus {...jobs} label="Jobs" />}
     />
   );
 });
@@ -288,13 +288,13 @@ export const CronJobStatCard = React.memo(function CronJobStatCard({
 
   return (
     <WorkloadSummaryCard
-      title="CronJobs on this page"
+      title="CronJobs"
       icon={ICON_CRONJOB}
       total={stats.total}
       statuses={stats.statuses}
       loading={cronJobs.isLoading}
       onClick={onClick}
-      footer={<SourcePageControls {...cronJobs.pageControls} label="CronJobs" compact />}
+      footer={<CollectionStatus {...cronJobs} label="CronJobs" />}
     />
   );
 });

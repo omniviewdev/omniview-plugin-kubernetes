@@ -19,7 +19,7 @@ vi.mock('@omniviewdev/runtime', () => ({
   useResolvedResourceTarget: mocks.resolve,
   useResources: (options: { request?: unknown }) => {
     const result = mocks.resources(options);
-    return { ...result, refreshAcquiredPage: result.resources.refetch, acquired: result.resources.data ? { request: options.request, page: result.resources.data } : undefined };
+    return { ...result, acquired: result.resources.data ? { request: options.request, page: result.resources.data } : undefined };
   },
   useExecuteAction: () => ({ executeAction: vi.fn(), isExecuting: false }),
   useRightDrawer: () => ({ showResourceSidebar: mocks.sidebar }),
@@ -35,25 +35,26 @@ function context(repository = 'native-repo') {
   } as DrawerContext<{ name?: string; url?: string }>;
 }
 
-describe('repository chart source pages', () => {
+describe('repository chart collections', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.resolve.mockImplementation(({ scope }) => ({ data: { targetId: JSON.stringify(scope), target: { scope } } }));
-    mocks.resources.mockImplementation(({ request }) => {
-      const second = request?.request.cursor !== undefined;
+    mocks.resources.mockImplementation(() => {
       return { resources: {
         data: {
-          records: [{ key: second ? 'host-second' : 'host-first', route: { connection: 'connection' }, targetId: 'host-target', record: {
-            reference: { address: { id: second ? 'opaque-chart-second' : 'opaque-chart-first' } },
-            representation: { id: 'helm-native-v1' }, body: { name: second ? 'Later chart' : 'Selected chart', repository: 'native-repo' },
-          } }],
-          sourcePage: { nextCursor: second ? undefined : 'source-cursor/256', count: { kind: 'unknown' } },
+          records: ['first', 'second'].map((id) => ({
+            key: `host-${id}`, route: { connection: 'connection' }, targetId: 'host-target', record: {
+              reference: { address: { id: `opaque-chart-${id}` } },
+              representation: { id: 'helm-native-v1' },
+              body: { name: id === 'first' ? 'Selected chart' : 'Later chart', repository: 'native-repo' },
+            },
+          })),
         }, isSuccess: true, isFetching: false, refetch: mocks.refresh,
       } };
     });
   });
 
-  it('queries selected native repository before pagination and opens host records unchanged', () => {
+  it('queries selected native repository as a collection and opens host records unchanged', () => {
     render(<RepoSidebar ctx={context()} />);
     expect(mocks.resolve).toHaveBeenCalledWith(expect.objectContaining({
       type: 'helm:charts', scope: [
@@ -67,22 +68,23 @@ describe('repository chart source pages', () => {
       reference: { address: { id: 'opaque-chart-first' } }, targetId: 'host-target',
       record: expect.objectContaining({ key: 'host-first' }),
     }));
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
-    expect(mocks.resources).toHaveBeenLastCalledWith(expect.objectContaining({
-      request: expect.objectContaining({ request: expect.objectContaining({ cursor: 'source-cursor/256', pageSize: 256 }) }),
-    }));
-    expect(screen.queryByText('Selected chart')).toBeNull();
+    expect(mocks.resources).toHaveBeenLastCalledWith(expect.objectContaining({ collection: true }));
     expect(screen.getByText('Later chart')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh page' }));
-    expect(mocks.refresh).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: 'Next' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Previous' })).toBeNull();
+    fireEvent.click(screen.getByText('Later chart'));
+    expect(mocks.sidebar).toHaveBeenLastCalledWith(expect.objectContaining({
+      reference: { address: { id: 'opaque-chart-second' } }, targetId: 'host-target',
+      record: expect.objectContaining({ key: 'host-second' }),
+    }));
   });
 
-  it('resets source cursor when selected native repository changes', () => {
+  it('resolves a new collection when selected native repository changes', () => {
     const view = render(<RepoSidebar ctx={context()} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     view.rerender(<RepoSidebar ctx={context('other-native-repo')} />);
-    expect(mocks.resources).toHaveBeenLastCalledWith(expect.objectContaining({
-      request: expect.objectContaining({ request: expect.objectContaining({ cursor: undefined }) }),
+    expect(mocks.resolve).toHaveBeenLastCalledWith(expect.objectContaining({
+      scope: expect.arrayContaining([{ dimension: 'repository', match: 'oneOf', values: ['other-native-repo'] }]),
     }));
+    expect(mocks.resources).toHaveBeenLastCalledWith(expect.objectContaining({ collection: true }));
   });
 });

@@ -14,8 +14,8 @@ const mocks = vi.hoisted(() => {
     resources: vi.fn(),
     query: vi.fn(async () => ({})),
     loading: false,
-    firstData: { records: [first], sourcePage: { nextCursor: 'native-next' } },
-    secondData: { records: [second], sourcePage: { nextCursor: undefined } },
+    firstData: { records: [first, second] },
+    targetId: 'host-target',
   };
 });
 vi.mock('@omniviewdev/base-ui', async (importOriginal) => ({
@@ -35,7 +35,7 @@ vi.mock('@omniviewdev/base-ui', async (importOriginal) => ({
 vi.mock('@omniviewdev/runtime/api', () => ({ MetricClient: { QueryAll: mocks.query } }));
 vi.mock('@omniviewdev/runtime', () => ({
   useResourceType: () => ({ resourceType: { data: { displayName: 'Charts', capabilities: [] } } }),
-  useResolvedResourceTarget: () => ({ data: { targetId: 'host-target', target: { type: 'helm:charts' } } }),
+  useResolvedResourceTarget: () => ({ data: { targetId: mocks.targetId, target: { type: 'helm:charts' } } }),
   useResources: mocks.resources,
   usePluginRouter: () => ({ location: { search: '', key: 'location', pathname: '/' } }),
   useRightDrawer: () => ({ openDrawer: vi.fn() }),
@@ -46,7 +46,7 @@ vi.mock('../../drawer/DrawerActionsBridge', () => ({ default: () => null }));
 vi.mock('./ResourceTableToolbar', () => ({ default: ({ allFlatColumns }: { allFlatColumns: Array<{ id: string; toggleVisibility: (visible: boolean) => void }> }) => (
   <button onClick={() => allFlatColumns.find((column) => column.id === 'cpuUsage')?.toggleVisibility(true)}>Show CPU</button>
 ) }));
-vi.mock('./ResourceTableErrorState', () => ({ default: () => <div>Page failed</div> }));
+vi.mock('./ResourceTableErrorState', () => ({ default: () => <div>Collection failed</div> }));
 vi.mock('./rows', () => ({ decodeResourceTableRows: (records: Array<{ key: string; record: { body: { name: string } } }>) => ({
   rows: records.map(({ record }) => record.body),
   recordsByBody: new WeakMap(records.map((record) => [record.record.body, record])),
@@ -66,10 +66,10 @@ function MetricsConsumer({ columnVisibility, children }: PropsWithChildren<{ col
 
 beforeEach(() => {
   mocks.loading = false;
+  mocks.targetId = 'host-target';
   mocks.resources.mockReset();
   mocks.resources.mockImplementation(({ request }) => {
-    const second = request?.request.cursor !== undefined;
-    const data = mocks.loading ? undefined : second ? mocks.secondData : mocks.firstData;
+    const data = mocks.loading ? undefined : mocks.firstData;
     return { acquired: data ? { request, page: data } : undefined, resources: {
       data,
       isLoading: mocks.loading, isFetching: mocks.loading, isSuccess: !mocks.loading, refetch: vi.fn(),
@@ -78,24 +78,31 @@ beforeEach(() => {
 });
 afterEach(() => { client.clear(); localStorage.clear(); mocks.query.mockClear(); });
 
-describe('resource source-page selections', () => {
-  it('retains host-key selections per page without selecting another page or clearing during acquisition', () => {
+describe('resource collection selections', () => {
+  it('selects host keys across the collection without source-page controls', () => {
+    render(<ResourceTable connectionID="connection" resourceKey="helm:charts" columns={columns} />);
+    fireEvent.click(screen.getByRole('button', { name: 'host-first' }));
+    fireEvent.click(screen.getByRole('button', { name: 'host-second' }));
+    expect(screen.getByRole('button', { name: 'host-first' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: 'host-second' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.queryByRole('button', { name: 'Next' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Previous' })).toBeNull();
+    expect(mocks.resources).toHaveBeenLastCalledWith(expect.objectContaining({
+      pluginID: 'kubernetes',
+      request: expect.objectContaining({ targetId: 'host-target' }),
+      live: false, collection: true,
+    }));
+  });
+
+  it('resets collection selection when resolved target context changes', () => {
     const view = render(<ResourceTable connectionID="connection" resourceKey="helm:charts" columns={columns} />);
     fireEvent.click(screen.getByRole('button', { name: 'host-first' }));
-    expect(screen.getByRole('button', { name: 'host-first' }).getAttribute('aria-pressed')).toBe('true');
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
-    expect(screen.queryByRole('button', { name: 'host-first' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'host-second' }).getAttribute('aria-pressed')).toBe('false');
-    mocks.loading = true;
-    fireEvent.click(screen.getByRole('button', { name: 'Previous' }));
-    mocks.loading = false;
     view.rerender(<ResourceTable connectionID="connection" resourceKey="helm:charts" columns={columns} />);
     expect(screen.getByRole('button', { name: 'host-first' }).getAttribute('aria-pressed')).toBe('true');
-    expect(mocks.resources).toHaveBeenLastCalledWith({
-      pluginID: 'kubernetes',
-      request: { targetId: 'host-target', request: { target: { type: 'helm:charts' }, pageSize: 256, cursor: undefined } },
-      live: false,
-    });
+    mocks.targetId = 'other-target';
+    view.rerender(<ResourceTable connectionID="other-connection" resourceKey="helm:charts" columns={columns} />);
+    expect(screen.getByRole('button', { name: 'host-first' }).getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByRole('button', { name: 'host-second' }).getAttribute('aria-pressed')).toBe('false');
   });
 });
 

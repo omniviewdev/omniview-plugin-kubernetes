@@ -13,7 +13,7 @@ type Args = {
   resourceKey: string;
 };
 
-/** Discovers label and annotation columns from the table's unfiltered source page. */
+/** Discovers label and annotation columns from the table's unfiltered collection. */
 export const useDynamicResourceColumns = <T extends RowData>({
   rows,
   resourceKey,

@@ -1,5 +1,5 @@
 import type { DataTableFeatures } from '@omniviewdev/base-ui';
-import { DataTable, Progress, Skeleton, dataTableFeatures } from '@omniviewdev/base-ui';
+import { Button, DataTable, Progress, Skeleton, dataTableFeatures } from '@omniviewdev/base-ui';
 import { useResources, useResourceType, useResolvedResourceTarget, useRightDrawer, usePluginRouter, DrawerComponent } from '@omniviewdev/runtime';
 import {
   type ColumnDef,
@@ -41,8 +41,6 @@ import ResourceTableToolbar from './ResourceTableToolbar';
 
 import { useConnectionNamespaces } from '@/hooks/useConnectionNamespaces';
 import { useStoredState } from '@/hooks/useStoredState';
-import { useSourcePageNavigation } from '@/hooks/useSourcePageNavigation';
-import { SourcePageControls } from '../../SourcePageControls';
 
 import { decodeResourceTableRows } from './rows';
 
@@ -118,10 +116,10 @@ const ResourceTableContainer = <T extends RowData,>({
     `kubernetes-${connectionID}-${resourceKey}-column-sizing`,
     {},
   );
-  const [pageSelections, setPageSelections] = useState<{
+  const [collectionSelection, setCollectionSelection] = useState<{
     context: string;
-    pages: Array<{ cursor?: string; selection: RowSelectionState }>;
-  }>({ context: '', pages: [] });
+    selection: RowSelectionState;
+  }>({ context: '', selection: {} });
   const { location } = usePluginRouter();
   const navigationSearch = new URLSearchParams(location.search).get('search') ?? '';
   const [search, setSearch] = useState<string>(navigationSearch);
@@ -157,32 +155,26 @@ const ResourceTableContainer = <T extends RowData,>({
     route: { connection: connectionID },
     type: resourceKey,
   });
-  const pageContext = JSON.stringify([connectionID, resourceKey, target.data]);
-  const navigation = useSourcePageNavigation(pageContext);
-  const { resources, acquired, refreshAcquiredPage, isSyncing, watchError, membershipStale } = useResources({
+  const collectionContext = JSON.stringify([connectionID, resourceKey, target.data]);
+  const { resources, acquired, isSyncing, watchError } = useResources({
     pluginID: PLUGIN_ID,
+    collection: true,
     request: target.data ? {
       targetId: target.data.targetId,
-      request: { target: target.data.target, pageSize: 256, cursor: navigation.cursor },
+      request: { target: target.data.target, pageSize: 256 },
     } : undefined,
     live: resourceType.data?.capabilities.some((capability) => capability.operation === 'update') ?? false,
   });
-  const pagination = acquired ? navigation.forAcquiredPage(acquired.request.request.cursor) : navigation;
-  const rowSelection = pageSelections.context === pageContext
-    ? pageSelections.pages.find((page) => page.cursor === pagination.displayedCursor)?.selection ?? {}
-    : {};
+  const rowSelection = collectionSelection.context === collectionContext ? collectionSelection.selection : {};
   const setRowSelection = React.useCallback<React.Dispatch<React.SetStateAction<RowSelectionState>>>((update) => {
-    setPageSelections((state) => {
-      const pages = state.context === pageContext ? state.pages : [];
-      const current = pages.find((page) => page.cursor === pagination.displayedCursor)?.selection ?? {};
+    setCollectionSelection((state) => {
+      const current = state.context === collectionContext ? state.selection : {};
       const selection = typeof update === 'function' ? update(current) : update;
-      if (selection === current) return state;
-      return {
-        context: pageContext,
-        pages: [...pages.filter((page) => page.cursor !== pagination.displayedCursor), { cursor: pagination.displayedCursor, selection }].slice(-17),
-      };
+      return selection === current && state.context === collectionContext
+        ? state
+        : { context: collectionContext, selection };
     });
-  }, [pageContext, pagination.displayedCursor]);
+  }, [collectionContext]);
   const { rows, recordsByBody, rowKeys } = useMemo(
     () => decodeResourceTableRows(acquired?.page.records ?? []),
     [acquired?.page],
@@ -317,7 +309,7 @@ const ResourceTableContainer = <T extends RowData,>({
 
     const count = rows.length;
 
-    return `Search ${count ? `${count} ` : ''}${resource} on this page...`;
+    return `Search ${count ? `${count} ` : ''}${resource}...`;
   };
 
   if (target.isError || (resources.isError && !acquired)) {
@@ -327,7 +319,7 @@ const ResourceTableContainer = <T extends RowData,>({
           error={target.error ?? resources.error}
           resourceKey={resourceKey}
         />
-        <SourcePageControls pagination={pagination} label={resourceKey} loading={resources.isFetching} error={target.error ?? resources.error} retry={target.data ? () => { void resources.refetch(); } : undefined} />
+        <Button size="sm" variant="outline" onClick={() => { void (target.isError ? target.refetch() : resources.refetch()); }}>Retry</Button>
       </>
     );
   }
@@ -338,8 +330,7 @@ const ResourceTableContainer = <T extends RowData,>({
       {drawer && <DrawerActionsBridge connectionID={connectionID} resourceKey={resourceKey} />}
       <div className={styles.outer}>
         {watchError && <div role="status">Live updates unavailable. Showing the last acquired resources.</div>}
-        <SourcePageControls pagination={pagination} nextCursor={acquired?.page.sourcePage.nextCursor} loading={target.isLoading || resources.isFetching} error={resources.error} retry={() => { void resources.refetch(); }} refresh={target.data ? () => { void refreshAcquiredPage(); } : undefined} membershipStale={membershipStale} label={resourceType.data?.displayName ?? resourceKey} />
-        <div role="status">Bounded source page. Visible-row updates are best effort, not a complete live collection. Refresh to check page membership.</div>
+        {resources.isError && <div role="alert">Could not update resources. <Button size="sm" variant="outline" onClick={() => { void resources.refetch(); }}>Retry</Button></div>}
         <DataTable.Root
           table={table}
           features={TABLE_FEATURES}

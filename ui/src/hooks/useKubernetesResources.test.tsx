@@ -12,7 +12,7 @@ vi.mock('@omniviewdev/runtime', () => ({
   useResolvedResourceTarget: mocks.resolve,
   useResources: (options: { request?: unknown }) => {
     const result = mocks.resources(options);
-    return { ...result, refreshAcquiredPage: result.resources.refetch, acquired: options.request && result.resources.data ? { request: options.request, page: result.resources.data } : undefined };
+    return { ...result, acquired: options.request && result.resources.data ? { request: options.request, page: result.resources.data } : undefined };
   },
   valueToJSON: mocks.decode,
 }));
@@ -46,8 +46,8 @@ describe('useKubernetesResources', () => {
     }));
     expect(mocks.resources).toHaveBeenCalledWith(expect.objectContaining({
       pluginID: 'kubernetes-preview',
-      request: { targetId: 'host-membership', request: { target: { authority: 'host-authority' }, pageSize: 200, cursor: undefined } },
-      live: true,
+      request: { targetId: 'host-membership', request: { target: { authority: 'host-authority' }, pageSize: 200 } },
+      live: true, collection: true,
     }));
     expect(result.current.bodies).toEqual([9007199254740993n]);
     expect(mocks.types).toHaveBeenCalledWith({
@@ -78,7 +78,7 @@ describe('useKubernetesResources', () => {
     }));
   });
 
-  it('exposes catalog failure rather than presenting an empty successful page', () => {
+  it('exposes catalog failure rather than presenting an empty successful collection', () => {
     const error = new Error('Catalog unavailable');
     mocks.types.mockReturnValue({ data: undefined, isLoading: false, error });
     mocks.resolve.mockReturnValue({ data: undefined, isLoading: false });
@@ -86,10 +86,32 @@ describe('useKubernetesResources', () => {
       connectionID: 'selected-cluster', resourceType: 'k8s:/pods',
     }));
     expect(result.current.error).toBe(error);
-    expect(result.current.pageControls.error).toBe(error);
     expect(mocks.resources).toHaveBeenCalledWith(expect.objectContaining({
       request: undefined, enabled: false,
     }));
+  });
+
+  it('retries catalog failure before collection acquisition', () => {
+    const refetch = vi.fn();
+    mocks.types.mockReturnValue({ data: undefined, isLoading: false, error: new Error('Catalog unavailable'), refetch });
+    mocks.resolve.mockReturnValue({ data: undefined, isLoading: false });
+    const { result } = renderHook(() => useKubernetesResources({
+      connectionID: 'selected-cluster', resourceType: 'k8s:/pods',
+    }));
+    act(() => result.current.retry());
+    expect(refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries host target resolution failure', () => {
+    const refetch = vi.fn();
+    const error = new Error('Target unavailable');
+    mocks.resolve.mockReturnValue({ data: undefined, isLoading: false, error, refetch });
+    const { result } = renderHook(() => useKubernetesResources({
+      connectionID: 'selected-cluster', resourceType: 'k8s:/pods',
+    }));
+    expect(result.current.error).toBe(error);
+    act(() => result.current.retry());
+    expect(refetch).toHaveBeenCalledTimes(1);
   });
 
   it('does not admit a request before catalog and host resolution', () => {
@@ -99,48 +121,42 @@ describe('useKubernetesResources', () => {
     expect(mocks.resources).toHaveBeenCalledWith(expect.objectContaining({ request: undefined, enabled: false }));
   });
 
-  it('exposes explicit continuation without draining or accumulating rows', () => {
+  it('returns every acquired record without exposing source-page navigation', () => {
     mocks.resources.mockReturnValue({ resources: { data: {
-      records: [{ key: 'first', record: { body: {} } }],
-      sourcePage: { nextCursor: 'native/source/cursor', count: { kind: 'unknown' }, consistency: 'bestEffort' },
+      records: [
+        { key: 'first', record: { body: {} } },
+        { key: 'second', record: { body: {} } },
+      ],
     }, isLoading: false } });
-    const { result, rerender } = renderHook(() => useKubernetesResources({ connectionID: 'selected', resourceType: 'k8s:/pods' }));
-    expect(mocks.resources).toHaveBeenCalledTimes(1);
-    expect(result.current.sourcePage?.count.kind).toBe('unknown');
-    act(() => result.current.pagination.nextPage(result.current.sourcePage?.nextCursor));
-    expect(mocks.resources).toHaveBeenLastCalledWith(expect.objectContaining({
-      request: expect.objectContaining({ request: expect.objectContaining({ cursor: 'native/source/cursor', pageSize: 200 }) }),
-    }));
-    mocks.resources.mockReturnValue({ resources: { data: { records: [{ key: 'second', record: { body: {} } }], sourcePage: { count: { kind: 'unknown' } } }, isLoading: false } });
-    rerender();
-    expect(result.current.records.map(({ key }) => key)).toEqual(['second']);
-    act(() => result.current.pagination.previousPage());
-    expect(mocks.resources).toHaveBeenLastCalledWith(expect.objectContaining({
-      request: expect.objectContaining({ request: expect.objectContaining({ cursor: undefined }) }),
-    }));
+    const { result } = renderHook(() => useKubernetesResources({ connectionID: 'selected', resourceType: 'k8s:/pods' }));
+    expect(mocks.resources).toHaveBeenLastCalledWith(expect.objectContaining({ collection: true }));
+    expect(result.current.records.map(({ key }) => key)).toEqual(['first', 'second']);
+    expect(result.current).not.toHaveProperty('pagination');
+    expect(result.current).not.toHaveProperty('pageControls');
+    expect(result.current).not.toHaveProperty('sourcePage');
   });
 
-  it('never sends a previous target cursor to a newly resolved membership', () => {
-    const { result, rerender } = renderHook(() => useKubernetesResources({ connectionID: 'selected', resourceType: 'k8s:/pods' }));
-    act(() => result.current.pagination.nextPage('old-cursor'));
+  it('uses newly resolved host authority when membership changes', () => {
+    const { rerender } = renderHook(() => useKubernetesResources({ connectionID: 'selected', resourceType: 'k8s:/pods' }));
     mocks.resolve.mockReturnValue({ data: { targetId: 'new-membership', target: { authority: 'new-authority' } }, isLoading: false });
     rerender();
     expect(mocks.resources).toHaveBeenLastCalledWith(expect.objectContaining({
-      request: { targetId: 'new-membership', request: { target: { authority: 'new-authority' }, pageSize: 200, cursor: undefined } },
+      request: { targetId: 'new-membership', request: { target: { authority: 'new-authority' }, pageSize: 200 } },
+      collection: true,
     }));
   });
 
-  it('preserves visible-page advisory updates and exposes explicit stale-page refresh', () => {
+  it('exposes collection loading, errors, and explicit retry', () => {
     const refetch = vi.fn();
+    const error = new Error('Collection unavailable');
     mocks.resources.mockReturnValue({
-      resources: { data: { records: [], sourcePage: { count: { kind: 'unknown' } } }, isFetching: false, refetch },
-      membershipStale: true,
+      resources: { data: undefined, isLoading: true, error, refetch },
     });
     const { result } = renderHook(() => useKubernetesResources({ connectionID: 'selected', resourceType: 'k8s:/pods' }));
-    expect(mocks.resources).toHaveBeenLastCalledWith(expect.objectContaining({ live: true }));
-    expect(result.current.pageControls.membershipStale).toBe(true);
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.error).toBe(error);
     expect(refetch).not.toHaveBeenCalled();
-    act(() => result.current.pageControls.refresh?.());
+    act(() => result.current.retry());
     expect(refetch).toHaveBeenCalledTimes(1);
   });
 });

@@ -9,6 +9,7 @@ const fixture = vi.hoisted(() => ({
   results: {} as Record<string, { bodies?: Pod[]; isLoading: boolean; isError?: boolean }>,
   navigate: vi.fn(),
   ingest: vi.fn(),
+  retry: vi.fn(),
 }));
 
 vi.mock('react-router', () => ({ useParams: () => ({ id: fixture.connectionID }) }));
@@ -25,11 +26,8 @@ vi.mock('../../../hooks/useKubernetesResources', () => ({
       : { bodies: [], isLoading: false };
     return {
       ...result,
-      pageControls: {
-        pagination: { pageNumber: 1, isFirstRequest: true, canPrevious: false,
-          firstPage: vi.fn(), previousPage: vi.fn(), nextPage: vi.fn() },
-        error: result.isError ? new Error('Source unavailable') : undefined,
-      },
+      error: result.isError ? new Error('Source unavailable') : undefined,
+      retry: fixture.retry,
     };
   },
 }));
@@ -59,6 +57,7 @@ beforeEach(() => {
   fixture.connectionID = 'cluster-a';
   fixture.navigate.mockClear();
   fixture.ingest.mockClear();
+  fixture.retry.mockClear();
   fixture.results = {
     'cluster-a': {
       bodies: [
@@ -106,6 +105,8 @@ describe('dashboard shared Pod result', () => {
     expect(podCard()).toHaveTextContent('0');
     expect(podCard()).toHaveTextContent('No active workloads');
     expect(screen.getAllByRole('alert').some((alert) => alert.textContent?.includes('Source unavailable'))).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Retry pods' }));
+    expect(fixture.retry).toHaveBeenCalledOnce();
 
     fixture.results['cluster-a'] = { bodies: [pod('alpha', 'Failed')], isLoading: false };
     view.rerender(<ClusterDashboardOverviewPage />);
@@ -122,8 +123,8 @@ describe('dashboard shared Pod result', () => {
   it('ingests Pods once and navigates using the canonical encoded resource route', () => {
     render(<ClusterDashboardOverviewPage />);
     expect(fixture.ingest.mock.calls.filter(([request]) => request.resourceType === 'k8s:/pods')).toHaveLength(1);
-    expect(screen.getByText(/not cluster totals/)).toBeInTheDocument();
-    expect(screen.getByRole('group', { name: /Health pods source pages; total unknown/ })).toBeInTheDocument();
+    expect(screen.queryByText(/source pages|not cluster totals|total unknown/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /next page|previous page/i })).not.toBeInTheDocument();
     fireEvent.click(podCard());
     expect(fixture.navigate).toHaveBeenCalledWith('/cluster/cluster-a/resources/k8s%3A%2Fpods');
   });

@@ -3,7 +3,6 @@ import type { Event as K8sEvent } from 'kubernetes-types/core/v1';
 import { useMemo } from 'react';
 
 import type { KubeEvent, TimelineEvent } from '../types/events';
-import type { SourcePageControlsProps } from '../components/shared/SourcePageControls';
 
 
 export interface UseResourceEventsOptions {
@@ -24,7 +23,7 @@ export interface UseResourceEventsResult {
   timelineEvents: TimelineEvent[];
   isLoading: boolean;
   warningCount: number;
-  pageControls: SourcePageControlsProps;
+  retry: () => void;
   error: unknown;
 }
 
@@ -44,8 +43,8 @@ function formatAge(timestamp?: string): string {
 }
 
 /**
- * Reads one bounded canonical Kubernetes Event page,
- * then filters by the provider-native involved object fields on that page.
+ * Reads the canonical Kubernetes Event collection,
+ * then filters by the provider-native involved object fields.
  */
 export function useResourceEvents({
   pluginID,
@@ -116,7 +115,7 @@ export function useResourceEvents({
   return {
     ...result,
     isLoading: enabled && resources.isLoading,
-    pageControls: resources.pageControls,
+    retry: resources.retry,
     error: resources.error,
   };
 }

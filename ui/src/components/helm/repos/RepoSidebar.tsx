@@ -1,4 +1,4 @@
-import { Card, Chip, IconButton, Input, Separator, Stack, Text } from '@omniviewdev/base-ui';
+import { Button, Card, Chip, IconButton, Input, Separator, Stack, Text } from '@omniviewdev/base-ui';
 import {
   DrawerContext,
   jsonToValue,
@@ -17,8 +17,6 @@ import { PLUGIN_ID } from '@/pluginId';
 import NamedAvatar from '../../shared/NamedAvatar';
 
 import styles from './RepoSidebar.module.css';
-import { useSourcePageNavigation } from '../../../hooks/useSourcePageNavigation';
-import { SourcePageControls } from '../../shared/SourcePageControls';
 
 const metaRowStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 3fr' };
 const metaValueStyle: React.CSSProperties = { fontWeight: 400 };
@@ -111,7 +109,7 @@ const ChartIcon: React.FC<{ icon?: string; name: string }> = ({ icon, name }) =>
 
 /**
  * Renders a sidebar for a Helm Repository resource.
- * Resolves repository as a query dimension before acquiring one bounded chart page.
+ * Resolves repository as a query dimension before acquiring its complete chart collection.
  */
 export const RepoSidebar: React.FC<Props> = ({ ctx }) => {
   const connectionID = ctx.resource?.route.connection ?? '';
@@ -127,14 +125,12 @@ export const RepoSidebar: React.FC<Props> = ({ ctx }) => {
     ],
     enabled: !!connectionID && !!repoName,
   });
-  const navigation = useSourcePageNavigation(JSON.stringify([connectionID, repoName, target.data]));
-  const { resources: chartsQuery, acquired, refreshAcquiredPage } = useResources({
-    pluginID: PLUGIN_ID, live: false,
+  const { resources: chartsQuery, acquired } = useResources({
+    pluginID: PLUGIN_ID, live: false, collection: true,
     request: target.data ? {
-      targetId: target.data.targetId, request: { target: target.data.target, pageSize: 256, cursor: navigation.cursor },
+      targetId: target.data.targetId, request: { target: target.data.target, pageSize: 256 },
     } : undefined,
   });
-  const pagination = acquired ? navigation.forAcquiredPage(acquired.request.request.cursor) : navigation;
 
   const { showResourceSidebar } = useRightDrawer();
 
@@ -231,17 +227,17 @@ export const RepoSidebar: React.FC<Props> = ({ ctx }) => {
       <Stack direction="column" spacing={2} style={chartsSectionStyle}>
         <Stack direction="row" justify="between" align="center" style={chartsHeaderStyle}>
           <Text weight="semibold" size="sm">
-            Charts in this repository · {allCharts.length} on this page
+            Charts in this repository · {allCharts.length}
           </Text>
         </Stack>
-        <SourcePageControls pagination={pagination} nextCursor={acquired?.page.sourcePage.nextCursor} loading={target.isLoading || chartsQuery.isFetching} error={target.error ?? chartsQuery.error} retry={target.data ? () => { void chartsQuery.refetch(); } : undefined} refresh={target.data ? () => { void refreshAcquiredPage(); } : undefined} label="Charts" />
+        {!!(target.error ?? chartsQuery.error) && <div role="alert">Could not load charts. <Button size="sm" variant="outline" onClick={() => { void (target.error ? target.refetch() : chartsQuery.refetch()); }}>Retry</Button></div>}
 
         {/* Search */}
         <Input.Control
           value={chartFilter}
           onChange={(e) => setChartFilter(e.target.value)}
-          placeholder="Filter this chart page..."
-          aria-label="Filter this chart page"
+          placeholder="Filter charts..."
+          aria-label="Filter charts"
           size="sm"
           style={fullWidthStyle}
           autoComplete="off"
@@ -286,10 +282,10 @@ export const RepoSidebar: React.FC<Props> = ({ ctx }) => {
           {chartsQuery.isSuccess && filteredCharts.length === 0 && (
             <Text as="p" size="sm" tone="muted" style={noChartsStyle}>
               {chartFilter
-                ? 'No charts match the filter on this page.'
+                ? 'No charts match the filter.'
                 : data.type === 'oci'
                   ? 'OCI registries do not provide a chart index. Reference charts directly by their OCI URL.'
-                  : 'No charts on this page. Try refreshing the repository.'}
+                  : 'No charts in this repository.'}
             </Text>
           )}
           {chartsQuery.isLoading && (

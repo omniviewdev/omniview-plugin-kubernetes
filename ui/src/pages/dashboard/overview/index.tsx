@@ -14,7 +14,7 @@ import { PLUGIN_ID } from '@/pluginId';
 import type { ChartTimeRange } from '../../../components/shared/charts';
 import NamespaceSelect from '../../../components/tables/NamespaceSelect';
 import { useClusterPreferences } from '../../../hooks/useClusterPreferences';
-import { SourcePageControls } from '../../../components/shared/SourcePageControls';
+import { CollectionStatus } from '../../../components/shared/CollectionStatus';
 import { destinationPath } from '../../../search/navigation';
 
 import ClusterInfoCard from './components/ClusterInfoCard';
@@ -112,7 +112,7 @@ const ClusterDashboardOverviewPage: React.FC = () => {
   const { connectionOverrides } = useClusterPreferences(PLUGIN_ID);
   const metricConfig = connectionOverrides[id]?.metricConfig;
 
-  // Own Pod ingestion once; health and workload counts share this bounded source page.
+  // Own Pod ingestion once; health and workload counts share the collection.
   const pods = useKubernetesResources<Pod>({ connectionID: id, resourceType: 'k8s:/pods', namespaces });
   const nodes = useKubernetesResources<K8sNode>({ connectionID: id, resourceType: 'k8s:/nodes' });
   const events = useKubernetesResources<K8sEvent>({ connectionID: id, resourceType: 'k8s:/events', namespaces });
@@ -146,17 +146,8 @@ const ClusterDashboardOverviewPage: React.FC = () => {
           pods={allPods}
           events={allEvents}
         />
-        <details>
-          <summary style={{ cursor: 'pointer', color: 'var(--ov-color-fg-muted)', fontSize: 'var(--ov-font-size-xs)' }}>
-            Health source pages · pods {pods.pageControls.pagination.pageNumber} · nodes {nodes.pageControls.pagination.pageNumber}
-            {(pods.pageControls.error || nodes.pageControls.error) ? ' · page request failed' : ''}
-            {(pods.pageControls.membershipStale || nodes.pageControls.membershipStale) ? ' · refresh needed' : ''}
-          </summary>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, paddingTop: 8 }}>
-            <SourcePageControls {...pods.pageControls} label="Health pods" compact />
-            <SourcePageControls {...nodes.pageControls} label="Health nodes" compact />
-          </div>
-        </details>
+        <CollectionStatus {...pods} label="Pods" />
+        <CollectionStatus {...nodes} label="Nodes" />
 
         {/* Namespace filter */}
         <Stack direction="row" align="center" spacing={2} style={{ flexWrap: 'wrap', minWidth: 0 }}>
@@ -166,10 +157,7 @@ const ClusterDashboardOverviewPage: React.FC = () => {
           <NamespaceSelect connectionID={id} selected={namespaces} setNamespaces={setNamespaces} />
         </Stack>
 
-        {/* Pods share the health data; other workload cards own their source pages. */}
-        <Text size="xs" tone="muted">
-          Summaries describe selected source pages, not cluster totals. Filters apply only to those pages.
-        </Text>
+        {/* Pods share the health data; other workload cards own their collections. */}
         <div style={workloadGridStyle}>
           <PodStatCard pods={allPods} loading={pods.isLoading} onClick={goToPods} />
           <DeploymentStatCard connectionID={id} namespaces={namespaces} onClick={goToDeployments} />
@@ -208,9 +196,9 @@ const ClusterDashboardOverviewPage: React.FC = () => {
         {/* Recent events — responsive height, scrolls independently */}
         <Stack direction="column" spacing={1} style={{ gap: 6 }}>
           <Text weight="semibold" size="sm">
-            Events on this page ({allEvents.length})
+            Events ({allEvents.length})
           </Text>
-          <SourcePageControls {...events.pageControls} label="Events" compact />
+          <CollectionStatus {...events} label="Events" />
           <div style={eventsContainerStyle}>
             <EventsTable events={allEvents} loading={events.isLoading} connectionID={id} namespaceScope={JSON.stringify(namespaces)} />
           </div>

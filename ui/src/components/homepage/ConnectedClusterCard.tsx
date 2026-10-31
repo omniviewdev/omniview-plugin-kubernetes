@@ -14,7 +14,7 @@ import NamedAvatar from '../shared/NamedAvatar';
 import SimpleTooltip from '../shared/SimpleTooltip';
 
 import styles from './ConnectedClusterCard.module.css';
-import { SourcePageControls } from '../shared/SourcePageControls';
+import { CollectionStatus } from '../shared/CollectionStatus';
 import { metricQueryParams } from '../../utils/metricParams';
 
 
@@ -171,7 +171,7 @@ const ConnectedClusterCard: React.FC<Props> = ({
                 )}
               </>
             ) : (
-              <StatLine icon={null} label="No issues observed on these pages" color="var(--ov-color-success)" />
+              <StatLine icon={null} label="No issues observed" color="var(--ov-color-success)" />
             )}
           </div>
 
@@ -185,16 +185,15 @@ const ConnectedClusterCard: React.FC<Props> = ({
         </div>
         {/* Resource counts */}
         <div style={countsRowStyle}>
-          <span>Counts on selected pages; totals unknown</span>
           <CountBadge icon={<LuBox size={11} />} count={podCount} />
           <CountBadge icon={<LuServer size={11} />} count={nodeCount} />
           <CountBadge icon={<LuLayers size={11} />} count={deploymentCount} />
         </div>
-        <div style={pageControlsStyle}>
-          <SourcePageControls {...podsQuery.pageControls} label="Pods" />
-          <SourcePageControls {...nodesQuery.pageControls} label="Nodes" />
-          <SourcePageControls {...eventsQuery.pageControls} label="Events" />
-          <SourcePageControls {...deploymentsQuery.pageControls} label="Deployments" />
+        <div style={requestStatusStyle}>
+          <CollectionStatus {...podsQuery} label="Pods" />
+          <CollectionStatus {...nodesQuery} label="Nodes" />
+          <CollectionStatus {...eventsQuery} label="Events" />
+          <CollectionStatus {...deploymentsQuery} label="Deployments" />
         </div>
       </div>
     </div>
@@ -213,7 +212,7 @@ const openButtonStyle: React.CSSProperties = {
   cursor: 'pointer',
 };
 const disconnectButtonStyle: React.CSSProperties = { zIndex: 2 };
-const pageControlsStyle: React.CSSProperties = { position: 'relative', zIndex: 2 };
+const requestStatusStyle: React.CSSProperties = { position: 'relative', zIndex: 2 };
 const avatarColumnStyle: React.CSSProperties = { flexShrink: 0, display: 'flex', alignItems: 'center' };
 const avatarImageStyle: React.CSSProperties = { width: 52, height: 52, borderRadius: 8, objectFit: 'cover' };
 const rightColumnStyle: React.CSSProperties = {

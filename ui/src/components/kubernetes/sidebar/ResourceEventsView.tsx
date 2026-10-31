@@ -7,7 +7,7 @@ import { useResourceEvents } from '../../../hooks/useResourceEvents';
 import type { KubeEvent } from '../../../types/events';
 
 import styles from './ResourceEventsView.module.css';
-import { SourcePageControls } from '../../shared/SourcePageControls';
+import { CollectionStatus } from '../../shared/CollectionStatus';
 
 const outerStackStyle: React.CSSProperties = { width: '100%', flex: 1 };
 
@@ -122,7 +122,7 @@ const ResourceEventsView: React.FC<ResourceEventsViewProps> = ({ ctx }) => {
   const connectionID = ctx.resource?.route.connection ?? '';
   const nativeKind = typeof data.kind === 'string' ? data.kind : '';
 
-  const { events, timelineEvents, isLoading, warningCount, pageControls, error } = useResourceEvents({
+  const { events, timelineEvents, isLoading, warningCount, retry, error } = useResourceEvents({
     pluginID,
     connectionID,
     nativeKind,
@@ -152,7 +152,7 @@ const ResourceEventsView: React.FC<ResourceEventsViewProps> = ({ ctx }) => {
       <Stack direction="row" align="center" justify="between" spacing={2} style={headerBarStyle}>
         <Stack direction="row" align="center" spacing={2}>
           <Text weight="semibold" size="sm">
-            {filteredEvents.length} event{filteredEvents.length !== 1 ? 's' : ''} on this page
+            {filteredEvents.length} event{filteredEvents.length !== 1 ? 's' : ''}
           </Text>
           {warningCount > 0 && (
             <Chip color="warning" variant="soft" size="xs">
@@ -180,8 +180,7 @@ const ResourceEventsView: React.FC<ResourceEventsViewProps> = ({ ctx }) => {
           </IconButton>
         </Stack>
       </Stack>
-      <SourcePageControls {...pageControls} label="Events" />
-      {!!error && <Text role="alert">Could not load this event page.</Text>}
+      <CollectionStatus isLoading={isLoading} error={error} retry={retry} label="Events" />
 
       {/* Filter chips */}
       <Stack direction="row" spacing={1} style={filterChipsStyle}>

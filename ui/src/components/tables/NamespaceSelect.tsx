@@ -1,10 +1,9 @@
-import { MultiSelect } from '@omniviewdev/base-ui';
+import { Button, MultiSelect } from '@omniviewdev/base-ui';
 import { useKubernetesResources } from '../../hooks/useKubernetesResources';
 import type { Namespace } from 'kubernetes-types/core/v1';
 import React from 'react';
 
 import styles from './toolbarInputs.module.css';
-import { SourcePageControls } from '../shared/SourcePageControls';
 
 type Props = {
   /** The active connection being used */
@@ -19,10 +18,10 @@ type Props = {
 
 /**
  * Renders a select for choosing namespaces.
- * Reads one bounded namespace page. Selected names remain available across pages.
+ * Reads the complete namespace collection.
  */
 const NamespaceSelect: React.FC<Props> = ({ connectionID, selected, setNamespaces }) => {
-  const { bodies, pageControls } = useKubernetesResources<Namespace>({
+  const { bodies, error, retry, isLoading } = useKubernetesResources<Namespace>({
     connectionID,
     resourceType: 'k8s:/namespaces',
   });
@@ -50,7 +49,7 @@ const NamespaceSelect: React.FC<Props> = ({ connectionID, selected, setNamespace
       clearable
       className={styles.filterSelect}
     />
-      <SourcePageControls {...pageControls} label="Namespaces" />
+      {!!error && <div role="alert">Could not load namespaces. <Button size="sm" variant="outline" disabled={isLoading} onClick={retry}>Retry</Button></div>}
     </div>
   );
 };

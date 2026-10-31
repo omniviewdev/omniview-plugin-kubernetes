@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 
 import NamespaceSelect from './NamespaceSelect';
 
@@ -8,15 +8,13 @@ import NamespaceSelect from './NamespaceSelect';
 
 let mockNamespaces: string[] = [];
 
-const paging = vi.hoisted(() => ({ nextPage: vi.fn() }));
+const collection = vi.hoisted(() => ({ retry: vi.fn() }));
 vi.mock('../../hooks/useKubernetesResources', () => ({
   useKubernetesResources: () => ({
     bodies: mockNamespaces.map((name) => ({ metadata: { name } })),
-    pageControls: {
-      pagination: { pageNumber: 1, canPrevious: false, firstPage: vi.fn(), previousPage: vi.fn(), nextPage: paging.nextPage },
-      nextCursor: 'namespace-source-cursor',
-      loading: false,
-    },
+    isLoading: false,
+    error: undefined,
+    retry: collection.retry,
   }),
 }));
 
@@ -130,12 +128,12 @@ describe('NamespaceSelect', () => {
     expect(setNamespaces).toHaveBeenCalledWith([]);
   });
 
-  it('offers explicit continuation without losing selected namespaces from another page', () => {
-    renderNs(['earlier-page-namespace']);
-    expect(screen.getByText('earlier-page-namespace')).toBeInTheDocument();
-    expect(paging.nextPage).not.toHaveBeenCalled();
-    const namespacePages = screen.getByRole('group', { name: /^Namespaces source pages;/ });
-    fireEvent.click(within(namespacePages).getByRole('button', { name: 'Namespaces: next page' }));
-    expect(paging.nextPage).toHaveBeenCalledWith('namespace-source-cursor');
+  it('keeps selection across the full collection without source-page controls', () => {
+    renderNs(['default', 'production']);
+    expect(screen.getByText('default')).toBeInTheDocument();
+    expect(screen.getByText('production')).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: /^Namespaces source pages;/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Namespaces: next page' })).not.toBeInTheDocument();
+    expect(collection.retry).not.toHaveBeenCalled();
   });
 });
