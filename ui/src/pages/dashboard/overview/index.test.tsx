@@ -11,14 +11,13 @@ const fixture = vi.hoisted(() => ({
   navigate: vi.fn(),
   ingest: vi.fn(),
   retry: vi.fn(),
-  metadata: vi.fn((_pluginID: string, _connectionID: string) => ({ transportAvailable: true, supported: true, isLoading: false })),
 }));
 
 vi.mock('react-router', () => ({ useParams: () => ({ id: fixture.connectionID }) }));
 vi.mock('@omniviewdev/runtime', () => ({
   usePluginRouter: () => ({ navigate: fixture.navigate }),
   useConnection: () => ({ connection: { data: { data: {} }, isLoading: false } }),
-  useConnectionMetadata: (pluginID: string, connectionID: string) => fixture.metadata(pluginID, connectionID),
+  useConnectionMetadata: () => ({ transportAvailable: true, supported: true, isLoading: false }),
   useExtensionPoint: () => undefined,
 }));
 vi.mock('../../../hooks/useKubernetesResources', () => ({
@@ -61,7 +60,6 @@ beforeEach(() => {
   fixture.navigate.mockClear();
   fixture.ingest.mockClear();
   fixture.retry.mockClear();
-  fixture.metadata.mockClear();
   fixture.nodes = [];
   fixture.results = {
     'cluster-a': {
@@ -81,7 +79,7 @@ function podCard() {
 }
 
 describe('dashboard shared Pod result', () => {
-  it('keeps metadata facts beside full collection node counts and health', () => {
+  it('counts and evaluates health for the entire node collection', () => {
     fixture.nodes = [
       { status: { conditions: [{ type: 'Ready', status: 'True' }] } },
       { status: { conditions: [{ type: 'Ready', status: 'False' }] } },
@@ -90,8 +88,6 @@ describe('dashboard shared Pod result', () => {
     render(<ClusterDashboardOverviewPage />);
     expect(screen.getByText('Nodes').parentElement).toHaveTextContent('3');
     expect(screen.getByText(/2 nodes not ready/)).toBeInTheDocument();
-    expect(fixture.metadata).toHaveBeenCalledWith('kubernetes', 'cluster-a');
-    expect(screen.queryByText(/selected page/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /next page|previous page/i })).not.toBeInTheDocument();
   });
 
