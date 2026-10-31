@@ -6,6 +6,9 @@ export type ProviderConfig = {
 };
 
 export const providerConfig: Record<string, ProviderConfig> = {
+  aws: { label: 'AWS', color: '#FF9900' },
+  gcp: { label: 'Google Cloud', color: '#4285F4' },
+  azure: { label: 'Azure', color: '#0078D4' },
   eks: { label: 'Amazon EKS', color: '#FF9900' },
   gke: { label: 'Google GKE', color: '#4285F4' },
   aks: { label: 'Azure AKS', color: '#0078D4' },
@@ -14,6 +17,7 @@ export const providerConfig: Record<string, ProviderConfig> = {
   'docker-desktop': { label: 'Docker Desktop', color: '#2496ED' },
   k3d: { label: 'k3d', color: '#FFC61C' },
   k3s: { label: 'k3s', color: '#FFC61C' },
+  rke2: { label: 'RKE2', color: '#0075A8' },
   openshift: { label: 'OpenShift', color: '#EE0000' },
   rancher: { label: 'Rancher', color: '#0075A8' },
   generic: { label: 'Kubernetes', color: '#326CE5' },

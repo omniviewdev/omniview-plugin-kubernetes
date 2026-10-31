@@ -173,7 +173,6 @@ func (p *kubeConnectionProvider) CheckConnection(ctx context.Context, conn *type
 		return result, nil
 	}
 
-	enrichConnectionData(ctx, conn, client, groups)
 	if err := ctx.Err(); err != nil {
 		return result, err
 	}

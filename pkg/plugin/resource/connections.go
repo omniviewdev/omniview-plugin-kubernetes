@@ -1,15 +1,10 @@
 package resource
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 
-	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	"github.com/omniview/kubernetes/pkg/utils/kubeauth"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
@@ -21,61 +16,6 @@ const (
 	// Estimated size of a the number of contexts in a kubeconfig.
 	EstimatedContexts = 10
 )
-
-// enrichConnectionData populates conn.Data with cluster metadata discovered on
-// successful connection. This data is persisted by the backend controller and
-// available to the UI even when the cluster is not currently connected.
-func enrichConnectionData(
-	ctx context.Context,
-	conn *types.Connection,
-	client *clients.ClientSet,
-	groups *metav1.APIGroupList,
-) {
-	if conn.Data == nil {
-		conn.Data = make(map[string]interface{})
-	}
-
-	// Server URL from the resolved REST config
-	if client.RESTConfig != nil && client.RESTConfig.Host != "" {
-		conn.Data["server_url"] = client.RESTConfig.Host
-	}
-
-	// API group count from already-fetched ServerGroups
-	if groups != nil {
-		conn.Data["api_groups"] = len(groups.Groups)
-	}
-
-	// Diagnostic enrichment shares the invocation deadline and never survives
-	// connection teardown. Each native list page remains bounded.
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	if data, err := client.DiscoveryClient.RESTClient().Get().AbsPath("/version").DoRaw(ctx); err == nil {
-		var info struct {
-			GitVersion string `json:"gitVersion"`
-			Platform   string `json:"platform"`
-		}
-		if json.Unmarshal(data, &info) == nil {
-			conn.Data["k8s_version"] = info.GitVersion
-			conn.Data["k8s_platform"] = info.Platform
-		}
-	}
-	delete(conn.Data, "node_count")
-	count, continuation := 0, ""
-	for {
-		page, err := client.KubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{Limit: 256, Continue: continuation})
-		if err != nil {
-			break
-		}
-		count += len(page.Items)
-		continuation = page.Continue
-		if continuation == "" {
-			conn.Data["node_count"] = count
-			break
-		}
-	}
-
-	conn.Data["last_checked"] = time.Now().UTC().Format(time.RFC3339)
-}
 
 func connectionsFromKubeconfig(kubeconfigPath string) ([]types.Connection, error) {
 	// if the path has a ~ in it, expand it to the home directory

@@ -1,38 +1,54 @@
-import { Stack } from '@omniviewdev/base-ui';
+import { IconButton, Spinner, Stack, Text } from '@omniviewdev/base-ui';
+import { useConnectionMetadata } from '@omniviewdev/runtime';
 import { type types } from '@omniviewdev/runtime/models';
-
-import InfoRow from './InfoRow';
+import { LuBox, LuCpu, LuRefreshCw, LuServer } from 'react-icons/lu';
+import ConnectionMetadataValue from '../../components/shared/ConnectionMetadataValue';
+import ConnectionEnvironment from '../../components/shared/ConnectionEnvironment';
+import SimpleTooltip from '../../components/shared/SimpleTooltip';
 import SectionWrapper from './SectionWrapper';
 
-function ClusterInfoSection({ conn, formatTime }: { conn: types.Connection; formatTime: (t: unknown) => string }) {
-  // conn.data and conn.labels are Record<string, any> from the runtime SDK; narrow to known shapes
-  const connData = conn.data as Record<string, string | number | undefined>;
-  const connLabels = conn.labels as Record<string, string | undefined>;
+function ClusterInfoSection({ conn }: { conn: types.Connection; formatTime: (t: unknown) => string }) {
+  const metadata = useConnectionMetadata('kubernetes', conn.id);
+  const refreshing = metadata.isLoading || metadata.snapshot?.refreshing;
   return (
-    <SectionWrapper
-      title="Cluster Info"
-      description="Read-only information discovered from the cluster."
-    >
-      <Stack direction="column" spacing={0}>
-        <InfoRow
-          label="Server"
-          value={connData?.server_url != null ? String(connData.server_url) : (connLabels?.server ?? undefined)}
-        />
-        <InfoRow label="Kubernetes Version" value={connData?.k8s_version != null ? String(connData.k8s_version) : undefined} />
-        <InfoRow label="Platform" value={connData?.k8s_platform != null ? String(connData.k8s_platform) : undefined} />
-        <InfoRow
-          label="Nodes"
-          value={connData?.node_count != null ? String(connData.node_count) : undefined}
-        />
-        <InfoRow
-          label="API Groups"
-          value={connData?.api_groups != null ? String(connData.api_groups) : undefined}
-        />
-        <InfoRow
-          label="Last Checked"
-          value={connData?.last_checked ? formatTime(connData.last_checked) : undefined}
-        />
-      </Stack>
+    <SectionWrapper title="Cluster Info" description="Server identity and environment.">
+      <div role="region" aria-label="Server identity" style={{ maxWidth: 760 }}>
+        <div style={{ border: '1px solid var(--ov-color-border-default)', borderRadius: 8, overflow: 'hidden' }}>
+          <Stack direction="row" align="center" spacing={3} style={{ padding: 20 }}>
+            <span style={{ display: 'inline-flex', padding: 10, borderRadius: 8, background: 'var(--ov-color-bg-surface-raised)', color: 'var(--ov-color-fg-muted)' }}>
+              <LuServer size={20} aria-hidden="true" />
+            </span>
+            <Stack direction="column" spacing={1} style={{ minWidth: 0, flex: 1 }}>
+              <Text size="xs" tone="muted">API server</Text>
+              <ConnectionMetadataValue {...metadata} metadataKey="kubernetes.server_url" label="API server" size="sm" mono />
+            </Stack>
+            {metadata.snapshot?.active && metadata.transportAvailable && (
+              <SimpleTooltip content="Refresh server details">
+                <IconButton size="sm" color="neutral" variant="ghost" aria-label="Refresh server details" disabled={refreshing} onClick={() => { void metadata.refresh(); }}>
+                  {refreshing ? <Spinner size="sm" /> : <LuRefreshCw size={15} />}
+                </IconButton>
+              </SimpleTooltip>
+            )}
+          </Stack>
+          <ConnectionEnvironment {...metadata} settings />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 1, borderTop: '1px solid var(--ov-color-border-muted)', background: 'var(--ov-color-border-muted)' }}>
+            {[
+              { key: 'server_version', label: 'Kubernetes version', Icon: LuBox },
+              { key: 'server_platform', label: 'Server OS / architecture', Icon: LuCpu },
+            ].map(({ key, label, Icon }) => (
+              <Stack key={key} direction="column" spacing={2} style={{ padding: 20, background: 'var(--ov-color-bg-surface)' }}>
+                <Stack direction="row" align="center" spacing={1} style={{ color: 'var(--ov-color-fg-muted)' }}>
+                  <Icon size={14} aria-hidden="true" />
+                  <Text size="xs" tone="muted">{label}</Text>
+                </Stack>
+                <ConnectionMetadataValue {...metadata} metadataKey={`kubernetes.${key}`} label={label} size="lg" />
+              </Stack>
+            ))}
+          </div>
+        </div>
+        {metadata.supported === false && <Text size="xs" tone="muted" style={{ marginTop: 12 }}>This plugin does not provide server details.</Text>}
+        {metadata.error != null && <Text size="xs" tone="muted" style={{ marginTop: 12 }}>Server details are temporarily unavailable.</Text>}
+      </div>
     </SectionWrapper>
   );
 }

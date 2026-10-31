@@ -163,7 +163,9 @@ const FolderDialog: React.FC<Props> = ({
         for (const key of Object.keys(conn.connection.labels)) labelKeys.add(key);
       }
       if (conn.connection.data) {
-        for (const key of Object.keys(conn.connection.data)) dataKeys.add(key);
+        for (const key of Object.keys(conn.connection.data)) {
+          if (!['server_url', 'k8s_version', 'k8s_platform', 'node_count', 'api_groups', 'last_checked'].includes(key)) dataKeys.add(key);
+        }
       }
     }
     for (const key of [...labelKeys].sort()) {
@@ -171,6 +173,9 @@ const FolderDialog: React.FC<Props> = ({
     }
     for (const key of [...dataKeys].sort()) {
       fields.push({ value: `data:${key}`, label: `Data: ${key}` });
+    }
+    for (const key of ['kubernetes.server_url', 'kubernetes.server_version', 'kubernetes.server_platform']) {
+      fields.push({ value: `metadata:${key}`, label: `Metadata: ${key}` });
     }
     return fields;
   }, [enrichedConnections]);
@@ -468,6 +473,11 @@ const FolderDialog: React.FC<Props> = ({
                   </Text>
                 )}
               </button>
+              {ruleSet.rules.some((rule) => ['data:node_count', 'data:api_groups', 'data:last_checked'].includes(rule.field)) && (
+                <Text size="sm" role="alert">
+                  Review required: saved inventory and last-checked rules are unsupported. These rules never match, including negative rules. Edit or remove them explicitly.
+                </Text>
+              )}
               {rulesExpanded && (
                 <RuleBuilder
                   ruleSet={ruleSet}

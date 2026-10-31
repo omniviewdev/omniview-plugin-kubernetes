@@ -1,5 +1,6 @@
 import { type types } from '@omniviewdev/runtime/models';
 import { useMemo } from 'react';
+import { useConnectionMetadataConnections, readCurrentConnectionMetadataString } from '@omniviewdev/runtime';
 
 import type {
   GroupByMode,
@@ -84,11 +85,15 @@ function matchesSearch(enriched: EnrichedConnection, search: string): boolean {
 
   // Search across all data values
   if (conn.data) {
-    for (const val of Object.values(conn.data)) {
+    for (const [key, val] of Object.entries(conn.data)) {
+      if (['server_url', 'k8s_version', 'k8s_platform', 'node_count', 'api_groups', 'last_checked'].includes(key)) continue;
       if (String(val).toLowerCase().includes(s)) return true;
     }
   }
 
+  for (const value of Object.values(enriched.metadata ?? {})) {
+    if (value.toLowerCase().includes(s)) return true;
+  }
   return false;
 }
 
@@ -393,6 +398,7 @@ function discoverAttributes(connections: types.Connection[]): ConnectionAttribut
  * and returns grouped, filtered, sorted results with dynamic attribute metadata.
  */
 export function useConnectionGrouping(opts: UseConnectionGroupingOpts): GroupedConnectionsResult {
+  const metadata = useConnectionMetadataConnections('kubernetes', opts.connections.map((connection) => connection.id));
   return useMemo(() => {
     const {
       connections,
@@ -408,9 +414,15 @@ export function useConnectionGrouping(opts: UseConnectionGroupingOpts): GroupedC
     } = opts;
 
     // 1. Enrich connections
-    const enriched = connections.map((c) =>
-      enrichConnection(c, favorites, connectionOverrides, recentConnections),
-    );
+    const enriched = connections.map((c) => {
+      const state = metadata.get(c.id);
+      const facts: Record<string, string> = {};
+      for (const key of ['kubernetes.server_url', 'kubernetes.server_version', 'kubernetes.server_platform']) {
+        const value = readCurrentConnectionMetadataString(state?.snapshot, state?.transportAvailable ?? false, key);
+        if (value !== undefined) facts[key] = value;
+      }
+      return { ...enrichConnection(c, favorites, connectionOverrides, recentConnections), metadata: facts };
+    });
 
     // 2. Collect available providers (before filtering)
     const availableProviders = [...new Set(enriched.map((c) => c.provider))].sort();
@@ -448,5 +460,5 @@ export function useConnectionGrouping(opts: UseConnectionGroupingOpts): GroupedC
       availableAttributes,
       availableTags,
     };
-  }, [opts]);
+  }, [opts, metadata]);
 }

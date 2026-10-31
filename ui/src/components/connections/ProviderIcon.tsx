@@ -12,6 +12,9 @@ type Props = {
 };
 
 const iconMap: Record<string, React.ComponentType<{ size?: number; color?: string }>> = {
+  aws: FaAws,
+  gcp: SiGooglecloud,
+  azure: VscAzure,
   eks: FaAws,
   gke: SiGooglecloud,
   aks: VscAzure,
@@ -20,6 +23,7 @@ const iconMap: Record<string, React.ComponentType<{ size?: number; color?: strin
   'docker-desktop': LuContainer,
   k3d: LuBox,
   k3s: LuServer,
+  rke2: LuServer,
   openshift: SiKubernetes,
   rancher: SiKubernetes,
   generic: SiKubernetes,

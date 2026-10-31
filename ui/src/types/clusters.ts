@@ -42,6 +42,7 @@ export interface FilterState {
 export type RuleField =
   | 'name' | 'id' | 'provider' | 'tag' | 'isConnected'
   | `label:${string}`
+  | `metadata:${string}`
   | `data:${string}`;
 
 export type RuleOperator =
@@ -112,6 +113,7 @@ export interface RecentEntry {
 
 export interface EnrichedConnection {
   connection: types.Connection;
+  metadata?: Readonly<Record<string, string>>;
   provider: string;
   isFavorite: boolean;
   isConnected: boolean;

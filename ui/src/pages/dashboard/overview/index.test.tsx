@@ -16,6 +16,7 @@ vi.mock('react-router', () => ({ useParams: () => ({ id: fixture.connectionID })
 vi.mock('@omniviewdev/runtime', () => ({
   usePluginRouter: () => ({ navigate: fixture.navigate }),
   useConnection: () => ({ connection: { data: { data: {} }, isLoading: false } }),
+  useConnectionMetadata: () => ({ transportAvailable: true, supported: true, isLoading: false }),
   useExtensionPoint: () => undefined,
 }));
 vi.mock('../../../hooks/useKubernetesResources', () => ({

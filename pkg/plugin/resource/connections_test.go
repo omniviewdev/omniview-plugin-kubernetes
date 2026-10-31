@@ -1,9 +1,6 @@
 package resource
 
 import (
-	"context"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,12 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
@@ -546,42 +538,4 @@ users:
 	assert.Equal(t, "gke", c.Labels["auth_method"])
 	assert.Equal(t, "my-gcp-project", c.Labels["project"])
 	assert.Equal(t, "us-central1-a", c.Labels["zone"])
-}
-
-func TestEnrichConnectionDataUsesBoundedNativePages(t *testing.T) {
-	var continuations []string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		switch r.URL.Path {
-		case "/version":
-			_, _ = w.Write([]byte(`{"gitVersion":"v1.32.1","platform":"linux/arm64"}`))
-		case "/api/v1/nodes":
-			assert.Equal(t, "256", r.URL.Query().Get("limit"))
-			continuations = append(continuations, r.URL.Query().Get("continue"))
-			if r.URL.Query().Get("continue") == "" {
-				_, _ = w.Write([]byte(`{"apiVersion":"v1","kind":"NodeList","metadata":{"continue":"next"},"items":[{"metadata":{"name":"one"}}]}`))
-			} else {
-				_, _ = w.Write([]byte(`{"apiVersion":"v1","kind":"NodeList","metadata":{},"items":[{"metadata":{"name":"two"}}]}`))
-			}
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	defer server.Close()
-	config := &rest.Config{Host: server.URL}
-	discoveryClient, err := discovery.NewDiscoveryClientForConfig(config)
-	require.NoError(t, err)
-	kubeClient, err := kubernetes.NewForConfig(config)
-	require.NoError(t, err)
-	conn := &types.Connection{ID: "local"}
-	enrichConnectionData(context.Background(), conn, &clients.ClientSet{
-		RESTConfig: config, DiscoveryClient: discoveryClient, KubeClient: kubeClient,
-	}, &metav1.APIGroupList{Groups: []metav1.APIGroup{{Name: "apps"}}})
-	require.Equal(t, []string{"", "next"}, continuations)
-	require.Equal(t, 2, conn.Data["node_count"])
-	require.Equal(t, "v1.32.1", conn.Data["k8s_version"])
-	require.Equal(t, "linux/arm64", conn.Data["k8s_platform"])
-	require.Equal(t, server.URL, conn.Data["server_url"])
-	require.Equal(t, 1, conn.Data["api_groups"])
-	require.NotEmpty(t, conn.Data["last_checked"])
 }

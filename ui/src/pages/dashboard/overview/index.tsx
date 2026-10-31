@@ -139,8 +139,7 @@ const ClusterDashboardOverviewPage: React.FC = () => {
       <Stack direction="column" spacing={3} style={{ flexShrink: 0, minWidth: 0 }}>
         {/* Cluster info + health status */}
         <ClusterInfoCard
-          // Connection.data is Record<string, any> from the runtime; cast to the expected shape
-          data={connection.data?.data}
+          connectionID={id}
           loading={connection.isLoading}
           nodes={allNodes}
           pods={allPods}

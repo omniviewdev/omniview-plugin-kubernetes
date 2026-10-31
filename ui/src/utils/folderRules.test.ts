@@ -3,6 +3,7 @@ import { type types } from '@omniviewdev/runtime/models';
 import type { EnrichedConnection, FolderRuleSet } from '../types/clusters';
 
 import { compileRuleSet, matchConnections, computeEffectiveMembers } from './folderRules';
+import { migrateFolderMetadataRules } from './migrateFolderMetadataRules';
 
 /** Helper to build a minimal EnrichedConnection with controlled props. */
 function makeConn(overrides: {
@@ -13,9 +14,11 @@ function makeConn(overrides: {
   tags?: string[];
   labels?: Record<string, string>;
   data?: Record<string, unknown>;
+  metadata?: Record<string, string>;
 }): EnrichedConnection {
   const id = overrides.id ?? 'conn-1';
   return {
+    metadata: overrides.metadata,
     connection: {
       id,
       name: overrides.name ?? 'test-cluster',
@@ -77,16 +80,28 @@ describe('field resolution', () => {
     expect(matchConnections(compileRuleSet(rs), conns)).toEqual(new Set(['a']));
   });
 
-  it('matches by data field', () => {
+  it('migrates observed data rules to current metadata, never persisted facts', () => {
     const conns = [
-      makeConn({ id: 'a', data: { k8s_version: '1.28' } }),
-      makeConn({ id: 'b', data: { k8s_version: '1.27' } }),
+      makeConn({ id: 'a', metadata: { 'kubernetes.server_version': '1.28' } }),
+      makeConn({ id: 'b', data: { k8s_version: '1.28' } }),
     ];
     const rs: FolderRuleSet = {
       logic: 'and',
       rules: [{ id: '1', field: 'data:k8s_version', operator: 'equals', value: '1.28' }],
     };
-    expect(matchConnections(compileRuleSet(rs), conns)).toEqual(new Set(['a']));
+    const migrated = migrateFolderMetadataRules([{ id: 'group', name: 'Version', connectionIds: [], ruleSet: rs }]);
+    expect(migrated[0].ruleSet!.rules[0].field).toBe('metadata:kubernetes.server_version');
+    expect(matchConnections(compileRuleSet(migrated[0].ruleSet!), conns)).toEqual(new Set(['a']));
+    expect(matchConnections(compileRuleSet(rs), conns).size).toBe(0);
+  });
+
+  it('does not treat missing metadata as evidence for negative rules', () => {
+    for (const operator of ['not_exists', 'not_equals', 'not_contains'] as const) {
+      for (const field of ['metadata:kubernetes.server_version', 'data:node_count', 'data:api_groups', 'data:last_checked'] as const) {
+        const rs: FolderRuleSet = { logic: 'and', rules: [{ id: '1', field, operator, value: '1.28' }] };
+        expect(matchConnections(compileRuleSet(rs), [makeConn({ data: { node_count: 10, api_groups: 20, last_checked: 'old' } })]).size).toBe(0);
+      }
+    }
   });
 
   it('matches by tag (any element)', () => {

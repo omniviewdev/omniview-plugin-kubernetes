@@ -1,5 +1,6 @@
 import { usePluginData } from '@omniviewdev/runtime';
 import { useCallback, useMemo } from 'react';
+import { migrateFolderMetadataRules } from '../utils/migrateFolderMetadataRules';
 
 import type {
   ConnectionOverride,
@@ -34,10 +35,17 @@ export function useClusterPreferences(pluginID: string) {
   } = usePluginData<string[]>(pluginID, 'cluster_favorites', DEFAULT_FAVORITES);
 
   const {
-    data: customGroups,
-    update: setCustomGroups,
+    data: storedCustomGroups,
+    update: setCustomGroupsRaw,
     isLoading: groupsLoading,
   } = usePluginData<ConnectionGroup[]>(pluginID, 'cluster_groups', DEFAULT_GROUPS);
+
+  const customGroups = useMemo(() => migrateFolderMetadataRules(storedCustomGroups ?? DEFAULT_GROUPS), [storedCustomGroups]);
+  // Persist migration only with an explicit folder edit. A background migration
+  // must never race a newer edit or retry indefinitely after persistence fails.
+  const setCustomGroups = useCallback(async (groups: ConnectionGroup[]) => {
+    await setCustomGroupsRaw(migrateFolderMetadataRules(groups));
+  }, [setCustomGroupsRaw]);
 
   const {
     data: connectionOverrides,

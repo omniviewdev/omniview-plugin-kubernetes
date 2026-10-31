@@ -68,6 +68,7 @@ func newKubernetesProvider(logger *zap.SugaredLogger, retireMetrics func(string)
 		Registrations:       append(provider.helmAncillary.Registrations(), auditRegistration()),
 		ResolveRegistration: provider.registration,
 		ErrorClassifier:     &kubeErrorClassifier{},
+		ConnectionMetadata:  connectionMetadata,
 		Lifecycle: &resourcev2.Lifecycle[clients.ClientSet]{
 			LoadConnections: provider.connections.LoadConnections,
 			CreateClient: func(ctx context.Context, _ types.Connection) (*clients.ClientSet, error) {
