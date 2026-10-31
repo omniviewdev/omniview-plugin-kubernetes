@@ -239,7 +239,7 @@ The metadata callback makes a bounded `/version` request; it does not list Nodes
 
 Cluster Info presents a compact server identity panel; overview keeps an inline fact strip. Values remain primary. Clock indicators expose observation times on hover or keyboard focus, amber history indicators identify stale values, and unavailable facts show a dash with their reason in a tooltip. Initial reads use skeletons rather than status prose. Connected Cluster Info offers an explicit refresh action.
 
-The overview's node count describes only the selected resource page. API-group counts and resource health remain resource/catalog information, not metadata.
+The overview's node count uses the full acquired node collection, and health uses the acquired node, pod, and event collections with the selected namespace scope applied to pods and events. API-group counts and resource health remain resource/catalog information, not metadata.
 
 Folder rules use `metadata:<namespaced-key>` for observed facts. Existing endpoint/version/platform rules migrate in memory and persist through normal folder edits. Retired inventory/last-checked rules remain visible for review and do not match, including negative operators. Configuration-backed `data:*` rules retain their existing meaning.
 

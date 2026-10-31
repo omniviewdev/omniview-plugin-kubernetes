@@ -1,22 +1,24 @@
 /// <reference types="@testing-library/jest-dom/vitest" />
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import type { Pod } from 'kubernetes-types/core/v1';
+import type { Node as K8sNode, Pod } from 'kubernetes-types/core/v1';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Controlled hook results, not a runtime transport or native CPU benchmark.
 const fixture = vi.hoisted(() => ({
   connectionID: 'cluster-a',
   results: {} as Record<string, { bodies?: Pod[]; isLoading: boolean; isError?: boolean }>,
+  nodes: [] as K8sNode[],
   navigate: vi.fn(),
   ingest: vi.fn(),
   retry: vi.fn(),
+  metadata: vi.fn((_pluginID: string, _connectionID: string) => ({ transportAvailable: true, supported: true, isLoading: false })),
 }));
 
 vi.mock('react-router', () => ({ useParams: () => ({ id: fixture.connectionID }) }));
 vi.mock('@omniviewdev/runtime', () => ({
   usePluginRouter: () => ({ navigate: fixture.navigate }),
   useConnection: () => ({ connection: { data: { data: {} }, isLoading: false } }),
-  useConnectionMetadata: () => ({ transportAvailable: true, supported: true, isLoading: false }),
+  useConnectionMetadata: (pluginID: string, connectionID: string) => fixture.metadata(pluginID, connectionID),
   useExtensionPoint: () => undefined,
 }));
 vi.mock('../../../hooks/useKubernetesResources', () => ({
@@ -24,7 +26,7 @@ vi.mock('../../../hooks/useKubernetesResources', () => ({
     fixture.ingest(request);
     const result = request.resourceType === 'k8s:/pods'
       ? fixture.results[request.connectionID]
-      : { bodies: [], isLoading: false };
+      : { bodies: request.resourceType === 'k8s:/nodes' ? fixture.nodes : [], isLoading: false };
     return {
       ...result,
       error: result.isError ? new Error('Source unavailable') : undefined,
@@ -59,6 +61,8 @@ beforeEach(() => {
   fixture.navigate.mockClear();
   fixture.ingest.mockClear();
   fixture.retry.mockClear();
+  fixture.metadata.mockClear();
+  fixture.nodes = [];
   fixture.results = {
     'cluster-a': {
       bodies: [
@@ -77,6 +81,20 @@ function podCard() {
 }
 
 describe('dashboard shared Pod result', () => {
+  it('keeps metadata facts beside full collection node counts and health', () => {
+    fixture.nodes = [
+      { status: { conditions: [{ type: 'Ready', status: 'True' }] } },
+      { status: { conditions: [{ type: 'Ready', status: 'False' }] } },
+      { status: { conditions: [{ type: 'Ready', status: 'Unknown' }] } },
+    ];
+    render(<ClusterDashboardOverviewPage />);
+    expect(screen.getByText('Nodes').parentElement).toHaveTextContent('3');
+    expect(screen.getByText(/2 nodes not ready/)).toBeInTheDocument();
+    expect(fixture.metadata).toHaveBeenCalledWith('kubernetes', 'cluster-a');
+    expect(screen.queryByText(/selected page/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /next page|previous page/i })).not.toBeInTheDocument();
+  });
+
   it('keeps mixed phase totals and health aligned through namespace changes', () => {
     render(<ClusterDashboardOverviewPage />);
     expect(podCard()).toHaveTextContent('6');

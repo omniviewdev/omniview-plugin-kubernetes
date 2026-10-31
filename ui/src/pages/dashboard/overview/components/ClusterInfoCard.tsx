@@ -116,7 +116,7 @@ const ClusterInfoCard: React.FC<Props> = ({ connectionID, loading, nodes, pods, 
         />
         <StatItem
           icon={<LuServer size={12} />}
-          label="Nodes on selected page"
+          label="Nodes"
           value={String(nodes.length)}
         />
       </Stack>
