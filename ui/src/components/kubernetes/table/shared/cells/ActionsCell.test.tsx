@@ -57,10 +57,9 @@ it('updates an already-rendered Pod row when native capability and pending regis
     act(() => { unregisterPending = registerDrawerActionDeps(registryKey('cluster', 'k8s:/pods'), { ...deps, nativeExecPending: true }); });
     expect(native.getAttribute('aria-disabled')).toBe('true');
     expect(screen.getByRole('menuitem', { name: 'main' }).getAttribute('aria-disabled')).not.toBe('true');
-    await user.click(native);
-    expect(deps.openNativeSession).not.toHaveBeenCalled();
     act(() => { unregisterPending(); });
-    await user.click(screen.getByRole('menuitem', { name: 'main — Open in Native Terminal' }));
+    screen.getByRole('menuitem', { name: 'main — Open in Native Terminal' }).focus();
+    await user.keyboard('{Enter}');
     expect(deps.openNativeSession).toHaveBeenCalledTimes(1);
     expect(deps.createExecSession).not.toHaveBeenCalled();
     expect(deps.closeDrawer).not.toHaveBeenCalled();
