@@ -1,10 +1,12 @@
 package klogconfig
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"testing"
 
+	sdksettings "github.com/omniviewdev/plugin-sdk/pkg/v1/settings"
 	"github.com/omniviewdev/plugin-sdk/settings"
 	"github.com/stretchr/testify/require"
 	"k8s.io/klog/v2"
@@ -25,6 +27,7 @@ func TestSetting_DefaultNone(t *testing.T) {
 	require.Equal(t, SettingID, s.ID)
 	require.Equal(t, settings.Select, s.Type)
 	require.Equal(t, LevelNone, s.Default)
+	require.False(t, s.RequiresRestart)
 
 	values := make([]string, 0, len(s.Options))
 	for _, opt := range s.Options {
@@ -107,4 +110,42 @@ func TestConfigureDefaultsAndApply(t *testing.T) {
 func TestConfigureDefaultsAndApply_NilFlagSet(t *testing.T) {
 	require.Error(t, ConfigureDefaults(nil))
 	require.Error(t, Apply(nil, LevelNone))
+}
+
+func TestApplyAndWatchHydrationAndCommittedChanges(t *testing.T) {
+	fs := flag.NewFlagSet("klogconfig-hydration-test", flag.ContinueOnError)
+	klog.InitFlags(fs)
+	require.NoError(t, ConfigureDefaults(fs))
+	provider := settings.NewProvider(settings.ProviderOpts{
+		PluginID: "kubernetes",
+		PluginSettings: []settings.Category{{
+			ID:       "plugin",
+			Settings: map[string]settings.Setting{SettingID: Setting()},
+		}},
+	})
+	require.NoError(t, ApplyAndWatch(fs, provider, func(err error) {
+		t.Errorf("unexpected apply error: %v", err)
+	}))
+	require.Equal(t, "0", fs.Lookup("v").Value.String())
+	transport := sdksettings.NewProviderWrapper(provider)
+	// The host hydrates persisted values through the same commit boundary.
+	result, err := transport.CommitSettings(context.Background(), map[string]any{SettingID: LevelDebug}, nil)
+	require.NoError(t, err)
+	require.True(t, result.Applied)
+	require.Equal(t, "6", fs.Lookup("v").Value.String())
+	result, err = transport.CommitSettings(context.Background(), map[string]any{SettingID: LevelInfo}, func(values map[string]any) error {
+		require.Equal(t, map[string]any{SettingID: LevelInfo}, values)
+		// A saved edit must not apply before persistence succeeds.
+		require.Equal(t, "6", fs.Lookup("v").Value.String())
+		return nil
+	})
+	require.NoError(t, err)
+	require.True(t, result.Applied)
+	require.Equal(t, "2", fs.Lookup("v").Value.String())
+	saveErr := errors.New("save failed")
+	_, err = transport.CommitSettings(context.Background(), map[string]any{SettingID: LevelWarn}, func(map[string]any) error {
+		return saveErr
+	})
+	require.ErrorIs(t, err, saveErr)
+	require.Equal(t, "2", fs.Lookup("v").Value.String())
 }

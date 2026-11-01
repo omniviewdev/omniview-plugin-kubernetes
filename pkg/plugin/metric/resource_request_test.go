@@ -10,6 +10,7 @@ import (
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
 	sdkmetric "github.com/omniviewdev/plugin-sdk/pkg/v1/metric"
+	"github.com/omniviewdev/plugin-sdk/settings"
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -189,4 +190,41 @@ func TestPrometheusDetectionCancellationDoesNotCacheAbsence(t *testing.T) {
 		t.Fatal("native detection did not retire")
 	}
 	require.Zero(t, detector.CacheLen(), "canceled detection is not evidence that Prometheus is absent")
+}
+
+func TestPrometheusGlobalSettingsRemainLive(t *testing.T) {
+	provider := settings.NewProvider(settings.ProviderOpts{
+		PluginID: "kubernetes",
+		PluginSettings: []settings.Category{{
+			ID: "plugin",
+			Settings: map[string]settings.Setting{
+				"prometheus_service_name":      {ID: "prometheus_service_name", Type: settings.Text, Default: "prometheus-server"},
+				"prometheus_service_namespace": {ID: "prometheus_service_namespace", Type: settings.Text, Default: "monitoring"},
+				"prometheus_service_port":      {ID: "prometheus_service_port", Type: settings.Integer, Default: 9090},
+			},
+		}},
+	})
+	client := &prometheusClient{settings: provider}
+	cfg, err := client.getConfig(nil)
+	require.NoError(t, err)
+	require.Equal(t, prometheusConfig{Service: "prometheus-server", Namespace: "monitoring", Port: 9090}, cfg)
+	require.NoError(t, provider.SetSettings(map[string]any{
+		"prometheus_service_name":      "hydrated-prometheus",
+		"prometheus_service_namespace": "observability",
+		"prometheus_service_port":      9091,
+	}))
+	cfg, err = client.getConfig(nil)
+	require.NoError(t, err)
+	require.Equal(t, prometheusConfig{Service: "hydrated-prometheus", Namespace: "observability", Port: 9091}, cfg)
+	require.NoError(t, provider.SetSetting("prometheus_service_port", 9092))
+	cfg, err = client.getConfig(nil)
+	require.NoError(t, err)
+	require.Equal(t, 9092, cfg.Port)
+	cfg, err = client.getConfig(map[string]string{
+		"prometheus_service_name":      "cluster-prometheus",
+		"prometheus_service_namespace": "cluster-monitoring",
+		"prometheus_service_port":      "9093",
+	})
+	require.NoError(t, err)
+	require.Equal(t, prometheusConfig{Service: "cluster-prometheus", Namespace: "cluster-monitoring", Port: 9093}, cfg)
 }

@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/omniviewdev/plugin-sdk/settings"
 )
@@ -93,6 +94,28 @@ func Apply(fs *flag.FlagSet, level string) error {
 // ApplyFromProvider resolves the level from settings and applies it to klog flags.
 func ApplyFromProvider(fs *flag.FlagSet, provider settings.Provider) error {
 	return Apply(fs, ResolveLevel(provider))
+}
+
+// ApplyAndWatch applies startup defaults, then reapplies settings after host
+// hydration and committed changes. Call before serving the plugin.
+func ApplyAndWatch(fs *flag.FlagSet, provider settings.Provider, reportError func(error)) error {
+	if err := ApplyFromProvider(fs, provider); err != nil {
+		return err
+	}
+	if provider == nil {
+		return nil
+	}
+	// FlagSet.Set mutates its bookkeeping map; serialize concurrent callbacks.
+	// Read the provider again under the lock instead of applying stale snapshots.
+	var mu sync.Mutex
+	provider.RegisterChangeHandler("plugin", func(_ map[string]any) {
+		mu.Lock()
+		defer mu.Unlock()
+		if err := ApplyFromProvider(fs, provider); err != nil && reportError != nil {
+			reportError(err)
+		}
+	})
+	return nil
 }
 
 func normalizeLevel(level string) string {

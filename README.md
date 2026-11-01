@@ -631,6 +631,19 @@ currently registers no custom validators; host-managed settings use the SDK's
 standard validation and draft-validation RPC. Do not add an error-returning
 validator or a separate `ValidateValue` callback.
 
+The host owns persisted SDK settings and hydrates them when the plugin starts.
+Changing the `kubeconfigs` path list requires restarting the Kubernetes plugin:
+connection discovery installs file watchers for the startup paths. Edits to the
+contents of those watched files still refresh connections without a restart.
+The host reports pending restart state through the SDK's generic metadata.
+Client log level applies after hydration and on later committed changes without
+a restart. Sidebar layout also remains live through the qualified
+`kubernetes.layout` value in `PluginContext`. Global Prometheus defaults are read
+for each request; explicit per-cluster Prometheus query parameters take precedence.
+Cluster preferences and sidebar ordering remain plugin-data preferences, not SDK
+settings. Rebuild and reload both plugin artifacts after upgrading the coordinated
+SDK/runtime release; restarting an old executable alone does not migrate it.
+
 The plugin manifest schema has no minimum-host-version field. Keep the host,
 backend SDK, runtime, and Vite plugin on the coordinated release cohort below
 rather than adding unsupported manifest fields.

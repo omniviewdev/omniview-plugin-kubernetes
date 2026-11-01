@@ -55,11 +55,12 @@ func main() {
 		ID: pluginid.ID,
 		Settings: []settings.Setting{
 			{
-				ID:          "kubeconfigs",
-				Label:       "Kubeconfigs",
-				Description: "A list of available Kubeconfigs to use",
-				Type:        settings.Text,
-				Default:     []string{"~/.kube/config"},
+				ID:              "kubeconfigs",
+				Label:           "Kubeconfigs",
+				Description:     "A list of available Kubeconfigs to use",
+				Type:            settings.Text,
+				Default:         []string{"~/.kube/config"},
+				RequiresRestart: true,
 				FileSelection: &settings.SettingFileSelection{
 					Enabled:      true,
 					AllowFolders: false,
@@ -118,7 +119,9 @@ func main() {
 		},
 	})
 
-	if err := klogconfig.ApplyFromProvider(klogFS, plugin.SettingsProvider); err != nil {
+	if err := klogconfig.ApplyAndWatch(klogFS, plugin.SettingsProvider, func(err error) {
+		log.Printf("failed to apply client log level setting: %v", err)
+	}); err != nil {
 		log.Printf("failed to apply client log level setting: %v", err)
 	}
 
