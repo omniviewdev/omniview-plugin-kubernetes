@@ -424,6 +424,16 @@ Every resource type gets a dedicated, sortable table with:
 - **Inline create** — open a YAML editor pre-populated with a template for the resource kind
 - **Row actions** — click any row to open a detail sidebar with tabs for overview, YAML, events, and more
 
+### Resource Navigation
+
+Both sidebar layouts use the host's shared `TreeList`, with one virtualized scroll viewport, keyboard navigation, and persistent expansion. Arrow keys move focus and expand or collapse groups; Enter or Space activates the focused destination or group. Plugin-contributed parent pages remain navigable.
+
+Expansion stays connection-specific. Sidebar order and edit mode remain global preferences. Unlock the sidebar to reorder sibling items with explicit drag handles, using pointer input or Space, arrow keys, and Space to drop. Items cannot move between sections or parents. Reset restores the default order without clearing expansion.
+
+New API groups and resource kinds appear as the catalog changes. Watch-state badges update independently of the navigation structure; errors take precedence over syncing indicators. Empty categories and unavailable primary resources do not become invalid navigation destinations. Global command search continues to reuse the same destinations.
+
+This migration requires a host that shares a base-ui release with `TreeList.onAction` support. Publish and adopt that shared release in both the host/runtime and plugin before releasing the plugin; updating the plugin alone does not replace the host's shared component singleton.
+
 ### Scoped Command Search
 
 Kubernetes plugin 0.11.0 requires Omniview 0.14.0 for transactional settings, connection/server metadata, collection-wide resource views, connection-route protection, live-Pod debug recovery, asynchronous resource actions, opening a connection in a new tab or window, and the shared search and resource-icon runtime contracts. Its standalone frontend pins published `@omniviewdev/runtime` 0.14.0, `@omniviewdev/vite-plugin` 0.14.0, `@omniviewdev/base-ui` 0.9.1, and `@omniviewdev/editors` 6.1.2 in `ui/package.json` and `ui/pnpm-lock.yaml`. Update Omniview before updating the Kubernetes plugin; the plugin's minor version is independent of the host version.

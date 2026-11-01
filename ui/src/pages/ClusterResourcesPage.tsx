@@ -12,7 +12,8 @@ import { LuCog, LuLock, LuLockOpen, LuPuzzle, LuRotateCcw, LuSearch } from 'reac
 import { Outlet, useParams } from 'react-router';
 
 import { PLUGIN_ID } from '@/pluginId';
-import DraggableNavMenu from '../components/kubernetes/sidebar/DraggableNavMenu';
+import ResourceNavTree from '../components/kubernetes/sidebar/ResourceNavTree';
+import { SidebarWatchStateProvider } from '../components/kubernetes/sidebar/SidebarWatchBadge';
 import SimpleTooltip from '../components/shared/SimpleTooltip';
 import SyncProgressDialog from '../components/shared/SyncProgressDialog';
 import { useClusterPreferences } from '../hooks/useClusterPreferences';
@@ -117,8 +118,7 @@ function ClusterResourcesSession({ id }: { id: string }): React.ReactElement {
   const { order, setOrder, isEditing, setIsEditing, resetOrder } = useSidebarOrder();
   const clusterPages = useClusterPages();
   const layout = React.useMemo(() => {
-    const ordered = applyOrder(rawLayout, order);
-    if (clusterPages.length === 0 || ordered.length === 0) return ordered;
+    if (clusterPages.length === 0 || rawLayout.length === 0) return applyOrder(rawLayout, order);
 
     // Pages contributed by other plugins sit directly under Dashboard.
     const pageItems = clusterPages.map((page) => {
@@ -137,9 +137,9 @@ function ClusterResourcesSession({ id }: { id: string }): React.ReactElement {
         ...(children.length > 0 ? { children } : {}),
       };
     });
-    const [first, ...rest] = ordered;
+    const [first, ...rest] = rawLayout;
     const at = first.items.findIndex((item) => item.id === '__dashboard__') + 1;
-    return [{ ...first, items: [...first.items.slice(0, at), ...pageItems, ...first.items.slice(at)] }, ...rest];
+    return applyOrder([{ ...first, items: [...first.items.slice(0, at), ...pageItems, ...first.items.slice(at)] }, ...rest], order);
   }, [rawLayout, order, clusterPages]);
   useKubernetesSearchNavigation(id, layout);
   const { location, navigate } = usePluginRouter();
@@ -332,16 +332,18 @@ function ClusterResourcesSession({ id }: { id: string }): React.ReactElement {
               </Link>
             </Stack>
           </div>
-          <DraggableNavMenu
-            sections={layout}
-            selected={selected}
-            onSelect={handleSelect}
-            scrollable
-            isEditing={isEditing}
-            onReorder={setOrder}
-            initialExpandedState={savedExpandedState}
-            onExpandedChange={handleExpandedChange}
-          />
+          <SidebarWatchStateProvider states={summary.data?.resources}>
+            <ResourceNavTree
+              sections={layout}
+              selected={selected}
+              onSelect={handleSelect}
+              scrollable
+              isEditing={isEditing}
+              onReorder={setOrder}
+              initialExpandedState={savedExpandedState}
+              onExpandedChange={handleExpandedChange}
+            />
+          </SidebarWatchStateProvider>
         </Stack>
       </Layout.SideNav>
       <Layout.Main style={mainStyle}>
