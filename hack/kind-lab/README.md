@@ -2,13 +2,15 @@
 
 Real Kubernetes v1.35.0 on kind, with one control plane and multiple workers. Each synthetic application has one BusyBox 1.37.0 HTTP pod, Deployment, Service, 2 KiB ConfigMap, 1 KiB synthetic Secret, and three seed Events. Kubernetes additionally generates ReplicaSets, EndpointSlices, and lifecycle Events. No metrics/profiling stack is installed.
 
+Both images are pinned by digest in the driver. Child processes have a six-minute timeout; cluster creation allows fifteen minutes. A process timeout exits with an explicit diagnostic; inspect cluster state before retrying because completed API mutations are not rolled back.
+
 ## Workspace
 
 Created through the installed `omniview-dev` CLI:
 
 ```sh
 omniview-dev workspace create kubernetes-load-lab \
-  --root /Users/joshuapare/Repos/omniviewdev/workspaces \
+  --root "$COLLECTION" \
   --plugin kubernetes --json
 ```
 
@@ -33,8 +35,10 @@ Pods request 1m CPU / 4 MiB and limit 50m CPU / 16 MiB. Requests are scheduler i
 
 Requirements: Python 3, Docker, kind, kubectl; registry access for node and BusyBox images. Commands run from the Kubernetes plugin feature worktree:
 
+Set `COLLECTION` to your initialized Omniview repository collection before using the workspace examples. For an existing standalone plugin checkout, run the Python commands from its repository root instead.
+
 ```sh
-cd /Users/joshuapare/Repos/omniviewdev/workspaces/workspaces/kubernetes-load-lab/kubernetes
+cd "$COLLECTION/workspaces/kubernetes-load-lab/kubernetes"
 python3 hack/kind-lab/lab.py create --workers 3
 python3 hack/kind-lab/lab.py seed --preset baseline
 python3 hack/kind-lab/lab.py status

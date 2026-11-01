@@ -15,9 +15,12 @@ LABEL = {'app.kubernetes.io/part-of': NAME}
 PRESETS = {'smoke': (2, 2), 'baseline': (10, 30), 'large': (20, 50), 'xl': (40, 50)}
 
 
-def run(args, data=None, capture=False):
-    return subprocess.run(args, input=None if data is None else json.dumps(data),
-                          text=True, check=True, capture_output=capture).stdout
+def run(args, data=None, capture=False, timeout=360):
+    try:
+        return subprocess.run(args, input=None if data is None else json.dumps(data),
+                              text=True, check=True, capture_output=capture, timeout=timeout).stdout
+    except subprocess.TimeoutExpired:
+        raise SystemExit(f'{args[0]} timed out after {timeout}s; inspect cluster state before retrying') from None
 
 
 def kubectl(*args, data=None, capture=False):
@@ -57,7 +60,7 @@ def inventory(preset):
                 'selector': {'matchLabels': selector},
                 'template': {'metadata': {'labels': {**LABEL, **selector}}, 'spec': {
                     'terminationGracePeriodSeconds': 2,
-                    'containers': [{'name': 'http', 'image': 'busybox:1.37.0',
+                    'containers': [{'name': 'http', 'image': 'busybox:1.37.0@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec',
                         'command': ['sh', '-c', 'mkdir -p /tmp/www; echo load-lab > /tmp/www/index.html; exec httpd -f -p 8080 -h /tmp/www'],
                         'ports': [{'containerPort': 8080}],
                         'resources': {'requests': {'cpu': '1m', 'memory': '4Mi'},
@@ -91,8 +94,9 @@ def main():
                   'nodes': [{'role': 'control-plane'}] + [{'role': 'worker'} for _ in range(args.workers)]}
         config_path = STATE / 'kind.json'
         config_path.write_text(json.dumps(config))
-        run(['kind', 'create', 'cluster', '--name', NAME, '--image', 'kindest/node:v1.35.0',
-             '--config', str(config_path), '--kubeconfig', str(KUBE), '--wait', '180s'])
+        run(['kind', 'create', 'cluster', '--name', NAME, '--image',
+             'kindest/node:v1.35.0@sha256:4613778f3cfcd10e615029370f5786704559103cf27bef934597ba562b269661',
+             '--config', str(config_path), '--kubeconfig', str(KUBE), '--wait', '180s'], timeout=900)
     elif args.command == 'seed':
         # Bound request size and let namespaces exist before their children.
         batch = []
