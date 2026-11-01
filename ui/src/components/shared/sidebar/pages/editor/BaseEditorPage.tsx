@@ -35,11 +35,7 @@ const ResourceEditor: React.FC<{ data: KubernetesResourceObject; resource: Resou
   const [error, setError] = React.useState<string>();
   const [formError, setFormError] = React.useState<string | null>(null);
   const [editorRevision, setEditorRevision] = React.useState(0);
-  const [renderedBaseline, setRenderedBaseline] = React.useState(baseline);
-  if (renderedBaseline !== baseline) {
-    setRenderedBaseline(baseline);
-    setEditorRevision((current) => current + 1);
-  }
+  const interacted = React.useRef(false);
   const revision = React.useRef(resource.record?.record.sourceRevision);
   const busy = React.useRef(false);
   const mounted = React.useRef(true);
@@ -50,9 +46,10 @@ const ResourceEditor: React.FC<{ data: KubernetesResourceObject; resource: Resou
     return () => { mounted.current = false; };
   }, []);
 
-  // Refetches must not erase a draft or replace its optimistic concurrency baseline.
+  // Local form inputs can be pending without changing YAML. Freeze both source and
+  // optimistic revision after interaction until an explicit successful submit/reset.
   React.useEffect(() => {
-    if (!changed && !busy.current) {
+    if (!changed && !formError && !interacted.current && !busy.current) {
       const next = stringify(data);
       setBaseline(next);
       setValue(next);
@@ -88,6 +85,7 @@ const ResourceEditor: React.FC<{ data: KubernetesResourceObject; resource: Resou
       revision.current = result.sourceRevision;
       setBaseline(next);
       setValue(next);
+      interacted.current = false;
       setEditorRevision((current) => current + 1);
     } catch (cause) {
       if (mounted.current) {
@@ -113,7 +111,10 @@ const ResourceEditor: React.FC<{ data: KubernetesResourceObject; resource: Resou
       : !canUpdate ? 'This resource does not advertise update support for this scope.' : undefined;
 
   return (
-    <Stack style={outerStackStyle} spacing={2} direction="column">
+    <Stack style={outerStackStyle} spacing={2} direction="column"
+      onFocusCapture={() => { interacted.current = true; }}
+      onPointerDownCapture={() => { interacted.current = true; }}
+    >
       <ResourceManifestEditor
         key={editorRevision}
         connectionID={resource.route.connection}
@@ -135,7 +136,7 @@ const ResourceEditor: React.FC<{ data: KubernetesResourceObject; resource: Resou
           {usingDiff ? 'Show Editor' : 'Show Diff'}
         </Button>
         <Stack direction="row" spacing={1}>
-          <Button startDecorator={<LuX />} color="neutral" disabled={(!changed && !formError) || pending} size="sm" variant="soft" onClick={() => { setValue(baseline); setError(undefined); setEditorRevision((current) => current + 1); }}>
+          <Button startDecorator={<LuX />} color="neutral" disabled={(!changed && !formError) || pending} size="sm" variant="soft" onClick={() => { interacted.current = false; setValue(baseline); setError(undefined); setEditorRevision((current) => current + 1); }}>
             Reset
           </Button>
           <Button startDecorator={<LuSave />} color="brand" disabled={!changed || pending || !canUpdate || !!formError} size="sm" variant="soft" onClick={() => { void handleSubmit(); }}>

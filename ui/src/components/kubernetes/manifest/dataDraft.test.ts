@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseDocument } from 'yaml';
-import { inspectManifest, patchManifest } from './manifestDraft';
+import { inspectManifest, patchManifest, validateManifest } from './manifestDraft';
 import { changeSecretType, decodeBytes, decodeText, dockerConfig, encodeBytes, encodeText, redactSecretManifest, removeSecretKey, renameDataKey, replaceSecretKey, restoreSecretKey, validateDataManifest } from './dataDraft';
 
 const secret = `apiVersion: v1\nkind: Secret\nmetadata:\n  name: credentials\n  namespace: team\ntype: Opaque\ndata:\n  first: 'b2xk' # preserve encoding\n  second: c3RhYmxl\nstringData:\n  first: override\nx-extra: 9007199254740993\n`;
@@ -81,6 +81,16 @@ describe('data manifest adapters', () => {
     const original = 'apiVersion: v1\nkind: ConfigMap\nmetadata: {name: config, namespace: team}\nimmutable: true\ndata:\n  first: one\n  second: two\n';
     const reordered = original.replace('  first: one\n  second: two', '  second: two\n  first: one');
     expect(validateDataManifest(inspectManifest(reordered), true, inspectManifest(original))).toBeNull();
+  });
+  it('allows custom Secret metadata edits through YAML without changing credential type or values', () => {
+    const original = patchManifest(secret, [{ path: ['type'], value: 'example.com/credentials' }]);
+    const edited = patchManifest(original, [{ path: ['metadata', 'annotations', 'owner'], value: 'platform' }]);
+    expect(validateManifest(edited, 'k8s:/secrets', true, original)).toBeNull();
+    const document = parseDocument(edited, { intAsBigInt: true });
+    expect(document.get('type')).toBe('example.com/credentials');
+    expect(document.getIn(['data', 'first'])).toBe('b2xk');
+    expect(document.getIn(['stringData', 'first'])).toBe('override');
+    expect(document.get('x-extra')).toBe(9007199254740993n);
   });
   it('explicit type discard removes individual keys and preserves unknown fields', () => {
     const changed = changeSecretType(secret, 'kubernetes.io/tls');

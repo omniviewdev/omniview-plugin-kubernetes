@@ -46,12 +46,18 @@ Unquoted numeric PVC quantities stay YAML-only to preserve their original spelli
 Pending, uncommitted form inputs block submission and mode changes until repaired
 or canceled.
 
-**Secret YAML and diffs are read-only, redacted projections**, never mutation
-sources. Credentials, annotation values, comments, and unknown fields are excluded
-from the projection. Existing credentials remain unchanged until explicit
-replacement or removal. Reveal does not modify the draft; cancel restores only
-the selected key, including its original encoding and AST metadata. API errors
-do not display credential material. Secret values are never persisted as preferences.
+**Secret YAML starts as a read-only, redacted projection**, never a mutation
+source. Credentials, annotation values, comments, and unknown fields are excluded
+from the projection. Explicit confirmation enables raw YAML editing, including
+unsupported Secret types and invalid source that needs repair. Raw editing uses a
+separate editor model. Hiding it or leaving the view remasks without discarding
+source edits; diffs always remain redacted and read-only.
+
+Existing credentials remain unchanged until explicit replacement or removal.
+Reveal does not modify the draft; cancel restores only the selected key,
+including its original encoding and AST metadata. API errors do not display
+credential material. Secret values and raw-edit consent are never persisted as
+preferences.
 
 The last explicitly selected mode is remembered in the user's local browser
 profile across resources, create/edit views, submit, and cancel. Temporary YAML
@@ -83,8 +89,10 @@ operation. No companion workloads, certificates, DNS records, or volumes are
 silently created.
 
 Creation and editing retain original mutation routing, incarnation, and revision
-safeguards. Failed requests preserve the draft. A changed name or namespace cannot
-retarget an edit. Native dialogs own their portaled menus, help, and confirmations,
+safeguards. Failed requests preserve the draft. Passive refresh cannot discard
+local form input or replace the optimistic revision after interaction begins.
+A changed name or namespace cannot retarget an edit. Native dialogs own their
+portaled menus, help, and confirmations,
 so these controls remain visible and interactive inside the browser's top layer.
 
 

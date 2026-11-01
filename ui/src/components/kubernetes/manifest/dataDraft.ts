@@ -91,7 +91,7 @@ export function validateDataManifest(draft: ManifestDraft, editing: boolean, bas
   if (!secret && Object.keys(dataEntries(draft, 'data')).some((key) => Object.hasOwn(dataEntries(draft, 'binaryData'), key))) return 'Keys must be unique across text and binary entries.';
   if (secret) {
     const type = readManifestValue(draft, ['type']) ?? 'Opaque';
-    if (typeof type !== 'string' || !secretTypes.includes(type)) return 'This Secret type is not supported by Form.';
+    if (typeof type !== 'string') return 'Secret type must be a string.';
     const has = (key: string) => Object.hasOwn(dataEntries(draft, 'data'), key) || Object.hasOwn(dataEntries(draft, 'stringData'), key);
     if (type === 'kubernetes.io/tls' && (!has('tls.crt') || !has('tls.key'))) return 'Upload both certificate and private key.';
     if (type === 'kubernetes.io/dockerconfigjson' && !has('.dockerconfigjson')) return 'Provide a registry configuration.';
