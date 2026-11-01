@@ -40,7 +40,7 @@ it('updates an already-rendered Pod row when native capability and pending regis
     </TableDrawerContext.Provider>,
   );
   await user.click(screen.getByRole('button', { name: 'Row actions' }));
-  await user.click(await screen.findByRole('menuitem', { name: 'Exec' }));
+  await user.hover(await screen.findByRole('menuitem', { name: /^Exec\b/ }));
   expect(await screen.findByRole('menuitem', { name: 'main' })).toBeTruthy();
   expect(screen.queryByRole('menuitem', { name: 'main — Open in Native Terminal' })).toBeNull();
 
