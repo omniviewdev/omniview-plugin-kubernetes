@@ -1,5 +1,6 @@
 import Editor, { DiffEditor, useMonaco } from '@monaco-editor/react';
-import { type FC, useEffect, useState } from 'react';
+import type { editor, IDisposable } from 'monaco-editor';
+import { type FC, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
 // Themes
 import BrillianceBlack from './themes/BrillianceBlack';
@@ -32,6 +33,22 @@ const CodeEditor: FC<Props> = ({
   const [controlledValue, setControlledValue] = useState(value);
   const monaco = useMonaco();
   const [lang, setLang] = useState<string | undefined>(language);
+  const showDiff = !!(diff && original && lang);
+  const diffEditor = useRef<editor.IDiffEditor | null>(null);
+  const diffCreation = useRef<IDisposable | null>(null);
+  const diffContainerID = useId();
+
+  useLayoutEffect(() => () => {
+    diffCreation.current?.dispose();
+    diffCreation.current = null;
+    const instance = diffEditor.current;
+    diffEditor.current = null;
+    const models = instance?.getModel();
+    // Detach models before disposal; the wrapper otherwise disposes attached models.
+    instance?.setModel(null);
+    models?.original.dispose();
+    models?.modified.dispose();
+  }, [showDiff]);
 
   useEffect(() => {
     if (monaco) {
@@ -73,9 +90,22 @@ const CodeEditor: FC<Props> = ({
     setControlledValue(val);
   };
 
-  if (diff && original && lang) {
+  if (showDiff) {
     return (
       <DiffEditor
+        wrapperProps={{ id: diffContainerID }}
+        beforeMount={(instance) => {
+          // Wrapper versions call beforeMount before or after widget creation.
+          // Capture either case before the asynchronous onMount notification.
+          const capture = (created: editor.IDiffEditor) => {
+            if (document.getElementById(diffContainerID)?.contains(created.getContainerDomNode())) {
+              diffEditor.current = created;
+            }
+          };
+          diffCreation.current?.dispose();
+          diffCreation.current = instance.editor.onDidCreateDiffEditor(capture);
+          instance.editor.getDiffEditors().forEach(capture);
+        }}
         theme={lang === 'nginx' ? 'nginx-theme-dark' : 'vs-dark'}
         language={lang}
         original={original}
