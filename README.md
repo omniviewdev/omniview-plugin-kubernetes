@@ -214,7 +214,7 @@ The splash shows the saved cluster identity while checking, connecting, or recov
 
 Storybook's **Connections/ConnectionBoundary** stories provide mocked loading, disconnected, connecting, authorization, missing-connection, and error states, including metadata loading/failure. Interactive recovery opens a mocked Pod table instead of a redundant connected splash. The preview makes no backend connection requests.
 
-Kubernetes plugin 0.12.0 supports Omniview 0.14.0 or later and retains the 0.14.0 shared UI/runtime cohort. Profiling controls and status require Omniview 0.15.0; the plugin's profiling support comes from SDK 0.11.0 and stays off by default. Historical plugin 0.11.0 requires Omniview 0.14.0 for transactional settings; 0.10.0 requires Omniview 0.13.0 for connection/server metadata; 0.9.0 requires Omniview 0.12.0 for resource-v2 integration and collection-wide views, and 0.8.2 uses its older compatible producer cohort.
+This tree migration requires Omniview 0.17.0 or later for the shared TreeList contract. Profiling support comes from SDK 0.11.0 and stays off by default. Historical plugin 0.12.0 retains the 0.14.0 UI/runtime cohort and requires Omniview 0.15.0 for profiling controls; 0.11.0 requires Omniview 0.14.0 for transactional settings; 0.10.0 requires Omniview 0.13.0 for connection/server metadata; 0.9.0 requires Omniview 0.12.0 for resource-v2 integration and collection-wide views, and 0.8.2 uses its older compatible producer cohort.
 
 ## Plugin-process profiling
 
@@ -432,11 +432,11 @@ Expansion stays connection-specific. Sidebar order and edit mode remain global p
 
 New API groups and resource kinds appear as the catalog changes. Watch-state badges update independently of the navigation structure; errors take precedence over syncing indicators. Empty categories and unavailable primary resources do not become invalid navigation destinations. Global command search continues to reuse the same destinations.
 
-This migration requires a host that shares a base-ui release with `TreeList.onAction` support. Publish and adopt that shared release in both the host/runtime and plugin before releasing the plugin; updating the plugin alone does not replace the host's shared component singleton.
+Omniview 0.17.0 shares base-ui 0.10.0 with `TreeList.onAction` support. This plugin pins the matching published runtime and Vite plugin 0.17.0, base-ui 0.10.0, and editors 6.1.3. Update Omniview before updating the Kubernetes plugin: a plugin dependency alone does not replace the host's shared component singleton.
 
 ### Scoped Command Search
 
-Kubernetes plugin 0.11.0 requires Omniview 0.14.0 for transactional settings, connection/server metadata, collection-wide resource views, connection-route protection, live-Pod debug recovery, asynchronous resource actions, opening a connection in a new tab or window, and the shared search and resource-icon runtime contracts. Its standalone frontend pins published `@omniviewdev/runtime` 0.14.0, `@omniviewdev/vite-plugin` 0.14.0, `@omniviewdev/base-ui` 0.9.1, and `@omniviewdev/editors` 6.1.2 in `ui/package.json` and `ui/pnpm-lock.yaml`. Update Omniview before updating the Kubernetes plugin; the plugin's minor version is independent of the host version.
+The runtime provides transactional settings, connection/server metadata, collection-wide resource views, connection-route protection, live-Pod debug recovery, asynchronous resource actions, opening a connection in a new tab or window, and the shared search and resource-icon contracts. Exact standalone dependency pins live in `ui/package.json` and `ui/pnpm-lock.yaml`; the plugin's minor version is independent of the host version.
 
 Cmd/Ctrl-K opens Omniview's single global search surface, including on Kubernetes pages. Type a connection name and press Tab to scope it, then scope a resource type and resource. Enter opens the selected destination or existing action. The sidebar's **Find in this connection** control opens that same surface with a visible connection chip.
 
@@ -678,10 +678,10 @@ rather than adding unsupported manifest fields.
 
 Registry installs retain pnpm's 24-hour release-age protection. Only coordinated
 `@omniviewdev/*` packages are exempted; linked source worktrees resolve locally.
-The current UI cohort is `@omniviewdev/base-ui` 0.9.1 and
-`@omniviewdev/editors` 6.1.2, paired with host/runtime and Vite plugin 0.14.0.
-The backend pins published Go SDK `v0.10.0` for transactional settings and
-connection metadata.
+The current UI cohort is `@omniviewdev/base-ui` 0.10.0 and
+`@omniviewdev/editors` 6.1.3, paired with host/runtime and Vite plugin 0.17.0.
+The backend pins published Go SDK `v0.11.0` for transactional settings,
+connection metadata, and opt-in profiling.
 Debug preferences discard unsaved drafts when reopened or switched to another
 connection, but preserve active drafts when saved defaults refresh.
 
