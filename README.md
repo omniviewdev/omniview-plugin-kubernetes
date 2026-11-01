@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://omniview.dev"><img src="https://img.shields.io/badge/omniview-plugin-326CE5?style=flat-square&logo=kubernetes&logoColor=white" alt="Omniview Plugin" /></a>
-  <img src="https://img.shields.io/badge/version-0.11.0-blue?style=flat-square" alt="Version" />
+  <img src="https://img.shields.io/badge/version-0.12.0-blue?style=flat-square" alt="Version" />
   <img src="https://img.shields.io/badge/license-Apache--2.0-green?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/category-cloud-326CE5?style=flat-square" alt="Category" />
 </p>
@@ -214,7 +214,13 @@ The splash shows the saved cluster identity while checking, connecting, or recov
 
 Storybook's **Connections/ConnectionBoundary** stories provide mocked loading, disconnected, connecting, authorization, missing-connection, and error states, including metadata loading/failure. Interactive recovery opens a mocked Pod table instead of a redundant connected splash. The preview makes no backend connection requests.
 
-Kubernetes plugin 0.11.0 requires Omniview 0.14.0 or later for transactional settings and the coordinated shared UI/runtime cohort. Update the desktop app before updating the plugin. Historical plugin 0.10.0 requires Omniview 0.13.0 for connection/server metadata; 0.9.0 requires Omniview 0.12.0 for resource-v2 integration and collection-wide views, and 0.8.2 uses its older compatible producer cohort.
+Kubernetes plugin 0.12.0 supports Omniview 0.14.0 or later and retains the 0.14.0 shared UI/runtime cohort. Profiling controls and status require Omniview 0.15.0; the plugin's profiling support comes from SDK 0.11.0 and stays off by default. Historical plugin 0.11.0 requires Omniview 0.14.0 for transactional settings; 0.10.0 requires Omniview 0.13.0 for connection/server metadata; 0.9.0 requires Omniview 0.12.0 for resource-v2 integration and collection-wide views, and 0.8.2 uses its older compatible producer cohort.
+
+## Plugin-process profiling
+
+Profiling is off by default. In Omniview 0.15.0 or later, enable plugin profiling in the developer settings, save, and restart the Kubernetes plugin. Capture CPU, heap, or Go execution traces from the plugin process, not the desktop host or Kubernetes workloads. Disabling profiling also requires saving and restarting the plugin; the old endpoint closes when the process stops.
+
+The SDK serves profiling on a loopback-only endpoint. Treat profile files as sensitive process data; do not expose the endpoint or publish captures containing private data.
 
 ## Connection/server metadata
 
