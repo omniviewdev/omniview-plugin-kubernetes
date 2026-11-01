@@ -44,8 +44,9 @@ const CreateResourceButton: React.FC<Props> = ({ connectionID, resourceKey, sele
         if (identity?.namespaced) {
           changes.push({ path: ['metadata', 'namespace'], value: selectedNamespaces.length === 1 ? selectedNamespaces[0] : '' });
         }
+        if (identity) changes.push({ path: ['metadata', 'name'], value: '' });
         if (draft.kind) {
-          changes.push({ path: ['metadata', 'name'], value: '' }, { path: ['metadata', 'labels', 'app'], value: '' });
+          changes.push({ path: ['metadata', 'labels', 'app'], value: '' });
           const podPath = draft.kind === 'Pod' ? ['spec'] : ['spec', 'template', 'spec'];
           changes.push(
             { path: [...podPath, 'containers', 0, 'image'], value: '' },

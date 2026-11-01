@@ -3,7 +3,7 @@ import { useId, useState, type ReactNode } from 'react';
 import { LuCircleHelp, LuPlus, LuTrash2 } from 'react-icons/lu';
 
 import SimpleTooltip from '../../shared/SimpleTooltip';
-import { patchManifest, readManifestValue, type ManifestChange, type ManifestDraft, type ManifestPath } from './manifestDraft';
+import { isDnsLabel, isDnsName, isKubernetesQuantity, patchManifest, readManifestValue, type ManifestChange, type ManifestDraft, type ManifestPath } from './manifestDraft';
 import styles from './ResourceManifestEditor.module.css';
 
 export type WorkloadSection = 'basics' | 'containers' | 'storage';
@@ -20,9 +20,6 @@ const text = (value: unknown): string => typeof value === 'string' ? value
   : typeof value === 'number' || typeof value === 'bigint' || typeof value === 'boolean' ? String(value) : '';
 const rows = (value: unknown): Record<string, unknown>[] => Array.isArray(value) ? value as Record<string, unknown>[] : [];
 const object = (value: unknown): Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
-const dnsLabel = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/;
-const dnsName = /^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$/;
-const quantity = /^(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+|[numkKMGTP]i?|Ei?)?$/;
 const metadataKey = /^(?:[a-z0-9](?:[-a-z0-9.]*[a-z0-9])?\/)?[A-Za-z0-9](?:[-_.A-Za-z0-9]*[A-Za-z0-9])?$/;
 
 function Help({ children }: { children: string }) {
@@ -127,6 +124,12 @@ export default function WorkloadForm({ value, onChange, draft, section, editing 
     if (next === '') patch([{ path, remove: true }]);
     else if (/^-?\d+$/.test(next)) patch([{ path, value: BigInt(next) }]);
   };
+  const setPort = (path: ManifestPath, next: string) => {
+    if (next === '') {
+      const hasSiblings = Object.keys(object(get(path))).some((key) => key !== 'containerPort');
+      patch([{ path: hasSiblings ? [...path, 'containerPort'] : path, remove: true }]);
+    } else setInteger([...path, 'containerPort'], next);
+  };
   const name = text(get(['metadata', 'name']));
   const namespace = text(get(['metadata', 'namespace']));
   const serviceName = text(get(['spec', 'serviceName']));
@@ -144,10 +147,10 @@ export default function WorkloadForm({ value, onChange, draft, section, editing 
     return <Field key={`${group}-${resource}`} label={`${resource === 'cpu' ? 'CPU' : 'Memory'} ${group === 'requests' ? 'request' : 'limit'}`}
       value={current} disabled={specLocked} placeholder={resource === 'cpu' ? '100m' : '128Mi'}
       help={resource === 'cpu' ? 'CPU quantity: 100m is one tenth of a core; 1 is one core.' : 'Memory quantity: use Mi or Gi for binary units, M or G for decimal units.'}
-      error={current && !quantity.test(current) ? 'Use a non-negative quantity, such as 100m, 128Mi or 1Gi.' : undefined}
+      error={current && !isKubernetesQuantity(current) ? 'Use a non-negative quantity, such as 100m, 128Mi or 1Gi.' : undefined}
       onChange={(next) => set([...containerPath, 'resources', group, resource], next, true)} />;
   };
-  const containerNameError = (current: string) => !current || current.length > 63 || !dnsLabel.test(current) ? 'Use a DNS label: lowercase letters, digits and dashes.'
+  const containerNameError = (current: string) => !isDnsLabel(current) ? 'Use a DNS label: lowercase letters, digits and dashes.'
     : containers.some((entry, index) => index !== selected && text(entry.name) === current) ? 'Container names must be unique.' : undefined;
 
   return <div className={styles.form}>
@@ -156,7 +159,7 @@ export default function WorkloadForm({ value, onChange, draft, section, editing 
       <Section title="Identity">
         <div className={styles.grid}>
           <Field label="Name" value={name} disabled={disabled || editing} placeholder="my-workload" help={editing ? 'Resource names cannot change after creation.' : 'Unique DNS name within the namespace.'}
-            error={!name && !get(['metadata', 'generateName']) ? 'Enter a name.' : name && (name.length > 253 || !dnsName.test(name)) ? 'Use a DNS name with lowercase letters, digits, dots and dashes.' : undefined}
+            error={!name ? 'Enter a name.' : !isDnsName(name) ? 'Use a DNS name with lowercase letters, digits, dots and dashes.' : undefined}
             onChange={(next) => {
               const changes: ManifestChange[] = [{ path: ['metadata', 'name'], value: next }];
               if (get(['metadata', 'labels', 'app']) === name) {
@@ -172,14 +175,14 @@ export default function WorkloadForm({ value, onChange, draft, section, editing 
               patch(changes);
             }} />
           <Field label="Namespace" value={namespace} disabled={disabled || editing} placeholder="default" help="Choose the destination namespace. Required for this resource."
-            error={!namespace ? 'Enter the destination namespace.' : namespace.length > 63 || !dnsLabel.test(namespace) ? 'Use a DNS label of at most 63 characters.' : undefined}
+            error={!namespace ? 'Enter the destination namespace.' : !isDnsLabel(namespace) ? 'Use a DNS label of at most 63 characters.' : undefined}
             onChange={(next) => set(['metadata', 'namespace'], next, true)} />
         </div>
       </Section>
       <Section title={draft.kind === 'Pod' ? 'Container' : 'Workload'}>
         <div className={styles.grid}>
           <Field label="Image" value={text(containers[0]?.image)} disabled={disabled} placeholder="nginx:1.27" help="Image for the first container. Manage all containers in Containers."
-            error={!text(containers[0]?.image).trim() ? 'Enter a container image.' : undefined}
+            error={!text(containers[0]?.image) ? 'Enter a container image.' : undefined}
             onChange={(next) => {
               const changes: ManifestChange[] = [{ path: [...containersPath, 0, 'image'], value: next }];
               if (!containers.length) changes.unshift({ path: [...containersPath, 0, 'name'], value: 'container-1' });
@@ -188,11 +191,7 @@ export default function WorkloadForm({ value, onChange, draft, section, editing 
           <Field label="Container port" value={text(get([...containersPath, 0, 'ports', 0, 'containerPort']))} disabled={specLocked} type="number" min={1} max={65535} placeholder="8080"
             help="Declares the first container port. This does not create a Service or expose traffic."
             error={(() => { const p = text(get([...containersPath, 0, 'ports', 0, 'containerPort'])); return p && (Number(p) < 1 || Number(p) > 65535) ? 'Use a port from 1 to 65535.' : undefined; })()}
-            onChange={(next) => {
-              const path: ManifestPath = [...containersPath, 0, 'ports', 0];
-              if (next === '') patch([{ path, remove: true }]);
-              else setInteger([...path, 'containerPort'], next);
-            }} />
+            onChange={(next) => setPort([...containersPath, 0, 'ports', 0], next)} />
           {draft.kind !== 'Pod' && <Field label="Replicas" value={replicas} disabled={disabled} type="number" min={0} max={2147483647} placeholder="1"
             help="Desired number of Pods. Zero stops all replicas. Defaults to 1 when omitted."
             error={replicas && (Number(replicas) < 0 || Number(replicas) > 2147483647) ? 'Use a whole number from 0 to 2147483647.' : undefined}
@@ -203,7 +202,7 @@ export default function WorkloadForm({ value, onChange, draft, section, editing 
             onChange={(next) => patch(next === 'Recreate' ? [{ path: ['spec', 'strategy', 'rollingUpdate'], remove: true }, { path: ['spec', 'strategy', 'type'], value: next }] : [{ path: ['spec', 'strategy', 'type'], value: next }])} />}
           {draft.kind === 'StatefulSet' && <Field label="Governing service" value={serviceName} disabled={disabled || editing} placeholder="my-headless-service"
             help="Name of an existing headless Service providing stable Pod DNS. Immutable after creation."
-            error={serviceName && (serviceName.length > 253 || !dnsName.test(serviceName)) ? 'Use a DNS name with lowercase letters, digits, dots and dashes.' : undefined}
+            error={serviceName && !isDnsName(serviceName) ? 'Use a DNS name with lowercase letters, digits, dots and dashes.' : undefined}
             onChange={(next) => set(['spec', 'serviceName'], next)} />}
         </div>
       </Section>
@@ -227,10 +226,10 @@ export default function WorkloadForm({ value, onChange, draft, section, editing 
         {podLocked && <div className={styles.inlineNote}>Existing Pods allow image updates. Recreate the Pod to change other container fields.</div>}
         <div className={styles.grid}>
           <Field label="Container name" value={text(container.name)} disabled={specLocked} error={containerNameError(text(container.name))} onChange={(next) => set([...containerPath, 'name'], next)} />
-          <Field label="Container image" value={text(container.image)} disabled={disabled} placeholder="nginx:1.27" error={!text(container.image).trim() ? 'Enter a container image.' : undefined} onChange={(next) => set([...containerPath, 'image'], next)} />
+          <Field label="Container image" value={text(container.image)} disabled={disabled} placeholder="nginx:1.27" error={!text(container.image) ? 'Enter a container image.' : undefined} onChange={(next) => set([...containerPath, 'image'], next)} />
           <Field label="Port" value={port} disabled={specLocked} type="number" min={1} max={65535} placeholder="8080" help="First declared container port. Other ports remain unchanged."
             error={port && (Number(port) < 1 || Number(port) > 65535) ? 'Use a port from 1 to 65535.' : undefined}
-            onChange={(next) => next === '' ? patch([{ path: [...containerPath, 'ports', 0], remove: true }]) : setInteger([...containerPath, 'ports', 0, 'containerPort'], next)} />
+            onChange={(next) => setPort([...containerPath, 'ports', 0], next)} />
         </div>
       </Section>
       <Section title="Resources"><div className={styles.grid}>{resourceField('requests', 'cpu')}{resourceField('limits', 'cpu')}{resourceField('requests', 'memory')}{resourceField('limits', 'memory')}</div></Section>
@@ -274,7 +273,7 @@ export default function WorkloadForm({ value, onChange, draft, section, editing 
             }} /></div>
             <div className={styles.grid}>
               <Field label={`Claim ${index + 1} name`} value={claimName} disabled={storageDisabled} placeholder="data"
-                error={!claimName || !dnsName.test(claimName) || claimName.length > 253 ? 'Enter a valid claim name.' : claims.some((other, otherIndex) => otherIndex !== index && object(other.metadata).name === claimName) ? 'Claim names must be unique.' : undefined}
+                error={!isDnsName(claimName) ? 'Enter a valid claim name.' : claims.some((other, otherIndex) => otherIndex !== index && object(other.metadata).name === claimName) ? 'Claim names must be unique.' : undefined}
                 onChange={(next) => {
                   const changes: ManifestChange[] = [{ path: [...claimPath, 'metadata', 'name'], value: next }];
                   mountContainerPaths.forEach((path) => rows(get(path)).forEach((entry, containerIndex) => rows(entry.volumeMounts).forEach((mount, mountRow) => {
@@ -289,7 +288,7 @@ export default function WorkloadForm({ value, onChange, draft, section, editing 
                 help={accessModes.length > 1 ? 'Changes only the first access mode. Additional modes remain unchanged.' : 'Access mode must be supported by the storage provisioner.'}
                 onChange={(next) => set([...claimPath, 'spec', 'accessModes', 0], next)} />
               <Field label={`Claim ${index + 1} capacity`} value={capacity} disabled={storageDisabled} placeholder="10Gi" help="Requested storage quantity, for example 10Gi or 500Mi."
-                error={!capacity || !quantity.test(capacity) || Number.parseFloat(capacity) <= 0 ? 'Enter a positive storage quantity, such as 10Gi.' : undefined}
+                error={!isKubernetesQuantity(capacity) || Number.parseFloat(capacity) <= 0 ? 'Enter a positive storage quantity, such as 10Gi.' : undefined}
                 onChange={(next) => set([...claimPath, 'spec', 'resources', 'requests', 'storage'], next)} />
               <Choice label={`Claim ${index + 1} mount container`} value={String(selected)} options={containers.map((entry, containerIndex) => ({ value: String(containerIndex), label: text(entry.name) || `Container ${containerIndex + 1}` }))}
                 onChange={(next) => setSelectedContainer(Number(next))} disabled={disabled || !containers.length} />

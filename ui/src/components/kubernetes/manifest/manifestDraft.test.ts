@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { inspectManifest, patchManifest, readManifestValue, supportedWorkloadKind, validateManifest } from './manifestDraft';
+import { inspectManifest, isDnsLabel, isDnsName, isKubernetesQuantity, patchManifest, readManifestValue, supportedWorkloadKind, validateManifest } from './manifestDraft';
 
 const pod = `# Managed outside the form
 apiVersion: v1
@@ -253,6 +253,27 @@ describe('manifest safety', () => {
     expect(() => patchManifest(anchored, [{ path: ['spec', 'containers', 0, 'image'], value: 'nginx:next' }])).toThrow();
   });
 
+  it.each([
+    ['missing anchor', '      extension: {value: *missing}\n'],
+    ['forward alias', '      extension: {value: *later, anchor: &later value}\n'],
+    ['over-limit aliases', `      extension:
+        base: &base [x, x]
+        repeated: &repeated [${Array(11).fill('*base').join(', ')}]
+        amplified: [${Array(11).fill('*repeated').join(', ')}]
+`],
+  ])('falls back to raw YAML for %s in an unknown container field', (_name, extension) => {
+    const source = pod.replace('      lifecycle:\n', `${extension}      lifecycle:\n`);
+    const draft = inspectManifest(source);
+    expect(draft.error).toBeNull();
+    expect(draft.formError).toMatch(/aliases.*Use YAML/);
+    const before = draft.document?.contents;
+    expect(() => readManifestValue(draft, ['spec', 'containers'])).not.toThrow();
+    expect(readManifestValue(draft, ['spec', 'containers'])).toBeUndefined();
+    expect(validateManifest(source)).toMatch(/aliases/);
+    expect(draft.document?.contents).toBe(before);
+    expect(source).toBe(pod.replace('      lifecycle:\n', `${extension}      lifecycle:\n`));
+  });
+
   it('refuses scalar traversal, sparse arrays, wrong path key types, and collection replacement', () => {
     expect(() => patchManifest(pod, [{ path: ['spec', 'containers', 0, 'image', 'tag'], value: 'next' }])).toThrow();
     expect(() => patchManifest(pod, [{ path: ['spec', 'containers', 0, 'image'], value: { tag: 'next' } }])).toThrow();
@@ -309,6 +330,27 @@ describe('manifest validation', () => {
     expect(validateManifest(patchManifest(pod, [{ path: ['spec', 'containers', 0, 'image'], value: '' }]))).toMatch(/image/);
     expect(validateManifest(patchManifest(pod, [{ path: ['spec', 'containers', 0], remove: true }]))).toMatch(/at least one container/);
     expect(validateManifest(patchManifest(pod, [{ path: ['metadata', 'name'], value: 'a'.repeat(100) }]))).toBeNull();
+  });
+
+  it.each([' nginx:1.27', 'nginx:1.27 '])('preserves controller image %j through unrelated edits', (image) => {
+    for (const source of [deployment, statefulSet]) {
+      const original = source.replace(/image: (?:nginx:1\.27|postgres:17)/, `image: '${image}'`);
+      expect(validateManifest(original, undefined, true)).toBeNull();
+      const next = patchManifest(original, [{ path: ['metadata', 'annotations', 'example.com/edited'], value: 'true' }]);
+      expect(read(next, ['spec', 'template', 'spec', 'containers', 0, 'image'])).toBe(image);
+      expect(validateManifest(next, undefined, true)).toBeNull();
+    }
+    expect(validateManifest(patchManifest(pod, [{ path: ['spec', 'containers', 0, 'image'], value: image }]))).toMatch(/whitespace/);
+  });
+
+  it('shares exact domain predicates without exposing parsed quantities', () => {
+    expect(isDnsLabel('a'.repeat(63))).toBe(true);
+    expect(isDnsLabel('a'.repeat(64))).toBe(false);
+    expect(isDnsName('valid.name')).toBe(true);
+    expect(isDnsName('invalid..name')).toBe(false);
+    expect(isDnsName('invalid.-name')).toBe(false);
+    for (const amount of ['1Ei', '1e1000000000', '.5', '+1', '0']) expect(isKubernetesQuantity(amount)).toBe(true);
+    for (const amount of ['1K', '1KiB', '-1', 'garbage']) expect(isKubernetesQuantity(amount)).toBe(false);
   });
 
   it.each([-1, 1.5, 2147483648n])('rejects invalid replica count %s', (replicas) => {

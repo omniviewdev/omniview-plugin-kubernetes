@@ -159,6 +159,82 @@ describe('resource manifest editor', () => {
     expect(source).toContain('# keep image context');
   });
 
+  it.each([
+    ['Basics', 'Container port'],
+    ['Containers', 'Port'],
+  ])('preserves port siblings when clearing and retyping in %s', (section, label) => {
+    const initial = deployment.replace('              name: http', `              name: dns
+              protocol: UDP
+              hostIP: 127.0.0.1
+              hostPort: 8053
+              customField: retained`);
+    const observe = vi.fn();
+    render(<Harness initial={initial} observe={observe} />);
+    if (section === 'Containers') fireEvent.click(screen.getByRole('button', { name: 'Containers' }));
+    const input = screen.getByLabelText(label);
+    fireEvent.change(input, { target: { value: '' } });
+    expect(input).toHaveValue(null);
+    let ports = parsed(observe.mock.lastCall![0] as string).toJS().spec.template.spec.containers[0].ports;
+    expect(ports[0]).toEqual({
+      name: 'dns', protocol: 'UDP', hostIP: '127.0.0.1', hostPort: 8053n, customField: 'retained',
+    });
+    expect(ports[1]).toEqual({ containerPort: 9090n, name: 'metrics' });
+    fireEvent.change(input, { target: { value: '8054' } });
+    ports = parsed(observe.mock.lastCall![0] as string).toJS().spec.template.spec.containers[0].ports;
+    expect(ports[0]).toEqual({
+      containerPort: 8054n, name: 'dns', protocol: 'UDP', hostIP: '127.0.0.1', hostPort: 8053n, customField: 'retained',
+    });
+    expect(ports[1]).toEqual({ containerPort: 9090n, name: 'metrics' });
+  });
+
+  it.each([
+    ['Basics', 'Container port'],
+    ['Containers', 'Port'],
+  ])('removes an otherwise empty port row in %s', (section, label) => {
+    const observe = vi.fn();
+    render(<Harness initial={deployment.replace('              name: http\n', '')} observe={observe} />);
+    if (section === 'Containers') fireEvent.click(screen.getByRole('button', { name: 'Containers' }));
+    fireEvent.change(screen.getByLabelText(label), { target: { value: '' } });
+    const doc = parsed(observe.mock.lastCall![0] as string);
+    expect(doc.toJS().spec.template.spec.containers[0].ports).toEqual([
+      { containerPort: 9090n, name: 'metrics' },
+    ]);
+  });
+
+  it('requires an explicit name even with generateName', () => {
+    render(<Harness initial={deployment.replace('  name: web\n', '  generateName: web-\n')} />);
+    fireEvent.blur(screen.getByLabelText('Name'));
+    expect(screen.getByLabelText('Name')).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByText('Enter a name.')).toBeInTheDocument();
+  });
+
+  it.each(['a..b', 'a.-b'])('rejects invalid DNS name %s', (name) => {
+    render(<Harness initial={stateful} resourceKey="k8s:apps/statefulsets" />);
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: name } });
+    fireEvent.change(screen.getByLabelText('Governing service'), { target: { value: name } });
+    expect(screen.getByLabelText('Name')).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByLabelText('Governing service')).toHaveAttribute('aria-invalid', 'true');
+  });
+
+  it.each(['1K', '1mi', '1ki'])('rejects invalid Kubernetes quantity %s', (quantity) => {
+    render(<Harness />);
+    fireEvent.click(screen.getByRole('button', { name: 'Containers' }));
+    fireEvent.change(screen.getByLabelText('CPU request'), { target: { value: quantity } });
+    expect(screen.getByLabelText('CPU request')).toHaveAttribute('aria-invalid', 'true');
+    fireEvent.change(screen.getByLabelText('CPU request'), { target: { value: '1Ki' } });
+    expect(screen.getByLabelText('CPU request')).toHaveAttribute('aria-invalid', 'false');
+  });
+
+  it('checks controller image presence without trimming whitespace', () => {
+    render(<Harness />);
+    fireEvent.change(screen.getByLabelText('Image'), { target: { value: ' ' } });
+    expect(screen.getByLabelText('Image')).toHaveAttribute('aria-invalid', 'false');
+    fireEvent.click(screen.getByRole('button', { name: 'Containers' }));
+    expect(screen.getByLabelText('Container image')).toHaveAttribute('aria-invalid', 'false');
+    fireEvent.change(screen.getByLabelText('Container image'), { target: { value: '' } });
+    expect(screen.getByLabelText('Container image')).toHaveAttribute('aria-invalid', 'true');
+  });
+
   it('keeps secret references and unrelated resource quantities while editing environment rows', () => {
     const observe = vi.fn();
     render(<Harness observe={observe} />);

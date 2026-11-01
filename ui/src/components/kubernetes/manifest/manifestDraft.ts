@@ -23,6 +23,10 @@ const apiVersions: Record<WorkloadKind, string> = { Pod: 'v1', Deployment: 'apps
 const displayPath = (path: ManifestPath) => path.map(String).join('.') || 'manifest';
 const safetyError = (path: ManifestPath) => new Error(`${displayPath(path)} cannot be safely edited in Form. Use YAML instead.`);
 
+// Decode once before allowing Form rendering, including unowned alias subtrees.
+const resolvedDocuments = new WeakMap<Document.Parsed, unknown>();
+const aliasError = 'The manifest contains aliases that cannot be safely resolved. Use YAML instead.';
+
 function parse(source: string): { document: Document.Parsed | null; error: string | null } {
   try {
     const documents = parseAllDocuments(source, { intAsBigInt: true, uniqueKeys: true });
@@ -148,6 +152,11 @@ export function inspectManifest(source: string, resourceKey?: string): ManifestD
   const kind = typeof value === 'string' && Object.hasOwn(apiVersions, value)
     && (!resourceKey || supportedWorkloadKind(resourceKey) === value) ? value as WorkloadKind : null;
   let formError: string | null = null;
+  try {
+    resolvedDocuments.set(document, document.toJS({ maxAliasCount: 100 }));
+  } catch {
+    return { document, error, kind, formError: aliasError };
+  }
   if (kind) {
     try {
       checkShape(document.contents, ownedShape(kind), []);
@@ -167,13 +176,13 @@ function childAt(node: unknown, key: string | number, path: ManifestPath): unkno
 }
 
 export function readManifestValue(draft: ManifestDraft, path: ManifestPath): unknown {
-  if (!draft.document || draft.error) return undefined;
-  let node: unknown = draft.document.contents;
-  for (let index = 0; index < path.length; index++) {
-    if (node === undefined) return undefined;
-    node = childAt(node, path[index], path.slice(0, index));
+  if (!draft.document || draft.error || !resolvedDocuments.has(draft.document)) return undefined;
+  let value = resolvedDocuments.get(draft.document);
+  for (const key of path) {
+    if (value === null || typeof value !== 'object' || !Object.hasOwn(value, key)) return undefined;
+    value = Reflect.get(value, key);
   }
-  return isNode(node) ? node.toJS(draft.document, { maxAliasCount: 100 }) : node;
+  return value;
 }
 
 function assertValue(value: unknown, seen = new Set<object>()): void {
@@ -247,8 +256,8 @@ function setChild(parent: unknown, key: string | number, value: unknown, path: M
 type ObjectValue = Record<string, unknown>;
 const object = (value: unknown): ObjectValue => value && typeof value === 'object' && !Array.isArray(value) ? value as ObjectValue : {};
 const array = (value: unknown): unknown[] => Array.isArray(value) ? value : [];
-const dnsLabel = (value: unknown): value is string => typeof value === 'string' && value.length <= 63 && /^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$/.test(value);
-const dnsName = (value: unknown): value is string => typeof value === 'string' && value.length <= 253 && /^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9](?:[-a-z0-9]*[a-z0-9])?)*$/.test(value);
+export const isDnsLabel = (value: unknown): value is string => typeof value === 'string' && value.length <= 63 && /^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$/.test(value);
+export const isDnsName = (value: unknown): value is string => typeof value === 'string' && value.length <= 253 && /^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9](?:[-a-z0-9]*[a-z0-9])?)*$/.test(value);
 const integer = (value: unknown): bigint | null => typeof value === 'bigint' ? value
   : typeof value === 'number' && Number.isSafeInteger(value) ? BigInt(value) : null;
 
@@ -267,6 +276,11 @@ function quantity(value: unknown): Quantity | null {
   else if (suffix.endsWith('i')) coefficient *= 2n ** BigInt(('KMGTPE'.indexOf(suffix[0]) + 1) * 10);
   else exponent += BigInt(powers[suffix] ?? 0);
   return { coefficient, exponent };
+}
+
+export function isKubernetesQuantity(value: unknown): boolean {
+  const parsed = quantity(value);
+  return parsed !== null && parsed.coefficient >= 0n;
 }
 
 function compareQuantity(left: Quantity, right: Quantity): number {
@@ -339,19 +353,18 @@ function validateSelector(spec: ObjectValue): string | null {
 export function validateManifest(source: string, resourceKey?: string, _editing = false): string | null {
   const draft = inspectManifest(source, resourceKey);
   if (draft.error || !draft.document) return draft.error ?? 'Invalid YAML.';
-  let root: ObjectValue;
-  try { root = object(draft.document.toJS({ maxAliasCount: 100 })); }
-  catch { return 'The manifest contains aliases that cannot be safely resolved.'; }
+  if (!resolvedDocuments.has(draft.document)) return aliasError;
+  const root = object(resolvedDocuments.get(draft.document));
   if (typeof root.apiVersion !== 'string' || !root.apiVersion.trim()) return 'apiVersion is required.';
   if (typeof root.kind !== 'string' || !root.kind.trim()) return 'kind is required.';
   const expected = resourceKey ? supportedWorkloadKind(resourceKey) : null;
   if (expected && root.kind !== expected) return `kind must be ${expected} for this resource type.`;
   const meta = object(root.metadata);
   if (typeof meta.name !== 'string' || !meta.name.trim()) return 'metadata.name is required.';
-  if (meta.namespace !== undefined && meta.namespace !== '' && !dnsLabel(meta.namespace)) return 'metadata.namespace must be a valid DNS label (up to 63 characters).';
+  if (meta.namespace !== undefined && meta.namespace !== '' && !isDnsLabel(meta.namespace)) return 'metadata.namespace must be a valid DNS label (up to 63 characters).';
   if (!draft.kind) return null;
   if (typeof meta.namespace !== 'string' || !meta.namespace) return 'metadata.namespace is required.';
-  if (!dnsName(meta.name)) return 'metadata.name must be a valid DNS subdomain (up to 253 characters).';
+  if (!isDnsName(meta.name)) return 'metadata.name must be a valid DNS subdomain (up to 253 characters).';
   if (root.apiVersion !== apiVersions[draft.kind]) return `apiVersion must be ${apiVersions[draft.kind]} for ${draft.kind}.`;
   // A structure unsafe for form traversal may still be valid YAML (for example aliases).
   // Validate resolved values rather than requiring a form-compatible representation.
@@ -367,7 +380,7 @@ export function validateManifest(source: string, resourceKey?: string, _editing 
     const selectorError = validateSelector(spec);
     if (selectorError) return selectorError;
     if (draft.kind === 'StatefulSet' && spec.serviceName !== undefined && spec.serviceName !== null
-      && spec.serviceName !== '' && !dnsName(spec.serviceName)) return 'spec.serviceName must be a valid DNS subdomain.';
+      && spec.serviceName !== '' && !isDnsName(spec.serviceName)) return 'spec.serviceName must be a valid DNS subdomain.';
   }
   if (!Array.isArray(podSpec.containers) || !podSpec.containers.length) return 'Add at least one container.';
   const names = new Set<string>();
@@ -375,10 +388,11 @@ export function validateManifest(source: string, resourceKey?: string, _editing 
     for (const [index, entry] of array(podSpec[field]).entries()) {
       const container = object(entry);
       const path = `${draft.kind === 'Pod' ? 'spec' : 'spec.template.spec'}.${field}.${index}`;
-      if (!dnsLabel(container.name)) return `${path}.name must be a valid DNS label.`;
+      if (!isDnsLabel(container.name)) return `${path}.name must be a valid DNS label.`;
       if (names.has(container.name)) return `Container name ${container.name} must be unique.`;
       names.add(container.name);
-      if (typeof container.image !== 'string' || !container.image || /\s/.test(container.image)) return `${path}.image is required and cannot contain whitespace.`;
+      if (typeof container.image !== 'string' || !container.image) return `${path}.image is required.`;
+      if (draft.kind === 'Pod' && /\s/.test(container.image)) return `${path}.image cannot contain whitespace.`;
       for (const [portIndex, portValue] of array(container.ports).entries()) {
         const port = object(portValue);
         for (const field of ['containerPort', 'hostPort']) {
@@ -394,7 +408,7 @@ export function validateManifest(source: string, resourceKey?: string, _editing 
   if (draft.kind === 'StatefulSet') {
     for (const [index, claimValue] of array(spec.volumeClaimTemplates).entries()) {
       const claim = object(claimValue);
-      if (!dnsName(object(claim.metadata).name)) return `spec.volumeClaimTemplates.${index}.metadata.name must be a valid DNS subdomain.`;
+      if (!isDnsName(object(claim.metadata).name)) return `spec.volumeClaimTemplates.${index}.metadata.name must be a valid DNS subdomain.`;
       const error = validateResources(object(claim.spec).resources, `spec.volumeClaimTemplates.${index}.spec.resources`);
       if (error) return error;
     }
