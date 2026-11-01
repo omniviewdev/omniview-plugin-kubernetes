@@ -35,7 +35,9 @@ Pod, Deployment, and StatefulSet creation use the same compact **Form / YAML**
 editor as the resource drawer's edit view. Other resource kinds use the same
 creation frame with YAML only, without a mode switch. Schema discovery still
 supplies the actual API identity; when it is unavailable, paste a complete native
-manifest instead.
+manifest instead. Forms cover `v1` Pods and `apps/v1` controllers. Other native
+API versions remain YAML-only and defer version-specific validation to the API,
+rather than applying the stable form schema to a different version.
 
 Both views edit one YAML document. Form controls update individual document
 nodes, preserving fields the form does not expose, comments, and exact integers.

@@ -365,7 +365,9 @@ export function validateManifest(source: string, resourceKey?: string, _editing 
   if (!draft.kind) return null;
   if (typeof meta.namespace !== 'string' || !meta.namespace) return 'metadata.namespace is required.';
   if (!isDnsName(meta.name)) return 'metadata.name must be a valid DNS subdomain (up to 253 characters).';
-  if (root.apiVersion !== apiVersions[draft.kind]) return `apiVersion must be ${apiVersions[draft.kind]} for ${draft.kind}.`;
+  // Form schemas cover stable versions only; other native versions stay YAML-only.
+  // Their admission belongs to the selected resource API, not the stable form schema.
+  if (root.apiVersion !== apiVersions[draft.kind]) return null;
   // A structure unsafe for form traversal may still be valid YAML (for example aliases).
   // Validate resolved values rather than requiring a form-compatible representation.
   const shapeError = checkResolvedShape(root, ownedShape(draft.kind), []);

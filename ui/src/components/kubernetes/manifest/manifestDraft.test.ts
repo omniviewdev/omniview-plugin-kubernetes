@@ -353,6 +353,17 @@ describe('manifest validation', () => {
     for (const amount of ['1K', '1KiB', '-1', 'garbage']) expect(isKubernetesQuantity(amount)).toBe(false);
   });
 
+  it('keeps other served API versions YAML-only without applying the stable form schema', () => {
+    const source = patchManifest(deployment, [
+      { path: ['apiVersion'], value: 'apps/v1beta1' },
+      { path: ['spec', 'selector'], remove: true },
+    ]);
+    expect(inspectManifest(source, 'k8s:apps/deployments').formError).toContain('Form supports apps/v1');
+    expect(validateManifest(source, 'k8s:apps/deployments')).toBeNull();
+    expect(read(source, ['apiVersion'])).toBe('apps/v1beta1');
+    expect(read(source, ['spec', 'selector'])).toBeUndefined();
+  });
+
   it.each([-1, 1.5, 2147483648n])('rejects invalid replica count %s', (replicas) => {
     expect(validateManifest(patchManifest(deployment, [{ path: ['spec', 'replicas'], value: replicas }]))).toMatch(/replicas/);
   });
