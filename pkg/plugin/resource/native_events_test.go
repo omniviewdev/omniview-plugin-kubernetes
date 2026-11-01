@@ -2,8 +2,10 @@ package resource
 
 import (
 	"context"
+	"errors"
 	"testing"
 
+	"github.com/omniview/kubernetes/pkg/plugin/helm"
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
@@ -82,4 +84,28 @@ func TestGetResourceEventsWithoutHelperUsesBindingKind(t *testing.T) {
 	missing.Reference.Address.Type = "k8s:example.com/absent"
 	_, err = p.GetResourceEvents(ctx, missing, 20)
 	require.Error(t, err)
+}
+
+func TestNativeEventKindDistinguishesUnboundCatalogTypes(t *testing.T) {
+	snapshot := &nativeCatalogSnapshot{
+		catalog: resourcev2.Catalog{Types: []resourcev2.ResourceType{{Type: "k8s:/pods"}, {Type: helm.ReleaseType}}},
+		bindings: map[string]nativeType{
+			"k8s:/pods":      {API: metav1.APIResource{Kind: "Pod"}},
+			"k8s:example/no": {API: metav1.APIResource{}},
+		},
+	}
+	kind, err := snapshot.nativeEventKind("k8s:/pods")
+	require.NoError(t, err)
+	require.Equal(t, "Pod", kind)
+
+	for token, code := range map[string]string{
+		helm.ReleaseType:         "UNSUPPORTED",
+		"k8s:example/no":         "UNSUPPORTED",
+		"k8s:example.com/absent": "NOT_FOUND",
+	} {
+		_, err := snapshot.nativeEventKind(token)
+		var opErr *resourcev2.ResourceOperationError
+		require.Truef(t, errors.As(err, &opErr), "%s: %v", token, err)
+		require.Equal(t, code, opErr.Code, token)
+	}
 }
