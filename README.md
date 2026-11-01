@@ -29,6 +29,40 @@ keyboard focus and selection feedback. Avoid plugin-local border or color
 overrides. The [shared design language](https://github.com/omniviewdev/ui/blob/main/docs/THEMING.md#native-control-language)
 documents measured contrast, nested themes, and screenshots.
 
+## Creating and editing resources
+
+Pod, Deployment, and StatefulSet creation use the same compact **Form / YAML**
+editor as the resource drawer's edit view. Other resource kinds use the same
+creation frame with YAML only, without a mode switch. Schema discovery still
+supplies the actual API identity; when it is unavailable, paste a complete native
+manifest instead.
+
+Both views edit one YAML document. Form controls update individual document
+nodes, preserving fields the form does not expose, comments, and exact integers.
+YAML changes appear in supported form fields immediately. Invalid YAML and
+structures that cannot be safely mapped to controls remain editable in YAML;
+they are never regenerated from a partial form.
+
+The last explicitly selected mode is remembered in the user's local browser
+profile across resources, create/edit views, submit, and cancel. Temporary YAML
+fallbacks and diff previews do not overwrite that preference. A single selected
+table namespace preselects the creation destination; all/multiple selections
+require an explicit namespace.
+
+Forms cover metadata, containers, images, ports, CPU/memory requests and limits,
+environment variables, controller replicas, Deployment strategy, and StatefulSet
+claim templates and mounts. Secret/ConfigMap environment references remain
+unchanged and are edited in YAML. Editing locks resource identity and immutable
+fields: existing Pod forms permit image and metadata changes, while StatefulSet
+claim templates and governing Service names remain locked. Native API admission
+remains authoritative.
+
+Creation and editing retain the original mutation routing, incarnation and
+revision safeguards. Failed requests preserve the draft. Component previews live
+under **Resources / Manifest editor** in Storybook; their clearly labeled
+submissions stay local and never contact a cluster.
+
+
 ## Candidate frontend CI
 
 PRs explicitly labeled `resource-v2-candidate` use `hack/candidate-ui.mjs`, not

@@ -79,7 +79,7 @@ const ResourceTableToolbar = <T extends RowData,>({
     <div className={styles.toolbarSpacer} />
     <Stack direction="row" spacing={2} align="center">
       {createEnabled && (
-        <CreateResourceButton connectionID={connectionID} resourceKey={resourceKey} />
+        <CreateResourceButton connectionID={connectionID} resourceKey={resourceKey} selectedNamespaces={sharedNamespaces} />
       )}
       {toolbarActions}
       {toolbarFilters && toolbarFilters.length > 0
