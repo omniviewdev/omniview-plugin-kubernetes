@@ -46,7 +46,7 @@ func TestCronJobResourcer_GetActions(t *testing.T) {
 
 func TestCronJobResourcer_Trigger(t *testing.T) {
 	name := strings.Repeat("a", 70)
-	fakeClient := fake.NewSimpleClientset(testCronJob(name))
+	fakeClient := fake.NewClientset(testCronJob(name))
 	r := NewCronJobResourcer(zap.NewNop().Sugar())
 
 	result, err := r.ExecuteAction(context.Background(), &clients.ClientSet{KubeClient: fakeClient}, workloadActionRequest("trigger", name, "default", nil))
@@ -74,7 +74,7 @@ func TestCronJobResourcer_Trigger(t *testing.T) {
 }
 
 func TestCronJobResourcer_TriggerIncarnationMismatch(t *testing.T) {
-	fakeClient := fake.NewSimpleClientset(testCronJob("smoke-cron"))
+	fakeClient := fake.NewClientset(testCronJob("smoke-cron"))
 	request := workloadActionRequest("trigger", "smoke-cron", "default", nil)
 	other := "other-uid"
 	request.Reference.Incarnation = &other
@@ -86,7 +86,7 @@ func TestCronJobResourcer_TriggerIncarnationMismatch(t *testing.T) {
 }
 
 func TestCronJobResourcer_SuspendResume(t *testing.T) {
-	fakeClient := fake.NewSimpleClientset(testCronJob("smoke-cron"))
+	fakeClient := fake.NewClientset(testCronJob("smoke-cron"))
 	cs := &clients.ClientSet{KubeClient: fakeClient}
 	r := NewCronJobResourcer(zap.NewNop().Sugar())
 
