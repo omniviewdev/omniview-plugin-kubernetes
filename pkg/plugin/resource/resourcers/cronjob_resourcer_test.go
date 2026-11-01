@@ -13,6 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
 )
@@ -71,6 +72,16 @@ func TestCronJobResourcer_Trigger(t *testing.T) {
 	require.NotNil(t, owner.Controller)
 	assert.True(t, *owner.Controller)
 	assert.Equal(t, "busybox:1.37.0", job.Spec.Template.Spec.Containers[0].Image)
+}
+
+func TestCronJobManualJobNameStaysDNS1123(t *testing.T) {
+	// A '.' at index 49 would end the 50-character prefix in a non-alphanumeric.
+	name := strings.Repeat("a", 48) + "-." + strings.Repeat("b", 20)
+	job := cronJobManualJob(testCronJob(name))
+	assert.True(t, strings.HasPrefix(job.Name, strings.Repeat("a", 48)+"-manual-"), job.Name)
+	assert.LessOrEqual(t, len(job.Name), 63)
+	assert.Empty(t, validation.IsDNS1123Subdomain(job.Name))
+	assert.Empty(t, validation.IsDNS1123Label(job.Name))
 }
 
 func TestCronJobResourcer_TriggerIncarnationMismatch(t *testing.T) {

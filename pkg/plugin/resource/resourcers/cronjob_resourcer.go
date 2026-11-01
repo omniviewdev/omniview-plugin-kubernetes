@@ -3,6 +3,7 @@ package resourcers
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	resource "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
@@ -115,11 +116,14 @@ func (c *CronJobResourcer) executeTrigger(
 	})
 }
 
-// cronJobManualJob builds the Job that `kubectl create job --from=cronjob/<name>` would create.
+// cronJobManualJob builds a manual Job from the CronJob's job template, like
+// `kubectl create job --from=cronjob/<name>`, except that the owner reference
+// is a controller reference (Controller and BlockOwnerDeletion set).
 func cronJobManualJob(cj *batchv1.CronJob) *batchv1.Job {
 	prefix := cj.Name
 	if len(prefix) > cronJobManualJobPrefixLimit {
-		prefix = prefix[:cronJobManualJobPrefixLimit]
+		// Trimming '.' and '-' keeps the truncated prefix DNS-1123 valid.
+		prefix = strings.TrimRight(prefix[:cronJobManualJobPrefixLimit], ".-")
 	}
 	annotations := make(map[string]string, len(cj.Spec.JobTemplate.Annotations)+1)
 	for key, value := range cj.Spec.JobTemplate.Annotations {
