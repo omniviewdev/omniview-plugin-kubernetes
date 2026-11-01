@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://omniview.dev"><img src="https://img.shields.io/badge/omniview-plugin-326CE5?style=flat-square&logo=kubernetes&logoColor=white" alt="Omniview Plugin" /></a>
-  <img src="https://img.shields.io/badge/version-0.10.0-blue?style=flat-square" alt="Version" />
+  <img src="https://img.shields.io/badge/version-0.11.0-blue?style=flat-square" alt="Version" />
   <img src="https://img.shields.io/badge/license-Apache--2.0-green?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/category-cloud-326CE5?style=flat-square" alt="Category" />
 </p>
@@ -214,7 +214,7 @@ The splash shows the saved cluster identity while checking, connecting, or recov
 
 Storybook's **Connections/ConnectionBoundary** stories provide mocked loading, disconnected, connecting, authorization, missing-connection, and error states, including metadata loading/failure. Interactive recovery opens a mocked Pod table instead of a redundant connected splash. The preview makes no backend connection requests.
 
-Kubernetes plugin 0.10.0 requires Omniview 0.13.0 or later for connection/server metadata and the coordinated shared UI/runtime cohort. Update the desktop app before updating the plugin. Historical plugin 0.9.0 requires Omniview 0.12.0 for resource-v2 integration and collection-wide tables and dashboards; 0.8.2 uses its older compatible producer cohort.
+Kubernetes plugin 0.11.0 requires Omniview 0.14.0 or later for transactional settings and the coordinated shared UI/runtime cohort. Update the desktop app before updating the plugin. Historical plugin 0.10.0 requires Omniview 0.13.0 for connection/server metadata; 0.9.0 requires Omniview 0.12.0 for resource-v2 integration and collection-wide views, and 0.8.2 uses its older compatible producer cohort.
 
 ## Connection/server metadata
 
@@ -420,7 +420,7 @@ Every resource type gets a dedicated, sortable table with:
 
 ### Scoped Command Search
 
-Kubernetes plugin 0.10.0 requires Omniview 0.13.0 for connection/server metadata, collection-wide resource views, connection-route protection, live-Pod debug recovery, asynchronous resource actions, opening a connection in a new tab or window, and the shared search and resource-icon runtime contracts. Its standalone frontend pins published `@omniviewdev/runtime` 0.13.0, `@omniviewdev/vite-plugin` 0.13.0, `@omniviewdev/base-ui` 0.9.1, and `@omniviewdev/editors` 6.1.2 in `ui/package.json` and `ui/pnpm-lock.yaml`. Update Omniview before updating the Kubernetes plugin; the plugin's minor version is independent of the host version.
+Kubernetes plugin 0.11.0 requires Omniview 0.14.0 for transactional settings, connection/server metadata, collection-wide resource views, connection-route protection, live-Pod debug recovery, asynchronous resource actions, opening a connection in a new tab or window, and the shared search and resource-icon runtime contracts. Its standalone frontend pins published `@omniviewdev/runtime` 0.14.0, `@omniviewdev/vite-plugin` 0.14.0, `@omniviewdev/base-ui` 0.9.1, and `@omniviewdev/editors` 6.1.2 in `ui/package.json` and `ui/pnpm-lock.yaml`. Update Omniview before updating the Kubernetes plugin; the plugin's minor version is independent of the host version.
 
 Cmd/Ctrl-K opens Omniview's single global search surface, including on Kubernetes pages. Type a connection name and press Tab to scope it, then scope a resource type and resource. Enter opens the selected destination or existing action. The sidebar's **Find in this connection** control opens that same surface with a visible connection chip.
 
@@ -663,9 +663,9 @@ rather than adding unsupported manifest fields.
 Registry installs retain pnpm's 24-hour release-age protection. Only coordinated
 `@omniviewdev/*` packages are exempted; linked source worktrees resolve locally.
 The current UI cohort is `@omniviewdev/base-ui` 0.9.1 and
-`@omniviewdev/editors` 6.1.2, paired with host/runtime and Vite plugin 0.13.0.
-The backend pins the reviewed Go SDK pseudo-version
-`v0.9.1-0.20261031225250-85d184bd4557` for connection metadata.
+`@omniviewdev/editors` 6.1.2, paired with host/runtime and Vite plugin 0.14.0.
+The backend pins published Go SDK `v0.10.0` for transactional settings and
+connection metadata.
 Debug preferences discard unsaved drafts when reopened or switched to another
 connection, but preserve active drafts when saved defaults refresh.
 
