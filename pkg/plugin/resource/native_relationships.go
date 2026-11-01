@@ -2,7 +2,9 @@ package resource
 
 import (
 	"context"
+
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
+	"github.com/omniview/kubernetes/pkg/plugin/resource/resourcers"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 )
 
@@ -75,12 +77,26 @@ func (p *kubernetesProvider) GetResourceEvents(ctx context.Context, request reso
 	if _, err := p.Get(ctx, request); err != nil {
 		return nil, err
 	}
-	helper, ok := p.helpers[request.Reference.Address.Type].(nativeEventRetriever)
+	if helper, ok := p.helpers[request.Reference.Address.Type].(nativeEventRetriever); ok {
+		err = p.WithClient(ctx, request.Route, func(ctx context.Context, client *clients.ClientSet) error {
+			events, err = helper.GetEvents(ctx, client, request, limit)
+			return err
+		})
+		return events, err
+	}
+	snapshot, err := p.snapshot(request.Route)
+	if err != nil {
+		return nil, err
+	}
+	binding, ok := snapshot.bindings[request.Reference.Address.Type]
 	if !ok {
+		return nil, resourcev2.NewError("NOT_FOUND", "Resource type is not present in this connection catalog")
+	}
+	if binding.API.Kind == "" {
 		return nil, resourcev2.NewError("UNSUPPORTED", "Resource type does not retrieve native events")
 	}
 	err = p.WithClient(ctx, request.Route, func(ctx context.Context, client *clients.ClientSet) error {
-		events, err = helper.GetEvents(ctx, client, request, limit)
+		events, err = resourcers.NativeKindEvents(ctx, client, request, binding.API.Kind, limit)
 		return err
 	})
 	return events, err
