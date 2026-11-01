@@ -7,15 +7,17 @@ import { parse } from 'yaml';
 
 import { PLUGIN_ID } from '@/pluginId';
 import { resolveKubernetesReference } from '../../../../utils/kubernetesReference';
+import { inspectManifest, patchManifest, type ManifestChange } from '../../manifest/manifestDraft';
 import CreateResourceModal from './CreateResourceModal';
 import { getTemplate, templateIdentity } from './templates';
 
 interface Props {
   connectionID: string;
   resourceKey: string;
+  selectedNamespaces?: string[];
 }
 
-const CreateResourceButton: React.FC<Props> = ({ connectionID, resourceKey }) => {
+const CreateResourceButton: React.FC<Props> = ({ connectionID, resourceKey, selectedNamespaces = [] }) => {
   const [open, setOpen] = React.useState(false);
   const [isCreating, setIsCreating] = React.useState(false);
   const [isPreparing, setIsPreparing] = React.useState(false);
@@ -34,8 +36,31 @@ const CreateResourceButton: React.FC<Props> = ({ connectionID, resourceKey }) =>
       const binding = representation?.schema;
       if (binding?.documentRef) {
         const schema = await ResourceClient.GetSchemaDocument(PLUGIN_ID, route, binding.documentRef);
-        nextTemplate = getTemplate(templateIdentity(schema.document, binding.root,
-          descriptor?.identityDimensions.some(({ name }) => name === 'namespace') ?? false));
+        const identity = templateIdentity(schema.document, binding.root,
+          descriptor?.identityDimensions.some(({ name }) => name === 'namespace') ?? false);
+        nextTemplate = getTemplate(identity);
+        const draft = inspectManifest(nextTemplate, resourceKey);
+        const changes: ManifestChange[] = [];
+        if (identity?.namespaced) {
+          changes.push({ path: ['metadata', 'namespace'], value: selectedNamespaces.length === 1 ? selectedNamespaces[0] : '' });
+        }
+        if (identity) changes.push({ path: ['metadata', 'name'], value: '' });
+        if (draft.kind) {
+          changes.push({ path: ['metadata', 'labels', 'app'], value: '' });
+          const podPath = draft.kind === 'Pod' ? ['spec'] : ['spec', 'template', 'spec'];
+          changes.push(
+            { path: [...podPath, 'containers', 0, 'image'], value: '' },
+            { path: [...podPath, 'containers', 0, 'ports'], remove: true },
+          );
+          if (draft.kind !== 'Pod') {
+            changes.push(
+              { path: ['spec', 'selector', 'matchLabels', 'app'], value: '' },
+              { path: ['spec', 'template', 'metadata', 'labels', 'app'], value: '' },
+            );
+          }
+          if (draft.kind === 'StatefulSet') changes.push({ path: ['spec', 'serviceName'], value: '' });
+        }
+        if (changes.length) nextTemplate = patchManifest(nextTemplate, changes);
       }
     } catch {
       // Schema discovery is optional. Full native manifests remain creatable.
@@ -76,7 +101,7 @@ const CreateResourceButton: React.FC<Props> = ({ connectionID, resourceKey }) =>
         {isPreparing ? 'Preparing...' : `Create ${label}`}
       </Button>
       <CreateResourceModal key={JSON.stringify([connectionID, resourceKey])} open={open} onClose={() => setOpen(false)} resourceKey={resourceKey}
-        resourceName={label} template={template} onCreate={handleCreate} isCreating={isCreating} />
+        resourceName={label} template={template} onCreate={handleCreate} isCreating={isCreating} context={connectionID} />
     </>
   );
 };

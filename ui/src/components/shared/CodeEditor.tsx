@@ -79,7 +79,7 @@ const CodeEditor: FC<Props> = ({
         theme={lang === 'nginx' ? 'nginx-theme-dark' : 'vs-dark'}
         language={lang}
         original={original}
-        modified={value || controlledValue}
+        modified={onChange ? value : value || controlledValue}
         height={height ?? '100%'}
         options={{ readOnly, fontSize: 11 }}
       />
@@ -95,7 +95,7 @@ const CodeEditor: FC<Props> = ({
           lang === 'json'
             ? // pretty print it
               JSON.stringify(JSON.parse(value) as unknown, null, 2)
-            : value || controlledValue
+            : onChange ? value : value || controlledValue
         }
         onChange={(v) => {
           handleChange(v || '');

@@ -22,11 +22,11 @@ vi.mock('@omniviewdev/base-ui', () => ({
   Stack: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
   Button: ({ children, disabled, onClick }: React.PropsWithChildren<{ disabled?: boolean; onClick?: () => void }>) => <button disabled={disabled} onClick={onClick}>{children}</button>,
 }));
-vi.mock('../../../CodeEditor', () => ({ default: ({ value, original, readOnly, onChange }: { value: string; original: string; readOnly: boolean; onChange: (next: string) => void }) => (
-  <><textarea aria-label="Resource YAML" value={value} readOnly={readOnly} onChange={(event) => onChange(event.target.value)} /><pre data-testid="baseline">{original}</pre></>
+vi.mock('../../../../kubernetes/manifest/ResourceManifestEditor', () => ({ default: ({ value, baseline, disabled, onChange }: { value: string; baseline: string; disabled: boolean; onChange: (next: string) => void }) => (
+  <><textarea aria-label="Resource YAML" value={value} readOnly={disabled} onChange={(event) => onChange(event.target.value)} /><pre data-testid="baseline">{baseline}</pre></>
 ) }));
 
-const original = { apiVersion: 'v1', kind: 'Pod', metadata: { name: 'pod', namespace: 'original', uid: 'native-uid' }, spec: { marker: 'original' } };
+const original = { apiVersion: 'v1', kind: 'Pod', metadata: { name: 'pod', namespace: 'original', uid: 'native-uid' }, spec: { containers: [{ name: 'main', image: 'nginx:1.27' }], marker: 'original' } };
 function context(connection = 'cluster', data: KubernetesResourceObject = original): DrawerContext<KubernetesResourceObject> {
   return {
     data,
@@ -49,8 +49,8 @@ beforeEach(() => {
 describe('contextual resource editor', () => {
   it('saves against the admitted identity and revision, not edited YAML metadata', async () => {
     const ctx = context();
-    const edited = { ...original, metadata: { name: 'other', namespace: 'elsewhere' }, spec: { count: 9007199254740993n } };
-    const saved = { ...original, spec: { marker: 'saved' } };
+    const edited = { ...original, metadata: { name: 'other', namespace: 'elsewhere' }, spec: { ...original.spec, count: 9007199254740993n } };
+    const saved = { ...original, spec: { ...original.spec, marker: 'saved' } };
     const { promise, resolve } = Promise.withResolvers<unknown>();
     mocks.mutate.mockReturnValue(promise);
     render(<BaseEditorPage ctx={ctx} />);
@@ -66,7 +66,7 @@ describe('contextual resource editor', () => {
     await act(async () => { resolve({ body: saved, sourceRevision: 'revision-2' }); });
     expect(parse(draft().value)).toEqual(saved);
     expect(screen.getByRole('button', { name: 'Submit' })).toBeDisabled();
-    fireEvent.change(draft(), { target: { value: stringify({ ...saved, spec: { marker: 'again' } }) } });
+    fireEvent.change(draft(), { target: { value: stringify({ ...saved, spec: { ...saved.spec, marker: 'again' } }) } });
     mocks.mutate.mockResolvedValue({ body: saved, sourceRevision: 'revision-3' });
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
     await waitFor(() => expect(mocks.mutate).toHaveBeenLastCalledWith(expect.objectContaining({ expectedRevision: 'revision-2' })));
@@ -75,9 +75,9 @@ describe('contextual resource editor', () => {
   it('preserves drafts during refetch, but resets drafts when contextual route changes', () => {
     const ctx = context();
     const view = render(<BaseEditorPage ctx={ctx} />);
-    const edited = stringify({ ...original, spec: { marker: 'unsaved' } });
+    const edited = stringify({ ...original, spec: { ...original.spec, marker: 'unsaved' } });
     fireEvent.change(draft(), { target: { value: edited } });
-    const refreshed = { ...original, spec: { marker: 'refetched' } };
+    const refreshed = { ...original, spec: { ...original.spec, marker: 'refetched' } };
     view.rerender(<BaseEditorPage ctx={context('cluster', refreshed)} />);
     expect(draft().value).toBe(edited);
     expect(screen.getByTestId('baseline').textContent).toBe(stringify(original));
@@ -93,7 +93,7 @@ describe('contextual resource editor', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
     expect(screen.getByRole('alert')).toBeInTheDocument();
     expect(mocks.mutate).not.toHaveBeenCalled();
-    const edited = stringify({ ...original, spec: { marker: 'unsaved' } });
+    const edited = stringify({ ...original, spec: { ...original.spec, marker: 'unsaved' } });
     fireEvent.change(draft(), { target: { value: edited } });
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
     await screen.findByText('Revision conflict');

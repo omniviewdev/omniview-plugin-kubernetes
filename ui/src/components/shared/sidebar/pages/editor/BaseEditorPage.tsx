@@ -5,9 +5,10 @@ import { LuFileCode, LuSave, LuX } from 'react-icons/lu';
 import { stringify, parse } from 'yaml';
 
 import { KubernetesResourceObject } from '../../../../../types/resource';
-import CodeEditor from '../../../CodeEditor';
+import ResourceManifestEditor from '../../../../kubernetes/manifest/ResourceManifestEditor';
+import { validateManifest } from '../../../../kubernetes/manifest/manifestDraft';
 
-const outerStackStyle: React.CSSProperties = { flex: 1 };
+const outerStackStyle: React.CSSProperties = { flex: 1, minHeight: 0, overflow: 'hidden' };
 type Resource = NonNullable<DrawerContext['resource']>;
 interface Props { ctx: DrawerContext<KubernetesResourceObject> }
 
@@ -59,6 +60,8 @@ const ResourceEditor: React.FC<{ data: KubernetesResourceObject; resource: Resou
     setError(undefined);
     let phase: 'prepare' | 'mutate' | 'receipt' = 'prepare';
     try {
+      const validationError = validateManifest(value, resource.reference.address.type, true);
+      if (validationError) throw new Error(validationError);
       const parsed: unknown = parse(value, { intAsBigInt: true });
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
         throw new Error('Resource YAML must contain an object.');
@@ -101,15 +104,16 @@ const ResourceEditor: React.FC<{ data: KubernetesResourceObject; resource: Resou
 
   return (
     <Stack style={outerStackStyle} spacing={2} direction="column">
-      <CodeEditor
-        diff={usingDiff}
-        original={baseline}
+      <ResourceManifestEditor
         value={value}
-        readOnly={pending}
-        onChange={(next) => { if (!busy.current) setValue(next); }}
-        language="yaml"
+        baseline={baseline}
+        diff={usingDiff}
+        editing
+        disabled={pending}
+        resourceKey={resource.reference.address.type}
+        context={resource.reference.address.id}
         filename={`${resource.reference.address.id}/spec.yaml`}
-        path={`file:///${encodeURIComponent(resource.reference.address.type)}/draft.yaml`}
+        onChange={(next) => { if (!busy.current) { setValue(next); setError(undefined); } }}
       />
       {unavailable && <div role="status">{unavailable}</div>}
       {error && <div role="alert">{error}</div>}
