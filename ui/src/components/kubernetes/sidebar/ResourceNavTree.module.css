@@ -1,0 +1,27 @@
+.scrollable {
+  overflow: hidden;
+  max-height: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+.viewport {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: none;
+}
+
+.viewport::-webkit-scrollbar {
+  display: none;
+}
+
+.sectionTitle {
+  padding: 4px 12px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 2.66;
+  letter-spacing: 0.08em;
+  color: var(--ov-color-fg-subtle);
+  text-transform: uppercase;
+}

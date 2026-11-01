@@ -1,14 +1,11 @@
  
-import { Spinner } from '@omniviewdev/base-ui';
 import {
   usePluginContext,
   useResourceGroups,
   useResourceTypes,
-  useWatchState,
-  WatchState,
   ResourceIcon,
 } from '@omniviewdev/runtime';
-import type { ResourceGroup } from '@omniviewdev/runtime';
+import type { ResourceGroup, ResourceType  } from '@omniviewdev/runtime';
 import React from 'react';
 import {
   LuBlocks,
@@ -22,14 +19,12 @@ import {
 } from 'react-icons/lu';
 import { SiHelm } from 'react-icons/si';
 
-import { PLUGIN_ID } from '@/pluginId';
-
+import { SidebarWatchBadge } from '../components/kubernetes/sidebar/SidebarWatchBadge';
 import DynamicIcon from '../components/shared/Icon';
 import type { NavSection, NavMenuItem } from '../types/navigation';
-import type { ResourceType } from '@omniviewdev/runtime';
 import { IsImage } from '../utils/url';
 
-import { useStableObject } from './useStableRef';
+import { PLUGIN_ID } from '@/pluginId';
 
 type Opts = {
   connectionID: string;
@@ -72,53 +67,21 @@ const ICON_TICKET = <LuTicket />;
 const ICON_HELM = <SiHelm />;
 const ICON_BLOCKS = <LuBlocks />;
 
-// --- Module-level badge JSX constants ---
-
-const syncingBadgeStyle: React.CSSProperties = { width: 10, height: 10 };
-
-const errorBadgeStyle: React.CSSProperties = {
-  display: 'inline-block',
-  width: 8,
-  height: 8,
-  borderRadius: '50%',
-  backgroundColor: 'var(--ov-color-danger)',
-  flexShrink: 0,
+/** Aggregate actual resource keys recursively, never synthetic group IDs. */
+const getGroupBadge = (children: NavMenuItem[]): React.ReactNode => {
+  const keys: string[] = [];
+  const visit = (items: NavMenuItem[]) => {
+    for (const item of items) {
+      if (item.children) visit(item.children);
+      else keys.push(decodeURIComponent(item.id));
+    }
+  };
+  visit(children);
+  return <SidebarWatchBadge resourceKeys={[...new Set(keys)]} />;
 };
 
-const SYNCING_BADGE = <Spinner size="xs" color="brand" style={syncingBadgeStyle} />;
-const ERROR_BADGE = <span style={errorBadgeStyle} />;
-
-/** Get a badge for a nav item based on its watch state */
-const getStateBadge = (
-  navId: string,
-  states?: Record<string, WatchState>,
-): React.ReactNode | undefined => {
-  if (!states) return undefined;
-  const state = states[decodeURIComponent(navId)];
-  if (state === WatchState.WatchStateSyncing || state === WatchState.WatchStateIdle)
-    return SYNCING_BADGE;
-  if (state === WatchState.WatchStateError || state === WatchState.WatchStateFailed || state === WatchState.WatchStateForbidden) return ERROR_BADGE;
-  return undefined;
-};
-
-/** Get a group-level badge by aggregating children states */
-const getGroupBadge = (
-  children: NavMenuItem[],
-  states?: Record<string, WatchState>,
-): React.ReactNode | undefined => {
-  if (!states || !children?.length) return undefined;
-  let hasSyncing = false;
-  let hasError = false;
-  for (const child of children) {
-    const state = states[decodeURIComponent(child.id)];
-    if (state === WatchState.WatchStateSyncing || state === WatchState.WatchStateIdle)
-      hasSyncing = true;
-    if (state === WatchState.WatchStateError || state === WatchState.WatchStateFailed || state === WatchState.WatchStateForbidden) hasError = true;
-  }
-  if (hasError) return ERROR_BADGE;
-  if (hasSyncing) return SYNCING_BADGE;
-  return undefined;
-};
+const getStateBadge = (navId: string): React.ReactNode =>
+  <SidebarWatchBadge resourceKeys={[decodeURIComponent(navId)]} />;
 
 /**
  * Calculates the full sidebar layout divided by the API groups
@@ -126,26 +89,27 @@ const getGroupBadge = (
 const calculateFullLayout = (
   data: readonly ResourceGroup[],
   types: readonly ResourceType[],
-  watchStates?: Record<string, WatchState>,
 ): Array<NavSection> => {
   if (!data) {
     return [];
   }
 
+  const catalog = new Map(types.map((type) => [type.type, type]));
   const coreSection: NavMenuItem[] = [];
   const crdSection: NavMenuItem[] = [];
 
   const grouped: NavMenuItem[] = Object.values(data)
     .filter((group): group is ResourceGroup => group !== undefined)
+    .filter((group) => group.resources.length > 0)
     .map((group) => {
       const children: NavMenuItem[] = [];
 
       group.resources.forEach((type) => {
         children.push({
           id: toID(type),
-          label: types.find((entry) => entry.type === type)?.displayName ?? type,
+          label: catalog.get(type)?.displayName ?? type,
           icon: <ResourceIcon pluginId={PLUGIN_ID} resourceKey={type} size={16} />,
-          badge: getStateBadge(toID(type), watchStates),
+          badge: getStateBadge(toID(type)),
         });
       });
 
@@ -156,7 +120,7 @@ const calculateFullLayout = (
         label: group.name,
         icon: resolveIcon(group.icon),
         children,
-        badge: getGroupBadge(children, watchStates),
+        badge: getGroupBadge(children),
       };
 
       return item;
@@ -247,17 +211,19 @@ const ModernSectionMap: Record<string, ModernSection> = {
 const calculateModernLayout = (
   data: readonly ResourceGroup[],
   types: readonly ResourceType[],
-  watchStates?: Record<string, WatchState>,
 ): Array<NavSection> => {
   if (!data) {
     return [];
   }
 
+  const catalog = new Map(types.map((type) => [type.type, type]));
+  const groupCatalog = new Map(data.map((group) => [group.id, group]));
+  const available = new Set([...catalog.keys(), ...data.flatMap((group) => group.resources)]);
   const withBadge = (id: string, label: string): NavMenuItem => ({
     id,
     label,
     icon: <ResourceIcon pluginId={PLUGIN_ID} resourceKey={decodeURIComponent(id)} size={16} />,
-    badge: getStateBadge(id, watchStates),
+    badge: getStateBadge(id),
   });
 
   // Grouped Resource areas
@@ -274,7 +240,7 @@ const calculateModernLayout = (
   Object.values(data).forEach((group) => {
     if (!group) return;
     group.resources.forEach((type) => {
-        const label = types.find((entry) => entry.type === type)?.displayName ?? type;
+        const label = catalog.get(type)?.displayName ?? type;
         const navItem = withBadge(toID(type), label);
         if (primaryTypes[type]) return;
         // Unclassified catalog types remain available under their declared group.
@@ -313,9 +279,9 @@ const calculateModernLayout = (
 
   const crdChildren: NavMenuItem[] = Object.entries(crds).map(([group, entry]) => ({
     id: group,
-    label: data.find((entry) => entry.id === group)?.name ?? group,
+    label: groupCatalog.get(group)?.name ?? group,
     children: entry.sort(labelSort),
-    badge: getGroupBadge(entry, watchStates),
+    badge: getGroupBadge(entry),
   }));
 
   const workloadSorted = workloadResources.sort(labelSort);
@@ -332,84 +298,70 @@ const calculateModernLayout = (
       title: '',
       items: [
         { id: '__dashboard__', label: 'Dashboard', icon: ICON_GAUGE },
-        {
-          id: toID('k8s:/nodes'),
-          label: 'Nodes',
-          icon: <ResourceIcon pluginId={PLUGIN_ID} resourceKey="k8s:/nodes" size={16} />,
-          badge: getStateBadge(toID('k8s:/nodes'), watchStates),
-        },
-        {
-          id: toID('k8s:events.k8s.io/events'),
-          label: 'Events',
-          icon: <ResourceIcon pluginId={PLUGIN_ID} resourceKey="k8s:events.k8s.io/events" size={16} />,
-          badge: getStateBadge(toID('k8s:events.k8s.io/events'), watchStates),
-        },
-        {
-          id: toID('k8s:/namespaces'),
-          label: 'Namespaces',
-          icon: <ResourceIcon pluginId={PLUGIN_ID} resourceKey="k8s:/namespaces" size={16} />,
-          badge: getStateBadge(toID('k8s:/namespaces'), watchStates),
-        },
+        ...Object.keys(primaryTypes)
+          .filter((key) => available.has(key))
+          .map((key) => withBadge(toID(key), catalog.get(key)?.displayName ?? ({
+            'k8s:/nodes': 'Nodes',
+            'k8s:events.k8s.io/events': 'Events',
+            'k8s:/namespaces': 'Namespaces',
+          } as Record<string, string>)[key] ?? key)),
         {
           id: 'workload',
           label: 'Workload',
           icon: ICON_BOXES,
           children: workloadSorted,
-          badge: getGroupBadge(workloadSorted, watchStates),
+          badge: getGroupBadge(workloadSorted),
         },
         {
           id: 'config',
           label: 'Config',
           icon: ICON_CLIPBOARD,
           children: configSorted,
-          badge: getGroupBadge(configSorted, watchStates),
+          badge: getGroupBadge(configSorted),
         },
         {
           id: 'network',
           label: 'Networking',
           icon: ICON_NETWORK,
           children: networkSorted,
-          badge: getGroupBadge(networkSorted, watchStates),
+          badge: getGroupBadge(networkSorted),
         },
         {
           id: 'storage',
           label: 'Storage',
           icon: ICON_DATABASE,
           children: storageSorted,
-          badge: getGroupBadge(storageSorted, watchStates),
+          badge: getGroupBadge(storageSorted),
         },
         {
           id: 'access_control',
           label: 'Access Control',
           icon: ICON_LOCK,
           children: accessSorted,
-          badge: getGroupBadge(accessSorted, watchStates),
+          badge: getGroupBadge(accessSorted),
         },
         {
           id: 'admission_control',
           label: 'Admission Control',
           icon: ICON_TICKET,
           children: admissionSorted,
-          badge: getGroupBadge(admissionSorted, watchStates),
+          badge: getGroupBadge(admissionSorted),
         },
         {
           id: 'helm',
           label: 'Helm',
           icon: ICON_HELM,
           children: helmSorted,
-          badge: getGroupBadge(helmSorted, watchStates),
+          badge: getGroupBadge(helmSorted),
         },
         {
           id: 'crd',
           label: 'Other API Groups',
           icon: ICON_BLOCKS,
           children: crdSorted,
-          badge: getGroupBadge(
-            crdSorted.flatMap((g) => g.children ?? []),
-            watchStates,
-          ),
+          badge: getGroupBadge(crdSorted),
         },
-      ],
+      ].filter((item) => !('children' in item) || !!item.children?.length),
     },
   ];
 
@@ -423,60 +375,16 @@ export const useSidebarLayout = ({ connectionID }: Opts) => {
   const { settings } = usePluginContext();
   const { groups } = useResourceGroups({ pluginID: PLUGIN_ID, route: { connection: connectionID } });
   const { resourceTypes } = useResourceTypes({ pluginID: PLUGIN_ID, route: { connection: connectionID } });
-  const { summary, isFullySynced } = useWatchState({ pluginID: PLUGIN_ID, route: { connection: connectionID } });
-
-  // Stabilize the watchStates reference so we don't recalculate on every
-  // watch event when the actual values haven't changed.
-  const watchStates = useStableObject(summary.data?.resources);
-
   const layoutSetting = settings[`${PLUGIN_ID}.layout`] as string | undefined;
-
-  const [layout, setLayout] = React.useState<Array<NavSection>>([]);
-  const [isLoading, setIsLoading] = React.useState<boolean>(true);
-
-  // Track whether we've ever computed a layout (for debounce logic)
-  const hasInitialLayout = React.useRef(false);
-
-  /**
-   * Renders the full layout divided by the API groups.
-   * During active sync, debounce updates by 500ms to avoid re-computing
-   * the full sidebar layout on every watch state change.
-   */
-  React.useEffect(() => {
-    if (!groups.data) {
-      return;
-    }
-
-    const compute = () => {
-      setIsLoading(true);
-      switch (layoutSetting) {
-        case 'modern':
-          setLayout(calculateModernLayout(groups.data, resourceTypes.data ?? [], watchStates));
-          break;
-        case 'full':
-          setLayout(calculateFullLayout(groups.data, resourceTypes.data ?? [], watchStates));
-          break;
-        default:
-          setLayout(calculateModernLayout(groups.data, resourceTypes.data ?? [], watchStates));
-          break;
-      }
-      setIsLoading(false);
-      hasInitialLayout.current = true;
-    };
-
-    // No debounce on first layout or when fully synced
-    if (!hasInitialLayout.current || isFullySynced) {
-      compute();
-      return;
-    }
-
-    // Debounce during active sync to avoid hundreds of recalculations
-    const timer = setTimeout(compute, 500);
-    return () => clearTimeout(timer);
-  }, [groups.data, resourceTypes.data, layoutSetting, watchStates, isFullySynced]);
+  const layout = React.useMemo(() => {
+    if (!groups.data) return [];
+    return layoutSetting === 'full'
+      ? calculateFullLayout(groups.data, resourceTypes.data ?? [])
+      : calculateModernLayout(groups.data, resourceTypes.data ?? []);
+  }, [groups.data, resourceTypes.data, layoutSetting]);
 
   return {
     layout,
-    isLoading,
+    isLoading: !groups.data,
   };
 };
