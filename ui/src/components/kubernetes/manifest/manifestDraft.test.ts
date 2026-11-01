@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { inspectManifest, isDnsLabel, isDnsName, isKubernetesQuantity, patchManifest, readManifestValue, supportedWorkloadKind, validateManifest } from './manifestDraft';
+import { inspectManifest, isDnsLabel, isDnsName, isKubernetesQuantity, patchManifest, readManifestValue, validateManifest } from './manifestDraft';
 
 const pod = `# Managed outside the form
 apiVersion: v1
@@ -215,12 +215,9 @@ describe('manifest safety', () => {
     expect(() => patchManifest(source, [{ path: ['metadata', 'name'], value: 'test' }])).toThrow();
   });
 
-  it('selects supported forms only for exact canonical resource keys', () => {
-    expect(supportedWorkloadKind('k8s:/pods')).toBe('Pod');
-    expect(supportedWorkloadKind('k8s:apps/deployments')).toBe('Deployment');
-    expect(supportedWorkloadKind('k8s:apps/statefulsets')).toBe('StatefulSet');
-    expect(supportedWorkloadKind('core::v1::Pod')).toBeNull();
-    expect(supportedWorkloadKind('constructor')).toBeNull();
+  it('keeps Form unavailable for mismatched or foreign resource identities', () => {
+    expect(inspectManifest(pod, 'constructor').kind).toBeNull();
+    expect(inspectManifest(pod, 'core::v1::Pod').kind).toBeNull();
     expect(inspectManifest(pod, 'k8s:/pods').kind).toBe('Pod');
     expect(inspectManifest(pod, 'k8s:apps/deployments').kind).toBeNull();
     expect(inspectManifest(pod, 'custom:provider/pods').kind).toBeNull();

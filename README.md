@@ -31,19 +31,27 @@ documents measured contrast, nested themes, and screenshots.
 
 ## Creating and editing resources
 
-Pod, Deployment, and StatefulSet creation use the same compact **Form / YAML**
-editor as the resource drawer's edit view. Other resource kinds use the same
-creation frame with YAML only, without a mode switch. Schema discovery still
-supplies the actual API identity; when it is unavailable, paste a complete native
-manifest instead. Forms cover `v1` Pods and `apps/v1` controllers. Other native
-API versions remain YAML-only and defer version-specific validation to the API,
-rather than applying the stable form schema to a different version.
+Pod, Deployment, StatefulSet, Service, Ingress, ConfigMap, Secret, and
+PersistentVolumeClaim creation share the compact resource editor with the drawer's
+edit view. Other resource kinds keep the same creation frame with YAML only and
+no mode switch. Forms cover stable core `v1`, `apps/v1` workloads, and
+`networking.k8s.io/v1` Ingresses. Schema discovery supplies the actual API identity;
+other API versions remain YAML-only and defer version-specific admission to the API.
 
-Both views edit one YAML document. Form controls update individual document
-nodes, preserving fields the form does not expose, comments, and exact integers.
-YAML changes appear in supported form fields immediately. Invalid YAML and
-structures that cannot be safely mapped to controls remain editable in YAML;
-they are never regenerated from a partial form.
+Nonsecret Form and YAML views edit one document. Controls patch individual AST
+nodes, preserving unsupported fields, comments, omitted defaults, sibling fields,
+and exact integers. YAML changes appear in supported form fields. Invalid or
+unsafe source remains intact in YAML, never regenerated from a partial form.
+Unquoted numeric PVC quantities stay YAML-only to preserve their original spelling.
+Pending, uncommitted form inputs block submission and mode changes until repaired
+or canceled.
+
+**Secret YAML and diffs are read-only, redacted projections**, never mutation
+sources. Credentials, annotation values, comments, and unknown fields are excluded
+from the projection. Existing credentials remain unchanged until explicit
+replacement or removal. Reveal does not modify the draft; cancel restores only
+the selected key, including its original encoding and AST metadata. API errors
+do not display credential material. Secret values are never persisted as preferences.
 
 The last explicitly selected mode is remembered in the user's local browser
 profile across resources, create/edit views, submit, and cancel. Temporary YAML
@@ -59,10 +67,25 @@ fields: existing Pod forms permit image and metadata changes, while StatefulSet
 claim templates and governing Service names remain locked. Native API admission
 remains authoritative.
 
-Creation and editing retain the original mutation routing, incarnation and
-revision safeguards. Failed requests preserve the draft. Component previews live
-under **Resources / Manifest editor** in Storybook; their clearly labeled
-submissions stay local and never contact a cluster.
+Service controls distinguish numeric and named target ports, headless discovery,
+DNS aliases, selectors, and external exposure. Ingress routes retain independent
+hosts and use same-namespace Service port lookups; unresolved names remain
+editable. TLS stores existing Secret references and hostname tokens without
+fetching Secret bodies or promising certificate validity.
+
+ConfigMap entries preserve exact text, whitespace, and explicit binary upload
+bytes. Secret forms support Opaque, TLS, and Docker credentials with masked inputs
+and explicit discard/replacement confirmations. Immutable data stays locked.
+PVC controls distinguish default, explicitly classless, and named StorageClasses; preserve exact
+capacity through unit changes; and prevent shrinking. Guided expansion requires
+actual StorageClass permission; unknown permissions remain an API-validated YAML
+operation. No companion workloads, certificates, DNS records, or volumes are
+silently created.
+
+Creation and editing retain original mutation routing, incarnation, and revision
+safeguards. Failed requests preserve the draft. A changed name or namespace cannot
+retarget an edit. Native dialogs own their portaled menus, help, and confirmations,
+so these controls remain visible and interactive inside the browser's top layer.
 
 
 ## Candidate frontend CI

@@ -395,7 +395,7 @@ describe('resource manifest editor', () => {
     fireEvent.click(within(screen.getByTestId('first')).getByText('YAML', { exact: true }));
     expect(screen.getAllByLabelText('YAML source')).toHaveLength(2);
     cleanup();
-    render(<Harness initial={'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: config\n'} resourceKey="k8s:/configmaps" />);
+    render(<Harness initial={'apiVersion: batch/v1\nkind: Job\nmetadata:\n  name: job\n'} resourceKey="k8s:batch/jobs" />);
     expect(screen.queryByText('Form', { exact: true })).not.toBeInTheDocument();
     expect(screen.getByLabelText('YAML source')).toBeInTheDocument();
   });
@@ -409,5 +409,52 @@ describe('resource manifest editor', () => {
     render(<Harness />);
     expect(screen.getByLabelText('YAML source')).toBeInTheDocument();
     storage.mockRestore();
+  });
+
+  it('round-trips ConfigMap strings without dropping unowned nodes or exact integers', () => {
+    const source = 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: settings\n  namespace: team\ndata:\n  enabled: "false"\nx-extension:\n  exact: 9007199254740993 # retain context\n';
+    render(<Harness initial={source} resourceKey="k8s:/configmaps" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Entries' }));
+    fireEvent.change(screen.getByLabelText('Value'), { target: { value: 'null' } });
+    fireEvent.click(screen.getByText('YAML', { exact: true }));
+    const editor = screen.getByLabelText('YAML source') as HTMLTextAreaElement;
+    expect(parsed(editor.value).getIn(['data', 'enabled'])).toBe('null');
+    expect(parsed(editor.value).getIn(['x-extension', 'exact'])).toBe(9007199254740993n);
+    expect(editor.value).toContain('# retain context');
+    const manual = parsed(editor.value);
+    manual.setIn(['data', 'enabled'], '123');
+    fireEvent.change(editor, { target: { value: manual.toString() } });
+    fireEvent.click(screen.getByText('Form', { exact: true }));
+    expect(screen.getByLabelText('Value')).toHaveValue('123');
+  });
+
+  it('does not discard an uncommitted entry key by switching to YAML', () => {
+    render(<Harness initial={'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: settings\n  namespace: team\n'} resourceKey="k8s:/configmaps" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Entries' }));
+    fireEvent.change(screen.getByLabelText('New entry key'), { target: { value: 'pending' } });
+    fireEvent.click(screen.getByText('YAML', { exact: true }));
+    expect(screen.queryByLabelText('YAML source')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('New entry key')).toHaveValue('pending');
+    fireEvent.change(screen.getByLabelText('New entry key'), { target: { value: '' } });
+    fireEvent.click(screen.getByText('YAML', { exact: true }));
+    expect(screen.getByLabelText('YAML source')).toBeInTheDocument();
+  });
+
+  it('never exposes Secret values or parser excerpts in its YAML preview', () => {
+    const material = 'synthetic-private-material';
+    const encoded = btoa(material);
+    const source = `apiVersion: v1\nkind: Secret\nmetadata:\n  name: credentials\n  namespace: team\n  annotations:\n    last-applied: ${material}\ndata:\n  token: ${encoded}\nstringData:\n  extra: ${material}\n`;
+    const { unmount } = render(<Harness initial={source} resourceKey="k8s:/secrets" />);
+    fireEvent.click(screen.getByText('YAML', { exact: true }));
+    const editor = screen.getByLabelText('YAML source') as HTMLTextAreaElement;
+    expect(editor).toHaveAttribute('readonly');
+    expect(editor.value).not.toContain(material);
+    expect(editor.value).not.toContain(encoded);
+    expect(editor.value).toContain('[REDACTED]');
+    unmount();
+    render(<Harness initial={`kind: Secret\ndata: [${material}`} resourceKey="k8s:/secrets" />);
+    expect(screen.getByLabelText('YAML source')).toHaveAttribute('readonly');
+    expect(document.body.textContent).not.toContain(material);
+    expect((screen.getByLabelText('YAML source') as HTMLTextAreaElement).value).not.toContain(material);
   });
 });

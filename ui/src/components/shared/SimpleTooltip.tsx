@@ -12,6 +12,7 @@ export interface SimpleTooltipProps {
   delay?: number;
   disabled?: boolean;
   popupStyle?: React.CSSProperties;
+  container?: React.ComponentProps<typeof Tooltip.Portal>['container'];
 }
 
 /**
@@ -26,6 +27,7 @@ const SimpleTooltip: React.FC<SimpleTooltipProps> = ({
   delay = 200,
   disabled,
   popupStyle,
+  container,
 }) => {
   const tooltipID = React.useId();
   const triggerProps = children.props;
@@ -39,7 +41,7 @@ const SimpleTooltip: React.FC<SimpleTooltipProps> = ({
   return (
     <Tooltip.Root lazy size={size}>
       <Tooltip.Trigger render={children} delay={delay} aria-describedby={describedBy ? `${describedBy} ${tooltipID}` : tooltipID} />
-      <Tooltip.Portal>
+      <Tooltip.Portal container={container}>
         <Tooltip.Positioner side={placement} sideOffset={6}>
           <Tooltip.Popup id={tooltipID} role="tooltip" style={popupStyle}>{content}</Tooltip.Popup>
         </Tooltip.Positioner>

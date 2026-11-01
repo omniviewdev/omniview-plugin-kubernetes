@@ -4,6 +4,7 @@ import { LuPlus } from 'react-icons/lu';
 
 import ResourceManifestEditor from '../../manifest/ResourceManifestEditor';
 import { validateManifest } from '../../manifest/manifestDraft';
+import { ResourcePortalContext } from '../../manifest/ResourcePortalContext';
 import styles from './CreateResourceModal.module.css';
 
 interface Props {
@@ -15,6 +16,7 @@ interface Props {
   onCreate: (yaml: string) => Promise<void>;
   isCreating?: boolean;
   context?: string;
+  connectionID?: string;
 }
 
 const CreateResourceModal: React.FC<Props> = (props) =>
@@ -22,10 +24,11 @@ const CreateResourceModal: React.FC<Props> = (props) =>
 
 // Each open owns its draft and completion lifetime, including while a request is pending.
 const CreateResourceForm: React.FC<Props> = ({
-  onClose, resourceKey, resourceName, template, onCreate, isCreating, context,
+  onClose, resourceKey, resourceName, template, onCreate, isCreating, context, connectionID,
 }) => {
   const [value, setValue] = React.useState(template);
   const [error, setError] = React.useState<string | null>(null);
+  const [formError, setFormError] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState(false);
   const activeRef = React.useRef(false);
   const busyRef = React.useRef(false);
@@ -42,7 +45,7 @@ const CreateResourceForm: React.FC<Props> = ({
   }, []);
 
   const handleSubmit = async () => {
-    if (busyRef.current || isCreating) return;
+    if (busyRef.current || isCreating || formError) return;
     const validationError = validateManifest(value, resourceKey);
     setError(validationError);
     if (validationError) return;
@@ -52,7 +55,9 @@ const CreateResourceForm: React.FC<Props> = ({
       await onCreate(value);
       if (activeRef.current) onClose();
     } catch (cause) {
-      if (activeRef.current) setError(cause instanceof Error ? cause.message : 'Failed to create resource');
+      if (activeRef.current) setError(resourceKey === 'k8s:/secrets'
+        ? 'Secret creation failed. Credential values are hidden; check permissions and server policy.'
+        : cause instanceof Error ? cause.message : 'Failed to create resource');
     } finally {
       busyRef.current = false;
       if (activeRef.current) setPending(false);
@@ -76,6 +81,7 @@ const CreateResourceForm: React.FC<Props> = ({
   };
 
   return (
+    <ResourcePortalContext.Provider value={dialogRef}>
     <Dialog ref={dialogRef} open onClose={onClose} size="xl" className={styles.Dialog} onKeyDown={trapFocus}>
       <Dialog.Close aria-label="Close" />
       <Dialog.Title className={styles.Title} icon={<LuPlus size={16} />}>Create {resourceName}</Dialog.Title>
@@ -86,17 +92,20 @@ const CreateResourceForm: React.FC<Props> = ({
           resourceKey={resourceKey}
           filename="create.yaml"
           context={context}
+          connectionID={connectionID}
+          onValidityChange={setFormError}
           disabled={pending || isCreating}
         />
       </div>
       {error && <div className={styles.Error} role="alert">{error}</div>}
       <Dialog.Footer className={styles.Footer}>
         <Button size="sm" variant="ghost" color="neutral" onClick={onClose}>Cancel</Button>
-        <Button size="sm" variant="solid" color="brand" disabled={pending || isCreating} onClick={() => void handleSubmit()}>
+        <Button size="sm" variant="solid" color="brand" disabled={pending || isCreating || !!formError} onClick={() => void handleSubmit()}>
           {pending || isCreating ? 'Creating...' : 'Create'}
         </Button>
       </Dialog.Footer>
     </Dialog>
+    </ResourcePortalContext.Provider>
   );
 };
 
