@@ -45,7 +45,7 @@ const CreateResourceButton: React.FC<Props> = ({ connectionID, resourceKey, sele
           changes.push({ path: ['metadata', 'namespace'], value: selectedNamespaces.length === 1 ? selectedNamespaces[0] : '' });
         }
         if (identity) changes.push({ path: ['metadata', 'name'], value: '' });
-        if (draft.kind) {
+        if (draft.kind === 'Pod' || draft.kind === 'Deployment' || draft.kind === 'StatefulSet') {
           changes.push({ path: ['metadata', 'labels', 'app'], value: '' });
           const podPath = draft.kind === 'Pod' ? ['spec'] : ['spec', 'template', 'spec'];
           changes.push(
@@ -60,6 +60,13 @@ const CreateResourceButton: React.FC<Props> = ({ connectionID, resourceKey, sele
           }
           if (draft.kind === 'StatefulSet') changes.push({ path: ['spec', 'serviceName'], value: '' });
         }
+        if (draft.kind === 'Service') changes.push({ path: ['spec', 'selector'], remove: true });
+        if (draft.kind === 'Ingress') changes.push({ path: ['spec', 'rules'], remove: true });
+        if (draft.kind === 'ConfigMap') changes.push({ path: ['data'], remove: true });
+        if (draft.kind === 'Secret') changes.push(
+          { path: ['data'], remove: true }, { path: ['stringData'], remove: true },
+        );
+        if (draft.kind === 'PersistentVolumeClaim') changes.push({ path: ['spec', 'resources', 'requests', 'storage'], remove: true });
         if (changes.length) nextTemplate = patchManifest(nextTemplate, changes);
       }
     } catch {
@@ -101,7 +108,7 @@ const CreateResourceButton: React.FC<Props> = ({ connectionID, resourceKey, sele
         {isPreparing ? 'Preparing...' : `Create ${label}`}
       </Button>
       <CreateResourceModal key={JSON.stringify([connectionID, resourceKey])} open={open} onClose={() => setOpen(false)} resourceKey={resourceKey}
-        resourceName={label} template={template} onCreate={handleCreate} isCreating={isCreating} context={connectionID} />
+        resourceName={label} template={template} onCreate={handleCreate} isCreating={isCreating} context={connectionID} connectionID={connectionID} />
     </>
   );
 };

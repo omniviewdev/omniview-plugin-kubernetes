@@ -1,25 +1,37 @@
 import { isAlias, isMap, isNode, isScalar, isSeq, parseAllDocuments, type Document } from 'yaml';
+import { serviceFields, ingressFields, networkFormError, validateNetworkManifest } from './networkDraft';
+import { configMapFields, secretFields, dataFormError, validateDataManifest } from './dataDraft';
+import { pvcFields, pvcFormError, validatePVCManifest } from './pvcDraft';
 
 export type WorkloadKind = 'Pod' | 'Deployment' | 'StatefulSet';
+export type ManifestKind = WorkloadKind | 'Service' | 'Ingress' | 'ConfigMap' | 'Secret' | 'PersistentVolumeClaim';
 export type ManifestPath = readonly (string | number)[];
 export interface ManifestChange { path: ManifestPath; value?: unknown; remove?: boolean }
 export interface ManifestDraft {
   document: Document.Parsed | null;
-  kind: WorkloadKind | null;
+  kind: ManifestKind | null;
   error: string | null;
   formError: string | null;
 }
 
-const resourceKinds: Readonly<Record<string, WorkloadKind>> = {
+const resourceKinds: Readonly<Record<string, ManifestKind>> = {
   'k8s:/pods': 'Pod',
   'k8s:apps/deployments': 'Deployment',
   'k8s:apps/statefulsets': 'StatefulSet',
+  'k8s:/services': 'Service',
+  'k8s:networking.k8s.io/ingresses': 'Ingress',
+  'k8s:/configmaps': 'ConfigMap',
+  'k8s:/secrets': 'Secret',
+  'k8s:/persistentvolumeclaims': 'PersistentVolumeClaim',
 };
 
-export function supportedWorkloadKind(resourceKey: string): WorkloadKind | null {
+export function supportedManifestKind(resourceKey: string): ManifestKind | null {
   return Object.hasOwn(resourceKinds, resourceKey) ? resourceKinds[resourceKey] : null;
 }
-const apiVersions: Record<WorkloadKind, string> = { Pod: 'v1', Deployment: 'apps/v1', StatefulSet: 'apps/v1' };
+const apiVersions: Record<ManifestKind, string> = {
+  Pod: 'v1', Deployment: 'apps/v1', StatefulSet: 'apps/v1', Service: 'v1',
+  Ingress: 'networking.k8s.io/v1', ConfigMap: 'v1', Secret: 'v1', PersistentVolumeClaim: 'v1',
+};
 const displayPath = (path: ManifestPath) => path.map(String).join('.') || 'manifest';
 const safetyError = (path: ManifestPath) => new Error(`${displayPath(path)} cannot be safely edited in Form. Use YAML instead.`);
 
@@ -43,7 +55,9 @@ function parse(source: string): { document: Document.Parsed | null; error: strin
   }
 }
 
-type Shape = 'string' | 'number' | 'quantity' | { fields: Record<string, Shape> } | { item: Shape } | { values: Shape };
+export type ManifestShape = 'string' | 'number' | 'integerOrString' | 'quantity' | 'boolean'
+  | { fields: Record<string, ManifestShape> } | { item: ManifestShape } | { values: ManifestShape };
+type Shape = ManifestShape;
 const map = (fields: Record<string, Shape>): Shape => ({ fields });
 const list = (item: Shape): Shape => ({ item });
 const values = (value: Shape): Shape => ({ values: value });
@@ -76,7 +90,11 @@ const selector = map({
   matchExpressions: list(map({ key: 'string', operator: 'string', values: list('string') })),
 });
 
-function ownedShape(kind: WorkloadKind): Shape {
+function ownedShape(kind: ManifestKind): Shape {
+  const fields = kind === 'Service' ? serviceFields : kind === 'Ingress' ? ingressFields
+    : kind === 'ConfigMap' ? configMapFields : kind === 'Secret' ? secretFields
+      : kind === 'PersistentVolumeClaim' ? pvcFields : null;
+  if (fields) return map({ apiVersion: 'string', kind: 'string', metadata, ...fields });
   if (kind === 'Pod') return map({ apiVersion: 'string', kind: 'string', metadata, spec: podSpec });
   return map({ apiVersion: 'string', kind: 'string', metadata, spec: map({
     replicas: 'number', selector, serviceName: 'string',
@@ -95,8 +113,10 @@ function checkShape(node: unknown, shape: Shape, path: ManifestPath): void {
     if (!isScalar(node)) throw safetyError(path);
     const value = node.value;
     const valid = shape === 'string' ? typeof value === 'string'
-      : shape === 'number' ? typeof value === 'bigint' || (typeof value === 'number' && Number.isInteger(value))
-        : typeof value === 'string' || typeof value === 'bigint' || (typeof value === 'number' && Number.isFinite(value));
+      : shape === 'boolean' ? typeof value === 'boolean'
+        : shape === 'number' ? typeof value === 'bigint' || (typeof value === 'number' && Number.isInteger(value))
+          : shape === 'integerOrString' ? typeof value === 'string' || typeof value === 'bigint' || (typeof value === 'number' && Number.isInteger(value))
+            : typeof value === 'string' || typeof value === 'bigint' || (typeof value === 'number' && Number.isFinite(value));
     if (!valid) throw safetyError(path);
     return;
   }
@@ -123,9 +143,11 @@ function checkResolvedShape(value: unknown, shape: Shape, path: ManifestPath): s
   if (value === undefined || value === null) return null;
   if (typeof shape === 'string') {
     const valid = shape === 'string' ? typeof value === 'string'
-      : shape === 'number' ? typeof value === 'bigint' || (typeof value === 'number' && Number.isInteger(value))
-        : typeof value === 'string' || typeof value === 'bigint' || (typeof value === 'number' && Number.isFinite(value));
-    return valid ? null : `${displayPath(path)} must be ${shape === 'number' ? 'an integer' : shape === 'quantity' ? 'a Kubernetes quantity' : 'a string'}.`;
+      : shape === 'boolean' ? typeof value === 'boolean'
+        : shape === 'number' ? typeof value === 'bigint' || (typeof value === 'number' && Number.isInteger(value))
+          : shape === 'integerOrString' ? typeof value === 'string' || typeof value === 'bigint' || (typeof value === 'number' && Number.isInteger(value))
+            : typeof value === 'string' || typeof value === 'bigint' || (typeof value === 'number' && Number.isFinite(value));
+    return valid ? null : `${displayPath(path)} must be ${shape === 'number' ? 'an integer' : shape === 'boolean' ? 'a boolean' : shape === 'integerOrString' ? 'an integer or string' : shape === 'quantity' ? 'a Kubernetes quantity' : 'a string'}.`;
   }
   if ('item' in shape) {
     if (!Array.isArray(value)) return `${displayPath(path)} must be a list.`;
@@ -147,10 +169,13 @@ function checkResolvedShape(value: unknown, shape: Shape, path: ManifestPath): s
 
 export function inspectManifest(source: string, resourceKey?: string): ManifestDraft {
   const { document, error } = parse(source);
-  if (!document) return { document, error, kind: null, formError: error };
+  if (!document) {
+    const safeError = resourceKey === 'k8s:/secrets' ? 'Secret YAML is invalid. Credential values are hidden.' : error;
+    return { document, error: safeError, kind: null, formError: safeError };
+  }
   const value = document.get('kind');
   const kind = typeof value === 'string' && Object.hasOwn(apiVersions, value)
-    && (!resourceKey || supportedWorkloadKind(resourceKey) === value) ? value as WorkloadKind : null;
+    && (!resourceKey || supportedManifestKind(resourceKey) === value) ? value as ManifestKind : null;
   let formError: string | null = null;
   try {
     resolvedDocuments.set(document, document.toJS({ maxAliasCount: 100 }));
@@ -165,7 +190,13 @@ export function inspectManifest(source: string, resourceKey?: string): ManifestD
       formError = error instanceof Error ? error.message : 'Use YAML to edit this manifest safely.';
     }
   }
-  return { document, error, kind, formError };
+  const result: ManifestDraft = { document, error, kind, formError };
+  if (!formError) {
+    if (kind === 'Service' || kind === 'Ingress') result.formError = networkFormError(result);
+    else if (kind === 'ConfigMap' || kind === 'Secret') result.formError = dataFormError(result);
+    else if (kind === 'PersistentVolumeClaim') result.formError = pvcFormError(result);
+  }
+  return result;
 }
 
 function childAt(node: unknown, key: string | number, path: ManifestPath): unknown {
@@ -261,9 +292,9 @@ export const isDnsName = (value: unknown): value is string => typeof value === '
 const integer = (value: unknown): bigint | null => typeof value === 'bigint' ? value
   : typeof value === 'number' && Number.isSafeInteger(value) ? BigInt(value) : null;
 
-interface Quantity { coefficient: bigint; exponent: bigint }
+export interface Quantity { coefficient: bigint; exponent: bigint }
 /** Exact decimal representation also covers binary SI quantities without Number rounding. */
-function quantity(value: unknown): Quantity | null {
+export function quantity(value: unknown): Quantity | null {
   if (!['string', 'number', 'bigint'].includes(typeof value)) return null;
   const match = /^([+-]?)(\d+(?:\.\d*)?|\.\d+)([eE][+-]?\d+|[numkMGTPE]|[KMGTPE]i)?$/.exec(String(value));
   if (!match) return null;
@@ -283,7 +314,7 @@ export function isKubernetesQuantity(value: unknown): boolean {
   return parsed !== null && parsed.coefficient >= 0n;
 }
 
-function compareQuantity(left: Quantity, right: Quantity): number {
+export function compareQuantity(left: Quantity, right: Quantity): number {
   if (left.coefficient === 0n || right.coefficient === 0n) return left.coefficient === right.coefficient ? 0 : left.coefficient === 0n ? -1 : 1;
   const a = left.coefficient.toString();
   const b = right.coefficient.toString();
@@ -350,14 +381,14 @@ function validateSelector(spec: ObjectValue): string | null {
 }
 
 /** Local checks only; API admission and immutable resource identity remain the caller's responsibility. */
-export function validateManifest(source: string, resourceKey?: string, _editing = false): string | null {
+export function validateManifest(source: string, resourceKey?: string, editing = false, baselineSource?: string): string | null {
   const draft = inspectManifest(source, resourceKey);
   if (draft.error || !draft.document) return draft.error ?? 'Invalid YAML.';
   if (!resolvedDocuments.has(draft.document)) return aliasError;
   const root = object(resolvedDocuments.get(draft.document));
   if (typeof root.apiVersion !== 'string' || !root.apiVersion.trim()) return 'apiVersion is required.';
   if (typeof root.kind !== 'string' || !root.kind.trim()) return 'kind is required.';
-  const expected = resourceKey ? supportedWorkloadKind(resourceKey) : null;
+  const expected = resourceKey ? supportedManifestKind(resourceKey) : null;
   if (expected && root.kind !== expected) return `kind must be ${expected} for this resource type.`;
   const meta = object(root.metadata);
   if (typeof meta.name !== 'string' || !meta.name.trim()) return 'metadata.name is required.';
@@ -372,6 +403,12 @@ export function validateManifest(source: string, resourceKey?: string, _editing 
   // Validate resolved values rather than requiring a form-compatible representation.
   const shapeError = checkResolvedShape(root, ownedShape(draft.kind), []);
   if (shapeError) return shapeError;
+  const baseline = editing && baselineSource ? inspectManifest(baselineSource, resourceKey) : undefined;
+  if (baseline?.document && (readManifestValue(baseline, ['metadata', 'name']) !== meta.name
+    || readManifestValue(baseline, ['metadata', 'namespace']) !== meta.namespace)) return 'Resource name and namespace cannot change during edit.';
+  if (draft.kind === 'Service' || draft.kind === 'Ingress') return validateNetworkManifest(draft, editing, baseline);
+  if (draft.kind === 'ConfigMap' || draft.kind === 'Secret') return validateDataManifest(draft, editing, baseline);
+  if (draft.kind === 'PersistentVolumeClaim') return validatePVCManifest(draft, editing, baseline);
   const spec = object(root.spec);
   const podSpec = draft.kind === 'Pod' ? spec : object(object(spec.template).spec);
   if (draft.kind !== 'Pod') {

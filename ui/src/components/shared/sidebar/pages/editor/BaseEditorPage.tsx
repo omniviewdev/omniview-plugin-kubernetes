@@ -33,6 +33,9 @@ const ResourceEditor: React.FC<{ data: KubernetesResourceObject; resource: Resou
   const [usingDiff, setUsingDiff] = React.useState(false);
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string>();
+  const [formError, setFormError] = React.useState<string | null>(null);
+  const [editorRevision, setEditorRevision] = React.useState(0);
+  const interacted = React.useRef(false);
   const revision = React.useRef(resource.record?.record.sourceRevision);
   const busy = React.useRef(false);
   const mounted = React.useRef(true);
@@ -43,9 +46,10 @@ const ResourceEditor: React.FC<{ data: KubernetesResourceObject; resource: Resou
     return () => { mounted.current = false; };
   }, []);
 
-  // Refetches must not erase a draft or replace its optimistic concurrency baseline.
+  // Local form inputs can be pending without changing YAML. Freeze both source and
+  // optimistic revision after interaction until an explicit successful submit/reset.
   React.useEffect(() => {
-    if (!changed && !busy.current) {
+    if (!changed && !formError && !interacted.current && !busy.current) {
       const next = stringify(data);
       setBaseline(next);
       setValue(next);
@@ -54,14 +58,14 @@ const ResourceEditor: React.FC<{ data: KubernetesResourceObject; resource: Resou
   }, [data, resource.record]);
 
   const handleSubmit = async () => {
-    if (busy.current || !changed || !canUpdate) return;
+    if (busy.current || !changed || !canUpdate || formError) return;
     busy.current = true;
     setPending(true);
     setError(undefined);
     let phase: 'prepare' | 'mutate' | 'receipt' = 'prepare';
     try {
-      const validationError = validateManifest(value, resource.reference.address.type, true);
-      if (validationError) throw new Error(validationError);
+      const validationError = validateManifest(value, resource.reference.address.type, true, baseline);
+      if (validationError) { setError(validationError); return; }
       const parsed: unknown = parse(value, { intAsBigInt: true });
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
         throw new Error('Resource YAML must contain an object.');
@@ -81,9 +85,13 @@ const ResourceEditor: React.FC<{ data: KubernetesResourceObject; resource: Resou
       revision.current = result.sourceRevision;
       setBaseline(next);
       setValue(next);
+      interacted.current = false;
+      setEditorRevision((current) => current + 1);
     } catch (cause) {
       if (mounted.current) {
-        if (phase === 'prepare') {
+        if (resource.reference.address.type === 'k8s:/secrets' && phase !== 'receipt') {
+          setError('Secret update failed. Credential values are hidden; check permissions and server policy.');
+        } else if (phase === 'prepare') {
           setError(cause instanceof Error ? cause.message : 'Resource YAML could not be converted.');
         } else if (phase === 'receipt') {
           setError('The resource was updated, but its returned document could not be displayed. Reopen the resource to load the saved document.');
@@ -103,8 +111,14 @@ const ResourceEditor: React.FC<{ data: KubernetesResourceObject; resource: Resou
       : !canUpdate ? 'This resource does not advertise update support for this scope.' : undefined;
 
   return (
-    <Stack style={outerStackStyle} spacing={2} direction="column">
+    <Stack style={outerStackStyle} spacing={2} direction="column"
+      onFocusCapture={() => { interacted.current = true; }}
+      onPointerDownCapture={() => { interacted.current = true; }}
+    >
       <ResourceManifestEditor
+        key={editorRevision}
+        connectionID={resource.route.connection}
+        onValidityChange={setFormError}
         value={value}
         baseline={baseline}
         diff={usingDiff}
@@ -118,14 +132,14 @@ const ResourceEditor: React.FC<{ data: KubernetesResourceObject; resource: Resou
       {unavailable && <div role="status">{unavailable}</div>}
       {error && <div role="alert">{error}</div>}
       <Stack direction="row" justify="between">
-        <Button size="sm" variant="soft" color="neutral" startDecorator={<LuFileCode />} onClick={() => setUsingDiff((prev) => !prev)}>
+        <Button size="sm" variant="soft" color="neutral" disabled={!!formError} startDecorator={<LuFileCode />} onClick={() => setUsingDiff((prev) => !prev)}>
           {usingDiff ? 'Show Editor' : 'Show Diff'}
         </Button>
         <Stack direction="row" spacing={1}>
-          <Button startDecorator={<LuX />} color="neutral" disabled={!changed || pending} size="sm" variant="soft" onClick={() => { setValue(baseline); setError(undefined); }}>
+          <Button startDecorator={<LuX />} color="neutral" disabled={(!changed && !formError) || pending} size="sm" variant="soft" onClick={() => { interacted.current = false; setValue(baseline); setError(undefined); setEditorRevision((current) => current + 1); }}>
             Reset
           </Button>
-          <Button startDecorator={<LuSave />} color="brand" disabled={!changed || pending || !canUpdate} size="sm" variant="soft" onClick={() => { void handleSubmit(); }}>
+          <Button startDecorator={<LuSave />} color="brand" disabled={!changed || pending || !canUpdate || !!formError} size="sm" variant="soft" onClick={() => { void handleSubmit(); }}>
             {pending ? 'Submitting…' : 'Submit'}
           </Button>
         </Stack>

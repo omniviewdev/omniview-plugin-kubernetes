@@ -31,19 +31,33 @@ documents measured contrast, nested themes, and screenshots.
 
 ## Creating and editing resources
 
-Pod, Deployment, and StatefulSet creation use the same compact **Form / YAML**
-editor as the resource drawer's edit view. Other resource kinds use the same
-creation frame with YAML only, without a mode switch. Schema discovery still
-supplies the actual API identity; when it is unavailable, paste a complete native
-manifest instead. Forms cover `v1` Pods and `apps/v1` controllers. Other native
-API versions remain YAML-only and defer version-specific validation to the API,
-rather than applying the stable form schema to a different version.
+Pod, Deployment, StatefulSet, Service, Ingress, ConfigMap, Secret, and
+PersistentVolumeClaim creation share the compact resource editor with the drawer's
+edit view. Other resource kinds keep the same creation frame with YAML only and
+no mode switch. Forms cover stable core `v1`, `apps/v1` workloads, and
+`networking.k8s.io/v1` Ingresses. Schema discovery supplies the actual API identity;
+other API versions remain YAML-only and defer version-specific admission to the API.
 
-Both views edit one YAML document. Form controls update individual document
-nodes, preserving fields the form does not expose, comments, and exact integers.
-YAML changes appear in supported form fields immediately. Invalid YAML and
-structures that cannot be safely mapped to controls remain editable in YAML;
-they are never regenerated from a partial form.
+Nonsecret Form and YAML views edit one document. Controls patch individual AST
+nodes, preserving unsupported fields, comments, omitted defaults, sibling fields,
+and exact integers. YAML changes appear in supported form fields. Invalid or
+unsafe source remains intact in YAML, never regenerated from a partial form.
+Unquoted numeric PVC quantities stay YAML-only to preserve their original spelling.
+Pending, uncommitted form inputs block submission and mode changes until repaired
+or canceled.
+
+**Secret YAML starts as a read-only, redacted projection**, never a mutation
+source. Credentials, annotation values, comments, and unknown fields are excluded
+from the projection. Explicit confirmation enables raw YAML editing, including
+unsupported Secret types and invalid source that needs repair. Raw editing uses a
+separate editor model. Hiding it or leaving the view remasks without discarding
+source edits; diffs always remain redacted and read-only.
+
+Existing credentials remain unchanged until explicit replacement or removal.
+Reveal does not modify the draft; cancel restores only the selected key,
+including its original encoding and AST metadata. API errors do not display
+credential material. Secret values and raw-edit consent are never persisted as
+preferences.
 
 The last explicitly selected mode is remembered in the user's local browser
 profile across resources, create/edit views, submit, and cancel. Temporary YAML
@@ -59,10 +73,27 @@ fields: existing Pod forms permit image and metadata changes, while StatefulSet
 claim templates and governing Service names remain locked. Native API admission
 remains authoritative.
 
-Creation and editing retain the original mutation routing, incarnation and
-revision safeguards. Failed requests preserve the draft. Component previews live
-under **Resources / Manifest editor** in Storybook; their clearly labeled
-submissions stay local and never contact a cluster.
+Service controls distinguish numeric and named target ports, headless discovery,
+DNS aliases, selectors, and external exposure. Ingress routes retain independent
+hosts and use same-namespace Service port lookups; unresolved names remain
+editable. TLS stores existing Secret references and hostname tokens without
+fetching Secret bodies or promising certificate validity.
+
+ConfigMap entries preserve exact text, whitespace, and explicit binary upload
+bytes. Secret forms support Opaque, TLS, and Docker credentials with masked inputs
+and explicit discard/replacement confirmations. Immutable data stays locked.
+PVC controls distinguish default, explicitly classless, and named StorageClasses; preserve exact
+capacity through unit changes; and prevent shrinking. Guided expansion requires
+actual StorageClass permission; unknown permissions remain an API-validated YAML
+operation. No companion workloads, certificates, DNS records, or volumes are
+silently created.
+
+Creation and editing retain original mutation routing, incarnation, and revision
+safeguards. Failed requests preserve the draft. Passive refresh cannot discard
+local form input or replace the optimistic revision after interaction begins.
+A changed name or namespace cannot retarget an edit. Native dialogs own their
+portaled menus, help, and confirmations,
+so these controls remain visible and interactive inside the browser's top layer.
 
 
 ## Candidate frontend CI
@@ -250,7 +281,7 @@ The splash shows the saved cluster identity while checking, connecting, or recov
 
 Storybook's **Connections/ConnectionBoundary** stories provide mocked loading, disconnected, connecting, authorization, missing-connection, and error states, including metadata loading/failure. Interactive recovery opens a mocked Pod table instead of a redundant connected splash. The preview makes no backend connection requests.
 
-Kubernetes plugin 0.13.0 requires Omniview 0.19.0 or later for native Pod exec and pins the published `@omniviewdev/runtime` and `@omniviewdev/vite-plugin` 0.19.0 cohort with `@omniviewdev/base-ui` 0.10.0 and `@omniviewdev/editors` 6.1.3. Native-command planning uses SDK 0.12.0. Profiling stays off by default. Historical plugin 0.12.0 supports Omniview 0.14.0 or later, with profiling controls and status requiring Omniview 0.15.0; 0.11.0 requires Omniview 0.14.0 for transactional settings; 0.10.0 requires Omniview 0.13.0 for connection/server metadata; 0.9.0 requires Omniview 0.12.0 for resource-v2 integration and collection-wide views, and 0.8.2 uses its older compatible producer cohort.
+Kubernetes plugin 0.13.0 requires Omniview 0.19.0 or later for native Pod exec and pins the published `@omniviewdev/runtime` and `@omniviewdev/vite-plugin` 0.19.0 cohort with `@omniviewdev/base-ui` 0.10.0 and `@omniviewdev/editors` 6.1.3. Native-command planning uses SDK 0.12.0. The shared TreeList contract is available in Omniview 0.17.0 or later. Profiling support was introduced in SDK 0.11.0 and stays off by default. Historical plugin 0.12.0 retains the 0.14.0 UI/runtime cohort and requires Omniview 0.15.0 for profiling controls; 0.11.0 requires Omniview 0.14.0 for transactional settings; 0.10.0 requires Omniview 0.13.0 for connection/server metadata; 0.9.0 requires Omniview 0.12.0 for resource-v2 integration and collection-wide views, and 0.8.2 uses its older compatible producer cohort.
 
 ## Plugin-process profiling
 
@@ -460,9 +491,19 @@ Every resource type gets a dedicated, sortable table with:
 - **Inline create** — open a YAML editor pre-populated with a template for the resource kind
 - **Row actions** — click any row to open a detail sidebar with tabs for overview, YAML, events, and more
 
+### Resource Navigation
+
+Both sidebar layouts use the host's shared `TreeList`, with one virtualized scroll viewport, keyboard navigation, and persistent expansion. Arrow keys move focus and expand or collapse groups; Enter or Space activates the focused destination or group. Plugin-contributed parent pages remain navigable.
+
+Expansion stays connection-specific. Sidebar order and edit mode remain global preferences. Unlock the sidebar to reorder sibling items with explicit drag handles, using pointer input or Space, arrow keys, and Space to drop. Items cannot move between sections or parents. Reset restores the default order without clearing expansion.
+
+New API groups and resource kinds appear as the catalog changes. Watch-state badges update independently of the navigation structure; errors take precedence over syncing indicators. Empty categories and unavailable primary resources do not become invalid navigation destinations. Global command search continues to reuse the same destinations.
+
+Omniview 0.17.0 shares base-ui 0.10.0 with `TreeList.onAction` support. This plugin pins the matching published runtime and Vite plugin 0.17.0, base-ui 0.10.0, and editors 6.1.3. Update Omniview before updating the Kubernetes plugin: a plugin dependency alone does not replace the host's shared component singleton.
+
 ### Scoped Command Search
 
-Kubernetes plugin 0.11.0 requires Omniview 0.14.0 for transactional settings, connection/server metadata, collection-wide resource views, connection-route protection, live-Pod debug recovery, asynchronous resource actions, opening a connection in a new tab or window, and the shared search and resource-icon runtime contracts. Its standalone frontend pins published `@omniviewdev/runtime` 0.14.0, `@omniviewdev/vite-plugin` 0.14.0, `@omniviewdev/base-ui` 0.9.1, and `@omniviewdev/editors` 6.1.2 in `ui/package.json` and `ui/pnpm-lock.yaml`. Update Omniview before updating the Kubernetes plugin; the plugin's minor version is independent of the host version.
+The runtime provides transactional settings, connection/server metadata, collection-wide resource views, connection-route protection, live-Pod debug recovery, asynchronous resource actions, opening a connection in a new tab or window, and the shared search and resource-icon contracts. Exact standalone dependency pins live in `ui/package.json` and `ui/pnpm-lock.yaml`; the plugin's minor version is independent of the host version.
 
 Cmd/Ctrl-K opens Omniview's single global search surface, including on Kubernetes pages. Type a connection name and press Tab to scope it, then scope a resource type and resource. Enter opens the selected destination or existing action. The sidebar's **Find in this connection** control opens that same surface with a visible connection chip.
 
@@ -736,10 +777,10 @@ rather than adding unsupported manifest fields.
 
 Registry installs retain pnpm's 24-hour release-age protection. Only coordinated
 `@omniviewdev/*` packages are exempted; linked source worktrees resolve locally.
-The current UI cohort is `@omniviewdev/base-ui` 0.9.1 and
-`@omniviewdev/editors` 6.1.2, paired with host/runtime and Vite plugin 0.14.0.
-The backend pins published Go SDK `v0.10.0` for transactional settings and
-connection metadata.
+The current UI cohort is `@omniviewdev/base-ui` 0.10.0 and
+`@omniviewdev/editors` 6.1.3, paired with host/runtime and Vite plugin 0.17.0.
+The backend pins published Go SDK `v0.11.0` for transactional settings,
+connection metadata, and opt-in profiling.
 Debug preferences discard unsaved drafts when reopened or switched to another
 connection, but preserve active drafts when saved defaults refresh.
 

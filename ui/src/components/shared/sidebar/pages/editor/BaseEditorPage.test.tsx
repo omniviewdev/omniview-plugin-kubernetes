@@ -47,9 +47,9 @@ beforeEach(() => {
 });
 
 describe('contextual resource editor', () => {
-  it('saves against the admitted identity and revision, not edited YAML metadata', async () => {
+  it('saves against the admitted identity and revision while preserving exact payload values', async () => {
     const ctx = context();
-    const edited = { ...original, metadata: { name: 'other', namespace: 'elsewhere' }, spec: { ...original.spec, count: 9007199254740993n } };
+    const edited = { ...original, spec: { ...original.spec, count: 9007199254740993n } };
     const saved = { ...original, spec: { ...original.spec, marker: 'saved' } };
     const { promise, resolve } = Promise.withResolvers<unknown>();
     mocks.mutate.mockReturnValue(promise);
@@ -70,6 +70,17 @@ describe('contextual resource editor', () => {
     mocks.mutate.mockResolvedValue({ body: saved, sourceRevision: 'revision-3' });
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
     await waitFor(() => expect(mocks.mutate).toHaveBeenLastCalledWith(expect.objectContaining({ expectedRevision: 'revision-2' })));
+  });
+
+  it('rejects identity changes without encoding or mutating and keeps the draft recoverable', () => {
+    render(<BaseEditorPage ctx={context()} />);
+    const edited = stringify({ ...original, metadata: { ...original.metadata, name: 'other', namespace: 'elsewhere' } });
+    fireEvent.change(draft(), { target: { value: edited } });
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Resource name and namespace cannot change');
+    expect(mocks.encode).not.toHaveBeenCalled();
+    expect(mocks.mutate).not.toHaveBeenCalled();
+    expect(draft().value).toBe(edited);
   });
 
   it('preserves drafts during refetch, but resets drafts when contextual route changes', () => {

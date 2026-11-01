@@ -1,14 +1,23 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseDocument } from 'yaml';
 
 import ResourceManifestEditor, { type ResourceManifestEditorProps } from './ResourceManifestEditor';
 import { MANIFEST_MODE_KEY, setManifestMode } from './useManifestMode';
+import { validateManifest } from './manifestDraft';
 
+const editorBehavior = vi.hoisted(() => ({ emitProgrammaticChanges: false }));
 vi.mock('../../shared/CodeEditor', () => ({
-  default: ({ value, onChange, diff, readOnly }: { value: string; onChange: (value: string) => void; diff?: boolean; readOnly?: boolean }) =>
-    <textarea aria-label={diff ? 'YAML diff' : 'YAML source'} value={value} readOnly={readOnly} onChange={(event) => onChange(event.target.value)} />,
+  default: function EditorDouble({ value, original, onChange, diff, readOnly }: { value: string; original?: string; onChange?: (value: string) => void; diff?: boolean; readOnly?: boolean }) {
+    // Model Monaco subscriptions that retain the callback from their initial mount.
+    const initialChange = useRef(onChange);
+    useEffect(() => {
+      if (editorBehavior.emitProgrammaticChanges) initialChange.current?.(value);
+    }, [value]);
+    return <><textarea aria-label={diff ? 'YAML diff' : 'YAML source'} value={value} readOnly={readOnly} onChange={(event) => onChange?.(event.target.value)} />
+      {diff && <textarea aria-label="YAML baseline" value={original} readOnly />}</>;
+  },
 }));
 
 const deployment = `apiVersion: apps/v1
@@ -92,6 +101,7 @@ function Harness({ initial = deployment, observe, ...props }: Partial<ResourceMa
 
 beforeEach(() => {
   window.localStorage.clear();
+  editorBehavior.emitProgrammaticChanges = false;
   act(() => setManifestMode('form'));
 });
 afterEach(cleanup);
@@ -395,7 +405,7 @@ describe('resource manifest editor', () => {
     fireEvent.click(within(screen.getByTestId('first')).getByText('YAML', { exact: true }));
     expect(screen.getAllByLabelText('YAML source')).toHaveLength(2);
     cleanup();
-    render(<Harness initial={'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: config\n'} resourceKey="k8s:/configmaps" />);
+    render(<Harness initial={'apiVersion: batch/v1\nkind: Job\nmetadata:\n  name: job\n'} resourceKey="k8s:batch/jobs" />);
     expect(screen.queryByText('Form', { exact: true })).not.toBeInTheDocument();
     expect(screen.getByLabelText('YAML source')).toBeInTheDocument();
   });
@@ -409,5 +419,151 @@ describe('resource manifest editor', () => {
     render(<Harness />);
     expect(screen.getByLabelText('YAML source')).toBeInTheDocument();
     storage.mockRestore();
+  });
+
+  it('round-trips ConfigMap strings without dropping unowned nodes or exact integers', () => {
+    const source = 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: settings\n  namespace: team\ndata:\n  enabled: "false"\nx-extension:\n  exact: 9007199254740993 # retain context\n';
+    render(<Harness initial={source} resourceKey="k8s:/configmaps" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Entries' }));
+    fireEvent.change(screen.getByLabelText('Value'), { target: { value: 'null' } });
+    fireEvent.click(screen.getByText('YAML', { exact: true }));
+    const editor = screen.getByLabelText('YAML source') as HTMLTextAreaElement;
+    expect(parsed(editor.value).getIn(['data', 'enabled'])).toBe('null');
+    expect(parsed(editor.value).getIn(['x-extension', 'exact'])).toBe(9007199254740993n);
+    expect(editor.value).toContain('# retain context');
+    const manual = parsed(editor.value);
+    manual.setIn(['data', 'enabled'], '123');
+    fireEvent.change(editor, { target: { value: manual.toString() } });
+    fireEvent.click(screen.getByText('Form', { exact: true }));
+    expect(screen.getByLabelText('Value')).toHaveValue('123');
+  });
+
+  it('does not discard an uncommitted entry key by switching to YAML', () => {
+    render(<Harness initial={'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: settings\n  namespace: team\n'} resourceKey="k8s:/configmaps" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Entries' }));
+    fireEvent.change(screen.getByLabelText('New entry key'), { target: { value: 'pending' } });
+    fireEvent.click(screen.getByText('YAML', { exact: true }));
+    expect(screen.queryByLabelText('YAML source')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('New entry key')).toHaveValue('pending');
+    fireEvent.change(screen.getByLabelText('New entry key'), { target: { value: '' } });
+    fireEvent.click(screen.getByText('YAML', { exact: true }));
+    expect(screen.getByLabelText('YAML source')).toBeInTheDocument();
+  });
+
+  it('never exposes Secret values or parser excerpts in its YAML preview', () => {
+    const material = 'synthetic-private-material';
+    const encoded = btoa(material);
+    const source = `apiVersion: v1\nkind: Secret\nmetadata:\n  name: credentials\n  namespace: team\n  annotations:\n    last-applied: ${material}\ndata:\n  token: ${encoded}\nstringData:\n  extra: ${material}\n`;
+    const { unmount } = render(<Harness initial={source} resourceKey="k8s:/secrets" />);
+    fireEvent.click(screen.getByText('YAML', { exact: true }));
+    const editor = screen.getByLabelText('YAML source') as HTMLTextAreaElement;
+    expect(editor).toHaveAttribute('readonly');
+    expect(editor.value).not.toContain(material);
+    expect(editor.value).not.toContain(encoded);
+    expect(editor.value).toContain('[REDACTED]');
+    unmount();
+    render(<Harness initial={`kind: Secret\ndata: [${material}`} resourceKey="k8s:/secrets" />);
+    expect(screen.getByLabelText('YAML source')).toHaveAttribute('readonly');
+    expect(document.body.textContent).not.toContain(material);
+    expect((screen.getByLabelText('YAML source') as HTMLTextAreaElement).value).not.toContain(material);
+  });
+
+  const secretSource = 'apiVersion: v1\nkind: Secret\nmetadata:\n  name: credentials\n  namespace: team\ntype: example.com/custom\nstringData:\n  token: private-test-value\nx-extension:\n  exact: 9007199254740993 # preserve comment\n';
+  function revealRaw() {
+    fireEvent.click(screen.getByRole('button', { name: 'Edit raw YAML' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm', exact: true }));
+  }
+
+  it('repairs custom Secrets only after confirmation and preserves the exact source on Cancel', () => {
+    const observe = vi.fn();
+    render(<Harness initial={secretSource} resourceKey="k8s:/secrets" observe={observe} />);
+    expect(screen.getByLabelText('YAML source')).toHaveAttribute('readonly');
+    fireEvent.click(screen.getByRole('button', { name: 'Edit raw YAML' }));
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('Real credential values');
+    expect((screen.getByLabelText('YAML source') as HTMLTextAreaElement).value).not.toContain('private-test-value');
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(observe).not.toHaveBeenCalled();
+    revealRaw();
+    expect(screen.getByLabelText('YAML source')).toHaveValue(secretSource);
+    expect(screen.getByLabelText('YAML source')).not.toHaveAttribute('readonly');
+    const edited = secretSource.replace('private-test-value', 'changed-test-value')
+      .replace('  namespace: team', '  namespace: team\n  annotations:\n    owner: platform');
+    fireEvent.change(screen.getByLabelText('YAML source'), { target: { value: edited } });
+    expect(observe).toHaveBeenLastCalledWith(edited);
+    fireEvent.click(screen.getByRole('button', { name: 'Hide raw source' }));
+    expect(screen.getByLabelText('YAML source')).toHaveAttribute('readonly');
+    revealRaw();
+    expect(screen.getByLabelText('YAML source')).toHaveValue(edited);
+    expect(parsed(edited).get('type')).toBe('example.com/custom');
+    expect(parsed(edited).getIn(['metadata', 'annotations', 'owner'])).toBe('platform');
+    expect(validateManifest(edited, 'k8s:/secrets', true, secretSource)).toBeNull();
+    expect(parsed(edited).getIn(['x-extension', 'exact'])).toBe(9007199254740993n);
+    expect(window.localStorage.getItem(MANIFEST_MODE_KEY)).toBe('form');
+  });
+
+  it('keeps malformed raw Secrets editable for repair without showing parser excerpts', () => {
+    const malformed = 'kind: Secret\nstringData: [private-test-value';
+    render(<Harness initial={malformed} resourceKey="k8s:/secrets" />);
+    expect(document.body.textContent).not.toContain('private-test-value');
+    revealRaw();
+    fireEvent.change(screen.getByLabelText('YAML source'), { target: { value: 'kind: Secret\nstringData: [' } });
+    expect(screen.getByLabelText('YAML source')).not.toHaveAttribute('readonly');
+    fireEvent.change(screen.getByLabelText('YAML source'), { target: { value: secretSource } });
+    expect(screen.getByLabelText('YAML source')).toHaveValue(secretSource);
+    fireEvent.click(screen.getByRole('button', { name: 'Hide raw source' }));
+    expect(screen.getByLabelText('YAML source')).toHaveAttribute('readonly');
+  });
+
+  it('remasks diff and context changes without writing projections into source', () => {
+    editorBehavior.emitProgrammaticChanges = true;
+    const observe = vi.fn();
+    const { rerender } = render(<Harness initial={secretSource} resourceKey="k8s:/secrets" context="first" observe={observe} />);
+    revealRaw();
+    const edited = secretSource.replace('private-test-value', 'changed-test-value');
+    fireEvent.change(screen.getByLabelText('YAML source'), { target: { value: edited } });
+    rerender(<Harness initial={secretSource} resourceKey="k8s:/secrets" context="first" observe={observe} diff baseline={secretSource} />);
+    expect(screen.getByLabelText('YAML diff')).toHaveAttribute('readonly');
+    expect(screen.getByLabelText('YAML diff')).not.toHaveValue(edited);
+    expect((screen.getByLabelText('YAML baseline') as HTMLTextAreaElement).value).not.toContain('private-test-value');
+    expect(screen.queryByRole('button', { name: 'Edit raw YAML' })).not.toBeInTheDocument();
+    rerender(<Harness resourceKey="k8s:/secrets" context="first" observe={observe} />);
+    expect(screen.getByLabelText('YAML source')).toHaveAttribute('readonly');
+    revealRaw();
+    expect(screen.getByLabelText('YAML source')).toHaveValue(edited);
+    rerender(<Harness resourceKey="k8s:/secrets" context="second" observe={observe} />);
+    expect(screen.getByLabelText('YAML source')).toHaveAttribute('readonly');
+    revealRaw();
+    expect(screen.getByLabelText('YAML source')).toHaveValue(edited);
+    expect(observe.mock.calls.every(([source]) => !source.includes('[REDACTED]'))).toBe(true);
+  });
+
+  it('remasks on Form, section changes, and remount while preserving source edits', () => {
+    const source = secretSource.replace('example.com/custom', 'Opaque');
+    const { unmount } = render(<Harness initial={source} resourceKey="k8s:/secrets" />);
+    fireEvent.click(screen.getByText('YAML', { exact: true }));
+    revealRaw();
+    const edited = source.replace('# preserve comment', '# preserved raw edit');
+    fireEvent.change(screen.getByLabelText('YAML source'), { target: { value: edited } });
+    fireEvent.click(screen.getByText('Form', { exact: true }));
+    fireEvent.click(screen.getByRole('button', { name: 'Credentials' }));
+    fireEvent.click(screen.getByText('YAML', { exact: true }));
+    expect(screen.getByLabelText('YAML source')).toHaveAttribute('readonly');
+    revealRaw();
+    expect(screen.getByLabelText('YAML source')).toHaveValue(edited);
+    unmount();
+    render(<Harness initial={edited} resourceKey="k8s:/secrets" />);
+    expect(screen.getByLabelText('YAML source')).toHaveAttribute('readonly');
+    expect(window.localStorage.getItem(MANIFEST_MODE_KEY)).toBe('yaml');
+  });
+
+  it('remasks when another resource source arrives and disables opt-in while busy', () => {
+    const { rerender } = render(<ResourceManifestEditor value={secretSource} onChange={vi.fn()} resourceKey="k8s:/secrets" />);
+    revealRaw();
+    const replacement = secretSource.replace('name: credentials', 'name: other');
+    rerender(<ResourceManifestEditor value={replacement} onChange={vi.fn()} resourceKey="k8s:/secrets" />);
+    expect(screen.getByLabelText('YAML source')).toHaveAttribute('readonly');
+    expect((screen.getByLabelText('YAML source') as HTMLTextAreaElement).value).not.toContain('private-test-value');
+    rerender(<ResourceManifestEditor value={replacement} onChange={vi.fn()} resourceKey="k8s:/secrets" disabled />);
+    expect(screen.getByRole('button', { name: 'Edit raw YAML' })).toBeDisabled();
   });
 });
