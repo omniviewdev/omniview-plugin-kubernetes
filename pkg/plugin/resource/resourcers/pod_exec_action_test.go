@@ -121,6 +121,29 @@ func TestPodExecResult(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestPodExecResultEncodesNonUTF8Output(t *testing.T) {
+	binary := &cappedWriter{limit: 16}
+	_, _ = binary.Write([]byte{'a', 0xff, 'b'})
+	// "é" is two bytes; a cap of 2 cuts it after its first byte.
+	cut := &cappedWriter{limit: 2}
+	_, _ = cut.Write([]byte("xé"))
+	value, err := podExecResult(nil, nil, binary, cut)
+	require.NoError(t, err)
+	native, err := resource.NativeFromValue(value)
+	require.NoError(t, err)
+	result := native.(map[string]any)
+	assert.Equal(t, "a\uFFFDb", result["stdout"])
+	assert.Equal(t, false, result["stdoutTruncated"])
+	assert.Equal(t, "x", result["stderr"])
+	assert.Equal(t, true, result["stderrTruncated"])
+
+	whole := &cappedWriter{limit: 3}
+	_, _ = whole.Write([]byte("xé!"))
+	out, truncated := whole.result()
+	assert.Equal(t, "xé", out)
+	assert.True(t, truncated)
+}
+
 func TestPodResourcerAdvertisesExec(t *testing.T) {
 	actions, err := NewPodResourcer(zap.NewNop().Sugar()).GetActions(context.Background(), nil)
 	require.NoError(t, err)

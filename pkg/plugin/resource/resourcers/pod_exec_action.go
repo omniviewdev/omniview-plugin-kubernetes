@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	resource "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
@@ -136,10 +138,31 @@ func (w *cappedWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+// result returns valid UTF-8: a rune cut at the cap is dropped and any other
+// invalid byte sequence becomes U+FFFD, so the tagged Value always encodes.
 func (w *cappedWriter) result() (string, bool) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	return string(w.buf), w.truncated
+	buf := w.buf
+	if w.truncated {
+		buf = trimPartialRune(buf)
+	}
+	return strings.ToValidUTF8(string(buf), "\uFFFD"), w.truncated
+}
+
+// trimPartialRune drops an incomplete multi-byte rune at the end of buf.
+func trimPartialRune(buf []byte) []byte {
+	for back := 1; back <= utf8.UTFMax && back <= len(buf); back++ {
+		start := len(buf) - back
+		if !utf8.RuneStart(buf[start]) {
+			continue
+		}
+		if !utf8.FullRune(buf[start:]) {
+			return buf[:start]
+		}
+		break
+	}
+	return buf
 }
 
 func (p *PodResourcer) executeExec(ctx context.Context, client *clients.ClientSet, input resource.ActionRequest) (resource.Value, error) {
