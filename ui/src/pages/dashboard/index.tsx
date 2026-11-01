@@ -52,6 +52,7 @@ export const DashboardLayout: React.FC = () => {
   return (
     <div style={rootStyle}>
       <Tabs.Root
+        variant="flat"
         value={activeTab}
         size="sm"
         onValueChange={(value) => {

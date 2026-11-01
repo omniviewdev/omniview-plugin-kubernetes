@@ -269,6 +269,7 @@ export default function ClustersPage(): React.ReactElement {
   return (
     <Stack direction="column" spacing={0} style={fullSizeStyle}>
       <Tabs.Root
+        variant="flat"
         value={activeTab}
         onValueChange={(val) => setActiveTab(val as 'hub' | 'all')}
         size="sm"

@@ -337,6 +337,7 @@ const ChartSidebarContent: React.FC<Props> = ({ ctx }) => {
 
         {/* Tabs */}
         <Tabs.Root
+          variant="flat"
           value={activeTab}
           onValueChange={(v) => setActiveTab(String(v))}
           size="sm"

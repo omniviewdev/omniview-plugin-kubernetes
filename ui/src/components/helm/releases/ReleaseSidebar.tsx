@@ -353,7 +353,7 @@ const ReleaseSidebarContent: React.FC<Props> = ({ ctx }) => {
       </Stack>
 
       {/* Tabs */}
-      <Tabs.Root value={activeTab} onValueChange={(v) => setActiveTab(String(v))}>
+      <Tabs.Root variant="flat" value={activeTab} onValueChange={(v) => setActiveTab(String(v))}>
         <Tabs.List aria-label="Release details">
           <Tabs.Tab value="0">Values</Tabs.Tab>
           <Tabs.Tab value="1">Manifest</Tabs.Tab>
