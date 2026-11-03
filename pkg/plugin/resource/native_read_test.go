@@ -11,8 +11,11 @@ import (
 	"testing"
 
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
+	resourceplugin "github.com/omniviewdev/plugin-sdk/pkg/resource/v2/plugin"
+	resourcepb "github.com/omniviewdev/plugin-sdk/proto/resource/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -498,6 +501,12 @@ func TestNativeEnumerateReplaysBoundedPages(t *testing.T) {
 		for {
 			page, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
 			require.NoError(t, err)
+			wirePage, err := resourcev2.ToProtoSourcePage(page)
+			require.NoError(t, err)
+			response := &resourcepb.Response{Version: resourcev2.WireVersion, Result: &resourcepb.Response_Page{Page: wirePage}}
+			wire, err := proto.Marshal(response)
+			require.NoError(t, err)
+			require.NoError(t, resourceplugin.ValidateWire(wire, response.ProtoReflect().Descriptor()))
 			for _, record := range page.Records {
 				names = append(names, record.Reference.Address.ID)
 			}
