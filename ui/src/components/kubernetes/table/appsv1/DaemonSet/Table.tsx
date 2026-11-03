@@ -10,6 +10,7 @@ import { LuServerCog } from 'react-icons/lu';
 import { useParams } from 'react-router'
 
 // import ResourceLinkCell from './cells/ResourceLinkCell'
+import ColumnPicker from '../../../../tables/ColumnFilter/ColumnPicker';
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
 import ConditionsCell from '../../shared/cells/ConditionsCell';
@@ -126,6 +127,7 @@ const DaemonSetTable: React.FC = () => {
   return (
     <ResourceTable
       columns={columns}
+      columnPicker={ColumnPicker}
       connectionID={id}
       resourceKey={resourceKey}
       drawer={drawer}

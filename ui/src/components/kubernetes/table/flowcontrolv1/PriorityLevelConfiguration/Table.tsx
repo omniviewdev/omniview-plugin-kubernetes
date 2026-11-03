@@ -6,6 +6,7 @@ import React from 'react';
 import { LuBox, LuCode } from 'react-icons/lu';
 import { useParams } from 'react-router'
 
+import ColumnPicker from '../../../../tables/ColumnFilter/ColumnPicker';
 import BaseEditorPage from '../../../../shared/sidebar/pages/editor/BaseEditorPage';
 import ResourceTable from '../../../../shared/table/ResourceTable';
 import { withClusterResourceColumns } from '../../shared/columns';
@@ -108,6 +109,7 @@ const IngressTable: React.FC = () => {
   return (
     <ResourceTable
       columns={columns}
+      columnPicker={ColumnPicker}
       connectionID={id}
       resourceKey={resourceKey}
       drawer={drawer}

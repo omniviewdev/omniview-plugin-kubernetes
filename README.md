@@ -51,6 +51,25 @@ matching connection requirements. The host enforces the grant and existing conne
 credentials and native clients remain in the Kubernetes plugin. Core resources, including Secrets,
 are not exported through this grant. Flux-specific actions remain in the Flux plugin.
 
+## Table column workspace
+
+Tables opt into a searchable **Columns** workspace through their resource view. Browse
+Fields, Labels, Annotations, or Selected; the Selected pane stays visible while
+you browse. Search matches full column names and metadata keys across groups.
+Checkboxes and remove buttons apply changes immediately, while required columns
+remain locked. Select results and Clear affect only the current results.
+Reset restores the table's default fields and removes metadata columns.
+Field and metadata selections retain their existing persisted settings.
+
+Resource views opt in with `ResourceTable`'s `columnPicker` component slot. The Pod
+view supplies `ColumnPicker`; the shared table and toolbar do not inspect resource
+keys or kinds to choose UI. Views without an opt-in retain the standard picker.
+The picker receives the owner's immutable `columnVisibility` snapshot. Column
+handles stay stable across updates, so their getters alone do not form a reactive
+input for memoized UI.
+Columns that cannot be hidden and are visible by default remain visible over saved
+preferences. Optional columns retain their existing preferences.
+
 ## Creating and editing resources
 
 Create and edit use the same compact resource editor. The original Pod,
@@ -905,7 +924,7 @@ Registry installs retain pnpm's 24-hour release-age protection. Only coordinated
 `@omniviewdev/*` packages are exempted; linked source worktrees resolve locally.
 The current frontend cohort uses `@omniviewdev/base-ui` 0.11.1,
 `@omniviewdev/editors` 6.1.5, and runtime/Vite plugin 0.26.0.
-P07 source builds use the reviewed host runtime.
+The published runtime and Vite plugin must match; source builds use the reviewed host runtime.
 The backend pins Go SDK `v0.14.4-0.20261103022722-1712cd3b66e1`, matching
 the host's profiled validation and DTO allocation improvements while retaining
 the existing source-session wire, P07, settings, connection metadata, profiling,
@@ -932,11 +951,24 @@ workspace UI builds continue to honor `OMNIVIEW_BUILD_OUTPUT_DIRECTORY`.
 ```sh
 GOWORK=off GOFLAGS= go test ./... -count=1
 node --test hack/cluster-config.test.mjs
-cd ui && pnpm test
+
+# Run every standalone UI PR check before pushing.
+cd ui
+pnpm install --frozen-lockfile
+pnpm run lint
+pnpm exec node node_modules/@typescript/native/bin/tsc --noEmit
+pnpm test
+TZ=America/New_York pnpm exec vitest run src/utils/ageClock.test.tsx
+pnpm run build
 ```
+
+PR validation also runs on stacked branches, so each resource-view PR receives
+the same checks before merge.
 
 UI persistence tests use the test document's real JSDOM storage, including on
 Node versions that also expose process-global Web Storage.
+Submission behavior tests import the real CSR form before rendering, so admission
+assertions do not race cold lazy-chunk loading.
 
 ### Frontend lint contract
 

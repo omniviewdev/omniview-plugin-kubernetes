@@ -9,6 +9,7 @@ import React from 'react';
 import { LuLayers3 } from 'react-icons/lu';
 import { useParams } from 'react-router'
 
+import ColumnPicker from '../../../../tables/ColumnFilter/ColumnPicker';
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
 import ConditionsCell from '../../shared/cells/ConditionsCell';
@@ -86,6 +87,7 @@ const ReplicationControllerTable: React.FC = () => {
   return (
     <ResourceTable
       columns={columns}
+      columnPicker={ColumnPicker}
       connectionID={id}
       resourceKey={resourceKey}
       drawer={drawer}
