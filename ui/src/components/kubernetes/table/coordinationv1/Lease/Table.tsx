@@ -10,6 +10,7 @@ import { useParams } from 'react-router'
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import BaseOverviewPage from '../../../../shared/sidebar/pages/overview/BaseOverviewPage';
 import ResourceTable from '../../../../shared/table/ResourceTable';
+import ColumnPicker from '../../../../tables/ColumnFilter/ColumnPicker';
 import AgeCell from '../../shared/cells/AgeCell';
 import { squareChipStyle } from '../../shared/cells/styles';
 import { withClusterResourceColumns } from '../../shared/columns';
@@ -99,6 +100,7 @@ const LeaseTable: React.FC = () => {
   return (
     <ResourceTable
       columns={columns}
+      columnPicker={ColumnPicker}
       connectionID={id}
       resourceKey={resourceKey}
       drawer={drawer}
