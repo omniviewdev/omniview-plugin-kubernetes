@@ -10,6 +10,7 @@ import { useParams } from 'react-router'
 
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
+import ColumnPicker from '../../../../tables/ColumnFilter/ColumnPicker';
 import { ChipListCell } from '../../shared/cells/ChipList';
 import { withClusterResourceColumns } from '../../shared/columns';
 
@@ -70,6 +71,7 @@ const CSINodeTable: React.FC = () => {
 
   return (
     <ResourceTable
+      columnPicker={ColumnPicker}
       columns={columns}
       connectionID={id}
       resourceKey={resourceKey}
