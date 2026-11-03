@@ -95,6 +95,19 @@ const visibilityFromColumnDefs = <T extends RowData,>(defs: Array<ColumnDef<Data
   return visibility;
 };
 
+const visibilityWithRequiredColumns = <T extends RowData,>(
+  defs: Array<ColumnDef<DataTableFeatures, T>>,
+  visibility: VisibilityState,
+): VisibilityState => {
+  let effective = visibility;
+  for (const def of defs) {
+    if (!def.id || def.enableHiding !== false || visibility[def.id] !== false) continue;
+    if (effective === visibility) effective = { ...visibility };
+    effective[def.id] = true;
+  }
+  return effective;
+};
+
 
 const ResourceTableContainer = <T extends RowData,>({
   connectionID,
@@ -113,6 +126,7 @@ const ResourceTableContainer = <T extends RowData,>({
     `kubernetes-${connectionID}-${resourceKey}-column-visibility`,
     visibilityFromColumnDefs(columns),
   );
+  const effectiveColumnVisibility = visibilityWithRequiredColumns(columns, columnVisibility);
   const [columnFilters, setColumnFilters] = useStoredState<ColumnFiltersState>(
     `kubernetes-${connectionID}-${resourceKey}-column-filters`,
     [],
@@ -274,7 +288,7 @@ const ResourceTableContainer = <T extends RowData,>({
     state: {
       sorting,
       columnFilters: effectiveColumnFilters,
-      columnVisibility,
+      columnVisibility: effectiveColumnVisibility,
       columnSizing,
       rowSelection,
       globalFilter: search,
@@ -378,7 +392,7 @@ const ResourceTableContainer = <T extends RowData,>({
             filterOpen={filterOpen}
             setFilterOpen={setFilterOpen}
             allFlatColumns={table.getAllFlatColumns()}
-            columnVisibility={columnVisibility}
+            columnVisibility={effectiveColumnVisibility}
             resetColumnVisibility={resetColumnVisibility}
             columnPicker={columnPicker}
           />
@@ -414,7 +428,7 @@ const ResourceTableContainer = <T extends RowData,>({
       </div>
     </TableDrawerContext.Provider>
   );
-  return ContentWrapper ? <ContentWrapper columnVisibility={columnVisibility}>{content}</ContentWrapper> : content;
+  return ContentWrapper ? <ContentWrapper columnVisibility={effectiveColumnVisibility}>{content}</ContentWrapper> : content;
 };
 
 ResourceTableContainer.displayName = 'ResourceTableContainer';

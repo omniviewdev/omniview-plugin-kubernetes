@@ -63,6 +63,8 @@ keys or kinds to choose UI. Views without an opt-in retain the standard picker.
 The picker receives the owner's immutable `columnVisibility` snapshot. Column
 handles stay stable across updates, so their getters alone do not form a reactive
 input for memoized UI.
+Non-hideable column definitions take precedence over saved visibility; optional
+columns retain their existing preferences.
 
 ## Creating and editing resources
 
