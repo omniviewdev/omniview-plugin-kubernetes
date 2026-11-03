@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	resource "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
+	"github.com/tidwall/gjson"
 )
 
 func TestRelationshipTable_AllKeysPresent(t *testing.T) {
@@ -146,5 +147,49 @@ func TestRelationshipNamespaceScopeExtractors(t *testing.T) {
 				t.Errorf("%s: namespaced target must extract source namespace", source)
 			}
 		}
+	}
+}
+
+func TestPodEnvFromExtractorsProduceFlatNativeIDs(t *testing.T) {
+	const pod = `{"spec":{"containers":[
+		{"name":"empty"},
+		{"name":"first","envFrom":[{"configMapRef":{"name":"cfg-a"}},{"secretRef":{"name":"sec-a"}}]},
+		{"name":"second","envFrom":[{"configMapRef":{"name":"cfg-b"}},{"secretRef":{"name":"sec-b"}}]}
+	]}}`
+	for _, tc := range []struct {
+		target string
+		want   []string
+	}{
+		{"k8s:/configmaps", []string{"cfg-a", "cfg-b"}},
+		{"k8s:/secrets", []string{"sec-a", "sec-b"}},
+	} {
+		t.Run(tc.target, func(t *testing.T) {
+			var path string
+			for _, rel := range RelationshipTable()["k8s:/pods"] {
+				if rel.TargetType == tc.target && rel.Extractor != nil && len(rel.Extractor.FieldPath) >= len("spec.containers.") && rel.Extractor.FieldPath[:len("spec.containers.")] == "spec.containers." {
+					path = rel.Extractor.FieldPath
+				}
+			}
+			if path == "" {
+				t.Fatal("missing envFrom extractor")
+			}
+			result := gjson.Get(pod, path)
+			if !result.IsArray() {
+				t.Fatalf("expected array, got %s", result.Raw)
+			}
+			values := result.Array()
+			if len(values) != len(tc.want) {
+				t.Fatalf("got %s, want %v", result.Raw, tc.want)
+			}
+			for i, value := range values {
+				if value.Type != gjson.String || value.String() != tc.want[i] {
+					t.Errorf("value %d = %s, want native string %q", i, value.Raw, tc.want[i])
+				}
+			}
+			malformed := gjson.Get(`{"spec":{"containers":[{"envFrom":[{"configMapRef":{"name":123},"secretRef":{"name":123}}]}]}}`, path).Array()
+			if len(malformed) != 1 || malformed[0].Type != gjson.Number {
+				t.Errorf("malformed ID must remain non-string, got %v", malformed)
+			}
+		})
 	}
 }
