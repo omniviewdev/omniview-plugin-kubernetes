@@ -71,6 +71,7 @@ const ColumnPicker = <T extends RowData>({
   open,
   onOpenChange,
   columns,
+  columnVisibility,
   onReset,
 }: ColumnPickerProps<T>) => {
   const [query, setQuery] = useState('');
@@ -97,7 +98,7 @@ const ColumnPicker = <T extends RowData>({
       id: `field:${column.id}`,
       name: columnName(column),
       kind: 'Fields',
-      selected: column.getIsVisible(),
+      selected: columnVisibility[column.id] ?? true,
       locked: !column.getCanHide(),
       column,
     }));

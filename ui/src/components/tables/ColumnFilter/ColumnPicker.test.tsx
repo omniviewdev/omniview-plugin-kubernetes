@@ -49,6 +49,7 @@ function Harness() {
     <>
       <ColumnPicker
         columns={table.getAllFlatColumns()}
+        columnVisibility={visibility}
         labels={dynamic.labels}
         annotations={dynamic.annotations}
         setLabels={(values) => dynamic.setLabels((previous) => ({ ...previous, ...values }))}
@@ -122,6 +123,37 @@ describe('column workspace', () => {
     expect(
       screen.queryByRole('columnheader', { name: `label-${metadataKey}` }),
     ).not.toBeInTheDocument();
+  });
+
+  it('keeps field checkboxes and selected counts aligned with individual and bulk visibility changes', async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getByRole('button', { name: /Columns/ }));
+    await user.click(screen.getByRole('checkbox', { name: 'Namespace (Fields)' }));
+    expect(screen.getByRole('checkbox', { name: 'Namespace (Fields)' })).not.toBeChecked();
+    expect(screen.queryByRole('columnheader', { name: 'Namespace' })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /^Selected/ }).textContent).toMatch(/2$/);
+    expect(
+      within(screen.getByRole('complementary', { name: 'Selected columns' })).queryByRole(
+        'button',
+        { name: 'Remove Namespace (Fields)' },
+      ),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Select all' }));
+    screen.getAllByRole('checkbox').forEach((checkbox) => expect(checkbox).toBeChecked());
+    expect(screen.getAllByRole('columnheader').map((header) => header.textContent)).toEqual([
+      'Name', 'Namespace', 'CPU', 'Host IP',
+    ]);
+    expect(screen.getByRole('tab', { name: /^Selected/ }).textContent).toMatch(/4$/);
+
+    await user.click(screen.getByRole('button', { name: 'Clear' }));
+    expect(screen.getByRole('checkbox', { name: 'Name (Fields), required' })).toBeChecked();
+    for (const field of ['Namespace', 'CPU', 'Host IP']) {
+      expect(screen.getByRole('checkbox', { name: `${field} (Fields)` })).not.toBeChecked();
+    }
+    expect(screen.getAllByRole('columnheader').map((header) => header.textContent)).toEqual(['Name']);
+    expect(screen.getByRole('tab', { name: /^Selected/ }).textContent).toMatch(/1$/);
   });
 
   it('limits bulk changes to matching results and preserves required fields and unrelated selections', async () => {

@@ -60,6 +60,9 @@ Field and metadata selections retain their existing persisted settings.
 Resource views opt in with `ResourceTable`'s `columnPicker` component slot. The Pod
 view supplies `ColumnPicker`; the shared table and toolbar do not inspect resource
 keys or kinds to choose UI. Views without an opt-in retain the standard picker.
+The picker receives the owner's immutable `columnVisibility` snapshot. Column
+handles stay stable across updates, so their getters alone do not form a reactive
+input for memoized UI.
 
 ## Creating and editing resources
 

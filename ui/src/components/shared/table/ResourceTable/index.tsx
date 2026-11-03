@@ -378,6 +378,7 @@ const ResourceTableContainer = <T extends RowData,>({
             filterOpen={filterOpen}
             setFilterOpen={setFilterOpen}
             allFlatColumns={table.getAllFlatColumns()}
+            columnVisibility={columnVisibility}
             resetColumnVisibility={resetColumnVisibility}
             columnPicker={columnPicker}
           />

@@ -1,5 +1,5 @@
 import type { DataTableFeatures } from '@omniviewdev/base-ui';
-import type { Column, RowData } from '@tanstack/react-table';
+import type { Column, ColumnVisibilityState, RowData } from '@tanstack/react-table';
 
 export type ColumnPickerProps<T extends RowData> = {
   labels: Record<string, boolean>;
@@ -9,5 +9,7 @@ export type ColumnPickerProps<T extends RowData> = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   columns: Array<Column<DataTableFeatures, T>>;
+  /** Immutable owner state; column handles remain stable when visibility changes. */
+  columnVisibility: Readonly<ColumnVisibilityState>;
   onReset: () => void;
 };
