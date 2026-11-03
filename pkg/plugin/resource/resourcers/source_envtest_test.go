@@ -92,9 +92,11 @@ func openEnvtestSource(t *testing.T, config *rest.Config, start chan<- struct{},
 	t.Cleanup(cancel)
 	catalog, err := client.Catalog(ctx, resource.CatalogRequest{Route: resource.AccessRoute{Connection: "envtest"}})
 	require.NoError(t, err)
+	require.Len(t, catalog.Types, 1)
+	require.Len(t, catalog.Types[0].Representations, 1)
 	ctx = resource.WithCatalogRevision(ctx, catalog.Revision)
 	namespaces := []string{envtestNamespace}
-	stream, err := client.OpenSourceStream(ctx, resource.SourceOpenRequest{SessionID: "envtest", Generation: "envtest", Target: resource.ReadTarget{Route: resource.AccessRoute{Connection: "envtest"}, Provider: "kubernetes", Authority: "envtest", Type: "k8s:/configmaps", Representation: "native", Scope: resource.QueryScope{{Dimension: "namespace", Match: resource.ScopeOneOf, Values: &namespaces}}}, Mode: resource.SourceModeSnapshotAndUpdates, Acquisition: resource.SourceAcquisition{Kind: resource.SourceAcquisitionEnumerate}, Limits: resource.SourceLimits{MaxFrameBytes: resource.MaxSourceFrameBytes, MaxBatchItems: resource.MaxSourceBatchItems}, Binding: resource.RepresentationBinding{Representation: representation}})
+	stream, err := client.OpenSourceStream(ctx, resource.SourceOpenRequest{SessionID: "envtest", Generation: "envtest", Target: resource.ReadTarget{Route: resource.AccessRoute{Connection: "envtest"}, Provider: "kubernetes", Authority: "envtest", Type: "k8s:/configmaps", Representation: "native", Scope: resource.QueryScope{{Dimension: "namespace", Match: resource.ScopeOneOf, Values: &namespaces}}}, Mode: resource.SourceModeSnapshotAndUpdates, Acquisition: resource.SourceAcquisition{Kind: resource.SourceAcquisitionEnumerate}, Binding: resource.RepresentationBinding{Representation: catalog.Types[0].Representations[0]}, Limits: resource.SourceLimits{MaxFrameBytes: resource.MaxSourceFrameBytes, MaxBatchItems: resource.MaxSourceBatchItems}})
 	require.NoError(t, err)
 	t.Cleanup(stream.Close)
 	return stream
