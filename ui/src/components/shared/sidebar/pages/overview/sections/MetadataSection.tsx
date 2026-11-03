@@ -16,7 +16,7 @@ const entryGridStyle: React.CSSProperties = {
   alignItems: 'center',
 };
 const cellStyle: React.CSSProperties = { minWidth: 0 };
-const clipboardTextStyle: React.CSSProperties = { fontSize: 12, fontWeight: 600, width: '100%', minWidth: 0 };
+const clipboardTextStyle: React.CSSProperties = { fontSize: 'var(--ov-font-size-caption)', fontWeight: 600, width: '100%', minWidth: 0 };
 const cardStyle: React.CSSProperties = { padding: 0, gap: 0, borderRadius: 4, minWidth: 0 };
 const cardHeaderStyle: React.CSSProperties = { paddingBlock: 4, paddingInline: 8 };
 const cardBodyStyle: React.CSSProperties = {

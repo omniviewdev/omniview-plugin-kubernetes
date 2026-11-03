@@ -8,7 +8,7 @@
   overflow: hidden;
   color: var(--ov-color-fg-default);
   background: var(--ov-color-bg-surface);
-  font-size: 13px;
+  font-size: var(--ov-font-size-body);
   container-type: inline-size;
 }
 
@@ -32,7 +32,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--ov-color-fg-muted);
-  font-size: 12px;
+  font-size: var(--ov-font-size-caption);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -66,7 +66,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 32px;
+  min-height: var(--ov-control-height-md);
   padding: 6px 10px;
   border: 0;
   border-radius: 5px;
@@ -91,7 +91,7 @@
 
 .yamlLink {
   margin-top: auto;
-  font-size: 12px;
+  font-size: var(--ov-font-size-caption);
 }
 
 .formScroll {
@@ -139,7 +139,7 @@
 .sectionHeading h3,
 .sectionHeading h4 {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--ov-font-size-body);
   font-weight: 600;
 }
 
@@ -158,8 +158,8 @@
 }
 
 .field input {
-  min-height: 32px;
-  font-size: 13px;
+  min-height: var(--ov-control-height-md);
+  font-size: var(--ov-font-size-body);
 }
 
 .label {
@@ -168,7 +168,7 @@
   gap: 6px;
   min-height: 16px;
   color: var(--ov-color-fg-muted);
-  font-size: 12px;
+  font-size: var(--ov-primitive-font-size-13);
 }
 
 .help {
@@ -187,13 +187,13 @@
 
 .select {
   width: 100%;
-  min-height: 32px;
-  font-size: 13px;
+  min-height: var(--ov-control-height-md);
+  font-size: var(--ov-font-size-body);
 }
 
 .error {
   color: var(--ov-color-danger);
-  font-size: 11px;
+  font-size: var(--ov-font-size-caption);
 }
 
 .notice {
@@ -202,14 +202,14 @@
   border-bottom: 1px solid var(--ov-color-border-default);
   color: var(--ov-color-warning);
   background: var(--ov-color-bg-surface);
-  font-size: 12px;
+  font-size: var(--ov-font-size-caption);
   overflow-wrap: anywhere;
 }
 
 .inlineNote,
 .muted {
   color: var(--ov-color-fg-muted);
-  font-size: 12px;
+  font-size: var(--ov-font-size-caption);
   line-height: 1.5;
 }
 

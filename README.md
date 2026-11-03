@@ -33,6 +33,29 @@ Cluster avatar initials tolerate leading, trailing, and repeated whitespace or
 dash separators while a display name is being edited. Whitespace-only names use
 `NA`; the display name itself is not normalized or changed.
 
+Resource navigation inherits the host's Appearance density. Resource tables use
+30px compact rows and 36px comfortable rows, with matching virtualizer and
+skeleton heights. Table text and manifest-editor fields use shared typography
+tokens so UI text sizing remains independent of row density. Code editors keep
+their own font settings.
+
+Cluster Settings uses the host Settings sidebar's shared `NavList`, Appearance
+density, row-height token, and scalable 13px label token. Section headers retain
+the shared list spacing. The sidebar title uses the Settings heading token and
+can wrap while back, save, and discard controls remain accessible. Switching
+sections by click or keyboard keeps unsaved connection edits until save or discard.
+
+Inspector metadata and detail-card typography use shared text tokens. Relationship
+graphs scale their entire SVG scene with UI text size, keeping node labels, boxes,
+edges, and hit targets aligned instead of enlarging text inside fixed-size boxes.
+
+Pod inspector Debug uses a joined split button: the primary half starts a single
+target directly or opens target selection, while the arrow always opens the
+Debug options menu, even for one target. The halves share joined corners, height,
+a subtle divider, and hover feedback; idle styling matches neighboring ghost
+actions. Focus and disabled states remain independent. Resource row menus keep
+their Debug options entry.
+
 ## MCP resource actions
 
 The resource catalog exposes unary `rollout-restart` actions for Deployments, StatefulSets and

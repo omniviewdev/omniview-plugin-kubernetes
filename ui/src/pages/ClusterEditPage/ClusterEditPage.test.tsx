@@ -325,6 +325,29 @@ describe('Sidebar navigation', () => {
     fireEvent.click(screen.getByText('Identity'));
     expect(screen.getByTestId('avatar-editor')).toBeInTheDocument();
   });
+
+  it('keeps unsaved identity edits through click and keyboard section changes', () => {
+    renderPage('identity');
+    fireEvent.change(screen.getByRole('textbox', { name: 'Display name' }), {
+      target: { value: 'Unsaved cluster name' },
+    });
+
+    fireEvent.click(screen.getByRole('option', { name: 'Tags' }));
+    expect(screen.getByTestId('tag-input')).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Tags' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeInTheDocument();
+
+    const navigation = screen.getByRole('listbox', { name: 'Cluster settings sections' });
+    act(() => navigation.focus());
+    fireEvent.keyDown(navigation, { key: 'Home' });
+    fireEvent.keyDown(navigation, { key: 'Enter' });
+
+    expect(screen.getByRole('option', { name: 'Identity' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('textbox', { name: 'Display name' })).toHaveValue('Unsaved cluster name');
+    expect(screen.getByRole('button', { name: 'Discard changes' })).toBeInTheDocument();
+    expect(mockUpdateOverride).not.toHaveBeenCalled();
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
 });
 
 // ---- 4. Esc key handler ----

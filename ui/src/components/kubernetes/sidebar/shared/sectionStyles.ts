@@ -28,17 +28,17 @@ export const sectionTitleStyle: React.CSSProperties = { padding: '4px 8px' };
 export const sectionBodyStyle: React.CSSProperties = { padding: '4px 8px' };
 
 /** A single label/value row inside a section body. */
-export const entryRowStyle: React.CSSProperties = { minHeight: 22, alignItems: 'center' };
+export const entryRowStyle: React.CSSProperties = { minHeight: 'var(--ov-size-card-action-height-sm)', alignItems: 'center' };
 
 /** Bold small value text used by label/value rows. */
-export const entryValueStyle: React.CSSProperties = { fontWeight: 600, fontSize: 12 };
+export const entryValueStyle: React.CSSProperties = { fontWeight: 600, fontSize: 'var(--ov-font-size-caption)' };
 
 /** Small rounded chip (MUI `borderRadius: 1`). */
 export const roundedChipStyle: React.CSSProperties = { borderRadius: 4 };
 
 /** Uppercase subsection label (e.g. "Security Context"). */
 export const subsectionLabelStyle: React.CSSProperties = {
-  fontSize: 10,
+  fontSize: 'var(--ov-font-size-caption)',
   textTransform: 'uppercase',
   letterSpacing: 0.5,
 };

@@ -1,6 +1,6 @@
 import { type DrawerContext, type DrawerComponentAction, type DrawerComponentActionListItem } from '@omniviewdev/runtime'
 import type { Pod } from 'kubernetes-types/core/v1';
-import { LuBugPlay, LuChevronDown, LuExternalLink, LuLogs, LuScaling, LuTerminal, LuTrash } from 'react-icons/lu';
+import { LuBugPlay, LuExternalLink, LuLogs, LuScaling, LuTerminal, LuTrash } from 'react-icons/lu';
 
 import { isMissingShellError, runningDebugTargets } from '../../../../../features/debug/targets';
 import { type DrawerActionDeps, drawerActionDeps, drawerActionDepsStore } from '../../../../shared/drawer/actionDeps';
@@ -242,15 +242,13 @@ export const drawerActions: Array<DrawerComponentAction<Pod>> = [
         action: () => drawerActionDeps(ctx).startDebug(debugInput(ctx, name)),
       }));
     },
-  },
-  {
-    title: 'Debug options',
-    icon: <LuChevronDown />,
-    enabled: (ctx) => runningDebugTargets(ctx.data).length > 0,
-    list: (ctx) => runningDebugTargets(ctx.data).map(name => ({
-      title: name,
-      action: () => drawerActionDeps(ctx).openDebugOptions(debugInput(ctx, name)),
-    })),
+    splitMenu: {
+      title: 'Debug options',
+      list: (ctx) => runningDebugTargets(ctx.data).map(name => ({
+        title: name,
+        action: () => drawerActionDeps(ctx).openDebugOptions(debugInput(ctx, name)),
+      })),
+    },
   },
   {
     title: 'Resize',

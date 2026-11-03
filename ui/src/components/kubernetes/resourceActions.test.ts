@@ -270,6 +270,32 @@ describe('live Pod Debug actions', () => {
       podUID: 'uid-1', targetContainerName: 'main', resourceData: object.data,
     }));
   });
+  it.each([1, 2])('keeps joined header options and row options for %i targets', async (count) => {
+    const handlers = { ...debugDeps(), openDebugOptions: vi.fn().mockResolvedValue(undefined) };
+    const object = livePod();
+    if (count === 1) object.data.status.containerStatuses[1].state = { terminated: { exitCode: 0 } };
+    const ctx = bindDrawerActionDeps({
+      data: object.data, resource: object.resource,
+    } as DrawerContext, handlers);
+    const actions = resourceDrawerActions[object.resource.reference.address.type].actions!;
+    expect(actions.some(action => action.title === 'Debug options')).toBe(false);
+    const header = actions.find(action => action.title === 'Debug')!;
+    expect(header.splitMenu?.title).toBe('Debug options');
+    const list = header.splitMenu!.list;
+    const choices = typeof list === 'function' ? list(ctx) : list;
+    expect(choices).toHaveLength(count);
+    expect(handlers.openDebugOptions).not.toHaveBeenCalled();
+    await choices.find(choice => choice.title === 'main')!.action(ctx);
+    expect(handlers.openDebugOptions).toHaveBeenCalledWith(expect.objectContaining({
+      targetContainerName: 'main', podUID: 'uid-1',
+    }));
+    expect(handlers.startDebug).not.toHaveBeenCalled();
+    const row = resolveKubernetesActions(object, handlers).find(action => action.title === 'Debug options')!;
+    expect(row.items).toHaveLength(count);
+    await executeKubernetesAction(object, handlers, row.id, row.items![0].id);
+    expect(handlers.openDebugOptions).toHaveBeenCalledTimes(2);
+  });
+
 });
 
 

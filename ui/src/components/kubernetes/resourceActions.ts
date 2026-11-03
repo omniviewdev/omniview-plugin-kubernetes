@@ -30,7 +30,14 @@ export function resolveKubernetesActions(target: KubernetesActionTarget, deps?: 
     resource: target.resource,
   };
   if (deps) bindDrawerActionDeps(ctx, deps);
-  return (resourceDrawerActions[reference.address.type]?.actions ?? []).flatMap((descriptor: DrawerComponentAction) => {
+  return (resourceDrawerActions[reference.address.type]?.actions ?? []).flatMap((descriptor: DrawerComponentAction) => [
+    descriptor,
+    ...(descriptor.splitMenu ? [{
+      title: descriptor.splitMenu.title,
+      enabled: descriptor.enabled,
+      list: descriptor.splitMenu.list,
+    }] : []),
+  ]).flatMap((descriptor: DrawerComponentAction) => {
     if (typeof descriptor.title !== 'string'
       || (typeof descriptor.enabled === 'function' ? !descriptor.enabled(ctx) : descriptor.enabled === false)) return [];
     const id = actionID(reference.address.type, descriptor.title);
