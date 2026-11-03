@@ -1069,6 +1069,13 @@ dependencies without a sibling checkout or workspace replacements. Local
 `go.work` files are not release inputs: development SDK selection belongs to the
 host's isolated workspace, and direct Go commands must use `GOWORK=off GOFLAGS=`.
 
+Commit curated notes in `docs/releases/X.Y.Z.md`, starting with
+`# Kubernetes X.Y.Z`, alongside the version bump. Include user-facing changes,
+linked feature PRs and real IDE screenshots. The workflow validates and publishes
+that file as the GitHub release body; it does not append generated notes.
+Kubernetes 0.15.0 requires IDE 0.26.0 or newer. Make the compatible host available
+before publishing the plugin; npm package publication alone is not a desktop release.
+
 The release workflow uses the Go version declared in `go.mod`, Node.js 26.13.0,
 and native pnpm 12.14.0 to build five platform archives on a GitHub-hosted runner.
 Marketplace publishing runs on the self-hosted `omniview` runners, which can
