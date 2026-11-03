@@ -91,6 +91,35 @@ func TestNativeFiniteBoundsAndOptions(t *testing.T) {
 	}
 }
 
+func TestNativeSinceTimeOverridesSinceSeconds(t *testing.T) {
+	queries := make(chan url.Values, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		queries <- r.URL.Query()
+		if r.URL.Query().Has("sinceTime") && r.URL.Query().Has("sinceSeconds") {
+			http.Error(w, "only one of sinceSeconds or sinceTime may be specified", http.StatusBadRequest)
+			return
+		}
+		_, _ = io.WriteString(w, "2026-11-03T00:00:01Z hello\n")
+	}))
+	defer server.Close()
+	released := make(chan struct{})
+	ctx := &types.PluginContext{Context: context.Background(), Connection: &types.Connection{ID: "selected"}}
+	since := time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC)
+	stream, err := nativeHandler(testBorrower(t, server, released))(ctx, sdklogs.LogStreamRequest{
+		Labels: map[string]string{"pod": "pod", "namespace": "ns"},
+		SinceTime: &since, SinceSeconds: 30,
+	})
+	require.NoError(t, err)
+	defer stream.Close()
+	body, err := io.ReadAll(stream)
+	require.NoError(t, err)
+	require.Contains(t, string(body), "hello")
+	awaitReleased(t, released)
+	query := <-queries
+	require.Equal(t, since.Format(time.RFC3339), query.Get("sinceTime"))
+	require.Empty(t, query.Get("sinceSeconds"))
+}
+
 func TestNativeFollowLeaseCloseAndCancel(t *testing.T) {
 	for _, cancelRequest := range []bool{false, true} {
 		t.Run(map[bool]string{false: "close", true: "cancel"}[cancelRequest], func(t *testing.T) {

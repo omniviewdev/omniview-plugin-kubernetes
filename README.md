@@ -33,6 +33,9 @@ Cluster avatar initials tolerate leading, trailing, and repeated whitespace or
 dash separators while a display name is being edited. Whitespace-only names use
 `NA`; the display name itself is not normalized or changed.
 
+Container log requests with an explicit `SinceTime` use that timestamp instead
+of `SinceSeconds`. Kubernetes accepts only one time filter per log request.
+
 ## MCP resource actions
 
 The resource catalog exposes unary `rollout-restart` actions for Deployments, StatefulSets and
