@@ -47,20 +47,19 @@ matching connection requirements. The host enforces the grant and existing conne
 credentials and native clients remain in the Kubernetes plugin. Core resources, including Secrets,
 are not exported through this grant. Flux-specific actions remain in the Flux plugin.
 
-## Pod table columns
+## Table column workspace
 
-The Pod table's **Columns** control opens a searchable column workspace. Browse
+Tables opt into a searchable **Columns** workspace through their resource view. Browse
 Fields, Labels, Annotations, or Selected; the Selected pane stays visible while
 you browse. Search matches full column names and metadata keys across groups.
 Checkboxes and remove buttons apply changes immediately, while required columns
 remain locked. Select results and Clear affect only the current results.
-Reset restores the Pod table's default fields and removes metadata columns.
+Reset restores the table's default fields and removes metadata columns.
 Field and metadata selections retain their existing persisted settings.
-Other resource tables keep their existing column controls.
 
 Resource views opt in with `ResourceTable`'s `columnPicker` component slot. The Pod
 view supplies `ColumnPicker`; the shared table and toolbar do not inspect resource
-keys or kinds to choose UI. Other views retain the standard picker by default.
+keys or kinds to choose UI. Views without an opt-in retain the standard picker.
 
 ## Creating and editing resources
 
@@ -915,8 +914,8 @@ rather than adding unsupported manifest fields.
 Registry installs retain pnpm's 24-hour release-age protection. Only coordinated
 `@omniviewdev/*` packages are exempted; linked source worktrees resolve locally.
 The current frontend cohort uses `@omniviewdev/base-ui` 0.11.1,
-`@omniviewdev/editors` 6.1.5, and runtime/Vite plugin 0.24.0.
-P07 source builds use the reviewed host runtime.
+`@omniviewdev/editors` 6.1.5, and runtime/Vite plugin 0.26.0.
+The published runtime and Vite plugin must match; source builds use the reviewed host runtime.
 The backend pins Go SDK `v0.14.3` for P07 and the existing settings,
 connection metadata, profiling, and configurable acquisition timeout APIs.
 Debug preferences discard unsaved drafts when reopened or switched to another
@@ -941,7 +940,15 @@ workspace UI builds continue to honor `OMNIVIEW_BUILD_OUTPUT_DIRECTORY`.
 ```sh
 GOWORK=off GOFLAGS= go test ./... -count=1
 node --test hack/cluster-config.test.mjs
-cd ui && pnpm test
+
+# Run every standalone UI PR check before pushing.
+cd ui
+pnpm install --frozen-lockfile
+pnpm run lint
+pnpm exec node node_modules/@typescript/native/bin/tsc --noEmit
+pnpm test
+TZ=America/New_York pnpm exec vitest run src/utils/ageClock.test.tsx
+pnpm run build
 ```
 
 UI persistence tests use the test document's real JSDOM storage, including on
