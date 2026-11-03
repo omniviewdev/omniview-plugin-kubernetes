@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
 	sdklogs "github.com/omniviewdev/plugin-sdk/pkg/v1/logs"
@@ -23,9 +22,9 @@ func testBorrower(t *testing.T, server *httptest.Server, released chan struct{})
 	t.Helper()
 	client, err := kubernetes.NewForConfig(&rest.Config{Host: server.URL})
 	require.NoError(t, err)
-	return func(ctx context.Context, route resourcev2.AccessRoute, use func(context.Context, *clients.ClientSet) error) error {
+	return func(ctx context.Context, route resourcev2.AccessRoute, use func(context.Context, *kubernetes.Clientset) error) error {
 		defer close(released)
-		return use(ctx, &clients.ClientSet{Clientset: client})
+		return use(ctx, client)
 	}
 }
 
@@ -106,7 +105,7 @@ func TestNativeSinceTimeOverridesSinceSeconds(t *testing.T) {
 	ctx := &types.PluginContext{Context: context.Background(), Connection: &types.Connection{ID: "selected"}}
 	since := time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC)
 	stream, err := nativeHandler(testBorrower(t, server, released))(ctx, sdklogs.LogStreamRequest{
-		Labels: map[string]string{"pod": "pod", "namespace": "ns"},
+		Labels:    map[string]string{"pod": "pod", "namespace": "ns"},
 		SinceTime: &since, SinceSeconds: 30,
 	})
 	require.NoError(t, err)

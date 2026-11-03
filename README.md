@@ -39,7 +39,7 @@ of `SinceSeconds`. Kubernetes accepts only one time filter per log request.
 Kubernetes plugin 0.15.0 requires Omniview 0.27.1 or newer so the host includes
 the matching log lifecycle fixes. Update the desktop application before installing
 this plugin release.
-The plugin pins SDK 0.14.5 for log lifecycle handling while preserving the
+The plugin pins SDK 0.14.6 for completed-source handling while preserving the
 existing source-session wire contract and stock grpc-go dependency.
 
 ## MCP resource actions
@@ -250,6 +250,8 @@ Resource-scoped terminals, logs, metrics, and port forwarding carry original tag
 The Kubernetes API, network, and certificate error classifier preserves native causes for local inspection but exposes only fixed, public-safe classification messages. Server messages, endpoints, network diagnostics, and certificate details stay in the wrapped cause, not this classifier's public error fields or serialized error text. The resource gRPC transport independently preserves its existing sanitization; asynchronous logs use a separate event path and are not covered by this classifier guarantee.
 
 Metric queries and subscriptions use the SDK's sole connected-generation lease, never a stopped profile or first-connection fallback. Canonical connection retirement evicts native metric clients, detection results, proxy-failure state, and SPDY tunnels; pending work cannot publish into a later generation, and unrelated connections remain active. Helm configurations are operation-local rather than cached: HTTP-only Helm clients reuse the existing bounded TLS/exec/EKS transport, merging RPC cancellation with the source connection lifetime without mutating shared clients or reimplementing Helm storage.
+
+Native logs borrow a streaming client constructed once alongside each resource connection generation, from the same configured TLS/exec/EKS transport. The streaming client does not use finite resource-response buffering: both emitting and silent follow streams return after HTTP headers, before body completion. Log readers and source watchers retain the SDK's sole generation lease until closure or cancellation. Retirement cancels active streams before destroying their client and closing idle transport connections. Finite resource and JSON watch budgets remain unchanged; finite log limits remain in the log adapter.
 
 The old mandatory CRUD/Find registration generator, public resource DTO stack, and duplicate `get_resource`, `list_resources`, `delete_resource`, `list_namespaces`, and `get_pod_logs` custom tools are retired. Kubernetes no longer registers a standalone tools capability or constructs a separate resource-tool client stack. The host generates MCP resource tools from the admitted route catalog, negotiates namespace values through scope discovery, and consumes bounded native log sessions through the existing resource controller. Shared native utilities remain available to their other consumers.
 

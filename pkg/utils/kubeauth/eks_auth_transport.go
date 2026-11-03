@@ -27,6 +27,11 @@ type eksAuthTransport struct {
 	Base http.RoundTripper
 }
 
+// WrappedRoundTripper exposes the owned transport for connection retirement.
+func (e *eksAuthTransport) WrappedRoundTripper() http.RoundTripper {
+	return e.base()
+}
+
 // builds the sts client for making the call to AWS to get the token
 func (e *eksAuthTransport) getStsClient(ctx context.Context) (*sts.Client, error) {
 	if e.ClusterName == "" {

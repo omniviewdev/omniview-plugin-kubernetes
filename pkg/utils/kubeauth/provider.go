@@ -20,6 +20,9 @@ type KubeClientBundle struct {
 	// HTTPClient is the auth-aware bounded client for resource-only bundles.
 	// Use it with RestConfig when constructing additional finite resource clients.
 	HTTPClient *http.Client
+	// StreamingClientset shares this generation's authentication, without resource body budgets.
+	StreamingClientset  *kubernetes.Clientset
+	StreamingHTTPClient *http.Client
 }
 
 // LoadKubeClients loads the various clients necessary to interact with the api, given a kubeconfig path and

@@ -2,13 +2,13 @@ package logs
 
 import (
 	"context"
-	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	"io"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
@@ -87,9 +87,9 @@ func TestPodLogHandlerUsesNativeStreamWithoutTargetGet(t *testing.T) {
 	defer server.Close()
 	client, err := kubernetes.NewForConfig(&rest.Config{Host: server.URL})
 	require.NoError(t, err)
-	borrow := func(ctx context.Context, route resourcev2.AccessRoute, use func(context.Context, *clients.ClientSet) error) error {
+	borrow := func(ctx context.Context, route resourcev2.AccessRoute, use func(context.Context, *kubernetes.Clientset) error) error {
 		require.Equal(t, "selected", route.Connection)
-		return use(ctx, &clients.ClientSet{Clientset: client})
+		return use(ctx, client)
 	}
 	ctx := &types.PluginContext{Context: context.Background(), Connection: &types.Connection{ID: "selected"}}
 	ref := &resourcev2.ResourceReference{Address: resourcev2.ResourceAddress{Provider: "kubernetes", Authority: "host-owned", Type: "k8s:/pods", Scope: []resourcev2.ScopeEntry{{Dimension: "namespace", Value: "ns"}}, ID: "pod"}}
