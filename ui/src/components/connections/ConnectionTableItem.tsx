@@ -108,15 +108,8 @@ const ConnectionTableItem: React.FC<Props> = ({
     }
     setConnecting(true);
     startConnection()
-      .then((status) => handleConnectionStatus(status))
-      .catch((err) => {
-        if (err instanceof Error) {
-          showSnackbar({
-            status: 'error',
-            message: err.message,
-            icon: 'LuCircleAlert',
-          });
-        }
+      .then((status) => handleConnectionStatus(status), () => {
+        // useConnection already reports lifecycle failures with structured details.
       })
       .finally(() => setConnecting(false));
   };
@@ -125,20 +118,15 @@ const ConnectionTableItem: React.FC<Props> = ({
     onRecordAccess();
     setConnecting(true);
     startConnection()
-      .then((status) => handleConnectionStatus(status))
-      .catch((err) => {
-        if (err instanceof Error) {
-          showSnackbar({ status: 'error', message: err.message, icon: 'LuCircleAlert' });
-        }
+      .then((status) => handleConnectionStatus(status), () => {
+        // useConnection already reports lifecycle failures with structured details.
       })
       .finally(() => setConnecting(false));
   };
 
   const handleDisconnect = () => {
-    stopConnection().catch((err) => {
-      if (err instanceof Error) {
-        showSnackbar({ status: 'error', message: err.message, icon: 'LuCircleAlert' });
-      }
+    stopConnection().catch(() => {
+      // useConnection already reports lifecycle failures with structured details.
     });
   };
 

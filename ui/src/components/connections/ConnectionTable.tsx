@@ -104,28 +104,21 @@ const GridCardWrapper: React.FC<{
         if (status.status === types.ConnectionStatusCode.ConnectionStatusConnected) {
           navigate(`/cluster/${encodeURIComponent(enriched.connection.id)}/resources`);
         }
-      })
-      .catch((err) => {
-        if (err instanceof Error) {
-          showSnackbar({ status: 'error', message: err.message, icon: 'LuCircleAlert' });
-        }
+      }, () => {
+        // useConnection already reports lifecycle failures with structured details.
       });
   };
 
   const handleConnect = () => {
     onRecordAccess();
-    startConnection().catch((err) => {
-      if (err instanceof Error) {
-        showSnackbar({ status: 'error', message: err.message, icon: 'LuCircleAlert' });
-      }
+    startConnection().catch(() => {
+      // useConnection already reports lifecycle failures with structured details.
     });
   };
 
   const handleDisconnect = () => {
-    stopConnection().catch((err) => {
-      if (err instanceof Error) {
-        showSnackbar({ status: 'error', message: err.message, icon: 'LuCircleAlert' });
-      }
+    stopConnection().catch(() => {
+      // useConnection already reports lifecycle failures with structured details.
     });
   };
 

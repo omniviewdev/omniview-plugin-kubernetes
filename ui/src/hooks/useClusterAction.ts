@@ -43,11 +43,8 @@ export function useClusterAction(
             icon: 'LuCircleAlert',
           });
         }
-      })
-      .catch((err) => {
-        if (err instanceof Error) {
-          showSnackbar({ status: 'error', message: err.message, icon: 'LuCircleAlert' });
-        }
+      }, () => {
+        // useConnection already reports lifecycle failures with structured details.
       });
   }, [connectionId, isConnected, onRecordAccess, navigate, startConnection, showSnackbar]);
 
