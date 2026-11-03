@@ -49,6 +49,7 @@ func TestNativeParityLabelQueryBindsSelectorAndUsesAllNamespaces(t *testing.T) {
 		return list
 	})
 	request := parityQuery("app in (api,worker),!disabled")
+	request.PageSize = 1
 	page, err := NativeQuery(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
 	require.NoError(t, err)
 	require.NotNil(t, page.NextCursor)
@@ -90,8 +91,14 @@ func TestNativeParityCollects500WithBoundedNativePages(t *testing.T) {
 	for {
 		page, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
 		require.NoError(t, err)
-		require.Len(t, page.Records, 1)
-		names = append(names, page.Records[0].Reference.Address.ID)
+		if len(names) == 0 {
+			require.Len(t, page.Records, 256)
+		} else {
+			require.Len(t, page.Records, 244)
+		}
+		for _, record := range page.Records {
+			names = append(names, record.Reference.Address.ID)
+		}
 		if page.NextCursor == nil {
 			break
 		}

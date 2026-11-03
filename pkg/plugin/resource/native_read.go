@@ -143,63 +143,103 @@ func nativeEnumerate(ctx context.Context, client dynamic.Interface, gvr schema.G
 	if len(namespaces) == 0 {
 		return page, nil
 	}
-	namespace := namespaces[cursor.Namespace]
-	// One item is the only unconditional bound on native JSON response size:
-	// a Kubernetes object can itself approach the whole HTTP response budget.
-	list, err := nativeResourceClient(client, gvr, namespaced, namespace).List(ctx, metav1.ListOptions{
-		Limit: 1, Continue: cursor.Continue, LabelSelector: selector,
-	})
-	if err != nil {
-		if apierrors.IsResourceExpired(err) || apierrors.IsGone(err) {
-			return resourcev2.SourcePage{}, resourcev2.NewError("RESET_REQUIRED", "The native source continuation has expired")
-		}
-		return resourcev2.SourcePage{}, err
-	}
-	if err := ctx.Err(); err != nil {
-		return resourcev2.SourcePage{}, err
-	}
-	if len(list.Items) > 1 {
-		return resourcev2.SourcePage{}, resourcev2.NewError("RESOURCE_LIMIT", "The API server exceeded the requested native source page size")
-	}
-	continuation := list.GetContinue()
-	if continuation != "" && continuation == cursor.Continue {
-		return resourcev2.SourcePage{}, resourcev2.NewError("RESET_REQUIRED", "The API server did not advance the native source continuation")
-	}
-	if len(namespaces) == 1 {
-		page.SourceRevision = nativeOptionalToken(list.GetResourceVersion())
-	}
-	if continuation != "" {
-		cursor.Continue = continuation
-	} else {
-		cursor.Namespace++
-		cursor.Continue = ""
-	}
-	if cursor.Namespace < len(namespaces) {
-		token, err := encodeNativeCursor(cursor)
-		if err != nil {
-			return resourcev2.SourcePage{}, err
-		}
-		page.NextCursor = &token
-	}
 	address := resourcev2.ResourceAddress{
-		Provider:  request.Target.Provider,
-		Authority: request.Target.Authority,
-		Type:      request.Target.Type,
+		Provider: request.Target.Provider, Authority: request.Target.Authority, Type: request.Target.Type,
 	}
-	if len(list.Items) != 0 {
-		record, err := nativeRecord(&list.Items[0], address, namespaced, namespace, representation)
+	recordBytes, recordNodes, recordFields, bodyBytes := 0, 0, 0, 0
+	for calls := 0; cursor.Namespace < len(namespaces) && len(page.Records) < int(request.PageSize) && calls < int(request.PageSize)+len(namespaces); calls++ {
+		namespace := namespaces[cursor.Namespace]
+		// Keep the native limit fixed across the Kubernetes continuation chain.
+		list, err := nativeResourceClient(client, gvr, namespaced, namespace).List(ctx, metav1.ListOptions{
+			Limit: 1, Continue: cursor.Continue, LabelSelector: selector,
+		})
+		if err != nil {
+			if apierrors.IsResourceExpired(err) || apierrors.IsGone(err) {
+				return resourcev2.SourcePage{}, resourcev2.NewError("RESET_REQUIRED", "The native source continuation has expired")
+			}
+			if len(page.Records) > 0 && resourcev2.ErrorCode(err) == "RESOURCE_LIMIT" {
+				break
+			}
+			return resourcev2.SourcePage{}, err
+		}
+		if err := ctx.Err(); err != nil {
+			return resourcev2.SourcePage{}, err
+		}
+		if len(list.Items) > 1 {
+			return resourcev2.SourcePage{}, resourcev2.NewError("RESOURCE_LIMIT", "The API server exceeded the requested native source page size")
+		}
+		continuation := list.GetContinue()
+		if continuation != "" && continuation == cursor.Continue {
+			return resourcev2.SourcePage{}, resourcev2.NewError("RESET_REQUIRED", "The API server did not advance the native source continuation")
+		}
+		candidate := page
+		if len(namespaces) == 1 {
+			observed := nativeOptionalToken(list.GetResourceVersion())
+			if candidate.SourceRevision != nil && observed != nil && *candidate.SourceRevision != *observed {
+				return resourcev2.SourcePage{}, resourcev2.NewError("RESET_REQUIRED", "The native source snapshot revision changed")
+			}
+			candidate.SourceRevision = observed
+		}
+		next := cursor
+		if continuation != "" {
+			next.Continue = continuation
+		} else {
+			next.Namespace++
+			next.Continue = ""
+		}
+		candidate.NextCursor = nil
+		if next.Namespace < len(namespaces) {
+			token, err := encodeNativeCursor(next)
+			if err != nil {
+				return resourcev2.SourcePage{}, err
+			}
+			candidate.NextCursor = &token
+		}
+		var record resourcev2.Record
+		size, bytes, nodes, fields := 0, 0, 0, 0
+		if len(list.Items) != 0 {
+			record, err = nativeRecord(&list.Items[0], address, namespaced, namespace, representation)
+			if err != nil {
+				if len(page.Records) > 0 && resourcev2.ErrorCode(err) == "RESOURCE_LIMIT" {
+					break
+				}
+				return resourcev2.SourcePage{}, err
+			}
+			size, err = resourcev2.ValueWireSize(record.Body)
+			if err == nil {
+				bytes, nodes, fields, err = resourcev2.SourceRecordWireCost(record)
+			}
+			if err != nil {
+				if len(page.Records) > 0 && resourcev2.ErrorCode(err) == "RESOURCE_LIMIT" {
+					break
+				}
+				return resourcev2.SourcePage{}, err
+			}
+		}
+		envelope := candidate
+		envelope.Records = nil
+		baseBytes, baseNodes, baseFields, err := resourcev2.SourcePageWireCost(envelope)
 		if err != nil {
 			return resourcev2.SourcePage{}, err
 		}
-		page.Records = []resourcev2.Record{record}
-	}
-	payload, nodes, fields, err := resourcev2.SourcePageWireCost(page)
-	if err != nil {
-		return resourcev2.SourcePage{}, err
-	}
-	if resourcev2.SourcePageResponseWireSize(payload) > resourcev2.MaxMessageBytes ||
-		nodes > resourcev2.MaxValueNodes || fields > resourcev2.MaxWireFields {
-		return resourcev2.SourcePage{}, resourcev2.NewError("RESOURCE_LIMIT", "A native source record exceeds the resource wire budget")
+		if size > resourcev2.MaxPageBodyBytes-bodyBytes ||
+			resourcev2.SourcePageResponseWireSize(baseBytes+recordBytes+bytes) > resourcev2.MaxMessageBytes ||
+			baseNodes+recordNodes+nodes > resourcev2.MaxValueNodes ||
+			baseFields+recordFields+fields > resourcev2.MaxWireFields {
+			if len(page.Records) == 0 {
+				return resourcev2.SourcePage{}, resourcev2.NewError("RESOURCE_LIMIT", "A native source record exceeds the resource wire budget")
+			}
+			break
+		}
+		if len(list.Items) != 0 {
+			candidate.Records = append(page.Records, record)
+			bodyBytes += size
+			recordBytes += bytes
+			recordNodes += nodes
+			recordFields += fields
+		}
+		page = candidate
+		cursor = next
 	}
 	if err := resourcev2.ValidateSourcePage(page); err != nil {
 		return resourcev2.SourcePage{}, err
