@@ -240,16 +240,11 @@ func TestSourceForbiddenFailsOpen(t *testing.T) {
 	user, err := env.AddUser(envtest.User{Name: "source-forbidden"}, nil)
 	require.NoError(t, err)
 	stream := openEnvtestSource(t, user.Config(), nil, nil)
-	for {
-		frame, err := stream.Recv()
-		require.NoError(t, err)
-		if frame.Failed != nil {
-			require.Equal(t, "FORBIDDEN", frame.Failed.Code)
-			break
-		}
-		require.Nil(t, frame.SnapshotEnd)
-		require.Nil(t, frame.Reset)
-	}
+	// The authorization probe fails before any source frame begins, so C04
+	// reports the failure as an RPC status rather than a Failed frame.
+	frame, err := stream.Recv()
+	require.Equal(t, "FORBIDDEN", resource.ErrorCode(err))
+	require.Nil(t, frame.SnapshotEnd)
 }
 
 func TestSourceLivenessResetWhenAPIServerStops(t *testing.T) {
