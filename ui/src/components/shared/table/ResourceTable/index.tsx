@@ -28,6 +28,8 @@ const ROW_HEIGHT = 30;
 const NON_DRAWER_COLUMNS = new Set(['select', 'menu']);
 
 import type { KubernetesResourceObject } from '../../../../types/resource';
+import ColumnFilter from '../../../tables/ColumnFilter';
+import type { ColumnPickerProps } from '../../../tables/ColumnFilter/types';
 import { useDynamicResourceColumns } from '../../../tables/ColumnFilter/useDynamicResourceColumns';
 import DrawerActionsBridge from '../../drawer/DrawerActionsBridge';
 import { TableDrawerContext } from '../TableDrawerContext';
@@ -73,6 +75,8 @@ export type Props<T extends RowData = any> = {
    * the shared useConnectionNamespaces hook so all tables stay in sync.
    */
   toolbarFilters?: ToolbarFilterDef[];
+  /** Column picker supplied by the resource view; defaults to the standard picker. */
+  columnPicker?: React.ComponentType<ColumnPickerProps<T>>;
   /** Wrap table content with consumers that need persisted visibility before mounting. */
   contentWrapper?: React.ComponentType<React.PropsWithChildren<{ columnVisibility: VisibilityState }>>;
 };
@@ -102,6 +106,7 @@ const ResourceTableContainer = <T extends RowData,>({
   createEnabled = true,
   toolbarFilters,
   contentWrapper: ContentWrapper,
+  columnPicker = ColumnFilter,
 }: Props<T>) => {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'name', desc: false }]);
   const [columnVisibility, setColumnVisibility] = useStoredState<VisibilityState>(
@@ -374,6 +379,7 @@ const ResourceTableContainer = <T extends RowData,>({
             setFilterOpen={setFilterOpen}
             allFlatColumns={table.getAllFlatColumns()}
             resetColumnVisibility={resetColumnVisibility}
+            columnPicker={columnPicker}
           />
           <DataTable.Container
             className={styles.container}

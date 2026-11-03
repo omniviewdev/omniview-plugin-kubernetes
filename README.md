@@ -58,6 +58,10 @@ Reset restores the Pod table's default fields and removes metadata columns.
 Field and metadata selections retain their existing persisted settings.
 Other resource tables keep their existing column controls.
 
+Resource views opt in with `ResourceTable`'s `columnPicker` component slot. The Pod
+view supplies `ColumnPicker`; the shared table and toolbar do not inspect resource
+keys or kinds to choose UI. Other views retain the standard picker by default.
+
 ## Creating and editing resources
 
 Create and edit use the same compact resource editor. The original Pod,

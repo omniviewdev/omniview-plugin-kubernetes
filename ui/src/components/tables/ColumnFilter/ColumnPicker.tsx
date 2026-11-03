@@ -5,17 +5,7 @@ import React, { useRef, useState } from 'react';
 import { LuColumns2, LuLockKeyhole, LuX } from 'react-icons/lu';
 
 import styles from './ColumnPicker.module.css';
-
-type Props<T extends RowData> = {
-  labels: Record<string, boolean>;
-  setLabels: (values: Record<string, boolean>) => void;
-  annotations: Record<string, boolean>;
-  setAnnotations: (values: Record<string, boolean>) => void;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  columns: Array<Column<DataTableFeatures, T>>;
-  onReset: () => void;
-};
+import type { ColumnPickerProps } from './types';
 
 const tabs = ['Fields', 'Labels', 'Annotations', 'Selected'] as const;
 type Tab = (typeof tabs)[number];
@@ -82,7 +72,7 @@ const ColumnPicker = <T extends RowData>({
   onOpenChange,
   columns,
   onReset,
-}: Props<T>) => {
+}: ColumnPickerProps<T>) => {
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState<Tab>('Fields');
   const searchRef = useRef<HTMLInputElement>(null);
