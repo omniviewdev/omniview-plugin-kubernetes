@@ -46,7 +46,7 @@ jobs:
         if: ${{ !inputs.dry-run }}
         run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
 
-      - name: Validate committed release versions
+      - name: Validate committed release versions and notes
         id: version
         env:
           RELEASE_VERSION: ${{ github.event_name == 'push' && github.ref_name || inputs.version }}
@@ -63,6 +63,11 @@ jobs:
           const packaged = fs.readFileSync('.package/plugin.yaml', 'utf8').match(/^version:\s*(\S+)\s*$/m)?.[1];
           if ([ui, manifest, metadata, packaged].some(value => value !== version)) {
             throw new Error(`Commit release versions before tagging: requested=${version}, ui=${ui}, manifest=${manifest}, metadata=${metadata}, packaged=${packaged}`);
+          }
+          const notesPath = `docs/releases/${version}.md`;
+          const notes = fs.readFileSync(notesPath, 'utf8');
+          if (!notes.startsWith(`# Kubernetes ${version}\n`) || notes.trim().split('\n').length < 3) {
+            throw new Error(`Write curated release notes in ${notesPath} with the matching version heading`);
           }
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `value=${version}\nplatforms=${process.env.PLATFORMS.split(' ').join(',')}\n`);
           NODE
@@ -92,6 +97,13 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: docs/releases/${{ steps.version.outputs.value }}.md
+          if-no-files-found: error
+          retention-days: 7
+
   publish:
     needs: build
     if: ${{ !inputs.dry-run }}
@@ -101,6 +113,11 @@ jobs:
         with:
           name: plugin-archives
           path: dist
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+          path: release-notes
 
       - name: Check marketplace
         env:
@@ -138,7 +155,7 @@ jobs:
           publisher-slug: omniview
           plugin-id: kubernetes
           version: ${{ needs.build.outputs.version }}
-          min-ide-version: "0.24.0"
+          min-ide-version: "0.26.0"
           artifact-path: dist/
           architectures: ${{ needs.build.outputs.platforms }}
 
@@ -146,6 +163,7 @@ jobs:
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          body_path: release-notes/${{ needs.build.outputs.version }}.md
+          generate_release_notes: false
           prerelease: ${{ contains(github.ref_name, '-') }}
           files: dist/*.tar.gz

@@ -12,6 +12,7 @@ import { useParams } from 'react-router'
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
 import ResourceLinkChip from '../../../../shared/ResourceLinkChip';
+import ColumnPicker from '../../../../tables/ColumnFilter/ColumnPicker';
 import ConditionsCell from '../../shared/cells/ConditionsCell';
 import { withNamespacedResourceColumns } from '../../shared/columns';
 
@@ -121,6 +122,7 @@ const HorizontalPodAutoscalerTable: React.FC = () => {
   return (
     <ResourceTable
       columns={columns}
+      columnPicker={ColumnPicker}
       connectionID={id}
       resourceKey={resourceKey}
       drawer={drawer}

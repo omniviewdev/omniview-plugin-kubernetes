@@ -8,6 +8,7 @@ import { useParams } from 'react-router'
 
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
+import ColumnPicker from '../../../../tables/ColumnFilter/ColumnPicker';
 import { withClusterResourceColumns } from '../../shared/columns';
 
 import ValidatingAdmissionPolicySidebar from './Sidebar';
@@ -61,6 +62,7 @@ const ValidatingAdmissionPolicyTable: React.FC = () => {
   return (
     <ResourceTable
       columns={columns}
+      columnPicker={ColumnPicker}
       connectionID={id}
       resourceKey={resourceKey}
       drawer={drawer}
