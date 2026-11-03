@@ -5,6 +5,7 @@ import React from 'react';
 import { useParams } from 'react-router'
 
 import ResourceTable from '../../../../shared/table/ResourceTable';
+import ColumnPicker from '../../../../tables/ColumnFilter/ColumnPicker';
 import { withNamespacedResourceColumns } from '../../shared/columns';
 import { inclusionFilter } from '../../shared/filters';
 
@@ -33,6 +34,7 @@ const EventTable: React.FC = () => {
   return (
     <ResourceTable
       columns={columns}
+      columnPicker={ColumnPicker}
       connectionID={id}
       resourceKey={resourceKey}
       createEnabled={false}
