@@ -29,6 +29,10 @@ keyboard focus and selection feedback. Avoid plugin-local border or color
 overrides. The [shared design language](https://github.com/omniviewdev/ui/blob/main/docs/THEMING.md#native-control-language)
 documents measured contrast, nested themes, and screenshots.
 
+Cluster avatar initials tolerate leading, trailing, and repeated whitespace or
+dash separators while a display name is being edited. Whitespace-only names use
+`NA`; the display name itself is not normalized or changed.
+
 ## MCP resource actions
 
 The resource catalog exposes unary `rollout-restart` actions for Deployments, StatefulSets and
@@ -900,7 +904,7 @@ rather than adding unsupported manifest fields.
 Registry installs retain pnpm's 24-hour release-age protection. Only coordinated
 `@omniviewdev/*` packages are exempted; linked source worktrees resolve locally.
 The current frontend cohort uses `@omniviewdev/base-ui` 0.11.1,
-`@omniviewdev/editors` 6.1.5, and runtime/Vite plugin 0.24.0.
+`@omniviewdev/editors` 6.1.5, and runtime/Vite plugin 0.26.0.
 P07 source builds use the reviewed host runtime.
 The backend pins Go SDK `v0.14.3` for P07 and the existing settings,
 connection metadata, profiling, and configurable acquisition timeout APIs.
