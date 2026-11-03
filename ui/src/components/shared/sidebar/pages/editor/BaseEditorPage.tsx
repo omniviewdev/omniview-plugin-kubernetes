@@ -132,7 +132,7 @@ const ResourceEditor: React.FC<{ data: KubernetesResourceObject; resource: Resou
     onSubmit={() => { void handleSubmit(); }} />;
 };
 
-export interface ResourceEditorFrameProps {
+interface ResourceEditorFrameProps {
   editor: ResourceManifestEditorProps;
   editorKey?: number;
   pending: boolean;
@@ -149,7 +149,7 @@ export interface ResourceEditorFrameProps {
 }
 
 /** Controlled production edit surface; transport and session lifetime stay with its caller. */
-export function ResourceEditorFrame({ editor, editorKey, pending, canUpdate, readOnly, formError, changed, error, unavailable, onInteraction, onToggleDiff, onReset, onSubmit }: ResourceEditorFrameProps) {
+function ResourceEditorFrame({ editor, editorKey, pending, canUpdate, readOnly, formError, changed, error, unavailable, onInteraction, onToggleDiff, onReset, onSubmit }: ResourceEditorFrameProps) {
   return <Stack style={outerStackStyle} spacing={2} direction="column" onFocusCapture={onInteraction} onPointerDownCapture={onInteraction}>
     <ResourceManifestEditor key={editorKey} {...editor} />
     {unavailable && <div role="status">{unavailable}</div>}
