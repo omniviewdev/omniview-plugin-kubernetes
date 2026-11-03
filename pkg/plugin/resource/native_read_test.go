@@ -444,7 +444,10 @@ func TestNativeEnumerateCompleteUnpaginatedLists(t *testing.T) {
 	t.Run("entire list fits", func(t *testing.T) {
 		client := nativeTestClient()
 		client.PrependReactor("list", "widgets", func(action clienttesting.Action) (bool, runtime.Object, error) {
-			return true, nativeTestList(nativeTestObject("a", "ns"), nativeTestObject("b", "ns")), nil
+			first, second := nativeTestObject("a", "ns"), nativeTestObject("b", "ns")
+			first.SetLabels(map[string]string{"app": "test"})
+			second.SetLabels(map[string]string{"app": "test"})
+			return true, nativeTestList(first, second), nil
 		})
 		request := nativeTestEnumerate(nativeTestAny())
 		page, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
