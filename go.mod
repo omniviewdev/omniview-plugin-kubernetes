@@ -10,7 +10,7 @@ require (
 	github.com/aws/smithy-go v1.22.2
 	github.com/fairwindsops/polaris v0.0.0-20250421200712-d7d30ac6116e
 	github.com/fsnotify/fsnotify v1.9.0
-	github.com/omniviewdev/plugin-sdk v0.14.4
+	github.com/omniviewdev/plugin-sdk v0.14.5
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/zap v1.27.0
 	google.golang.org/grpc v1.79.2
@@ -176,6 +176,3 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.2-0.20260122202528-d9cc6641c482 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
-
-// SDK source-session receive controls require the scoped grpc-go fork.
-replace google.golang.org/grpc => github.com/omniviewdev/grpc-go v1.79.3-0.20261103012409-4c6f1d1c4e10

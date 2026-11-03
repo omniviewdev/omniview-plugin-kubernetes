@@ -39,8 +39,8 @@ of `SinceSeconds`. Kubernetes accepts only one time filter per log request.
 Kubernetes plugin 0.15.0 requires Omniview 0.27.1 or newer so the host includes
 the matching log lifecycle fixes. Update the desktop application before installing
 this plugin release.
-The plugin pins SDK 0.14.4 for log lifecycle handling and the SDK's required
-scoped grpc-go fork for source-session receive controls.
+The plugin pins SDK 0.14.5 for log lifecycle handling while preserving the
+existing source-session wire contract and stock grpc-go dependency.
 
 ## MCP resource actions
 
