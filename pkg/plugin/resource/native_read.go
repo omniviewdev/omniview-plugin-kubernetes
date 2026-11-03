@@ -147,6 +147,7 @@ func nativeEnumerate(ctx context.Context, client dynamic.Interface, gvr schema.G
 		Provider: request.Target.Provider, Authority: request.Target.Authority, Type: request.Target.Type,
 	}
 	recordBytes, recordNodes, recordFields, bodyBytes := 0, 0, 0, 0
+acquire:
 	for calls := 0; cursor.Namespace < len(namespaces) && len(page.Records) < int(request.PageSize) && calls < int(request.PageSize)+len(namespaces); calls++ {
 		namespace := namespaces[cursor.Namespace]
 		// Keep the native limit fixed across the Kubernetes continuation chain.
@@ -165,10 +166,16 @@ func nativeEnumerate(ctx context.Context, client dynamic.Interface, gvr schema.G
 		if err := ctx.Err(); err != nil {
 			return resourcev2.SourcePage{}, err
 		}
-		if len(list.Items) > 1 {
-			return resourcev2.SourcePage{}, resourcev2.NewError("RESOURCE_LIMIT", "The API server exceeded the requested native source page size")
-		}
 		continuation := list.GetContinue()
+		if len(list.Items) > 1 && (continuation != "" || cursor.Continue != "") {
+			return resourcev2.SourcePage{}, resourcev2.NewError("RESOURCE_LIMIT", "The API server returned an unbounded continued source page")
+		}
+		if len(list.Items) > int(request.PageSize)-len(page.Records) {
+			if len(page.Records) > 0 {
+				break
+			}
+			return resourcev2.SourcePage{}, resourcev2.NewError("RESOURCE_LIMIT", "The complete native source page exceeds the requested page size")
+		}
 		if continuation != "" && continuation == cursor.Continue {
 			return resourcev2.SourcePage{}, resourcev2.NewError("RESET_REQUIRED", "The API server did not advance the native source continuation")
 		}
@@ -195,49 +202,67 @@ func nativeEnumerate(ctx context.Context, client dynamic.Interface, gvr schema.G
 			}
 			candidate.NextCursor = &token
 		}
-		var record resourcev2.Record
-		size, bytes, nodes, fields := 0, 0, 0, 0
-		if len(list.Items) != 0 {
-			record, err = nativeRecord(&list.Items[0], address, namespaced, namespace, representation)
-			if err != nil {
-				if len(page.Records) > 0 && resourcev2.ErrorCode(err) == "RESOURCE_LIMIT" {
-					break
-				}
-				return resourcev2.SourcePage{}, err
-			}
-			size, err = resourcev2.ValueWireSize(record.Body)
-			if err == nil {
-				bytes, nodes, fields, err = resourcev2.SourceRecordWireCost(record)
-			}
-			if err != nil {
-				if len(page.Records) > 0 && resourcev2.ErrorCode(err) == "RESOURCE_LIMIT" {
-					break
-				}
-				return resourcev2.SourcePage{}, err
-			}
-		}
 		envelope := candidate
 		envelope.Records = nil
 		baseBytes, baseNodes, baseFields, err := resourcev2.SourcePageWireCost(envelope)
 		if err != nil {
 			return resourcev2.SourcePage{}, err
 		}
-		if size > resourcev2.MaxPageBodyBytes-bodyBytes ||
-			resourcev2.SourcePageResponseWireSize(baseBytes+recordBytes+bytes) > resourcev2.MaxMessageBytes ||
-			baseNodes+recordNodes+nodes > resourcev2.MaxValueNodes ||
-			baseFields+recordFields+fields > resourcev2.MaxWireFields {
-			if len(page.Records) == 0 {
-				return resourcev2.SourcePage{}, resourcev2.NewError("RESOURCE_LIMIT", "A native source record exceeds the resource wire budget")
+		var one [1]resourcev2.Record
+		staged := one[:0]
+		if len(list.Items) > 1 {
+			staged = make([]resourcev2.Record, 0, len(list.Items))
+		}
+		addedBytes, addedNodes, addedFields, addedBodyBytes := 0, 0, 0, 0
+		for i := range list.Items {
+			if err := ctx.Err(); err != nil {
+				return resourcev2.SourcePage{}, err
 			}
-			break
+			record, err := nativeRecord(&list.Items[i], address, namespaced, namespace, representation)
+			if err != nil {
+				if len(page.Records) > 0 && resourcev2.ErrorCode(err) == "RESOURCE_LIMIT" {
+					break acquire
+				}
+				return resourcev2.SourcePage{}, err
+			}
+			size, err := resourcev2.ValueWireSize(record.Body)
+			bytes, nodes, fields := 0, 0, 0
+			if err == nil {
+				bytes, nodes, fields, err = resourcev2.SourceRecordWireCost(record)
+			}
+			if err != nil {
+				if len(page.Records) > 0 && resourcev2.ErrorCode(err) == "RESOURCE_LIMIT" {
+					break acquire
+				}
+				return resourcev2.SourcePage{}, err
+			}
+			addedBodyBytes += size
+			addedBytes += bytes
+			addedNodes += nodes
+			addedFields += fields
+			if addedBodyBytes > resourcev2.MaxPageBodyBytes-bodyBytes ||
+				resourcev2.SourcePageResponseWireSize(baseBytes+recordBytes+addedBytes) > resourcev2.MaxMessageBytes ||
+				baseNodes+recordNodes+addedNodes > resourcev2.MaxValueNodes ||
+				baseFields+recordFields+addedFields > resourcev2.MaxWireFields {
+				if len(page.Records) > 0 {
+					break acquire
+				}
+				return resourcev2.SourcePage{}, resourcev2.NewError("RESOURCE_LIMIT", "The complete native source page exceeds the resource wire budget")
+			}
+			staged = append(staged, record)
 		}
-		if len(list.Items) != 0 {
-			candidate.Records = append(page.Records, record)
-			bodyBytes += size
-			recordBytes += bytes
-			recordNodes += nodes
-			recordFields += fields
+		if resourcev2.SourcePageResponseWireSize(baseBytes+recordBytes) > resourcev2.MaxMessageBytes ||
+			baseNodes+recordNodes > resourcev2.MaxValueNodes || baseFields+recordFields > resourcev2.MaxWireFields {
+			if len(page.Records) > 0 {
+				break
+			}
+			return resourcev2.SourcePage{}, resourcev2.NewError("RESOURCE_LIMIT", "The native source page exceeds the resource wire budget")
 		}
+		candidate.Records = append(page.Records, staged...)
+		bodyBytes += addedBodyBytes
+		recordBytes += addedBytes
+		recordNodes += addedNodes
+		recordFields += addedFields
 		page = candidate
 		cursor = next
 	}

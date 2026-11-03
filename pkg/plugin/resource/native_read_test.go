@@ -440,6 +440,70 @@ func TestNativeEnumerateRejectsUnboundedAndStalledResponses(t *testing.T) {
 	})
 }
 
+func TestNativeEnumerateCompleteUnpaginatedLists(t *testing.T) {
+	t.Run("entire list fits", func(t *testing.T) {
+		client := nativeTestClient()
+		client.PrependReactor("list", "widgets", func(action clienttesting.Action) (bool, runtime.Object, error) {
+			return true, nativeTestList(nativeTestObject("a", "ns"), nativeTestObject("b", "ns")), nil
+		})
+		request := nativeTestEnumerate(nativeTestAny())
+		page, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
+		require.NoError(t, err)
+		require.Len(t, page.Records, 2)
+		assert.Nil(t, page.NextCursor)
+		query := parityQuery("app=test")
+		page, err = NativeQuery(context.Background(), client, nativeTestGVR, true, query, nativeTestRepresentation())
+		require.NoError(t, err)
+		require.Len(t, page.Records, 2)
+		assert.Nil(t, page.NextCursor)
+	})
+	t.Run("defer entire namespace", func(t *testing.T) {
+		var bCalls atomic.Int32
+		client := nativeTestHTTPClient(t, func(request *http.Request) *unstructured.UnstructuredList {
+			assert.Equal(t, "1", request.URL.Query().Get("limit"))
+			if strings.Contains(request.URL.Path, "/namespaces/a/") {
+				return nativeTestList(nativeTestObject("a", "a"))
+			}
+			bCalls.Add(1)
+			return nativeTestList(nativeTestObject("b1", "b"), nativeTestObject("b2", "b"))
+		})
+		request := nativeTestEnumerate(nativeTestOneOf("a", "b"))
+		first, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
+		require.NoError(t, err)
+		require.Len(t, first.Records, 1)
+		require.NotNil(t, first.NextCursor)
+		request.Cursor = first.NextCursor
+		second, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
+		require.NoError(t, err)
+		require.Len(t, second.Records, 2)
+		assert.Equal(t, "b1", second.Records[0].Reference.Address.ID)
+		assert.Equal(t, "b2", second.Records[1].Reference.Address.ID)
+		assert.Nil(t, second.NextCursor)
+		assert.Equal(t, int32(2), bCalls.Load())
+	})
+	t.Run("continued unbounded response fails closed", func(t *testing.T) {
+		client := nativeTestClient()
+		client.PrependReactor("list", "widgets", func(action clienttesting.Action) (bool, runtime.Object, error) {
+			list := nativeTestList(nativeTestObject("a", "ns"), nativeTestObject("b", "ns"))
+			list.SetContinue("next")
+			return true, list, nil
+		})
+		_, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, nativeTestEnumerate(nativeTestAny()), nativeTestRepresentation())
+		require.Equal(t, "RESOURCE_LIMIT", resourcev2.ErrorCode(err))
+	})
+	t.Run("complete list over wire budget fails closed", func(t *testing.T) {
+		first, second := nativeTestObject("a", "ns"), nativeTestObject("b", "ns")
+		first.Object["data"] = make([]any, 70000)
+		second.Object["data"] = make([]any, 70000)
+		client := nativeTestClient()
+		client.PrependReactor("list", "widgets", func(action clienttesting.Action) (bool, runtime.Object, error) {
+			return true, nativeTestList(first, second), nil
+		})
+		_, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, nativeTestEnumerate(nativeTestAny()), nativeTestRepresentation())
+		require.Equal(t, "RESOURCE_LIMIT", resourcev2.ErrorCode(err))
+	})
+}
+
 func TestNativeReadsEnforceResourceWireBudgets(t *testing.T) {
 	t.Run("document body", func(t *testing.T) {
 		object := nativeTestObject("native-name", "ns")
