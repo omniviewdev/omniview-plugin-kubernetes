@@ -959,6 +959,8 @@ the same checks before merge.
 
 UI persistence tests use the test document's real JSDOM storage, including on
 Node versions that also expose process-global Web Storage.
+Submission behavior tests import the real CSR form before rendering, so admission
+assertions do not race cold lazy-chunk loading.
 
 ### Frontend lint contract
 

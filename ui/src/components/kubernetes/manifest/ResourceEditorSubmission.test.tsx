@@ -9,6 +9,8 @@ import { MANIFEST_MODE_KEY, setManifestMode } from './useManifestMode';
 import { resourceEditors as coreResourceEditors } from './providers/issue-265';
 import { resourceEditors as runtimeClassEditors } from './providers/issue-282';
 import { resourceEditors as certificateEditors } from './providers/issue-277';
+// Admission cases use the actual CSR form without racing its lazy chunk load.
+import './providers/issue-277/CertificateSigningRequestForm';
 
 vi.mock('../../shared/CodeEditor', () => ({ default: ({ value, onChange, readOnly }: { value: string; onChange?: (value: string) => void; readOnly?: boolean }) => <textarea aria-label="Canonical YAML" value={value} readOnly={readOnly} onChange={(event) => onChange?.(event.target.value)} /> }));
 const source = 'apiVersion: demo.example/v1\nkind: Demo\nmetadata: {name: demo, namespace: team}\nspec: {message: old, token: private-fixture-value}\n';
