@@ -1,18 +1,9 @@
-import {
-  Avatar,
-  Badge,
-  Chip,
-  IconButton,
-  Menu,
-  Spinner,
-  Stack,
-  Text,
-} from '@omniviewdev/base-ui';
+import { Avatar, Badge, Chip, IconButton, Menu, Spinner, Stack, Text } from '@omniviewdev/base-ui';
 import {
   usePluginRouter,
   usePluginContext,
   useConnection,
-  useSnackbar,
+  useNotifications,
 } from '@omniviewdev/runtime';
 import { types } from '@omniviewdev/runtime/models';
 import React from 'react';
@@ -21,7 +12,6 @@ import { LuEllipsisVertical, LuPencil, LuTrash } from 'react-icons/lu';
 import NamedAvatar from '../shared/NamedAvatar';
 
 import styles from './ConnectionListItem.module.css';
-
 
 const containerStyle: React.CSSProperties = {
   display: 'flex',
@@ -60,8 +50,8 @@ const ConnectionListItem: React.FC<Props> = ({
 }) => {
   const { meta } = usePluginContext();
   const { navigate } = usePluginRouter();
-  // eslint-disable-next-line @typescript-eslint/unbound-method
-  const { showSnackbar } = useSnackbar();
+   
+  const { notify } = useNotifications();
 
   const { startConnection } = useConnection({ pluginID: meta.id, connectionID: id });
   const [connecting, setConnecting] = React.useState(false);
@@ -69,27 +59,24 @@ const ConnectionListItem: React.FC<Props> = ({
   const handleConnectionStatus = (status: types.ConnectionStatus) => {
     switch (status.status) {
       case types.ConnectionStatusCode.ConnectionStatusUnauthorized:
-        showSnackbar({
-          status: 'warning',
-          message: `Failed to authorize to '${name}'`,
+        void notify({
+          severity: 'warning',
+          title: `Failed to authorize to '${name}'`,
           details: status.details,
-          icon: 'LuShieldClose',
         });
         break;
       case types.ConnectionStatusCode.ConnectionStatusConnected:
-        showSnackbar({
-          status: 'success',
-          message: `Connected to '${name}'`,
-          icon: 'LuCheckCircle',
+        void notify({
+          severity: 'success',
+          title: `Connected to '${name}'`,
         });
         navigate(`/connection/${id}/resources`);
         break;
       default:
-        showSnackbar({
-          status: 'error',
-          message: `Failed to connect to '${name}'`,
+        void notify({
+          severity: 'error',
+          title: `Failed to connect to '${name}'`,
           details: status.details,
-          icon: 'LuCircleAlert',
         });
     }
   };
@@ -107,10 +94,9 @@ const ConnectionListItem: React.FC<Props> = ({
       })
       .catch((err) => {
         if (err instanceof Error) {
-          showSnackbar({
-            status: 'error',
-            message: err.message,
-            icon: 'LuCircleAlert',
+          void notify({
+            severity: 'error',
+            title: err.message,
           });
         }
       })
@@ -140,7 +126,13 @@ const ConnectionListItem: React.FC<Props> = ({
       {/* eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/no-static-element-interactions */}
       <div className={styles.clickableRow} onClick={handleClick}>
         <div style={avatarWrapperStyle}>
-          <Badge variant="dot" color="success" invisible={!isConnected()} size="sm" position="top-right">
+          <Badge
+            variant="dot"
+            color="success"
+            invisible={!isConnected()}
+            size="sm"
+            position="top-right"
+          >
             {avatar ? (
               <Avatar size="sm" shape="rounded" src={avatar} style={avatarStyle} />
             ) : (
@@ -189,7 +181,9 @@ const ConnectionListItem: React.FC<Props> = ({
               >
                 Edit &apos;{name}&apos;
               </Menu.Item>
-              <Menu.Item startDecorator={<LuTrash size={14} />}>Delete &apos;{name}&apos;</Menu.Item>
+              <Menu.Item startDecorator={<LuTrash size={14} />}>
+                Delete &apos;{name}&apos;
+              </Menu.Item>
             </Menu.Popup>
           </Menu.Positioner>
         </Menu.Portal>

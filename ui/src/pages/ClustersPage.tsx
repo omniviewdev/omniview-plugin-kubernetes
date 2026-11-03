@@ -1,6 +1,13 @@
 import { Skeleton, Stack, Tabs } from '@omniviewdev/base-ui';
-import { usePluginContext, useConnections, useConnection, useSnackbar } from '@omniviewdev/runtime';
+import {
+  usePluginContext,
+  useConnections,
+  useConnection,
+  useNotifications,
+} from '@omniviewdev/runtime';
 import React from 'react';
+
+import { useStoredState } from '@/hooks/useStoredState';
 
 import ClusterHub from '../components/connections/ClusterHub';
 import ClustersToolbar from '../components/connections/ClustersToolbar';
@@ -20,7 +27,6 @@ import type {
   FilterState,
 } from '../types/clusters';
 
-import { useStoredState } from '@/hooks/useStoredState';
 
 const DEFAULT_VISIBLE_COLUMNS = ['cluster', 'kubeconfig', 'user'];
 
@@ -54,8 +60,8 @@ const loadingSkeletonStyle: React.CSSProperties = {
 export default function ClustersPage(): React.ReactElement {
   const { meta } = usePluginContext();
   const { connections } = useConnections({ plugin: meta.id });
-  // eslint-disable-next-line @typescript-eslint/unbound-method
-  const { showSnackbar } = useSnackbar();
+   
+  const { notify } = useNotifications();
 
   // Tab state
   const [activeTab, setActiveTab] = useStoredState<'hub' | 'all'>('kubernetes-clusters-tab', 'hub');
@@ -219,7 +225,13 @@ export default function ClustersPage(): React.ReactElement {
       setFolderDialog({
         mode: 'edit',
         groupId,
-        initial: { name: group.name, color: group.color, icon: group.icon, customImage: group.customImage, ruleSet: group.ruleSet },
+        initial: {
+          name: group.name,
+          color: group.color,
+          icon: group.icon,
+          customImage: group.customImage,
+          ruleSet: group.ruleSet,
+        },
       });
     },
     [preferences.customGroups],
@@ -229,7 +241,7 @@ export default function ClustersPage(): React.ReactElement {
     async (values: FolderDialogValues) => {
       if (folderDialog?.mode === 'edit' && folderDialog.groupId) {
         await preferences.updateGroup(folderDialog.groupId, { ...values, ruleSet: values.ruleSet });
-        showSnackbar({ status: 'success', message: `Folder '${values.name}' updated` });
+        void notify({ severity: 'success', title: `Folder '${values.name}' updated` });
       } else {
         const newGroup: ConnectionGroup = {
           id: crypto.randomUUID(),
@@ -243,20 +255,20 @@ export default function ClustersPage(): React.ReactElement {
           ruleSet: values.ruleSet,
         };
         await preferences.addGroup(newGroup);
-        showSnackbar({ status: 'success', message: `Folder '${values.name}' created` });
+        void notify({ severity: 'success', title: `Folder '${values.name}' created` });
       }
       setFolderDialog(null);
     },
-    [folderDialog, preferences, showSnackbar],
+    [folderDialog, preferences, notify],
   );
 
   const handleFolderDelete = React.useCallback(async () => {
     if (folderDialog?.groupId) {
       await preferences.removeGroup(folderDialog.groupId);
-      showSnackbar({ status: 'success', message: 'Folder deleted' });
+      void notify({ severity: 'success', title: 'Folder deleted' });
     }
     setFolderDialog(null);
-  }, [folderDialog, preferences, showSnackbar]);
+  }, [folderDialog, preferences, notify]);
 
   const handleDeleteRequest = React.useCallback((id: string, name: string) => {
     setDeleteTarget({ id, name });
@@ -296,12 +308,24 @@ export default function ClustersPage(): React.ReactElement {
               availableAttributes={hubGrouped.availableAttributes}
               customGroups={preferences.customGroups}
               hubSections={preferences.hubSections}
-              onReorderSections={(sections) => { void preferences.setHubSections(sections); }}
-              onToggleCollapse={(sectionType, collapsed) => { void preferences.updateHubSectionCollapsed(sectionType, collapsed); }}
-              onRecordAccess={(connectionId) => { void preferences.recordAccess(connectionId); }}
-              onToggleFavorite={(connectionId) => { void preferences.toggleFavorite(connectionId); }}
-              onAssignToGroup={(groupId, connectionId) => { void preferences.assignToGroup(groupId, connectionId); }}
-              onRemoveFromGroup={(groupId, connectionId) => { void preferences.removeFromGroup(groupId, connectionId); }}
+              onReorderSections={(sections) => {
+                void preferences.setHubSections(sections);
+              }}
+              onToggleCollapse={(sectionType, collapsed) => {
+                void preferences.updateHubSectionCollapsed(sectionType, collapsed);
+              }}
+              onRecordAccess={(connectionId) => {
+                void preferences.recordAccess(connectionId);
+              }}
+              onToggleFavorite={(connectionId) => {
+                void preferences.toggleFavorite(connectionId);
+              }}
+              onAssignToGroup={(groupId, connectionId) => {
+                void preferences.assignToGroup(groupId, connectionId);
+              }}
+              onRemoveFromGroup={(groupId, connectionId) => {
+                void preferences.removeFromGroup(groupId, connectionId);
+              }}
               onCreateFolder={handleCreateFolder}
               onEditFolder={handleEditFolder}
             />
@@ -365,12 +389,20 @@ export default function ClustersPage(): React.ReactElement {
               allLabelKeys={allLabelKeys}
               onToggleColumn={handleToggleColumn}
               onToggleCollapse={handleToggleCollapse}
-              onToggleFavorite={(connectionId) => { void preferences.toggleFavorite(connectionId); }}
-              onAssignToGroup={(groupId, connectionId) => { void preferences.assignToGroup(groupId, connectionId); }}
-              onRemoveFromGroup={(groupId, connectionId) => { void preferences.removeFromGroup(groupId, connectionId); }}
+              onToggleFavorite={(connectionId) => {
+                void preferences.toggleFavorite(connectionId);
+              }}
+              onAssignToGroup={(groupId, connectionId) => {
+                void preferences.assignToGroup(groupId, connectionId);
+              }}
+              onRemoveFromGroup={(groupId, connectionId) => {
+                void preferences.removeFromGroup(groupId, connectionId);
+              }}
               onCreateFolder={handleCreateFolder}
               onDeleteRequest={handleDeleteRequest}
-              onRecordAccess={(connectionId) => { void preferences.recordAccess(connectionId); }}
+              onRecordAccess={(connectionId) => {
+                void preferences.recordAccess(connectionId);
+              }}
             />
           )}
         </div>
@@ -392,8 +424,16 @@ export default function ClustersPage(): React.ReactElement {
           initial={folderDialog.initial}
           existingNames={preferences.customGroups.map((g) => g.name)}
           enrichedConnections={hubEnriched}
-          onSubmit={(values) => { void handleFolderSubmit(values); }}
-          onDelete={folderDialog.mode === 'edit' ? () => { void handleFolderDelete(); } : undefined}
+          onSubmit={(values) => {
+            void handleFolderSubmit(values);
+          }}
+          onDelete={
+            folderDialog.mode === 'edit'
+              ? () => {
+                  void handleFolderDelete();
+                }
+              : undefined
+          }
           onClose={() => setFolderDialog(null)}
         />
       )}

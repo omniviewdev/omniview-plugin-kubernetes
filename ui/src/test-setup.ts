@@ -1,12 +1,17 @@
-import '@testing-library/jest-dom/vitest';
+import * as matchers from '@testing-library/jest-dom/matchers';
 import { cleanup } from '@testing-library/react';
-import { afterEach, vi } from 'vitest';
+import { afterEach, expect, vi } from 'vitest';
+
+// Register on the same Vitest instance as the tests, including peer-scoped installs.
+expect.extend(matchers);
 
 afterEach(cleanup);
 
-const domWindow = (globalThis as typeof globalThis & {
-  jsdom: { window: Pick<Window, 'localStorage' | 'sessionStorage'> };
-}).jsdom.window;
+const domWindow = (
+  globalThis as typeof globalThis & {
+    jsdom: { window: Pick<Window, 'localStorage' | 'sessionStorage'> };
+  }
+).jsdom.window;
 vi.stubGlobal('localStorage', domWindow.localStorage);
 vi.stubGlobal('sessionStorage', domWindow.sessionStorage);
 

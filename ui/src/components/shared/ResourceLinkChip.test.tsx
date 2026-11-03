@@ -3,47 +3,132 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import ResourceLinkChip from './ResourceLinkChip';
 
-const mocks = vi.hoisted(() => ({ drawer: vi.fn(), snackbar: vi.fn(), resolve: vi.fn(), catalog: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  drawer: vi.fn(),
+  snackbar: vi.fn(),
+  resolve: vi.fn(),
+  catalog: vi.fn(),
+}));
 vi.mock('@omniviewdev/runtime', () => ({
   useRightDrawer: () => ({ showResourceSidebar: mocks.drawer }),
-  useSnackbar: () => ({ showSnackbar: mocks.snackbar }),
+  useNotifications: () => ({ notify: mocks.snackbar }),
   parseAppError: (error: Error) => ({ detail: error.message }),
-  useResourceTypes: () => ({ resourceTypes: { data: [{ type: 'k8s:/pods', displayName: 'Pod' }] } }),
+  useResourceTypes: () => ({
+    resourceTypes: { data: [{ type: 'k8s:/pods', displayName: 'Pod' }] },
+  }),
 }));
-vi.mock('@omniviewdev/runtime/api', () => ({ ResourceClient: { ResolveReference: mocks.resolve, Catalog: mocks.catalog } }));
-const reference = { address: { provider: 'kubernetes', authority: 'host-authority', type: 'k8s:/pods', scope: [{ dimension: 'namespace', value: 'kube-system' }], id: 'pod-1' }, incarnation: 'uid-1' };
-const resolved = { reference, route: { connection: 'conn-1' }, key: 'host-key', addressKey: 'host-address-key', targetId: 'host-target', representation: 'native' };
+vi.mock('@omniviewdev/runtime/api', () => ({
+  ResourceClient: { ResolveReference: mocks.resolve, Catalog: mocks.catalog },
+}));
+const reference = {
+  address: {
+    provider: 'kubernetes',
+    authority: 'host-authority',
+    type: 'k8s:/pods',
+    scope: [{ dimension: 'namespace', value: 'kube-system' }],
+    id: 'pod-1',
+  },
+  incarnation: 'uid-1',
+};
+const resolved = {
+  reference,
+  route: { connection: 'conn-1' },
+  key: 'host-key',
+  addressKey: 'host-address-key',
+  targetId: 'host-target',
+  representation: 'native',
+};
 
 describe('ResourceLinkChip', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.catalog.mockResolvedValue({ types: [{ type: 'k8s:/pods', identityDimensions: [{ name: 'namespace' }] }] });
+    mocks.catalog.mockResolvedValue({
+      types: [{ type: 'k8s:/pods', identityDimensions: [{ name: 'namespace' }] }],
+    });
     mocks.resolve.mockResolvedValue(resolved);
     mocks.drawer.mockResolvedValue(undefined);
   });
-  it.each(['uid-1', undefined])('resolves native name with optional incarnation %s', async (incarnation) => {
-    render(<ResourceLinkChip connectionID="conn-1" namespace="kube-system" resourceID="pod-1" resourceKey="k8s:/pods" incarnation={incarnation} resourceName="Pod/pod-1" />);
-    fireEvent.click(screen.getByRole('button', { name: 'Pod/pod-1' }));
-    await waitFor(() => expect(mocks.drawer).toHaveBeenCalledWith({ pluginID: 'kubernetes', reference, route: resolved.route, targetId: 'host-target', representation: 'native', resourceName: 'pod-1' }));
-    expect(mocks.resolve).toHaveBeenCalledWith('kubernetes', { route: resolved.route, type: 'k8s:/pods', scope: reference.address.scope, id: 'pod-1', incarnation });
-  });
+  it.each(['uid-1', undefined])(
+    'resolves native name with optional incarnation %s',
+    async (incarnation) => {
+      render(
+        <ResourceLinkChip
+          connectionID="conn-1"
+          namespace="kube-system"
+          resourceID="pod-1"
+          resourceKey="k8s:/pods"
+          incarnation={incarnation}
+          resourceName="Pod/pod-1"
+        />,
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Pod/pod-1' }));
+      await waitFor(() =>
+        expect(mocks.drawer).toHaveBeenCalledWith({
+          pluginID: 'kubernetes',
+          reference,
+          route: resolved.route,
+          targetId: 'host-target',
+          representation: 'native',
+          resourceName: 'pod-1',
+        }),
+      );
+      expect(mocks.resolve).toHaveBeenCalledWith('kubernetes', {
+        route: resolved.route,
+        type: 'k8s:/pods',
+        scope: reference.address.scope,
+        id: 'pod-1',
+        incarnation,
+      });
+    },
+  );
   it('resolves canonical target through host before opening', async () => {
-    render(<ResourceLinkChip target={{ key: 'host-key', pluginId: 'kubernetes', reference, route: resolved.route }} resourceName="Pod/pod-1" />);
+    render(
+      <ResourceLinkChip
+        target={{ key: 'host-key', pluginId: 'kubernetes', reference, route: resolved.route }}
+        resourceName="Pod/pod-1"
+      />,
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Pod/pod-1' }));
     await waitFor(() => expect(mocks.drawer).toHaveBeenCalled());
-    expect(mocks.resolve).toHaveBeenCalledWith('kubernetes', { route: resolved.route, type: 'k8s:/pods', scope: reference.address.scope, id: 'pod-1', incarnation: 'uid-1' });
+    expect(mocks.resolve).toHaveBeenCalledWith('kubernetes', {
+      route: resolved.route,
+      type: 'k8s:/pods',
+      scope: reference.address.scope,
+      id: 'pod-1',
+      incarnation: 'uid-1',
+    });
   });
   it.each(['cancelled', 'lookup failed'])('shows resolution error: %s', async (message) => {
     mocks.resolve.mockRejectedValue(new Error(message));
-    render(<ResourceLinkChip connectionID="conn-1" namespace="kube-system" resourceID="pod-1" resourceKey="k8s:/pods" resourceName="Pod/pod-1" />);
+    render(
+      <ResourceLinkChip
+        connectionID="conn-1"
+        namespace="kube-system"
+        resourceID="pod-1"
+        resourceKey="k8s:/pods"
+        resourceName="Pod/pod-1"
+      />,
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Pod/pod-1' }));
-    await waitFor(() => expect(mocks.snackbar).toHaveBeenCalledWith(message, 'error'));
+    await waitFor(() =>
+      expect(mocks.snackbar).toHaveBeenCalledWith(expect.objectContaining({ severity: 'error' })),
+    );
     expect(mocks.drawer).not.toHaveBeenCalled();
   });
   it('shows drawer rejection', async () => {
     mocks.drawer.mockRejectedValue(new Error('drawer failed'));
-    render(<ResourceLinkChip connectionID="conn-1" namespace="kube-system" resourceID="pod-1" resourceKey="k8s:/pods" resourceName="Pod/pod-1" />);
+    render(
+      <ResourceLinkChip
+        connectionID="conn-1"
+        namespace="kube-system"
+        resourceID="pod-1"
+        resourceKey="k8s:/pods"
+        resourceName="Pod/pod-1"
+      />,
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Pod/pod-1' }));
-    await waitFor(() => expect(mocks.snackbar).toHaveBeenCalledWith('drawer failed', 'error'));
+    await waitFor(() =>
+      expect(mocks.snackbar).toHaveBeenCalledWith(expect.objectContaining({ severity: 'error' })),
+    );
   });
 });

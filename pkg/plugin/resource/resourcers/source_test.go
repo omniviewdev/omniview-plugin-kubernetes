@@ -2,6 +2,7 @@ package resourcers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -101,6 +102,12 @@ func TestSourceSnapshotAndOrderedChanges(t *testing.T) {
 	require.Equal(t, "initial", snapshot[0].Record.Reference.Address.ID)
 	require.Equal(t, "initial-uid", *snapshot[0].Record.Reference.Incarnation)
 	require.Equal(t, "1", *snapshot[0].Record.SourceRevision)
+	record, err := watchRecord(testWatchTarget(), testWatchRepresentation(), initial)
+	require.NoError(t, err)
+	require.Equal(t, resource.CompactSourceRecord(record), snapshot[0].Record)
+	encoded, err := json.Marshal(snapshot[0].Record)
+	require.NoError(t, err)
+	require.NotContains(t, string(encoded), `"schema":`)
 	require.NotNil(t, snapshot[0].Metadata)
 	require.Equal(t, map[string]string{"app": "test"}, snapshot[0].Metadata.Labels)
 
@@ -108,7 +115,7 @@ func TestSourceSnapshotAndOrderedChanges(t *testing.T) {
 	created := newTestPod("created", "default")
 	created.SetUID("created-uid")
 	created.SetResourceVersion("10")
-	_, err := pods.Create(ctx, created, metav1.CreateOptions{})
+	_, err = pods.Create(ctx, created, metav1.CreateOptions{})
 	require.NoError(t, err)
 	first := nextSourceTestEvent(t, emitter)
 	require.Len(t, first.changes, 1)

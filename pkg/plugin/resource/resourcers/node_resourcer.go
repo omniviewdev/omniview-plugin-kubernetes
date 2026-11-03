@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	k8stypes "k8s.io/apimachinery/pkg/types"
@@ -93,19 +94,19 @@ func (n *NodeResourcer) GetActions(
 ) ([]resource.ActionDescriptor, error) {
 	return []resource.ActionDescriptor{
 		{
-			ID:          "cordon",
-			Label:       "Cordon Node",
-			Description: "Mark the node as unschedulable",
-			Icon:        "LuShieldBan",
-			Scope:       resource.ActionScopeInstance,
+			ID:           "cordon",
+			Label:        "Cordon Node",
+			Description:  "Mark the node as unschedulable",
+			Icon:         "LuShieldBan",
+			Scope:        resource.ActionScopeInstance,
 			ParamsSchema: &resource.Schema{},
 		},
 		{
-			ID:          "uncordon",
-			Label:       "Uncordon Node",
-			Description: "Mark the node as schedulable",
-			Icon:        "LuShieldCheck",
-			Scope:       resource.ActionScopeInstance,
+			ID:           "uncordon",
+			Label:        "Uncordon Node",
+			Description:  "Mark the node as schedulable",
+			Icon:         "LuShieldCheck",
+			Scope:        resource.ActionScopeInstance,
 			ParamsSchema: &resource.Schema{},
 		},
 		{
@@ -115,6 +116,7 @@ func (n *NodeResourcer) GetActions(
 			Icon:        "LuArrowDownToLine",
 			Scope:       resource.ActionScopeInstance,
 			Dangerous:   true,
+			Streaming:   true,
 			ParamsSchema: &resource.Schema{
 				Properties: map[string]resource.SchemaProperty{
 					"gracePeriodSeconds": {Type: resource.SchemaInteger, Description: "Seconds to wait for graceful termination (handler default 30); -1 uses each pod's native termination grace period"},
@@ -154,11 +156,11 @@ func (n *NodeResourcer) GetActions(
 			},
 		},
 		{
-			ID:          "get-conditions",
-			Label:       "Get Conditions",
-			Description: "Get node status conditions",
-			Icon:        "LuHeartPulse",
-			Scope:       resource.ActionScopeInstance,
+			ID:           "get-conditions",
+			Label:        "Get Conditions",
+			Description:  "Get node status conditions",
+			Icon:         "LuHeartPulse",
+			Scope:        resource.ActionScopeInstance,
 			ParamsSchema: &resource.Schema{},
 		},
 	}, nil
@@ -178,7 +180,7 @@ func (n *NodeResourcer) ExecuteAction(
 	case "uncordon":
 		return n.executeCordon(ctx, client, input, false)
 	case "drain":
-		return n.executeDrain(ctx, client, input)
+		return resource.Value{}, resource.NewError("UNSUPPORTED", "Drain requires streaming execution")
 	case "add-taint":
 		return n.executeAddTaint(ctx, client, input)
 	case "remove-taint":
@@ -191,12 +193,18 @@ func (n *NodeResourcer) ExecuteAction(
 }
 
 func (n *NodeResourcer) StreamAction(
-	_ context.Context,
-	_ *clients.ClientSet,
-	_ resource.ActionRequest,
-	_ chan<- resource.ActionEvent,
+	ctx context.Context,
+	client *clients.ClientSet,
+	input resource.ActionRequest,
+	stream chan<- resource.ActionEvent,
 ) error {
-	return &resource.ResourceOperationError{Code: "UNSUPPORTED", Title: "Unsupported operation", Message: "Streaming actions are not supported for this resource."}
+	if input.Action != "drain" {
+		return resource.NewError("UNSUPPORTED", "Only drain supports streaming execution")
+	}
+	if _, err := nativeRequestNamespace(input.Reference.Address.Scope); err != nil {
+		return err
+	}
+	return n.executeDrain(ctx, client, input, stream)
 }
 
 // ====================== ACTION IMPLEMENTATIONS ====================== //
@@ -227,125 +235,209 @@ func (n *NodeResourcer) executeCordon(
 	})
 }
 
-// executeDrain cordons the node, then evicts all non-DaemonSet, non-mirror pods.
+// executeDrain reports removal of the selected pod incarnations, not eviction admission.
 func (n *NodeResourcer) executeDrain(
 	ctx context.Context,
 	client *clients.ClientSet,
 	input resource.ActionRequest,
-) (resource.Value, error) {
-	params, paramsErr := nativeActionParams(input.Input)
-	if paramsErr != nil {
-		return resource.Value{}, paramsErr
+	stream chan<- resource.ActionEvent,
+) error {
+	params, err := nativeActionParams(input.Input)
+	if err != nil {
+		return err
 	}
-	// Parse optional params.
-	gracePeriod := int64(30)
-	if v, ok := params["gracePeriodSeconds"]; ok {
-		var err error
-		gracePeriod, err = nativeActionInteger(v, -1, math.MaxInt64)
-		if err != nil {
-			return resource.Value{}, fmt.Errorf("gracePeriodSeconds: %w", err)
+	for key := range params {
+		switch key {
+		case "gracePeriodSeconds", "ignoreDaemonSets", "deleteEmptyDirData", "force":
+		default:
+			return fmt.Errorf("unknown drain parameter %q", key)
 		}
 	}
-	// Kubernetes uses each pod's terminationGracePeriodSeconds when this option
-	// is absent. Only -1 selects that behavior; other negatives remain invalid.
+	gracePeriod := int64(30)
+	if value, ok := params["gracePeriodSeconds"]; ok {
+		gracePeriod, err = nativeActionInteger(value, -1, math.MaxInt64)
+		if err != nil {
+			return fmt.Errorf("gracePeriodSeconds: %w", err)
+		}
+	}
+	boolParam := func(key string, fallback bool) (bool, error) {
+		value, ok := params[key]
+		if !ok {
+			return fallback, nil
+		}
+		boolean, valid := value.(bool)
+		if !valid {
+			return false, fmt.Errorf("%s must be a boolean", key)
+		}
+		return boolean, nil
+	}
+	ignoreDaemonSets, err := boolParam("ignoreDaemonSets", true)
+	if err != nil {
+		return err
+	}
+	deleteEmptyDirData, err := boolParam("deleteEmptyDirData", true)
+	if err != nil {
+		return err
+	}
+	force, err := boolParam("force", false)
+	if err != nil {
+		return err
+	}
 	var nativeGracePeriod *int64
 	if gracePeriod != -1 {
 		nativeGracePeriod = &gracePeriod
 	}
-	ignoreDaemonSets := true
-	if v, ok := params["ignoreDaemonSets"].(bool); ok {
-		ignoreDaemonSets = v
+	if err := ctx.Err(); err != nil {
+		return err
 	}
-	deleteEmptyDirData := true
-	if v, ok := params["deleteEmptyDirData"].(bool); ok {
-		deleteEmptyDirData = v
+	select {
+	case stream <- resource.ActionEvent{Type: "ready"}:
+	case <-ctx.Done():
+		return ctx.Err()
 	}
-	force, _ := params["force"].(bool)
-
-	// Step 1: Cordon the node.
-	cordonPatch := `{"spec":{"unschedulable":true}}`
-	_, err := client.KubeClient.CoreV1().Nodes().Patch(
-		ctx, input.Reference.Address.ID, k8stypes.StrategicMergePatchType,
-		nativeActionPatch(input, cordonPatch), metav1.PatchOptions{},
-	)
-	if err != nil {
-		return resource.Value{}, fmt.Errorf("failed to cordon node %s: %w", input.Reference.Address.ID, err)
-	}
-
-	// Step 2: List pods on this node.
-	podList, err := client.KubeClient.CoreV1().Pods("").List(ctx, metav1.ListOptions{
-		FieldSelector: fields.SelectorFromSet(fields.Set{"spec.nodeName": input.Reference.Address.ID}).String(),
-	})
-	if err != nil {
-		return resource.Value{}, fmt.Errorf("failed to list pods on node %s: %w", input.Reference.Address.ID, err)
-	}
-
-	// Step 3: Evict pods, skipping DaemonSet-managed and mirror pods.
-	var evictErrors []any
-	evicted := 0
-	for i := range podList.Items {
-		pod := &podList.Items[i]
-
-		// Skip mirror pods (static pods).
-		if _, isMirror := pod.Annotations[corev1.MirrorPodAnnotationKey]; isMirror {
-			continue
+	total, drained, skipped := 0, 0, 0
+	selectionKnown := false
+	emit := func(eventType, stage, message string) error {
+		if err := ctx.Err(); err != nil {
+			return err
 		}
-
-		// Skip DaemonSet pods if requested.
-		if ignoreDaemonSets && isDaemonSetPod(pod) {
-			continue
+		data, err := nativeActionEventValue(map[string]interface{}{
+			"stage": stage, "message": message, "drained": drained, "selected": total, "skipped": skipped,
+		})
+		if err != nil {
+			return err
 		}
-
-		// Skip pods in Succeeded or Failed phase — they're already done.
-		if pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
-			continue
+		progress := &resource.ActivityProgress{Kind: "indeterminate"}
+		if total > 0 {
+			progress = &resource.ActivityProgress{Kind: "units", Current: fmt.Sprint(drained), Total: fmt.Sprint(total), Unit: "pods"}
 		}
-
-		// Evict the pod.
-		eviction := &policyv1.Eviction{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      pod.Name,
-				Namespace: pod.Namespace,
-			},
-			DeleteOptions: &metav1.DeleteOptions{
-				GracePeriodSeconds: nativeGracePeriod,
-				Preconditions:      nativePodUIDPreconditions(pod),
-			},
-		}
-		if err := client.KubeClient.PolicyV1().Evictions(pod.Namespace).Evict(ctx, eviction); err != nil {
-			if force {
-				// Force-delete the pod.
-				zero := int64(0)
-				if delErr := client.KubeClient.CoreV1().Pods(pod.Namespace).Delete(ctx, pod.Name, metav1.DeleteOptions{
-					GracePeriodSeconds: &zero,
-					Preconditions:      nativePodUIDPreconditions(pod),
-				}); delErr != nil {
-					evictErrors = append(evictErrors, fmt.Sprintf("%s/%s: force-delete failed: %v", pod.Namespace, pod.Name, delErr))
-					continue
-				}
-			} else {
-				evictErrors = append(evictErrors, fmt.Sprintf("%s/%s: %v", pod.Namespace, pod.Name, err))
-				continue
+		var metrics []resource.ActivityMetric
+		if selectionKnown {
+			metrics = []resource.ActivityMetric{
+				{ID: "drained", Label: "Removed", Value: fmt.Sprint(drained), Unit: "pods"},
+				{ID: "remaining", Label: "Remaining", Value: fmt.Sprint(total - drained), Unit: "pods"},
+				{ID: "skipped", Label: "Skipped", Value: fmt.Sprint(skipped), Unit: "pods"},
 			}
 		}
-		evicted++
+		event := resource.ActionEvent{Type: eventType, Data: data, Activity: &resource.ActivityPresentation{
+			Title: "Drain Node " + input.Reference.Address.ID, Message: message, Progress: progress, Metrics: metrics,
+		}}
+		select {
+		case stream <- event:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
-
-	_ = deleteEmptyDirData // used by kubectl drain for filtering — we evict all non-DS pods
-
-	msg := fmt.Sprintf("Node %s drained: %d pods evicted", input.Reference.Address.ID, evicted)
-	if len(evictErrors) > 0 {
-		msg += fmt.Sprintf(", %d failed", len(evictErrors))
+	if err := emit("progress", "cordoning", "Cordoning node"); err != nil {
+		return err
 	}
-
-	return resource.ValueFromNative(map[string]interface{}{
-		"success": len(evictErrors) == 0,
-		"message": msg,
-		"data": map[string]interface{}{
-			"evicted": evicted,
-			"errors":  evictErrors,
-		},
+	node, err := client.KubeClient.CoreV1().Nodes().Patch(ctx, input.Reference.Address.ID,
+		k8stypes.StrategicMergePatchType, nativeActionPatch(input, `{"spec":{"unschedulable":true}}`), metav1.PatchOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to cordon node %s: %w", input.Reference.Address.ID, err)
+	}
+	checkNode := func() error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		current, err := client.KubeClient.CoreV1().Nodes().Get(ctx, node.Name, metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to check drained node: %w", err)
+		}
+		if current.UID != node.UID {
+			return fmt.Errorf("node %s incarnation changed during drain", node.Name)
+		}
+		return nil
+	}
+	if err := emit("progress", "selecting", "Selecting pods on cordoned node"); err != nil {
+		return err
+	}
+	pods, err := client.KubeClient.CoreV1().Pods("").List(ctx, metav1.ListOptions{
+		FieldSelector: fields.OneTermEqualSelector("spec.nodeName", node.Name).String(),
 	})
+	if err != nil {
+		return fmt.Errorf("failed to list pods on node %s: %w", node.Name, err)
+	}
+	selected := make([]*corev1.Pod, 0, len(pods.Items))
+	for i := range pods.Items {
+		pod := &pods.Items[i]
+		_, mirror := pod.Annotations[corev1.MirrorPodAnnotationKey]
+		if mirror || (ignoreDaemonSets && isDaemonSetPod(pod)) ||
+			pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
+			skipped++
+			continue
+		}
+		if !deleteEmptyDirData {
+			for _, volume := range pod.Spec.Volumes {
+				if volume.EmptyDir != nil {
+					return fmt.Errorf("pod %s/%s uses emptyDir; deleteEmptyDirData is false", pod.Namespace, pod.Name)
+				}
+			}
+		}
+		selected = append(selected, pod)
+	}
+	total = len(selected)
+	selectionKnown = true
+	for _, pod := range selected {
+		if err := checkNode(); err != nil {
+			return err
+		}
+		if err := emit("progress", "evicting", "Evicting selected pods"); err != nil {
+			return err
+		}
+		eviction := &policyv1.Eviction{
+			ObjectMeta:    metav1.ObjectMeta{Name: pod.Name, Namespace: pod.Namespace},
+			DeleteOptions: &metav1.DeleteOptions{GracePeriodSeconds: nativeGracePeriod, Preconditions: nativePodUIDPreconditions(pod)},
+		}
+		if err := client.KubeClient.PolicyV1().Evictions(pod.Namespace).Evict(ctx, eviction); err != nil && !apierrors.IsNotFound(err) {
+			if !force {
+				return fmt.Errorf("failed to evict pod %s/%s: %w", pod.Namespace, pod.Name, err)
+			}
+			if err := checkNode(); err != nil {
+				return err
+			}
+			zero := int64(0)
+			if err := client.KubeClient.CoreV1().Pods(pod.Namespace).Delete(ctx, pod.Name, metav1.DeleteOptions{
+				GracePeriodSeconds: &zero, Preconditions: nativePodUIDPreconditions(pod),
+			}); err != nil && !apierrors.IsNotFound(err) {
+				return fmt.Errorf("failed to force-delete pod %s/%s: %w", pod.Namespace, pod.Name, err)
+			}
+		}
+	}
+	if err := emit("progress", "waiting", "Waiting for selected pods to terminate"); err != nil {
+		return err
+	}
+	pending := selected
+	err = wait.PollUntilContextCancel(ctx, time.Second, true, func(ctx context.Context) (bool, error) {
+		if err := checkNode(); err != nil {
+			return false, err
+		}
+		previousDrained := drained
+		remaining := pending[:0]
+		for _, pod := range pending {
+			current, err := client.KubeClient.CoreV1().Pods(pod.Namespace).Get(ctx, pod.Name, metav1.GetOptions{})
+			if apierrors.IsNotFound(err) || (err == nil && current.UID != pod.UID) {
+				drained++
+				continue
+			}
+			if err != nil {
+				return false, fmt.Errorf("failed to observe pod %s/%s termination: %w", pod.Namespace, pod.Name, err)
+			}
+			remaining = append(remaining, pod)
+		}
+		pending = remaining
+		if drained != previousDrained {
+			if err := emit("progress", "waiting", "Waiting for selected pods to terminate"); err != nil {
+				return false, err
+			}
+		}
+		return len(pending) == 0, nil
+	})
+	if err != nil {
+		return err
+	}
+	return emit("complete", "complete", fmt.Sprintf("Node %s drained: %d pods removed", node.Name, drained))
 }
 
 // isDaemonSetPod checks if a pod is managed by a DaemonSet.

@@ -3,7 +3,7 @@ import {
   usePluginRouter,
   usePluginContext,
   useConnection,
-  useSnackbar,
+  useNotifications,
 } from '@omniviewdev/runtime';
 import { types } from '@omniviewdev/runtime/models';
 import React from 'react';
@@ -64,8 +64,8 @@ const ConnectionTableItem: React.FC<Props> = ({
 
   const { meta } = usePluginContext();
   const { navigate } = usePluginRouter();
-  // eslint-disable-next-line @typescript-eslint/unbound-method
-  const { showSnackbar } = useSnackbar();
+   
+  const { notify } = useNotifications();
   const { startConnection, stopConnection } = useConnection({
     pluginID: meta.id,
     connectionID: id,
@@ -75,27 +75,24 @@ const ConnectionTableItem: React.FC<Props> = ({
   const handleConnectionStatus = (status: types.ConnectionStatus) => {
     switch (status.status) {
       case types.ConnectionStatusCode.ConnectionStatusUnauthorized:
-        showSnackbar({
-          status: 'warning',
-          message: `Failed to authorize to '${displayName}'`,
+        void notify({
+          severity: 'warning',
+          title: `Failed to authorize to '${displayName}'`,
           details: status.details,
-          icon: 'LuShieldClose',
         });
         break;
       case types.ConnectionStatusCode.ConnectionStatusConnected:
-        showSnackbar({
-          status: 'success',
-          message: `Connected to '${displayName}'`,
-          icon: 'LuCheckCircle',
+        void notify({
+          severity: 'success',
+          title: `Connected to '${displayName}'`,
         });
         navigate(`/cluster/${encodeURIComponent(id)}/resources`);
         break;
       default:
-        showSnackbar({
-          status: 'error',
-          message: `Failed to connect to '${displayName}'`,
+        void notify({
+          severity: 'error',
+          title: `Failed to connect to '${displayName}'`,
           details: status.details,
-          icon: 'LuCircleAlert',
         });
     }
   };
@@ -111,10 +108,9 @@ const ConnectionTableItem: React.FC<Props> = ({
       .then((status) => handleConnectionStatus(status))
       .catch((err) => {
         if (err instanceof Error) {
-          showSnackbar({
-            status: 'error',
-            message: err.message,
-            icon: 'LuCircleAlert',
+          void notify({
+            severity: 'error',
+            title: err.message,
           });
         }
       })
@@ -128,7 +124,7 @@ const ConnectionTableItem: React.FC<Props> = ({
       .then((status) => handleConnectionStatus(status))
       .catch((err) => {
         if (err instanceof Error) {
-          showSnackbar({ status: 'error', message: err.message, icon: 'LuCircleAlert' });
+          void notify({ severity: 'error', title: err.message });
         }
       })
       .finally(() => setConnecting(false));
@@ -137,14 +133,14 @@ const ConnectionTableItem: React.FC<Props> = ({
   const handleDisconnect = () => {
     stopConnection().catch((err) => {
       if (err instanceof Error) {
-        showSnackbar({ status: 'error', message: err.message, icon: 'LuCircleAlert' });
+        void notify({ severity: 'error', title: err.message });
       }
     });
   };
 
   const handleCopyId = () => {
     void navigator.clipboard.writeText(id);
-    showSnackbar({ status: 'success', message: 'Connection ID copied' });
+    void notify({ severity: 'success', title: 'Connection ID copied' });
   };
 
   return (
@@ -152,12 +148,10 @@ const ConnectionTableItem: React.FC<Props> = ({
       id={`connection-${id}`}
       style={rowStyle}
       onMouseOver={(e) => {
-        (e.currentTarget as HTMLElement).style.backgroundColor =
-          'var(--ov-color-state-hover)';
+        (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--ov-color-state-hover)';
       }}
       onFocus={(e) => {
-        (e.currentTarget as HTMLElement).style.backgroundColor =
-          'var(--ov-color-state-hover)';
+        (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--ov-color-state-hover)';
       }}
       onMouseOut={(e) => {
         (e.currentTarget as HTMLElement).style.backgroundColor = '';

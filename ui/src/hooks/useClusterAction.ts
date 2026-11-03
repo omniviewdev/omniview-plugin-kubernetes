@@ -1,7 +1,7 @@
 import {
   usePluginContext,
   useConnection,
-  useSnackbar,
+  useNotifications,
   usePluginRouter,
 } from '@omniviewdev/runtime';
 import { types } from '@omniviewdev/runtime/models';
@@ -18,8 +18,8 @@ export function useClusterAction(
 ) {
   const { meta } = usePluginContext();
   const { navigate } = usePluginRouter();
-  // eslint-disable-next-line @typescript-eslint/unbound-method
-  const { showSnackbar } = useSnackbar();
+   
+  const { notify } = useNotifications();
   const { startConnection } = useConnection({
     pluginID: meta.id,
     connectionID: connectionId,
@@ -36,20 +36,19 @@ export function useClusterAction(
         if (status.status === types.ConnectionStatusCode.ConnectionStatusConnected) {
           navigate(`/cluster/${encodeURIComponent(connectionId)}/resources`);
         } else {
-          showSnackbar({
-            status: 'warning',
-            message: `Failed to connect to cluster`,
+          void notify({
+            severity: 'warning',
+            title: `Failed to connect to cluster`,
             details: status.details,
-            icon: 'LuCircleAlert',
           });
         }
       })
       .catch((err) => {
         if (err instanceof Error) {
-          showSnackbar({ status: 'error', message: err.message, icon: 'LuCircleAlert' });
+          void notify({ severity: 'error', title: err.message });
         }
       });
-  }, [connectionId, isConnected, onRecordAccess, navigate, startConnection, showSnackbar]);
+  }, [connectionId, isConnected, onRecordAccess, navigate, startConnection, notify]);
 
   return { handleClick };
 }

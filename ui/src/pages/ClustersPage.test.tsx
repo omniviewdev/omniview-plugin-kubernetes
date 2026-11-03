@@ -34,7 +34,7 @@ vi.mock('@omniviewdev/runtime', () => ({
     stopWatch: vi.fn(),
   }),
   useConnection: () => ({ removeConnection: vi.fn().mockResolvedValue(undefined) }),
-  useSnackbar: () => ({ showSnackbar: vi.fn() }),
+  useNotifications: () => ({ notify: vi.fn() }),
 }));
 
 vi.mock('@/hooks/useStoredState', () => ({

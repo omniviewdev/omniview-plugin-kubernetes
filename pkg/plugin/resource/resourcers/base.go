@@ -439,7 +439,7 @@ func (s *KubernetesResourcerBase[T]) Source(ctx context.Context, client *clients
 		if err != nil {
 			return resource.SourceObservation{}, err
 		}
-		result := resource.SourceObservation{Record: record}
+		result := resource.SourceObservation{Record: resource.CompactSourceRecord(record)}
 		metadata := extractMetadata(u)
 		if len(metadata.Labels) != 0 || metadata.CreatedAt != nil {
 			result.Metadata = &metadata

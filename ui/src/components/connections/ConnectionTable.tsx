@@ -2,7 +2,7 @@ import { IconButton, Text } from '@omniviewdev/base-ui';
 import {
   usePluginContext,
   useConnection,
-  useSnackbar,
+  useNotifications,
   usePluginRouter,
 } from '@omniviewdev/runtime';
 import { types } from '@omniviewdev/runtime/models';
@@ -86,8 +86,8 @@ const GridCardWrapper: React.FC<{
 }) => {
   const { meta } = usePluginContext();
   const { navigate } = usePluginRouter();
-  // eslint-disable-next-line @typescript-eslint/unbound-method
-  const { showSnackbar } = useSnackbar();
+   
+  const { notify } = useNotifications();
   const { startConnection, stopConnection } = useConnection({
     pluginID: meta.id,
     connectionID: enriched.connection.id,
@@ -107,7 +107,7 @@ const GridCardWrapper: React.FC<{
       })
       .catch((err) => {
         if (err instanceof Error) {
-          showSnackbar({ status: 'error', message: err.message, icon: 'LuCircleAlert' });
+          void notify({ severity: 'error', title: err.message });
         }
       });
   };
@@ -116,7 +116,7 @@ const GridCardWrapper: React.FC<{
     onRecordAccess();
     startConnection().catch((err) => {
       if (err instanceof Error) {
-        showSnackbar({ status: 'error', message: err.message, icon: 'LuCircleAlert' });
+        void notify({ severity: 'error', title: err.message });
       }
     });
   };
@@ -124,7 +124,7 @@ const GridCardWrapper: React.FC<{
   const handleDisconnect = () => {
     stopConnection().catch((err) => {
       if (err instanceof Error) {
-        showSnackbar({ status: 'error', message: err.message, icon: 'LuCircleAlert' });
+        void notify({ severity: 'error', title: err.message });
       }
     });
   };
@@ -133,13 +133,12 @@ const GridCardWrapper: React.FC<{
     navigator.clipboard
       .writeText(enriched.connection.id)
       .then(() => {
-        showSnackbar({ status: 'success', message: 'Connection ID copied' });
+        void notify({ severity: 'success', title: 'Connection ID copied' });
       })
       .catch((error: unknown) => {
-        showSnackbar({
-          status: 'error',
-          message: error instanceof Error ? error.message : 'Failed to copy connection ID',
-          icon: 'LuCircleAlert',
+        void notify({
+          severity: 'error',
+          title: error instanceof Error ? error.message : 'Failed to copy connection ID',
         });
       });
   };
@@ -324,11 +323,13 @@ const ConnectionTable: React.FC<Props> = ({
 
   // List view - only render visible label columns
   const sortedVisibleCols = visibleColumns
-    .filter((c) => allConnections.some((e) => {
-      // connection.labels is Record<string, any> from the runtime SDK
-      const labels = e.connection.labels as Record<string, string | undefined> | undefined;
-      return labels?.[c] !== undefined;
-    }))
+    .filter((c) =>
+      allConnections.some((e) => {
+        // connection.labels is Record<string, any> from the runtime SDK
+        const labels = e.connection.labels as Record<string, string | undefined> | undefined;
+        return labels?.[c] !== undefined;
+      }),
+    )
     .sort();
 
   return (
@@ -345,14 +346,9 @@ const ConnectionTable: React.FC<Props> = ({
           hideHeader={isFlat}
         >
           <div style={tableWrapperStyle}>
-            <table
-              aria-label="connections table"
-              style={tableStyle}
-            >
+            <table aria-label="connections table" style={tableStyle}>
               <thead>
-                <tr
-                  style={theadRowStyle}
-                >
+                <tr style={theadRowStyle}>
                   <th style={{ ...thStyle, width: 32, padding: '2px 4px' }} />
                   <th style={{ ...thStyle, width: '40%' }}>
                     <Text size="xs" weight="semibold" tone="muted" style={columnHeaderStyle}>
@@ -372,7 +368,15 @@ const ConnectionTable: React.FC<Props> = ({
                       </Text>
                     </th>
                   ))}
-                  <th style={{ ...thStyle, width: 36, padding: '0 4px', position: 'relative', textAlign: 'right' }}>
+                  <th
+                    style={{
+                      ...thStyle,
+                      width: 36,
+                      padding: '0 4px',
+                      position: 'relative',
+                      textAlign: 'right',
+                    }}
+                  >
                     <div style={columnPickerStyle}>
                       <ColumnPicker
                         allColumns={allLabelKeys}
