@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/omniview/kubernetes/pkg/utils/kubeauth"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	resourceplugin "github.com/omniviewdev/plugin-sdk/pkg/resource/v2/plugin"
 	resourcepb "github.com/omniviewdev/plugin-sdk/proto/resource/v2"
@@ -45,6 +46,12 @@ func nativeTestObject(name, namespace string) *unstructured.Unstructured {
 	object.SetUID(types.UID("native-uid"))
 	object.SetResourceVersion("rv:opaque/9")
 	return object
+}
+
+type nativeTestRoundTrip func(*http.Request) (*http.Response, error)
+
+func (f nativeTestRoundTrip) RoundTrip(request *http.Request) (*http.Response, error) {
+	return f(request)
 }
 
 func nativeTestClient(objects ...runtime.Object) *dynamicfake.FakeDynamicClient {
@@ -488,11 +495,20 @@ func TestNativeEnumerateReplaysBoundedPages(t *testing.T) {
 		return item
 	}
 	t.Run("multi namespace and requested limit", func(t *testing.T) {
+		var aCalls atomic.Int32
 		client := nativeTestHTTPClient(t, func(request *http.Request) *unstructured.UnstructuredList {
 			assert.Equal(t, "3", request.URL.Query().Get("limit"))
 			assert.Empty(t, request.URL.Query().Get("continue"))
 			if strings.Contains(request.URL.Path, "/namespaces/a/") {
-				return nativeTestList(object("a1", "a"), object("a2", "a"))
+				if aCalls.Add(1) > 1 {
+					assert.Equal(t, "list-revision", request.URL.Query().Get("resourceVersion"))
+					assert.Equal(t, "Exact", request.URL.Query().Get("resourceVersionMatch"))
+				}
+				list := nativeTestList(object("a1", "a"), object("a2", "a"))
+				if aCalls.Load() > 1 && request.URL.Query().Get("resourceVersion") == "" {
+					list.SetResourceVersion("advanced-revision")
+				}
+				return list
 			}
 			return nativeTestList(object("b1", "b"))
 		})
@@ -583,6 +599,93 @@ func TestNativeEnumerateReplaysBoundedPages(t *testing.T) {
 		_, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, nativeTestEnumerate(nativeTestAny()), nativeTestRepresentation())
 		require.Equal(t, "RESOURCE_LIMIT", resourcev2.ErrorCode(err))
 	})
+}
+
+func TestNativeEnumerateAdaptiveNativeLimit(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "2", r.URL.Query().Get("limit"))
+		list := nativeTestList(nativeTestObject("a", "ns"), nativeTestObject("b", "ns"))
+		if r.URL.Query().Get("continue") == "" {
+			list.SetContinue("next")
+		} else {
+			assert.Equal(t, "next", r.URL.Query().Get("continue"))
+			list = nativeTestList(nativeTestObject("c", "ns"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		assert.NoError(t, json.NewEncoder(w).Encode(list))
+	}))
+	defer server.Close()
+	var limits []string
+	httpClient := &http.Client{Transport: nativeTestRoundTrip(func(r *http.Request) (*http.Response, error) {
+		limits = append(limits, r.URL.Query().Get("limit"))
+		if r.URL.Query().Get("limit") == "4" {
+			return nil, &resourcev2.ResourceOperationError{Err: kubeauth.ErrResourceResponseTooLarge, Code: "RESOURCE_LIMIT"}
+		}
+		return http.DefaultTransport.RoundTrip(r)
+	})}
+	client, err := dynamic.NewForConfigAndClient(&rest.Config{Host: server.URL}, httpClient)
+	require.NoError(t, err)
+	request := nativeTestEnumerate(nativeTestAny())
+	request.PageSize = 4
+	first, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
+	require.NoError(t, err)
+	require.Len(t, first.Records, 2)
+	require.NotNil(t, first.NextCursor)
+	request.Cursor = first.NextCursor
+	second, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
+	require.NoError(t, err)
+	require.Len(t, second.Records, 1)
+	require.Nil(t, second.NextCursor)
+	assert.Equal(t, []string{"4", "2", "2"}, limits)
+}
+
+func TestNativeEnumerateDoesNotChangeContinuedNativeLimit(t *testing.T) {
+	client := nativeTestClient()
+	calls := 0
+	client.PrependReactor("list", "widgets", func(action clienttesting.Action) (bool, runtime.Object, error) {
+		calls++
+		if calls == 1 {
+			list := nativeTestList(nativeTestObject("a", "ns"))
+			list.SetContinue("next")
+			return true, list, nil
+		}
+		return true, nil, &resourcev2.ResourceOperationError{Err: kubeauth.ErrResourceResponseTooLarge, Code: "RESOURCE_LIMIT"}
+	})
+	request := nativeTestEnumerate(nativeTestAny())
+	page, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
+	require.NoError(t, err)
+	require.NotNil(t, page.NextCursor)
+	request.Cursor = page.NextCursor
+	_, err = NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
+	require.Equal(t, "RESET_REQUIRED", resourcev2.ErrorCode(err))
+	assert.Equal(t, 2, calls)
+}
+
+func TestNativeCursorRejectsChangedConnectionGeneration(t *testing.T) {
+	epoch1, err := resourcev2.NewCatalogBindingEpoch()
+	require.NoError(t, err)
+	epoch2, err := resourcev2.NewCatalogBindingEpoch()
+	require.NoError(t, err)
+	revision1, err := resourcev2.BindCatalogRevision(epoch1, "catalog")
+	require.NoError(t, err)
+	revision2, err := resourcev2.BindCatalogRevision(epoch2, "catalog")
+	require.NoError(t, err)
+	client := nativeTestClient()
+	client.PrependReactor("list", "widgets", func(action clienttesting.Action) (bool, runtime.Object, error) {
+		list := nativeTestList(nativeTestObject("a", "ns"))
+		list.SetContinue("next")
+		return true, list, nil
+	})
+	request := nativeTestEnumerate(nativeTestAny())
+	ctx := resourcev2.WithCatalogRevision(context.Background(), revision1)
+	page, err := NativeEnumerate(ctx, client, nativeTestGVR, true, request, nativeTestRepresentation())
+	require.NoError(t, err)
+	require.NotNil(t, page.NextCursor)
+	request.Cursor = page.NextCursor
+	ctx = resourcev2.WithCatalogRevision(context.Background(), revision2)
+	_, err = NativeEnumerate(ctx, client, nativeTestGVR, true, request, nativeTestRepresentation())
+	require.Equal(t, "RESET_REQUIRED", resourcev2.ErrorCode(err))
+	assert.Len(t, client.Actions(), 1)
 }
 
 func TestNativeReadsCancellationAndSourceErrors(t *testing.T) {

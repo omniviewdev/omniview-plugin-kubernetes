@@ -6,10 +6,12 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"maps"
 	"sort"
 	"strings"
 
+	"github.com/omniview/kubernetes/pkg/utils/kubeauth"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -122,6 +124,24 @@ func nativeEnumerate(ctx context.Context, client dynamic.Interface, gvr schema.G
 	if err != nil {
 		return resourcev2.SourcePage{}, err
 	}
+	revision, pinned := resourcev2.CatalogRevisionForRouteFromContext(ctx, request.Target.Provider, request.Target.Route)
+	generation := ""
+	if pinned {
+		generation, err = resourcev2.CatalogBindingEpoch(revision)
+		if err != nil {
+			return resourcev2.SourcePage{}, err
+		}
+	}
+	if request.Cursor != nil && cursor.Generation != generation {
+		return resourcev2.SourcePage{}, resourcev2.NewError("RESET_REQUIRED", "The native source connection generation changed")
+	}
+	cursor.Generation = generation
+	if cursor.NativeLimit == 0 {
+		cursor.NativeLimit = request.PageSize
+	}
+	if cursor.NativeLimit > request.PageSize {
+		return resourcev2.SourcePage{}, resourcev2.NewError("INVALID_REQUEST", "The native source cursor has an invalid page limit")
+	}
 	page := resourcev2.SourcePage{
 		Records:     []resourcev2.Record{},
 		Count:       resourcev2.Count{Kind: "unknown"},
@@ -132,21 +152,35 @@ func nativeEnumerate(ctx context.Context, client dynamic.Interface, gvr schema.G
 		return page, nil
 	}
 	namespace := namespaces[cursor.Namespace]
-	list, err := nativeResourceClient(client, gvr, namespaced, namespace).List(ctx, metav1.ListOptions{
-		Limit:         int64(request.PageSize),
-		Continue:      cursor.Continue,
-		LabelSelector: selector,
-	})
-	if err != nil {
+	var list *unstructured.UnstructuredList
+	for {
+		options := metav1.ListOptions{Limit: int64(cursor.NativeLimit), Continue: cursor.Continue, LabelSelector: selector}
+		if cursor.Offset != 0 && cursor.Continue == "" {
+			if cursor.Revision == "" {
+				return resourcev2.SourcePage{}, resourcev2.NewError("RESET_REQUIRED", "The native source snapshot revision is unavailable")
+			}
+			options.ResourceVersion = cursor.Revision
+			options.ResourceVersionMatch = metav1.ResourceVersionMatchExact
+		}
+		list, err = nativeResourceClient(client, gvr, namespaced, namespace).List(ctx, options)
+		if err == nil {
+			break
+		}
 		if apierrors.IsResourceExpired(err) || apierrors.IsGone(err) {
 			return resourcev2.SourcePage{}, resourcev2.NewError("RESET_REQUIRED", "The native source continuation has expired")
 		}
-		return resourcev2.SourcePage{}, err
+		if !errors.Is(err, kubeauth.ErrResourceResponseTooLarge) || cursor.NativeLimit == 1 {
+			return resourcev2.SourcePage{}, err
+		}
+		if cursor.Offset != 0 || cursor.Continue != "" {
+			return resourcev2.SourcePage{}, resourcev2.NewError("RESET_REQUIRED", "The native source page exceeded its response budget")
+		}
+		cursor.NativeLimit = (cursor.NativeLimit + 1) / 2
 	}
 	if err := ctx.Err(); err != nil {
 		return resourcev2.SourcePage{}, err
 	}
-	if len(list.Items) > int(request.PageSize) {
+	if len(list.Items) > int(cursor.NativeLimit) {
 		return resourcev2.SourcePage{}, resourcev2.NewError("RESOURCE_LIMIT", "The API server exceeded the requested native source page size")
 	}
 	hash := sha256.New()
@@ -168,15 +202,20 @@ func nativeEnumerate(ctx context.Context, client dynamic.Interface, gvr schema.G
 		next := cursor
 		if offset < len(list.Items) {
 			next.Offset = offset
+			if cursor.Continue == "" {
+				next.Revision = list.GetResourceVersion()
+			}
 			next.Digest = digest
 		} else {
 			next.Offset = 0
+			next.Revision = ""
 			next.Digest = ""
 			if continuation != "" {
 				next.Continue = continuation
 			} else {
 				next.Namespace++
 				next.Continue = ""
+				next.NativeLimit = request.PageSize
 			}
 		}
 		if next.Namespace >= len(namespaces) {
@@ -229,6 +268,9 @@ func nativeEnumerate(ctx context.Context, client dynamic.Interface, gvr schema.G
 			baseFields+recordFields+fields > resourcev2.MaxWireFields {
 			if len(page.Records) == 0 {
 				return resourcev2.SourcePage{}, resourcev2.NewError("RESOURCE_LIMIT", "A native source record exceeds the resource wire budget")
+			}
+			if cursor.Continue == "" && list.GetResourceVersion() == "" {
+				return resourcev2.SourcePage{}, resourcev2.NewError("RESET_REQUIRED", "The native source snapshot revision is unavailable")
 			}
 			break
 		}
@@ -375,12 +417,15 @@ func nativeOptionalToken(value string) *string {
 }
 
 type nativeReadCursor struct {
-	Version   int    `json:"version"`
-	Binding   string `json:"binding"`
-	Namespace int    `json:"namespace"`
-	Continue  string `json:"continue"`
-	Offset    int    `json:"offset,omitempty"`
-	Digest    string `json:"digest,omitempty"`
+	Version     int    `json:"version"`
+	Binding     string `json:"binding"`
+	Namespace   int    `json:"namespace"`
+	Continue    string `json:"continue"`
+	Offset      int    `json:"offset,omitempty"`
+	Digest      string `json:"digest,omitempty"`
+	NativeLimit uint32 `json:"nativeLimit,omitempty"`
+	Generation  string `json:"generation,omitempty"`
+	Revision    string `json:"revision,omitempty"`
 }
 
 func nativeCursorBinding(request resourcev2.EnumerateRequest, gvr schema.GroupVersionResource, namespaced bool, namespaces []string, selector string) (string, error) {

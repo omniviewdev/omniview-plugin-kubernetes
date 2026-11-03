@@ -19,6 +19,10 @@ import (
 
 const ResourceResponseLimit = 32 * 1024 * 1024
 
+// ErrResourceResponseTooLarge identifies the finite-response guard, not a
+// Kubernetes API rate limit or another RESOURCE_LIMIT failure.
+var ErrResourceResponseTooLarge = errors.New("decoded native resource response exceeds limit")
+
 // LoadResourceKubeClients opts finite native resource responses into a decoded
 // HTTP body budget. It must not be used for logs, exec, or metrics clients.
 // Native JSON watch streams instead receive a per-frame decoded byte budget.
@@ -151,7 +155,7 @@ func (t *resourceResponseTransport) RoundTrip(req *http.Request) (*http.Response
 		return nil, err
 	}
 	if len(body) > ResourceResponseLimit {
-		return nil, resourcev2.NewError("RESOURCE_LIMIT", "The decoded native resource HTTP response exceeded 32 MiB")
+		return nil, &resourcev2.ResourceOperationError{Err: ErrResourceResponseTooLarge, Code: "RESOURCE_LIMIT", Message: "The decoded native resource HTTP response exceeded 32 MiB"}
 	}
 	response.Body = io.NopCloser(bytes.NewReader(body))
 	response.ContentLength = int64(len(body))
