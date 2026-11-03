@@ -922,8 +922,8 @@ rather than adding unsupported manifest fields.
 
 Registry installs retain pnpm's 24-hour release-age protection. Only coordinated
 `@omniviewdev/*` packages are exempted; linked source worktrees resolve locally.
-The current frontend cohort uses `@omniviewdev/base-ui` 0.11.1,
-`@omniviewdev/editors` 6.1.5, and runtime/Vite plugin 0.26.0.
+The current frontend cohort uses `@omniviewdev/base-ui` 0.12.0,
+`@omniviewdev/editors` 6.1.6, and runtime/Vite plugin 0.27.0.
 The published runtime and Vite plugin must match; source builds use the reviewed host runtime.
 The backend pins Go SDK `v0.14.4-0.20261103022722-1712cd3b66e1`, matching
 the host's profiled validation and DTO allocation improvements while retaining
@@ -1073,8 +1073,8 @@ Commit curated notes in `docs/releases/X.Y.Z.md`, starting with
 `# Kubernetes X.Y.Z`, alongside the version bump. Include user-facing changes,
 linked feature PRs and real IDE screenshots. The workflow validates and publishes
 that file as the GitHub release body; it does not append generated notes.
-Kubernetes 0.15.0 requires IDE 0.26.0 or newer. Make the compatible host available
-before publishing the plugin; npm package publication alone is not a desktop release.
+Kubernetes 0.15.0 requires IDE 0.27.0 or newer. Publish the Omniview 0.27.0
+desktop release before publishing the plugin; npm package publication alone is not a desktop release.
 
 The release workflow uses the Go version declared in `go.mod`, Node.js 26.13.0,
 and native pnpm 12.14.0 to build five platform archives on a GitHub-hosted runner.
