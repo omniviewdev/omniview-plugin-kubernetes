@@ -8,6 +8,7 @@ import React from 'react';
 import { LuShieldCheck } from 'react-icons/lu';
 import { useParams } from 'react-router'
 
+import ColumnPicker from '../../../../tables/ColumnFilter/ColumnPicker';
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
 import { withNamespacedResourceColumns } from '../../shared/columns';
@@ -93,6 +94,7 @@ const PodDisruptionBudgetTable: React.FC = () => {
 
   return (
     <ResourceTable
+      columnPicker={ColumnPicker}
       columns={columns}
       connectionID={id}
       resourceKey={resourceKey}
