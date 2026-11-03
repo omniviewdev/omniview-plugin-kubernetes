@@ -459,10 +459,119 @@ func TestNativeReadsEnforceResourceWireBudgets(t *testing.T) {
 		})
 		request := nativeTestEnumerate(nativeTestAny())
 		request.PageSize = 3
-		page, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
-		assert.Equal(t, "RESOURCE_LIMIT", resourcev2.ErrorCode(err))
-		assert.Empty(t, page.Records, "over-budget acquisition must not return partial success")
-		assert.Len(t, client.Actions(), 1)
+		var names []string
+		for {
+			page, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
+			require.NoError(t, err)
+			for _, record := range page.Records {
+				names = append(names, record.Reference.Address.ID)
+			}
+			if page.NextCursor == nil {
+				break
+			}
+			request.Cursor = page.NextCursor
+		}
+		assert.Equal(t, []string{"a", "b", "c"}, names)
+		assert.Greater(t, len(client.Actions()), 1)
+	})
+}
+
+func TestNativeEnumerateReplaysBoundedPages(t *testing.T) {
+	large := make([]any, 140000)
+	object := func(name, namespace string) *unstructured.Unstructured {
+		item := nativeTestObject(name, namespace)
+		item.Object["data"] = large
+		return item
+	}
+	t.Run("multi namespace and requested limit", func(t *testing.T) {
+		client := nativeTestHTTPClient(t, func(request *http.Request) *unstructured.UnstructuredList {
+			assert.Equal(t, "3", request.URL.Query().Get("limit"))
+			assert.Empty(t, request.URL.Query().Get("continue"))
+			if strings.Contains(request.URL.Path, "/namespaces/a/") {
+				return nativeTestList(object("a1", "a"), object("a2", "a"))
+			}
+			return nativeTestList(object("b1", "b"))
+		})
+		request := nativeTestEnumerate(nativeTestOneOf("a", "b"))
+		request.PageSize = 3
+		var names []string
+		for {
+			page, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
+			require.NoError(t, err)
+			for _, record := range page.Records {
+				names = append(names, record.Reference.Address.ID)
+			}
+			if page.NextCursor == nil {
+				break
+			}
+			request.Cursor = page.NextCursor
+		}
+		assert.Equal(t, []string{"a1", "a2", "b1"}, names)
+	})
+	t.Run("query replay before native continuation", func(t *testing.T) {
+		var calls atomic.Int32
+		client := nativeTestHTTPClient(t, func(request *http.Request) *unstructured.UnstructuredList {
+			assert.Equal(t, "app=test", request.URL.Query().Get("labelSelector"))
+			assert.Equal(t, "2", request.URL.Query().Get("limit"))
+			calls.Add(1)
+			if request.URL.Query().Get("continue") == "next" {
+				return nativeTestList(object("c", "ns"))
+			}
+			assert.Empty(t, request.URL.Query().Get("continue"))
+			list := nativeTestList(object("a", "ns"), object("b", "ns"))
+			list.SetContinue("next")
+			return list
+		})
+		request := parityQuery("app=test")
+		var names []string
+		for {
+			page, err := NativeQuery(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
+			require.NoError(t, err)
+			for _, record := range page.Records {
+				names = append(names, record.Reference.Address.ID)
+			}
+			if page.NextCursor == nil {
+				break
+			}
+			request.Cursor = page.NextCursor
+		}
+		assert.Equal(t, []string{"a", "b", "c"}, names)
+		assert.Equal(t, int32(3), calls.Load())
+	})
+	for _, mode := range []string{"mutation", "expiry"} {
+		t.Run(mode, func(t *testing.T) {
+			client := nativeTestClient()
+			calls := 0
+			client.PrependReactor("list", "widgets", func(action clienttesting.Action) (bool, runtime.Object, error) {
+				calls++
+				if calls > 1 && mode == "expiry" {
+					return true, nil, apierrors.NewResourceExpired("expired")
+				}
+				first := object("a", "ns")
+				if calls > 1 {
+					first.SetResourceVersion("changed")
+				}
+				return true, nativeTestList(first, object("b", "ns")), nil
+			})
+			request := nativeTestEnumerate(nativeTestAny())
+			page, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
+			require.NoError(t, err)
+			require.Len(t, page.Records, 1)
+			require.NotNil(t, page.NextCursor)
+			request.Cursor = page.NextCursor
+			_, err = NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
+			require.Equal(t, "RESET_REQUIRED", resourcev2.ErrorCode(err))
+		})
+	}
+	t.Run("single oversized record", func(t *testing.T) {
+		item := object("oversized", "ns")
+		item.Object["data"] = make([]any, resourcev2.MaxValueNodes)
+		client := nativeTestClient()
+		client.PrependReactor("list", "widgets", func(action clienttesting.Action) (bool, runtime.Object, error) {
+			return true, nativeTestList(item), nil
+		})
+		_, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, nativeTestEnumerate(nativeTestAny()), nativeTestRepresentation())
+		require.Equal(t, "RESOURCE_LIMIT", resourcev2.ErrorCode(err))
 	})
 }
 
