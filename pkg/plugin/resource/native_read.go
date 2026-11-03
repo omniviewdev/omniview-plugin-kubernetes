@@ -71,8 +71,9 @@ func NativeGet(ctx context.Context, client dynamic.Interface, gvr schema.GroupVe
 	return record, nil
 }
 
-// NativeEnumerate performs at most one bounded API List per call. Its private
-// cursor resumes source acquisition only; it is never a host query cursor.
+// NativeEnumerate assembles a bounded source page from bounded native Lists,
+// requesting one item per List. Its private cursor resumes source acquisition
+// only; it is never a host query cursor.
 // Separate namespace lists do not establish a shared point-in-time snapshot.
 func NativeEnumerate(ctx context.Context, client dynamic.Interface, gvr schema.GroupVersionResource, namespaced bool, request resourcev2.EnumerateRequest, representation resourcev2.Representation) (resourcev2.SourcePage, error) {
 	return nativeEnumerate(ctx, client, gvr, namespaced, request, representation, "")
