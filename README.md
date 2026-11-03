@@ -904,7 +904,7 @@ rather than adding unsupported manifest fields.
 Registry installs retain pnpm's 24-hour release-age protection. Only coordinated
 `@omniviewdev/*` packages are exempted; linked source worktrees resolve locally.
 The current frontend cohort uses `@omniviewdev/base-ui` 0.11.1,
-`@omniviewdev/editors` 6.1.5, and runtime/Vite plugin 0.24.0.
+`@omniviewdev/editors` 6.1.5, and runtime/Vite plugin 0.26.0.
 P07 source builds use the reviewed host runtime.
 The backend pins Go SDK `v0.14.3` for P07 and the existing settings,
 connection metadata, profiling, and configurable acquisition timeout APIs.
