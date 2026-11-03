@@ -9,6 +9,7 @@ import { useParams } from 'react-router'
 
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
+import ColumnPicker from '../../../../tables/ColumnFilter/ColumnPicker';
 import cellStyles from '../../shared/cells/cells.module.css';
 import { squareChipStyle } from '../../shared/cells/styles';
 import { withNamespacedResourceColumns } from '../../shared/columns';
@@ -78,6 +79,7 @@ const ConfigMapTable: React.FC = () => {
   return (
     <ResourceTable
       columns={columns}
+      columnPicker={ColumnPicker}
       connectionID={id}
       resourceKey={resourceKey}
       drawer={drawer}

@@ -10,6 +10,7 @@ import { useParams } from 'react-router'
 import { convertByteUnits } from '../../../../../utils/units';
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
+import ColumnPicker from '../../../../tables/ColumnFilter/ColumnPicker';
 import NodeSidebar from '../../../sidebar/NodeSidebar';
 import ConditionsCell from '../../shared/cells/ConditionsCell';
 import { CopyableCell } from '../../shared/cells/CopyableCell';
@@ -29,10 +30,9 @@ const NodeTable: React.FC = () => {
           {
             id: 'os',
             header: 'OS',
-            accessorKey: 'status.nodeInfo.osImage',
+            accessorKey: 'status.nodeInfo.operatingSystem',
             size: 120,
             enableSorting: true,
-            enableHiding: false,
             cell: CopyableCell,
             meta: {
               defaultHidden: true,
@@ -137,6 +137,7 @@ const NodeTable: React.FC = () => {
   return (
     <ResourceTable
       columns={columns}
+      columnPicker={ColumnPicker}
       connectionID={id}
       resourceKey={resourceKey}
       drawer={drawer}
