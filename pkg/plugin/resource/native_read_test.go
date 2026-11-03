@@ -480,7 +480,8 @@ func TestNativeReadsEnforceResourceWireBudgets(t *testing.T) {
 }
 
 func TestNativeEnumerateReplaysBoundedPages(t *testing.T) {
-	large := make([]any, 140000)
+	// Each null contributes both a Value and NullValue protobuf node.
+	large := make([]any, 70000)
 	object := func(name, namespace string) *unstructured.Unstructured {
 		item := nativeTestObject(name, namespace)
 		item.Object["data"] = large
@@ -629,7 +630,7 @@ func TestNativeReadsCancellationAndSourceErrors(t *testing.T) {
 			return true, nil, expired
 		})
 		page, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, nativeTestEnumerate(nativeTestAny()), nativeTestRepresentation())
-		assert.Same(t, expired, err)
+		assert.Equal(t, "RESET_REQUIRED", resourcev2.ErrorCode(err))
 		assert.Empty(t, page.Records)
 		assert.Len(t, client.Actions(), 1, "expired acquisition must not restart as a fresh list")
 	})
