@@ -5,6 +5,7 @@ import React from 'react';
 import { LuContainer } from 'react-icons/lu';
 import { useParams } from 'react-router'
 
+import ColumnPicker from '@/components/tables/ColumnFilter/ColumnPicker';
 import { PLUGIN_ID } from '@/pluginId';
 
 import { KubernetesResourceObject } from '../../../../types/resource';
@@ -19,9 +20,8 @@ const DefaultTable: React.FC = () => {
   const { id = '', resourceKey = '' } = useParams<{ id: string; resourceKey: string }>();
   const key = resourceKey;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const columns = React.useMemo<Array<ColumnDef<DataTableFeatures, any>>>(
-    () => withNamespacedResourceColumns([], { connectionID: id, resourceKey }),
+  const columns = React.useMemo<Array<ColumnDef<DataTableFeatures, KubernetesResourceObject>>>(
+    () => withNamespacedResourceColumns<KubernetesResourceObject>([], { connectionID: id, resourceKey }),
     [id, resourceKey],
   );
 
@@ -53,6 +53,7 @@ const DefaultTable: React.FC = () => {
   return (
     <ResourceTable
       columns={columns}
+      columnPicker={ColumnPicker}
       connectionID={id}
       resourceKey={key}
       drawer={drawer}
