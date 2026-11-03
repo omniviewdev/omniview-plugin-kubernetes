@@ -10,6 +10,7 @@ import { useParams } from 'react-router'
 
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
+import ColumnPicker from '../../../../tables/ColumnFilter/ColumnPicker';
 import { ChipListCell } from '../../shared/cells/ChipList';
 import { CopyableCell } from '../../shared/cells/CopyableCell';
 import { withClusterResourceColumns } from '../../shared/columns';
@@ -81,6 +82,7 @@ const StorageClassTable: React.FC = () => {
   return (
     <ResourceTable
       columns={columns}
+      columnPicker={ColumnPicker}
       connectionID={id}
       resourceKey={resourceKey}
       drawer={drawer}
