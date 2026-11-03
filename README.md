@@ -56,6 +56,9 @@ a subtle divider, and hover feedback; idle styling matches neighboring ghost
 actions. Focus and disabled states remain independent. Resource row menus keep
 their Debug options entry.
 
+Kubernetes plugin 0.15.0 requires Omniview 0.27.0 or newer for the shared sizing
+and joined Debug split-menu contracts. Update the desktop before installing it.
+
 ## MCP resource actions
 
 The resource catalog exposes unary `rollout-restart` actions for Deployments, StatefulSets and
@@ -914,7 +917,10 @@ Cluster preferences and sidebar ordering remain plugin-data preferences, not SDK
 settings. Rebuild and reload both plugin artifacts after upgrading the coordinated
 SDK/runtime release; restarting an old executable alone does not migrate it.
 
-The plugin manifest schema has no minimum-host-version field. Keep the host,
+The plugin manifest schema has no minimum-host-version field. The release
+workflow declares the marketplace requirement through the publish action's
+`min-ide-version` input, set to `0.27.0` for Kubernetes 0.15.0. The marketplace
+must confirm it persists and enforces this requirement before upload. Keep the
 backend SDK, runtime, and Vite plugin on the coordinated release cohort below
 rather than adding unsupported manifest fields.
 
@@ -1059,6 +1065,9 @@ changes back to `main`. The Go module and UI lockfile must resolve published
 dependencies without a sibling checkout or workspace replacements. Local
 `go.work` files are not release inputs: development SDK selection belongs to the
 host's isolated workspace, and direct Go commands must use `GOWORK=off GOFLAGS=`.
+Publish the compatible Omniview 0.27.0 desktop and coordinated public frontend
+dependencies before publishing Kubernetes 0.15.0. Pin those published versions in
+`ui/package.json` and regenerate `ui/pnpm-lock.yaml` before final validation.
 
 The release workflow uses the Go version declared in `go.mod`, Node.js 26.13.0,
 and native pnpm 12.14.0 to build five platform archives on a GitHub-hosted runner.
