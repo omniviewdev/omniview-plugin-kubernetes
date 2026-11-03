@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://omniview.dev"><img src="https://img.shields.io/badge/omniview-plugin-326CE5?style=flat-square&logo=kubernetes&logoColor=white" alt="Omniview Plugin" /></a>
-  <img src="https://img.shields.io/badge/version-0.13.0-blue?style=flat-square" alt="Version" />
+  <img src="https://img.shields.io/badge/version-0.15.0-blue?style=flat-square" alt="Version" />
   <img src="https://img.shields.io/badge/license-Apache--2.0-green?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/category-cloud-326CE5?style=flat-square" alt="Category" />
 </p>
@@ -32,6 +32,15 @@ documents measured contrast, nested themes, and screenshots.
 Cluster avatar initials tolerate leading, trailing, and repeated whitespace or
 dash separators while a display name is being edited. Whitespace-only names use
 `NA`; the display name itself is not normalized or changed.
+
+Container log requests with an explicit `SinceTime` use that timestamp instead
+of `SinceSeconds`. Kubernetes accepts only one time filter per log request.
+
+Kubernetes plugin 0.15.0 requires Omniview 0.27.1 or newer so the host includes
+the matching log lifecycle fixes. Update the desktop application before installing
+this plugin release.
+The plugin pins SDK 0.14.5 for log lifecycle handling while preserving the
+existing source-session wire contract and stock grpc-go dependency.
 
 ## MCP resource actions
 

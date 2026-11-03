@@ -93,6 +93,8 @@ func PodLogHandler(clients *kubeauth.KubeClientBundle, ctx *types.PluginContext,
 	if req.SinceTime != nil {
 		t := metav1.NewTime(*req.SinceTime)
 		logOpts.SinceTime = &t
+		// Kubernetes rejects requests containing both time filters.
+		logOpts.SinceSeconds = nil
 	}
 
 	if req.LimitBytes > 0 {
