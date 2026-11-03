@@ -52,6 +52,13 @@ func LoadResourceKubeClients(ctx context.Context, path, kubeContext string) (*Ku
 		copy := *client
 		client = &copy
 	}
+	// Construct once from the exact configured/authenticated transport, before
+	// installing resource-only response budgets.
+	streamingHTTP := *client
+	streamingClientset, err := kubernetes.NewForConfigAndClient(config, &streamingHTTP)
+	if err != nil {
+		return nil, err
+	}
 	client.Transport = &resourceResponseTransport{base: client.Transport, lifetime: ctx}
 	clientset, err := kubernetes.NewForConfigAndClient(config, client)
 	if err != nil {
@@ -66,7 +73,8 @@ func LoadResourceKubeClients(ctx context.Context, path, kubeContext string) (*Ku
 		return nil, err
 	}
 	return &KubeClientBundle{Clientset: clientset, Dynamic: dyn, Discovery: disco,
-		RestConfig: config, HTTPClient: client}, nil
+		RestConfig: config, HTTPClient: client,
+		StreamingClientset: streamingClientset, StreamingHTTPClient: &streamingHTTP}, nil
 }
 
 type resourceResponseTransport struct {

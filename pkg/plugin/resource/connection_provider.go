@@ -16,6 +16,7 @@ import (
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilnet "k8s.io/apimachinery/pkg/util/net"
 
 	resource "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
@@ -39,12 +40,14 @@ func (p *kubeConnectionProvider) CreateClient(ctx context.Context) (*clients.Cli
 	}
 
 	return &clients.ClientSet{
-		Clientset:       bundle.Clientset,
-		KubeClient:      bundle.Clientset,
-		DiscoveryClient: bundle.Discovery,
-		DynamicClient:   bundle.Dynamic,
-		RESTConfig:      bundle.RestConfig,
-		HTTPClient:      bundle.HTTPClient,
+		Clientset:           bundle.Clientset,
+		KubeClient:          bundle.Clientset,
+		DiscoveryClient:     bundle.Discovery,
+		DynamicClient:       bundle.Dynamic,
+		RESTConfig:          bundle.RestConfig,
+		HTTPClient:          bundle.HTTPClient,
+		StreamingClientset:  bundle.StreamingClientset,
+		StreamingHTTPClient: bundle.StreamingHTTPClient,
 	}, nil
 }
 
@@ -54,6 +57,9 @@ func (p *kubeConnectionProvider) DestroyClient(_ context.Context, client *client
 		return nil
 	}
 	client.ShutdownInformers()
+	if client.StreamingHTTPClient != nil {
+		utilnet.CloseIdleConnectionsFor(client.StreamingHTTPClient.Transport)
+	}
 	return nil
 }
 
