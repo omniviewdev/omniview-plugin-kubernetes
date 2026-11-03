@@ -10,6 +10,7 @@ import { useParams } from 'react-router'
 
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
+import ColumnPicker from '../../../../tables/ColumnFilter/ColumnPicker';
 import ResourceLinkCell from '../../corev1/Pod/cells/ResourceLinkCell';
 import ChipList from '../../shared/cells/ChipList';
 import { CopyableCell } from '../../shared/cells/CopyableCell';
@@ -107,6 +108,7 @@ const EndpointSliceTable: React.FC = () => {
   return (
     <ResourceTable
       columns={columns}
+      columnPicker={ColumnPicker}
       connectionID={id}
       resourceKey={resourceKey}
       drawer={drawer}
