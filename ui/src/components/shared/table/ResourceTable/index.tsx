@@ -102,7 +102,7 @@ const visibilityWithRequiredColumns = <T extends RowData,>(
   let effective = visibility;
   for (const def of defs) {
     if (!def.id || def.enableHiding !== false || visibility[def.id] !== false) continue;
-    if ((def.meta as ColumnMeta | undefined)?.defaultHidden) continue;
+    if ((def.meta as { defaultHidden?: boolean } | undefined)?.defaultHidden) continue;
     if (effective === visibility) effective = { ...visibility };
     effective[def.id] = true;
   }
