@@ -10,7 +10,7 @@ require (
 	github.com/aws/smithy-go v1.22.2
 	github.com/fairwindsops/polaris v0.0.0-20250421200712-d7d30ac6116e
 	github.com/fsnotify/fsnotify v1.9.0
-	github.com/omniviewdev/plugin-sdk v0.14.4-0.20261103174511-9ba5a3c0276d
+	github.com/omniviewdev/plugin-sdk v0.14.4-0.20261103175619-d576a1516b29
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/zap v1.27.0
 	google.golang.org/grpc v1.79.2
