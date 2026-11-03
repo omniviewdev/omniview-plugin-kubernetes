@@ -36,6 +36,10 @@ dash separators while a display name is being edited. Whitespace-only names use
 Container log requests with an explicit `SinceTime` use that timestamp instead
 of `SinceSeconds`. Kubernetes accepts only one time filter per log request.
 
+Kubernetes plugin 0.15.0 requires Omniview 0.27.1 or newer so the host includes
+the matching log lifecycle fixes. Update the desktop application before installing
+this plugin release.
+
 ## MCP resource actions
 
 The resource catalog exposes unary `rollout-restart` actions for Deployments, StatefulSets and
