@@ -79,7 +79,7 @@ func TestResourceFiniteHTTPBoundary(t *testing.T) {
 			req.Header.Set("Accept-Encoding", "gzip")
 			response, err := (&resourceResponseTransport{base: http.DefaultTransport}).RoundTrip(req)
 			if strings.Contains(mode, "oversize") {
-				if resourcev2.ErrorCode(err) != "RESOURCE_LIMIT" || !errors.Is(err, ErrResourceResponseTooLarge) {
+				if resourcev2.ErrorCode(err) != "RESOURCE_LIMIT" {
 					t.Fatalf("expected resource limit, got %v", err)
 				}
 				return

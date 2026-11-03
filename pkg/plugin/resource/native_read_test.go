@@ -10,7 +10,6 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/omniview/kubernetes/pkg/utils/kubeauth"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	resourceplugin "github.com/omniviewdev/plugin-sdk/pkg/resource/v2/plugin"
 	resourcepb "github.com/omniviewdev/plugin-sdk/proto/resource/v2"
@@ -46,12 +45,6 @@ func nativeTestObject(name, namespace string) *unstructured.Unstructured {
 	object.SetUID(types.UID("native-uid"))
 	object.SetResourceVersion("rv:opaque/9")
 	return object
-}
-
-type nativeTestRoundTrip func(*http.Request) (*http.Response, error)
-
-func (f nativeTestRoundTrip) RoundTrip(request *http.Request) (*http.Response, error) {
-	return f(request)
 }
 
 func nativeTestClient(objects ...runtime.Object) *dynamicfake.FakeDynamicClient {
@@ -202,10 +195,10 @@ func TestNativeEnumerateUsesBoundedSourcePagination(t *testing.T) {
 	var calls atomic.Int32
 	client := nativeTestHTTPClient(t, func(request *http.Request) *unstructured.UnstructuredList {
 		assert.Equal(t, "/apis/sample.example/v1/widgets", request.URL.Path)
-		assert.Equal(t, "2", request.URL.Query().Get("limit"))
+		assert.Equal(t, "1", request.URL.Query().Get("limit"))
 		if calls.Add(1) == 1 {
 			assert.Empty(t, request.URL.Query().Get("continue"))
-			list := nativeTestList(nativeTestObject("first", "a"), nativeTestObject("second", "b"))
+			list := nativeTestList(nativeTestObject("first", "a"))
 			list.SetContinue("native-server-continuation")
 			remaining := int64(100)
 			list.SetRemainingItemCount(&remaining)
@@ -217,7 +210,7 @@ func TestNativeEnumerateUsesBoundedSourcePagination(t *testing.T) {
 	request := nativeTestEnumerate(nativeTestAny())
 	page, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
 	require.NoError(t, err)
-	require.Len(t, page.Records, 2)
+	require.Len(t, page.Records, 1)
 	assert.Equal(t, int32(1), calls.Load())
 	assert.Equal(t, "unknown", page.Count.Kind)
 	assert.Nil(t, page.Count.Value)
@@ -240,7 +233,7 @@ func TestNativeEnumerateUsesBoundedSourcePagination(t *testing.T) {
 func TestNativeEnumerateSelectedNamespaces(t *testing.T) {
 	var calls atomic.Int32
 	client := nativeTestHTTPClient(t, func(request *http.Request) *unstructured.UnstructuredList {
-		assert.Equal(t, "2", request.URL.Query().Get("limit"))
+		assert.Equal(t, "1", request.URL.Query().Get("limit"))
 		switch calls.Add(1) {
 		case 1:
 			assert.Equal(t, "/apis/sample.example/v1/namespaces/a/widgets", request.URL.Path)
@@ -305,7 +298,7 @@ func TestNativeEnumerateAcceptsMaximumSourcePageSize(t *testing.T) {
 	client := nativeTestHTTPClient(t, func(request *http.Request) *unstructured.UnstructuredList {
 		calls.Add(1)
 		assert.Equal(t, "/apis/sample.example/v1/widgets", request.URL.Path)
-		assert.Equal(t, "256", request.URL.Query().Get("limit"))
+		assert.Equal(t, "1", request.URL.Query().Get("limit"))
 		assert.Empty(t, request.URL.Query().Get("continue"))
 		return nativeTestList()
 	})
@@ -455,210 +448,61 @@ func TestNativeReadsEnforceResourceWireBudgets(t *testing.T) {
 		assert.Equal(t, "RESOURCE_LIMIT", resourcev2.ErrorCode(err))
 		assert.Empty(t, record.Body.Kind)
 	})
-	t.Run("aggregate page", func(t *testing.T) {
-		payload := strings.Repeat("x", resourcev2.MaxPageBodyBytes/3+1)
-		objects := make([]*unstructured.Unstructured, 0, 3)
-		for _, name := range []string{"a", "b", "c"} {
-			object := nativeTestObject(name, "ns")
-			object.Object["spec"] = map[string]any{"large": payload}
-			objects = append(objects, object)
-		}
+	t.Run("wire budget", func(t *testing.T) {
+		object := nativeTestObject("oversized", "ns")
+		object.Object["data"] = make([]any, resourcev2.MaxValueNodes)
 		client := nativeTestClient()
 		client.PrependReactor("list", "widgets", func(action clienttesting.Action) (bool, runtime.Object, error) {
-			return true, nativeTestList(objects...), nil
-		})
-		request := nativeTestEnumerate(nativeTestAny())
-		request.PageSize = 3
-		var names []string
-		for {
-			page, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
-			require.NoError(t, err)
-			for _, record := range page.Records {
-				names = append(names, record.Reference.Address.ID)
-			}
-			if page.NextCursor == nil {
-				break
-			}
-			request.Cursor = page.NextCursor
-		}
-		assert.Equal(t, []string{"a", "b", "c"}, names)
-		assert.Greater(t, len(client.Actions()), 1)
-	})
-}
-
-func TestNativeEnumerateReplaysBoundedPages(t *testing.T) {
-	// Each null contributes both a Value and NullValue protobuf node.
-	large := make([]any, 70000)
-	object := func(name, namespace string) *unstructured.Unstructured {
-		item := nativeTestObject(name, namespace)
-		item.Object["data"] = large
-		return item
-	}
-	t.Run("multi namespace and requested limit", func(t *testing.T) {
-		var aCalls atomic.Int32
-		client := nativeTestHTTPClient(t, func(request *http.Request) *unstructured.UnstructuredList {
-			assert.Equal(t, "3", request.URL.Query().Get("limit"))
-			assert.Empty(t, request.URL.Query().Get("continue"))
-			if strings.Contains(request.URL.Path, "/namespaces/a/") {
-				if aCalls.Add(1) > 1 {
-					assert.Equal(t, "list-revision", request.URL.Query().Get("resourceVersion"))
-					assert.Equal(t, "Exact", request.URL.Query().Get("resourceVersionMatch"))
-				}
-				list := nativeTestList(object("a1", "a"), object("a2", "a"))
-				if aCalls.Load() > 1 && request.URL.Query().Get("resourceVersion") == "" {
-					list.SetResourceVersion("advanced-revision")
-				}
-				return list
-			}
-			return nativeTestList(object("b1", "b"))
-		})
-		request := nativeTestEnumerate(nativeTestOneOf("a", "b"))
-		request.PageSize = 3
-		var names []string
-		for {
-			page, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
-			require.NoError(t, err)
-			wirePage, err := resourcev2.ToProtoSourcePage(page)
-			require.NoError(t, err)
-			response := &resourcepb.Response{Version: resourcev2.WireVersion, Result: &resourcepb.Response_Page{Page: wirePage}}
-			wire, err := proto.Marshal(response)
-			require.NoError(t, err)
-			require.NoError(t, resourceplugin.ValidateWire(wire, response.ProtoReflect().Descriptor()))
-			for _, record := range page.Records {
-				names = append(names, record.Reference.Address.ID)
-			}
-			if page.NextCursor == nil {
-				break
-			}
-			request.Cursor = page.NextCursor
-		}
-		assert.Equal(t, []string{"a1", "a2", "b1"}, names)
-	})
-	t.Run("query replay before native continuation", func(t *testing.T) {
-		var calls atomic.Int32
-		client := nativeTestHTTPClient(t, func(request *http.Request) *unstructured.UnstructuredList {
-			assert.Equal(t, "app=test", request.URL.Query().Get("labelSelector"))
-			assert.Equal(t, "2", request.URL.Query().Get("limit"))
-			calls.Add(1)
-			if request.URL.Query().Get("continue") == "next" {
-				return nativeTestList(object("c", "ns"))
-			}
-			assert.Empty(t, request.URL.Query().Get("continue"))
-			list := nativeTestList(object("a", "ns"), object("b", "ns"))
-			list.SetContinue("next")
-			return list
-		})
-		request := parityQuery("app=test")
-		var names []string
-		for {
-			page, err := NativeQuery(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
-			require.NoError(t, err)
-			for _, record := range page.Records {
-				names = append(names, record.Reference.Address.ID)
-			}
-			if page.NextCursor == nil {
-				break
-			}
-			request.Cursor = page.NextCursor
-		}
-		assert.Equal(t, []string{"a", "b", "c"}, names)
-		assert.Equal(t, int32(3), calls.Load())
-	})
-	for _, mode := range []string{"mutation", "expiry"} {
-		t.Run(mode, func(t *testing.T) {
-			client := nativeTestClient()
-			calls := 0
-			client.PrependReactor("list", "widgets", func(action clienttesting.Action) (bool, runtime.Object, error) {
-				calls++
-				if calls > 1 && mode == "expiry" {
-					return true, nil, apierrors.NewResourceExpired("expired")
-				}
-				first := object("a", "ns")
-				if calls > 1 {
-					first.SetResourceVersion("changed")
-				}
-				return true, nativeTestList(first, object("b", "ns")), nil
-			})
-			request := nativeTestEnumerate(nativeTestAny())
-			page, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
-			require.NoError(t, err)
-			require.Len(t, page.Records, 1)
-			require.NotNil(t, page.NextCursor)
-			request.Cursor = page.NextCursor
-			_, err = NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
-			require.Equal(t, "RESET_REQUIRED", resourcev2.ErrorCode(err))
-		})
-	}
-	t.Run("single oversized record", func(t *testing.T) {
-		item := object("oversized", "ns")
-		item.Object["data"] = make([]any, resourcev2.MaxValueNodes)
-		client := nativeTestClient()
-		client.PrependReactor("list", "widgets", func(action clienttesting.Action) (bool, runtime.Object, error) {
-			return true, nativeTestList(item), nil
+			return true, nativeTestList(object), nil
 		})
 		_, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, nativeTestEnumerate(nativeTestAny()), nativeTestRepresentation())
 		require.Equal(t, "RESOURCE_LIMIT", resourcev2.ErrorCode(err))
 	})
 }
 
-func TestNativeEnumerateAdaptiveNativeLimit(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "2", r.URL.Query().Get("limit"))
-		list := nativeTestList(nativeTestObject("a", "ns"), nativeTestObject("b", "ns"))
-		if r.URL.Query().Get("continue") == "" {
-			list.SetContinue("next")
-		} else {
-			assert.Equal(t, "next", r.URL.Query().Get("continue"))
-			list = nativeTestList(nativeTestObject("c", "ns"))
+func TestNativeEnumerateSingleItemSnapshotContinuation(t *testing.T) {
+	large := make([]any, 70000)
+	client := nativeTestHTTPClient(t, func(request *http.Request) *unstructured.UnstructuredList {
+		assert.Equal(t, "1", request.URL.Query().Get("limit"))
+		var name string
+		switch request.URL.Query().Get("continue") {
+		case "":
+			name = "a"
+		case "next-a":
+			name = "b"
+		case "next-b":
+			name = "c"
+		default:
+			t.Error("unexpected continuation")
 		}
-		w.Header().Set("Content-Type", "application/json")
-		assert.NoError(t, json.NewEncoder(w).Encode(list))
-	}))
-	defer server.Close()
-	var limits []string
-	httpClient := &http.Client{Transport: nativeTestRoundTrip(func(r *http.Request) (*http.Response, error) {
-		limits = append(limits, r.URL.Query().Get("limit"))
-		if r.URL.Query().Get("limit") == "4" {
-			return nil, &resourcev2.ResourceOperationError{Err: kubeauth.ErrResourceResponseTooLarge, Code: "RESOURCE_LIMIT"}
+		object := nativeTestObject(name, "ns")
+		object.Object["data"] = large
+		list := nativeTestList(object)
+		if name != "c" {
+			list.SetContinue("next-" + name)
 		}
-		return http.DefaultTransport.RoundTrip(r)
-	})}
-	client, err := dynamic.NewForConfigAndClient(&rest.Config{Host: server.URL}, httpClient)
-	require.NoError(t, err)
-	request := nativeTestEnumerate(nativeTestAny())
-	request.PageSize = 4
-	first, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
-	require.NoError(t, err)
-	require.Len(t, first.Records, 2)
-	require.NotNil(t, first.NextCursor)
-	request.Cursor = first.NextCursor
-	second, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
-	require.NoError(t, err)
-	require.Len(t, second.Records, 1)
-	require.Nil(t, second.NextCursor)
-	assert.Equal(t, []string{"4", "2", "2"}, limits)
-}
-
-func TestNativeEnumerateDoesNotChangeContinuedNativeLimit(t *testing.T) {
-	client := nativeTestClient()
-	calls := 0
-	client.PrependReactor("list", "widgets", func(action clienttesting.Action) (bool, runtime.Object, error) {
-		calls++
-		if calls == 1 {
-			list := nativeTestList(nativeTestObject("a", "ns"))
-			list.SetContinue("next")
-			return true, list, nil
-		}
-		return true, nil, &resourcev2.ResourceOperationError{Err: kubeauth.ErrResourceResponseTooLarge, Code: "RESOURCE_LIMIT"}
+		return list
 	})
 	request := nativeTestEnumerate(nativeTestAny())
-	page, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
-	require.NoError(t, err)
-	require.NotNil(t, page.NextCursor)
-	request.Cursor = page.NextCursor
-	_, err = NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
-	require.Equal(t, "RESET_REQUIRED", resourcev2.ErrorCode(err))
-	assert.Equal(t, 2, calls)
+	request.PageSize = 256
+	var names []string
+	for {
+		page, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
+		require.NoError(t, err)
+		require.Len(t, page.Records, 1)
+		wirePage, err := resourcev2.ToProtoSourcePage(page)
+		require.NoError(t, err)
+		response := &resourcepb.Response{Version: resourcev2.WireVersion, Result: &resourcepb.Response_Page{Page: wirePage}}
+		wire, err := proto.Marshal(response)
+		require.NoError(t, err)
+		require.NoError(t, resourceplugin.ValidateWire(wire, response.ProtoReflect().Descriptor()))
+		names = append(names, page.Records[0].Reference.Address.ID)
+		if page.NextCursor == nil {
+			break
+		}
+		request.Cursor = page.NextCursor
+	}
+	assert.Equal(t, []string{"a", "b", "c"}, names)
 }
 
 func TestNativeCursorRejectsChangedConnectionGeneration(t *testing.T) {
