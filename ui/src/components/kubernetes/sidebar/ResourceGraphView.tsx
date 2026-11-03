@@ -1,4 +1,4 @@
-import { EmptyState, Spinner, Text } from '@omniviewdev/base-ui';
+import { EmptyState, Spinner, Text, useTheme } from '@omniviewdev/base-ui';
 import type { DrawerContext } from '@omniviewdev/runtime';
 import { parseAppError, relationshipLabel, useResourceGraph, useRightDrawer } from '@omniviewdev/runtime';
 import { ResourceClient } from '@omniviewdev/runtime/api';
@@ -123,6 +123,8 @@ const GraphEdgePath: React.FC<{ edge: LayoutEdge; state: 'normal' | 'active' | '
 );
 
 const ResourceGraph: React.FC<{ ctx: DrawerContext }> = ({ ctx }) => {
+  const { textSize } = useTheme();
+  const textScale = Number(textSize) / 100;
   const { showResourceSidebar } = useRightDrawer();
   const [hovered, setHovered] = useState<string | null>(null);
   const [pivotError, setPivotError] = useState<string | null>(null);
@@ -226,8 +228,9 @@ const ResourceGraph: React.FC<{ ctx: DrawerContext }> = ({ ctx }) => {
       </div>
       <div style={scrollStyle}>
         <svg
-          width={layout.width}
-          height={layout.height}
+          width={layout.width * textScale}
+          height={layout.height * textScale}
+          viewBox={`0 0 ${layout.width} ${layout.height}`}
           role="img"
           aria-label="Resource relationship graph"
         >

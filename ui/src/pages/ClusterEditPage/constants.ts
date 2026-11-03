@@ -4,7 +4,11 @@ import type { NavSection } from '../../types/navigation';
 
 const divider = '1px solid var(--ov-color-border-muted)';
 
-export const sidenavHeaderStyle: React.CSSProperties = { padding: 8, borderBottom: divider };
+export const sidenavHeaderStyle: React.CSSProperties = {
+  padding: 'var(--ov-space-2)',
+  borderBottom: divider,
+  flexShrink: 0,
+};
 
 export const clusterCardWrapperStyle: React.CSSProperties = { padding: 8 };
 
@@ -33,7 +37,11 @@ export const avatarFallbackStyle: React.CSSProperties = {
   fontWeight: 500,
 };
 
-export const navMenuStyle: React.CSSProperties = { paddingBlock: 4, paddingInline: 4 };
+export const navMenuStyle: React.CSSProperties = {
+  paddingBlock: 0,
+  paddingInline: 'var(--ov-space-2-5)',
+  paddingBottom: 'var(--ov-space-2-5)',
+};
 
 export const sectionWrapperHeaderStyle: React.CSSProperties = {
   display: 'flex',
@@ -64,7 +72,13 @@ export const infoLabelStyle: React.CSSProperties = { minWidth: 140 };
 
 export const sidenavColumnStyle: React.CSSProperties = { height: '100%' };
 
-export const headerTitleStyle: React.CSSProperties = { flex: 1, marginLeft: 2 };
+export const headerTitleStyle: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  marginLeft: 2,
+  fontSize: 'var(--ov-primitive-font-size-16)',
+  lineHeight: 1.25,
+};
 
 export const clusterInfoColumnStyle: React.CSSProperties = { minWidth: 0, flex: 1 };
 

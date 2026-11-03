@@ -1,4 +1,4 @@
-import { Avatar, Chip, IconButton, NavList, Stack, Text } from '@omniviewdev/base-ui';
+import { Avatar, Chip, IconButton, NavList, Stack, Text, useTheme } from '@omniviewdev/base-ui';
 import { usePluginContext, useConnection } from '@omniviewdev/runtime';
 import React from 'react';
 import { LuArrowLeft, LuCircle, LuSave, LuX } from 'react-icons/lu';
@@ -32,6 +32,7 @@ import {
 import IdentitySection from './IdentitySection';
 import SectionWrapper from './SectionWrapper';
 import TagsSection from './TagsSection';
+import styles from './ClusterEditPage.module.css';
 
 const ClusterEditPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -41,6 +42,7 @@ const ClusterEditPage: React.FC = () => {
 };
 
 const ClusterEditForm: React.FC<{ connectionId: string }> = ({ connectionId }) => {
+  const { density } = useTheme();
   const { meta } = usePluginContext();
   const rrNavigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -202,10 +204,12 @@ const ClusterEditForm: React.FC<{ connectionId: string }> = ({ connectionId }) =
           {/* Nav menu */}
           <NavList
             size="sm"
+            density={density}
             selectionMode="single"
             selectedKeys={selectedKeys}
             onSelectedKeysChange={handleSelectedKeysChange}
             aria-label="Cluster settings sections"
+            className={styles.NavMenu}
             style={navMenuStyle}
           >
             <NavList.Viewport>

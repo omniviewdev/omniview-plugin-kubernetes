@@ -21,15 +21,15 @@ const tolerationsHeaderStyle: React.CSSProperties = {
   alignItems: 'center',
   justifyContent: 'space-between',
 };
-const tolerationsLegendChipStyle: React.CSSProperties = { borderRadius: 4, fontSize: 9 };
+const tolerationsLegendChipStyle: React.CSSProperties = { borderRadius: 4, fontSize: 'var(--ov-primitive-font-size-11)' };
 const tolerationKeyBoxStyle: React.CSSProperties = { flex: 1, minWidth: 0 };
 const tolerationOperatorChipStyle: React.CSSProperties = {
   borderRadius: 4,
-  fontSize: 10,
+  fontSize: 'var(--ov-primitive-font-size-11)',
   fontFamily: 'var(--ov-font-mono, monospace)',
   flexShrink: 0,
 };
-const tolerationChipStyle: React.CSSProperties = { borderRadius: 4, fontSize: 10, flexShrink: 0 };
+const tolerationChipStyle: React.CSSProperties = { borderRadius: 4, fontSize: 'var(--ov-primitive-font-size-11)', flexShrink: 0 };
 
 interface Props {
   pod: Pod;

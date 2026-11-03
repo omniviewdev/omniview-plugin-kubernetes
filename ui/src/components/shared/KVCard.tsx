@@ -3,7 +3,7 @@ import React from 'react';
 
 import ExpandableSections from './ExpandableSections';
 
-const titleTextStyle: React.CSSProperties = { fontSize: 12 };
+const titleTextStyle: React.CSSProperties = { fontSize: 'var(--ov-font-size-caption)' };
 const titleRowStyle: React.CSSProperties = { gap: 6 };
 
 const chipStyle: React.CSSProperties = { borderRadius: 4 };
@@ -17,9 +17,9 @@ const gridStyle: React.CSSProperties = {
   paddingBlock: 4,
 };
 
-const keyTextStyle: React.CSSProperties = { fontSize: 11, fontWeight: 400, width: '100%', minWidth: 0 };
+const keyTextStyle: React.CSSProperties = { fontSize: 'var(--ov-font-size-caption)', fontWeight: 400, width: '100%', minWidth: 0 };
 
-const valueTextStyle: React.CSSProperties = { fontSize: 11, fontWeight: 600, width: '100%', minWidth: 0 };
+const valueTextStyle: React.CSSProperties = { fontSize: 'var(--ov-font-size-caption)', fontWeight: 600, width: '100%', minWidth: 0 };
 
 interface Props {
   title: string;

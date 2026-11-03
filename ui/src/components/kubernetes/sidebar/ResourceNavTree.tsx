@@ -1,4 +1,4 @@
-import { TreeList, type Key, type TreeNodeMeta } from '@omniviewdev/base-ui';
+import { TreeList, useTheme, type Key, type TreeNodeMeta } from '@omniviewdev/base-ui';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { LuGripVertical } from 'react-icons/lu';
 
@@ -45,6 +45,7 @@ export default function ResourceNavTree({
   initialExpandedState,
   onExpandedChange,
 }: ResourceNavTreeProps) {
+  const { density } = useTheme();
   const source = useMemo(() => {
     const nodes = new Map<string, NavMenuItem>();
     const defaults: Record<string, boolean> = {};
@@ -183,11 +184,10 @@ export default function ResourceNavTree({
         if (next) onReorder(next);
       }}
       selectionMode="single"
-      density="compact"
       indentation={14}
       indentGuide="rail"
       virtualized
-      estimatedItemSize={28}
+      estimatedItemSize={density === 'compact' ? 28 : 34}
       renderItem={renderItem}
     >
       <TreeList.Viewport className={scrollable ? styles.viewport : undefined} />

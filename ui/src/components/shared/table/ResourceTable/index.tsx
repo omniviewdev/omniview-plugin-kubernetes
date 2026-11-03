@@ -1,5 +1,5 @@
 import type { DataTableFeatures } from '@omniviewdev/base-ui';
-import { Button, DataTable, Progress, Skeleton, dataTableFeatures } from '@omniviewdev/base-ui';
+import { Button, DataTable, Progress, Skeleton, dataTableFeatures, useTheme } from '@omniviewdev/base-ui';
 import { useResources, useResourceType, useResolvedResourceTarget, useRightDrawer, usePluginRouter, DrawerComponent } from '@omniviewdev/runtime';
 import {
   type ColumnDef,
@@ -20,9 +20,6 @@ const SKELETON_ROWS = Array.from({ length: 8 }, (_, i) => `skel-${i}`);
 
 /** Sorting, resizing and pinning UI come from DataTable.Header; the rest is ours. */
 const TABLE_FEATURES = { sorting: true, columnResizing: true, columnPinning: true };
-
-/** Body row height in px; ResourceTable.module.css sets the same height on the cells. */
-const ROW_HEIGHT = 30;
 
 /** Clicks in these columns act on their own control instead of opening the drawer. */
 const NON_DRAWER_COLUMNS = new Set(['select', 'menu']);
@@ -103,6 +100,8 @@ const ResourceTableContainer = <T extends RowData,>({
   toolbarFilters,
   contentWrapper: ContentWrapper,
 }: Props<T>) => {
+  const { density } = useTheme();
+  const rowHeight = density === 'compact' ? 30 : 36;
   const [sorting, setSorting] = useState<SortingState>([{ id: 'name', desc: false }]);
   const [columnVisibility, setColumnVisibility] = useStoredState<VisibilityState>(
     `kubernetes-${connectionID}-${resourceKey}-column-visibility`,
@@ -337,11 +336,12 @@ const ResourceTableContainer = <T extends RowData,>({
           stickyHeader
           hoverable
           className={styles.root}
+          style={{ '--_ov-row-height': `${rowHeight}px` } as React.CSSProperties}
         >
           {showSyncingIndicator && (
             <Progress size="xs" className={styles.syncIndicator} aria-label="Syncing" />
           )}
-          {/* Compact toolbar — outside scroll container so it never scrolls horizontally */}
+          {/* Toolbar stays outside the horizontal scroll container. */}
           <ResourceTableToolbar
             connectionID={connectionID}
             resourceKey={resourceKey}
@@ -389,7 +389,7 @@ const ResourceTableContainer = <T extends RowData,>({
             ) : (
               <DataTable.VirtualBody
                 className={styles.body}
-                estimateRowSize={ROW_HEIGHT}
+                estimateRowSize={rowHeight}
                 fixedRowHeight
                 overscan={15}
                 onRowClick={onRowClick}

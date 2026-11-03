@@ -1,8 +1,6 @@
 /*
- * Resource table layout. The frame, header and virtualized body come from
- * base-ui DataTable; .body only tightens the body rows to the plugin's
- * compact density. Loaded row dividers remain library-owned; skeleton
- * and toolbar dividers use the plugin's public structural token.
+ * Resource table layout. Base UI owns cell sizing and dividers; the fixed
+ * virtual row height comes from the same density selection as the skeletons.
  */
 
 .outer {
@@ -27,7 +25,7 @@
   flex: 1;
   min-height: 0;
   scrollbar-width: none;
-  transition: opacity 0.2s ease;
+  transition: opacity var(--ov-duration-interactive) ease;
 }
 
 .container::-webkit-scrollbar {
@@ -48,9 +46,8 @@
 
 /* DataTable cells read these from the nearest ancestor that sets them */
 .body {
-  --_ov-row-height: 30px;
   --_ov-cell-padding-block: 0;
-  font-size: 0.75rem;
+  font-size: var(--ov-primitive-font-size-13);
 }
 
 .body > tr {
@@ -73,7 +70,7 @@
 .skeletonRow {
   display: flex;
   width: 100%;
-  height: 30px;
+  height: var(--_ov-row-height);
 }
 
 .skeletonCell {
