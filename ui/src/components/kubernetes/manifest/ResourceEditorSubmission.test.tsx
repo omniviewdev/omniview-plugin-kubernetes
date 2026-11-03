@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createRef, useState } from 'react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { jsonToValue, type ResourceEditorContext, type ResourceEditorContribution, type ResourceEditorFormProps } from '@omniviewdev/runtime';
 import { parse } from 'yaml';
 import ResourceManifestEditor from './ResourceManifestEditor';
@@ -21,6 +21,14 @@ function Form(props: ResourceEditorFormProps) {
   return <input aria-label="Message" value={String(props.draft.get(['spec', 'message']) ?? '')} onChange={(event) => props.patch({ sessionID: props.draft.sessionID, expectedRevision: props.draft.revision, operations: [{ op: 'set', path: ['spec', 'message'], value: event.target.value }] })} />;
 }
 const contribution: ResourceEditorContribution = { contractVersion: 1, targets: [context], intents: ['create'], ownershipPolicy: 'declarative', label: 'Demo', sections: [{ id: 'configuration', label: 'Configuration' }], ownedPaths: [['spec']], sensitivePaths: [['spec', 'token']], component: Form };
+
+beforeAll(async () => {
+  await Promise.all([
+    import('./providers/issue-265/EndpointsForm'),
+    import('./providers/issue-277/CertificateSigningRequestForm'),
+    import('./providers/issue-282/RuntimeClassForm'),
+  ]);
+});
 
 beforeEach(() => { localStorage.clear(); vi.clearAllMocks(); act(() => setManifestMode('yaml')); });
 afterEach(cleanup);

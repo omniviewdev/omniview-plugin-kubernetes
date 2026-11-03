@@ -133,7 +133,7 @@ const CreateResourceButton: React.FC<Props> = ({ connectionID, resourceKey, sele
   );
 };
 
-export function CreateResourceTrigger({ label, preparing = false, disabled = false, onOpen }: { label: string; preparing?: boolean; disabled?: boolean; onOpen: () => void }) {
+function CreateResourceTrigger({ label, preparing = false, disabled = false, onOpen }: { label: string; preparing?: boolean; disabled?: boolean; onOpen: () => void }) {
   return <Button size="sm" variant="outline" color="neutral" startDecorator={<LuPlus size={13} />} disabled={disabled || preparing} onClick={onOpen}>{preparing ? 'Preparing...' : `Create ${label}`}</Button>;
 }
 

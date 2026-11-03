@@ -925,8 +925,10 @@ Registry installs retain pnpm's 24-hour release-age protection. Only coordinated
 The current frontend cohort uses `@omniviewdev/base-ui` 0.11.1,
 `@omniviewdev/editors` 6.1.5, and runtime/Vite plugin 0.26.0.
 The published runtime and Vite plugin must match; source builds use the reviewed host runtime.
-The backend pins Go SDK `v0.14.3` for P07 and the existing settings,
-connection metadata, profiling, and configurable acquisition timeout APIs.
+The backend pins Go SDK `v0.14.4-0.20261103022722-1712cd3b66e1`, matching
+the host's profiled validation and DTO allocation improvements while retaining
+the existing source-session wire, P07, settings, connection metadata, profiling,
+and configurable acquisition timeout APIs.
 Debug preferences discard unsaved drafts when reopened or switched to another
 connection, but preserve active drafts when saved defaults refresh.
 
