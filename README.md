@@ -954,6 +954,9 @@ TZ=America/New_York pnpm exec vitest run src/utils/ageClock.test.tsx
 pnpm run build
 ```
 
+PR validation also runs on stacked branches, so each resource-view PR receives
+the same checks before merge.
+
 UI persistence tests use the test document's real JSDOM storage, including on
 Node versions that also expose process-global Web Storage.
 
