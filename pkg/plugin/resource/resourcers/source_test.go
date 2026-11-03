@@ -64,6 +64,31 @@ func nextSourceTestEvent(t *testing.T, e *sourceTestEmitter) sourceTestEvent {
 	}
 }
 
+func TestCompactWatchRecordRequiresFullBinding(t *testing.T) {
+	binding := testWatchRepresentation()
+	record, err := watchRecord(testWatchTarget(), binding, newTestPod("pod", "default"))
+	require.NoError(t, err)
+	compact, err := compactWatchRecord(record, binding)
+	require.NoError(t, err)
+	require.Equal(t, record.Reference, compact.Reference)
+	require.Equal(t, record.Body, compact.Body)
+	require.Equal(t, record.Coverage, compact.Coverage)
+	require.Equal(t, record.SourceRevision, compact.SourceRevision)
+	require.Equal(t, binding.ID, compact.Representation.ID)
+	require.Equal(t, binding.Revision, compact.Representation.Revision)
+	require.Nil(t, compact.Representation.SchemaRevision)
+
+	changed := binding
+	revision := "different"
+	changed.Schema.Revision = &revision
+	_, err = compactWatchRecord(record, changed)
+	require.ErrorIs(t, err, errSourceBindingChanged)
+	changed = binding
+	changed.Schema.State = "different"
+	_, err = compactWatchRecord(record, changed)
+	require.ErrorIs(t, err, errSourceBindingChanged)
+}
+
 func TestSourceSnapshotAndOrderedChanges(t *testing.T) {
 	initial := newTestPodWithLabels("initial", "default", map[string]string{"app": "test"})
 	initial.SetUID("initial-uid")
