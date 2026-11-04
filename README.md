@@ -80,6 +80,8 @@ of `SinceSeconds`. Kubernetes accepts only one time filter per log request.
 
 Standalone release 0.15.1 used SDK 0.14.6 for completed-source handling with stock grpc-go. The historical live explorer evidence used the independently reviewed source cohort pinned to SDK `6ce85c8b42cab1547396217510196b29e63ffe55`; it does not establish evidence for this candidate or the integrated activity release. Source-cohort approval and standalone release verification remain separate gates.
 
+Standalone release 0.16.0 packaging uses published SDK `v0.15.0` and the SDK-compatible grpc-go fork for activity streams and completed-source handling.
+
 This source candidate pins SDK `v0.15.0` (`427ef1da1f1d`),
 including completed-source handling and the C04 source-session wire contract.
 It replaces grpc-go with the scoped Omniview fork required by source sessions.
