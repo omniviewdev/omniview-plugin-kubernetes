@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button, IconButton, Popover, SearchInput, Spinner, Text } from '@omniviewdev/base-ui';
 import { useMetricProvidersForResource, type MetricResource, type ResourceReference, type AccessRoute, type Value } from '@omniviewdev/runtime';
 import { MetricClient } from '@omniviewdev/runtime/api';
@@ -12,6 +12,12 @@ import type { ChartTimeRange } from '../../../shared/charts';
 import { PLUGIN_ID } from '@/pluginId';
 import { metricResultDisplay, metricResourceToken } from '../metricPresentation';
 import { usePodResourceSetMetrics } from '@/hooks/usePodMetricsBatch';
+import { useDocumentVisibility } from '@/hooks/useDocumentVisibility';
+
+const HISTORY_STEP_MS = 30_000;
+function alignedHistoryEnd() {
+  return Math.floor(Date.now() / HISTORY_STEP_MS) * HISTORY_STEP_MS;
+}
 
 const UNIT_LABELS: Record<number, string> = {
   0: '', 1: 'B', 2: 'KB', 3: 'MB', 4: 'GB', 5: '%', 6: 'ms',
@@ -59,7 +65,9 @@ export default function PodMetricsSection(props: MetricSidebarProps) {
   const [search, setSearch] = useState('');
   const [browserOpen, setBrowserOpen] = useState(false);
   const [duration, setDuration] = useState('3600000');
-  const [timeRange, setTimeRange] = useState<ChartTimeRange>(() => ({ from: new Date(Date.now() - 3600000), to: new Date() }));
+  const [rangeEnd, setRangeEnd] = useState(alignedHistoryEnd);
+  const timeRange = useMemo<ChartTimeRange>(() => ({ from: new Date(rangeEnd - Number(duration)), to: new Date(rangeEnd) }), [rangeEnd, duration]);
+  const visible = useDocumentVisibility();
   const enabled = Boolean(connectionID && resourceID && reference && route);
   const bindings = useQuery({
     queryKey: ['metric', 'bindings', PLUGIN_ID, connectionID],
@@ -104,15 +112,28 @@ export default function PodMetricsSection(props: MetricSidebarProps) {
   const additionalSeriesIDs = [...new Set(descriptors
     .filter(definition => !baseIDs.includes(definition.id) && additional.includes(definition.id) && definition.supported_shapes?.includes(1))
     .map(definition => definition.id))];
+  const hasHistory = baseSeriesIDs.length > 0 || additionalSeriesIDs.length > 0;
+  // Catch up before admission after a hidden view or late descriptor load.
+  const historyEnabled = enabled && visible && rangeEnd === alignedHistoryEnd();
+  useEffect(() => {
+    if (!enabled || !visible || !hasHistory) return;
+    let timer = 0;
+    const advance = () => {
+      setRangeEnd(alignedHistoryEnd());
+      timer = window.setTimeout(advance, HISTORY_STEP_MS - Date.now() % HISTORY_STEP_MS);
+    };
+    advance();
+    return () => window.clearTimeout(timer);
+  }, [enabled, visible, hasHistory]);
   const history = usePodResourceSetMetrics({
     connectionID, resources, bindingID: bindingID || undefined, metricIDs: baseSeriesIDs, shape: 1,
     startTime: timeRange.from.toISOString(), endTime: timeRange.to.toISOString(), step: 30000000000,
-    enabled: enabled && baseSeriesIDs.length > 0,
+    enabled: historyEnabled && baseSeriesIDs.length > 0, refreshInterval: 0,
   });
   const additionalHistory = usePodResourceSetMetrics({
     connectionID, resources, bindingID: bindingID || undefined, metricIDs: additionalSeriesIDs, shape: 1,
     startTime: timeRange.from.toISOString(), endTime: timeRange.to.toISOString(), step: 30000000000,
-    enabled: enabled && additionalSeriesIDs.length > 0,
+    enabled: historyEnabled && additionalSeriesIDs.length > 0, refreshInterval: 0,
   });
   const results = [...(current.data?.results ?? []), ...(additionalCurrent.data?.results ?? [])].filter(result => result.resource_token === token);
   const currentLoading = current.isLoading || additionalCurrent.isLoading;
@@ -139,7 +160,11 @@ export default function PodMetricsSection(props: MetricSidebarProps) {
     ? `${providerConnections.data?.find(connection => connection.id === selectedBinding.source.connection_id)?.name || selectedBinding.source.connection_id} / ${providerDataSources.data?.find(datasource => datasource.uid === selectedBinding.source.datasource_uid)?.name || selectedBinding.source.datasource_uid}`
     : 'Native Kubernetes';
   const refresh = () => {
-    setTimeRange({ from: new Date(Date.now() - Number(duration)), to: new Date() });
+    const nextEnd = alignedHistoryEnd();
+    if (nextEnd === rangeEnd) {
+      if (baseSeriesIDs.length) history.refetch();
+      if (additionalSeriesIDs.length) additionalHistory.refetch();
+    } else setRangeEnd(nextEnd);
     if (currentBaseIDs.length) current.refetch();
     if (additionalCurrentIDs.length) additionalCurrent.refetch();
   };
@@ -152,7 +177,7 @@ export default function PodMetricsSection(props: MetricSidebarProps) {
         ...sources.map(binding => ({ value: binding.id, label: <><LuDatabase size={14} />{selectedBinding?.id === binding.id ? sourceLabel : `${binding.source.connection_id} / ${binding.source.datasource_uid}`} ({binding.policy})</> })),
       ]} className={styles.source} />
       <div className={styles.timeControls}>
-        <SimpleSelect aria-label="Time range" value={duration} onChange={value => { setDuration(value); setTimeRange({ from: new Date(Date.now() - Number(value)), to: new Date() }); }} options={[
+        <SimpleSelect aria-label="Time range" value={duration} onChange={value => { setDuration(value); setRangeEnd(alignedHistoryEnd()); }} options={[
           { value: '900000', label: 'Last 15 minutes' }, { value: '3600000', label: 'Last 1 hour' },
           { value: '10800000', label: 'Last 3 hours' }, { value: '21600000', label: 'Last 6 hours' },
           { value: '43200000', label: 'Last 12 hours' }, { value: '86400000', label: 'Last 24 hours' },

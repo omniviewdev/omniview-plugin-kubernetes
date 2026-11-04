@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -9,7 +9,7 @@ vi.mock('@omniviewdev/runtime/api', () => ({ MetricClient: { GetMetricBindings: 
 vi.mock('@omniviewdev/runtime', () => ({ useMetricProvidersForResource: () => ({ data: [{ plugin_id: 'kubernetes', handlers: [{ resource: 'k8s:/nodes', metrics: ['cpu_usage', 'cpu_capacity', 'memory_usage', 'memory_capacity'].map(id => ({ id, name: id, unit: id.startsWith('cpu') ? 11 : 1, supported_shapes: [0] })) }] }], error: null, isLoading: false }) }));
 vi.mock('@/hooks/usePodMetricsBatch', () => ({ usePodResourceSetMetrics: mocks.query }));
 vi.mock('../../../shared/charts', () => ({ TimeSeriesChart: () => null }));
-afterEach(() => { cleanup(); vi.clearAllMocks(); });
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.clearAllMocks(); });
 
 it('keeps native node metrics under connection-default supplement with pod-only external definitions', async () => {
   mocks.bindings.mockResolvedValue([{ id: 'external', signal: 'metrics', policy: 'supplement', source: { plugin_id: 'grafana', connection_id: 'team', datasource_uid: 'a' } }]);
@@ -171,4 +171,46 @@ it('formats values, resolves friendly source names, and combines current/history
   expect(summaries[0].textContent).toContain('stale');
   expect(summaries[0].textContent).not.toContain('ok');
   client.clear();
+});
+
+it('shares aligned history windows across views, advances at the boundary, and refreshes only the active window', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-11-04T12:00:12.345Z'));
+  const historyRefetch = vi.fn();
+  const currentRefetch = vi.fn();
+  mocks.query.mockImplementation(options => ({ data: { results: [] }, error: null, isLoading: false, refetch: options.shape === 1 ? historyRefetch : currentRefetch }));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity, gcTime: Infinity } } });
+  const source = { plugin_id: 'grafana', connection_id: 'team', datasource_uid: 'a' };
+  client.setQueryData(['metric', 'bindings', 'kubernetes', 'cluster'], [{ id: 'external', signal: 'metrics', policy: 'replace', source }]);
+  client.setQueryData(['metric', 'definitions'], [{ id: 'cpu_usage', name: 'CPU usage', native: false, resource_keys: ['k8s:/nodes'], supported_shapes: [0, 1], unit: 11 }]);
+  client.setQueryData(['metric', 'provider-connections', 'grafana'], [{ id: 'team', name: 'Production EU' }]);
+  client.setQueryData(['metric', 'datasources', 'grafana', 'team'], [{ uid: 'a', name: 'Prometheus' }]);
+  const props = { connectionID: 'cluster', resourceKey: 'k8s:/nodes', resourceID: 'node', reference: { address: { provider: 'kubernetes', authority: 'cluster', type: 'k8s:/nodes', id: 'node', scope: [] }, incarnation: 'uid' }, route: { connection: 'cluster' } };
+  const first = render(<QueryClientProvider client={client}><PodMetricsSection {...props} /></QueryClientProvider>);
+  const firstHistory = mocks.query.mock.calls.map(([options]) => options).filter(options => options.shape === 1 && options.enabled).at(-1);
+  expect(firstHistory).toMatchObject({ startTime: '2026-11-04T11:00:00.000Z', endTime: '2026-11-04T12:00:00.000Z', refreshInterval: 0 });
+  await act(async () => { await vi.advanceTimersByTimeAsync(200); });
+  const second = render(<QueryClientProvider client={client}><PodMetricsSection {...props} /></QueryClientProvider>);
+  const secondHistory = mocks.query.mock.calls.map(([options]) => options).filter(options => options.shape === 1 && options.enabled).at(-1);
+  expect(secondHistory).toEqual(firstHistory);
+  await act(async () => { await vi.advanceTimersByTimeAsync(30_000 - Date.now() % 30_000); });
+  const advancedHistory = mocks.query.mock.calls.map(([options]) => options).filter(options => options.shape === 1 && options.enabled).at(-1);
+  expect(advancedHistory).toMatchObject({ startTime: '2026-11-04T11:00:30.000Z', endTime: '2026-11-04T12:00:30.000Z', refreshInterval: 0 });
+  expect(historyRefetch).not.toHaveBeenCalled();
+  fireEvent.click(screen.getAllByRole('button', { name: 'Refresh metrics' })[0]);
+  expect(historyRefetch).toHaveBeenCalledTimes(1);
+  expect(currentRefetch).toHaveBeenCalledTimes(1);
+  vi.setSystemTime(new Date('2026-11-04T12:01:00.000Z'));
+  fireEvent.click(screen.getAllByRole('button', { name: 'Refresh metrics' })[0]);
+  expect(historyRefetch).toHaveBeenCalledTimes(1);
+  expect(mocks.query.mock.calls.map(([options]) => options).filter(options => options.shape === 1 && options.enabled).at(-1)).toMatchObject({ endTime: '2026-11-04T12:01:00.000Z' });
+  const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+  act(() => document.dispatchEvent(new Event('visibilitychange')));
+  expect(mocks.query.mock.calls.map(([options]) => options).filter(options => options.shape === 1).slice(-2).every(options => !options.enabled)).toBe(true);
+  first.unmount();
+  second.unmount();
+  client.clear();
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+  expect(vi.getTimerCount()).toBe(0);
+  visibility.mockRestore();
 });
