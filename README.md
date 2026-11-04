@@ -83,7 +83,7 @@ Standalone release 0.15.1 used SDK 0.14.6 for completed-source handling with sto
 Kubernetes plugin 0.15.1 requires Omniview 0.27.2 or newer so the host includes
 the matching log lifecycle fixes. Update the desktop application before installing
 this plugin release.
-This source candidate pins SDK `v0.14.4-0.20261104022932-57f8b8bf4f76`,
+This source candidate pins SDK `v0.15.0` (`427ef1da1f1d`),
 including completed-source handling and the C04 source-session wire contract.
 It replaces grpc-go with the scoped Omniview fork required by source sessions.
 
@@ -1009,7 +1009,7 @@ Registry installs retain pnpm's 24-hour release-age protection. Only coordinated
 The current frontend cohort uses `@omniviewdev/base-ui` 0.14.0,
 `@omniviewdev/editors` 6.1.8, and runtime/Vite plugin 0.30.0.
 The published runtime and Vite plugin must match; source builds use the reviewed host runtime.
-The backend pins SDK `v0.14.4-0.20261104022932-57f8b8bf4f76` and replaces
+The backend pins SDK `v0.15.0` (`427ef1da1f1d`) and replaces
 grpc-go with `github.com/omniviewdev/grpc-go` at
 `v1.79.3-0.20261103012409-4c6f1d1c4e10` for source-session receive controls.
 Debug preferences discard unsaved drafts when reopened or switched to another
