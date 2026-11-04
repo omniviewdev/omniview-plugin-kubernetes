@@ -1,0 +1,50 @@
+{
+  "generation": "940ddee0-e544-40a2-b72d-4db6cf9ca03d",
+  "fixtureDisclosure": "Initial owned kind fixture failed due OOM/API TLS timeout. Final proof uses real local Kubernetes API v1.36.2+etcd, no Nodes or scheduler.26 context aliases target same owned fixture, not actual cloud fleet.",
+  "passed": [
+    "fresh authenticated descriptors and exact frontend generation",
+    "search autofocus/autocap none/spellcheck false/autocorrect off",
+    "immediate directive/value completion",
+    "explicit Preview; full Settings route",
+    "stable short/long card heights128.1875; full opaque names accessible",
+    "viewport360/768/1063/1568 no document overflow",
+    "Cards/Table/Debug/Organize screenshots",
+    "nine native themes via authenticated settings; five text scales; compact/comfortable; restored baseline",
+    "manual folder color/preset/rule union, manual removal retains automatic",
+    "named raster browse+drop+reuse; SVG reject; in-use asset removal preserves inline fallback",
+    "actual pointer Organize->sidebar copy after duplicate droppable ID fix",
+    "keyboard folder submenu ArrowRight/Enter alternative",
+    "keyboard cancellation and pointer outside-target drop no-op",
+    "saved lens create/rename/replace/reorder/apply descending query/delete",
+    "fixed new-folder collapse persisted true; actual pointer section reorder retains collapse",
+    "Main card direct connected route mounted; Enter reopen; opaque quoted ArrowDown/Enter mounted. Final approved cohort resource fetches then settled with4real namespaces.",
+    "new host tab handoff resource ready; no actual browser/native new window proven",
+    "backend recents kind-kind count3 and opaque count1",
+    "Final approved SDK cohort940ddee0 restart exact equality all5backend keys",
+    "Actual settled dashboard empty workloads/events and namespace table4realnamespaces",
+    "Homepage recent open count4->5 exactlyonce; distinct-homepage globalLauncher Enter5->6 exactlyonce",
+    "Actual UI cleanup removed both verification folders, all verification lenses, raster library asset; backend arrays empty",
+    "Closed redundant owned tabs; clean single Kubernetes tab",
+    "Final toolbar controls144px at1568/1063/768/360, document overflow0; Cards/Table/Debug screenshots all4widths; visually reviewed wide/narrow cards",
+    "Final cleanup filtered ONLY known pre-restart fixture group section IDs via actual DataService; builtin configs preserved"
+  ],
+  "pending": [],
+  "limits": [
+    "No OSwindow/dialog/storage claims from browser mode",
+    "No invented metrics; Debug says workloads not queried/metrics provider required",
+    "Real API fixture has zero Nodes and no scheduler",
+    "Same-route globalLauncher Enter does not increment because no new connected view mounts (expected)",
+    "Real recents retained: kind-kind6, opaque alias1. All groups/lenses/assets empty.",
+    "Themes/screenshots include configured alias hints only, no proof of cloud environment."
+  ],
+  "edits": [
+    "components/connections/FolderDialog.tsx",
+    "components/connections/FolderDialog.test.tsx",
+    "components/connections/ClusterOrganization.tsx",
+    "components/connections/ClusterOrganization.test.tsx",
+    "components/connections/ConnectionTable.tsx",
+    "components/connections/ConnectionTable.test.tsx",
+    "hooks/useClusterPreferences.ts",
+    "hooks/useClusterPreferences.test.tsx"
+  ]
+}

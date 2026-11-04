@@ -32,7 +32,8 @@ const NodeShellTabContent: React.FC<Props> = (props) => (
 );
 
 const NodeShellForm: React.FC<Props> = ({ pluginID, connectionID }) => {
-  const { connectionOverrides, updateOverride } = useClusterPreferences(pluginID);
+  const preferences = useClusterPreferences(pluginID);
+  const { connectionOverrides } = preferences;
   const existing = React.useMemo(
     () => connectionOverrides[connectionID] ?? {},
     [connectionOverrides, connectionID],
@@ -49,11 +50,11 @@ const NodeShellForm: React.FC<Props> = ({ pluginID, connectionID }) => {
     const nc: NodeShellConfig = {};
     if (image) nc.image = image;
     if (command) nc.command = command;
-    await updateOverride(connectionID, {
+    await preferences.updateOverride(connectionID, {
       ...existing,
       nodeShellConfig: Object.keys(nc).length > 0 ? nc : undefined,
     });
-  }, [image, command, connectionID, existing, updateOverride]);
+  }, [image, command, connectionID, existing, preferences]);
 
   const imageId = useId();
   const commandId = useId();

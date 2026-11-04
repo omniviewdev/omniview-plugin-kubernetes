@@ -12,7 +12,6 @@ type Props = {
   sectionId?: string;
   subtitle?: string;
   showFavorite?: boolean;
-  onRecordAccess: () => void;
   onToggleFavorite: () => void;
 };
 
@@ -26,14 +25,9 @@ const RowHandler: React.FC<Props> = ({
   sectionId = 'default',
   subtitle,
   showFavorite,
-  onRecordAccess,
   onToggleFavorite,
 }) => {
-  const { handleClick } = useClusterAction(
-    enriched.connection.id,
-    enriched.isConnected,
-    onRecordAccess,
-  );
+  const { handleClick } = useClusterAction(enriched.connection.id, enriched.isConnected);
 
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `connection:${sectionId}:${enriched.connection.id}`,
@@ -56,7 +50,7 @@ const RowHandler: React.FC<Props> = ({
         subtitle={subtitle}
         showFavorite={showFavorite}
         onToggleFavorite={onToggleFavorite}
-        onClick={handleClick}
+        onClick={() => { void handleClick(); }}
       />
     </div>
   );
