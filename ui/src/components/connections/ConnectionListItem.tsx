@@ -50,7 +50,7 @@ const ConnectionListItem: React.FC<Props> = ({
 }) => {
   const { meta } = usePluginContext();
   const { navigate } = usePluginRouter();
-   
+
   const { notify } = useNotifications();
 
   const { startConnection } = useConnection({ pluginID: meta.id, connectionID: id });
@@ -89,17 +89,14 @@ const ConnectionListItem: React.FC<Props> = ({
 
     setConnecting(true);
     startConnection()
-      .then((status) => {
-        handleConnectionStatus(status);
-      })
-      .catch((err) => {
-        if (err instanceof Error) {
-          void notify({
-            severity: 'error',
-            title: err.message,
-          });
-        }
-      })
+      .then(
+        (status) => {
+          handleConnectionStatus(status);
+        },
+        () => {
+          // useConnection already reports lifecycle failures with structured details.
+        },
+      )
       .finally(() => {
         setConnecting(false);
       });

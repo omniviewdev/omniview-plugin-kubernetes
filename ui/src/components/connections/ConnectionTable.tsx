@@ -86,7 +86,7 @@ const GridCardWrapper: React.FC<{
 }) => {
   const { meta } = usePluginContext();
   const { navigate } = usePluginRouter();
-   
+
   const { notify } = useNotifications();
   const { startConnection, stopConnection } = useConnection({
     pluginID: meta.id,
@@ -99,33 +99,28 @@ const GridCardWrapper: React.FC<{
       navigate(`/cluster/${encodeURIComponent(enriched.connection.id)}/resources`);
       return;
     }
-    startConnection()
-      .then((status) => {
+    startConnection().then(
+      (status) => {
         if (status.status === types.ConnectionStatusCode.ConnectionStatusConnected) {
           navigate(`/cluster/${encodeURIComponent(enriched.connection.id)}/resources`);
         }
-      })
-      .catch((err) => {
-        if (err instanceof Error) {
-          void notify({ severity: 'error', title: err.message });
-        }
-      });
+      },
+      () => {
+        // useConnection already reports lifecycle failures with structured details.
+      },
+    );
   };
 
   const handleConnect = () => {
     onRecordAccess();
-    startConnection().catch((err) => {
-      if (err instanceof Error) {
-        void notify({ severity: 'error', title: err.message });
-      }
+    startConnection().catch(() => {
+      // useConnection already reports lifecycle failures with structured details.
     });
   };
 
   const handleDisconnect = () => {
-    stopConnection().catch((err) => {
-      if (err instanceof Error) {
-        void notify({ severity: 'error', title: err.message });
-      }
+    stopConnection().catch(() => {
+      // useConnection already reports lifecycle failures with structured details.
     });
   };
 

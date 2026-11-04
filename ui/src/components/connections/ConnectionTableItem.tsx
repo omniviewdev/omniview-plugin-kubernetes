@@ -64,7 +64,7 @@ const ConnectionTableItem: React.FC<Props> = ({
 
   const { meta } = usePluginContext();
   const { navigate } = usePluginRouter();
-   
+
   const { notify } = useNotifications();
   const { startConnection, stopConnection } = useConnection({
     pluginID: meta.id,
@@ -105,15 +105,12 @@ const ConnectionTableItem: React.FC<Props> = ({
     }
     setConnecting(true);
     startConnection()
-      .then((status) => handleConnectionStatus(status))
-      .catch((err) => {
-        if (err instanceof Error) {
-          void notify({
-            severity: 'error',
-            title: err.message,
-          });
-        }
-      })
+      .then(
+        (status) => handleConnectionStatus(status),
+        () => {
+          // useConnection already reports lifecycle failures with structured details.
+        },
+      )
       .finally(() => setConnecting(false));
   };
 
@@ -121,20 +118,18 @@ const ConnectionTableItem: React.FC<Props> = ({
     onRecordAccess();
     setConnecting(true);
     startConnection()
-      .then((status) => handleConnectionStatus(status))
-      .catch((err) => {
-        if (err instanceof Error) {
-          void notify({ severity: 'error', title: err.message });
-        }
-      })
+      .then(
+        (status) => handleConnectionStatus(status),
+        () => {
+          // useConnection already reports lifecycle failures with structured details.
+        },
+      )
       .finally(() => setConnecting(false));
   };
 
   const handleDisconnect = () => {
-    stopConnection().catch((err) => {
-      if (err instanceof Error) {
-        void notify({ severity: 'error', title: err.message });
-      }
+    stopConnection().catch(() => {
+      // useConnection already reports lifecycle failures with structured details.
     });
   };
 

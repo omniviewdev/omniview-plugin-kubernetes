@@ -18,7 +18,7 @@ export function useClusterAction(
 ) {
   const { meta } = usePluginContext();
   const { navigate } = usePluginRouter();
-   
+
   const { notify } = useNotifications();
   const { startConnection } = useConnection({
     pluginID: meta.id,
@@ -31,8 +31,8 @@ export function useClusterAction(
       navigate(`/cluster/${encodeURIComponent(connectionId)}/resources`);
       return;
     }
-    startConnection()
-      .then((status) => {
+    startConnection().then(
+      (status) => {
         if (status.status === types.ConnectionStatusCode.ConnectionStatusConnected) {
           navigate(`/cluster/${encodeURIComponent(connectionId)}/resources`);
         } else {
@@ -42,12 +42,11 @@ export function useClusterAction(
             details: status.details,
           });
         }
-      })
-      .catch((err) => {
-        if (err instanceof Error) {
-          void notify({ severity: 'error', title: err.message });
-        }
-      });
+      },
+      () => {
+        // useConnection already reports lifecycle failures with structured details.
+      },
+    );
   }, [connectionId, isConnected, onRecordAccess, navigate, startConnection, notify]);
 
   return { handleClick };
