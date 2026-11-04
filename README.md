@@ -78,11 +78,8 @@ Kubernetes plugin 0.16.0 requires Omniview 0.29.0 or newer, runtime/Vite 0.29.0,
 Container log requests with an explicit `SinceTime` use that timestamp instead
 of `SinceSeconds`. Kubernetes accepts only one time filter per log request.
 
-Standalone release 0.15.1 used SDK 0.14.6 for completed-source handling with stock grpc-go. The historical live explorer evidence used the independently reviewed source cohort pinned to SDK `6ce85c8b42cab1547396217510196b29e63ffe55`; it does not establish evidence for this candidate. Source-cohort approval and standalone release verification remain separate gates.
+Standalone releases 0.15.1 and 0.16.0 used SDK 0.14.6 for completed-source handling with stock grpc-go. The historical live explorer evidence used the independently reviewed source cohort pinned to SDK `6ce85c8b42cab1547396217510196b29e63ffe55`; it does not establish evidence for this candidate. Source-cohort approval and standalone release verification remain separate gates.
 
-Kubernetes plugin 0.15.1 requires Omniview 0.27.2 or newer so the host includes
-the matching log lifecycle fixes. Update the desktop application before installing
-this plugin release.
 This source candidate pins SDK `v0.15.0` (`427ef1da1f1d`),
 including completed-source handling and the C04 source-session wire contract.
 It replaces grpc-go with the scoped Omniview fork required by source sessions.
