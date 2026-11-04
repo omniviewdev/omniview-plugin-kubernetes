@@ -1,12 +1,13 @@
 import { Stack } from '@omniviewdev/base-ui';
-import { DrawerContext, useResourceMetrics } from '@omniviewdev/runtime';
+import { DrawerContext } from '@omniviewdev/runtime';
 import { Node } from 'kubernetes-types/core/v1';
 import React from 'react';
 
 // types
 
 // sections
-import { PLUGIN_ID } from '@/pluginId';
+import { podMetricResource, usePodResourceSetMetrics } from '@/hooks/usePodMetricsBatch';
+import { aggregateMetricValue } from './metricPresentation';
 
 import MetadataSection from '../../shared/sidebar/pages/overview/sections/MetadataSection';
 
@@ -15,6 +16,7 @@ import NodeResourcesSection from './Node/NodeResourcesSection';
 import NodeStatusSection from './Node/NodeStatusSection';
 import NodeSystemSection from './Node/NodeSystemSection';
 import NodeTopologySection from './Node/NodeTopologySection';
+import NodeMetricsSection from './NodeMetricsSection';
 
 interface Props {
   ctx: DrawerContext<Node>;
@@ -25,54 +27,16 @@ export const NodeSidebar: React.FC<Props> = ({ ctx }) => {
   const connectionID = ctx.resource?.route.connection || '';
   const resourceID = ctx.resource?.reference.address.id || '';
 
-  // Fetch live CPU/memory metrics for this node.
-  const { data: metricsData } = useResourceMetrics({
-    pluginID: PLUGIN_ID,
+  const { data: metricsData } = usePodResourceSetMetrics({
     connectionID,
-    resourceKey: 'k8s:/nodes',
-    resourceID,
-    resourceData: ctx.resource?.record?.record.body,
-    reference: ctx.resource?.reference,
-    route: ctx.resource?.route,
-    metricIDs: [
-      'cpu_usage',
-      'cpu_capacity',
-      'memory_usage',
-      'memory_capacity',
-      'prom_cpu_utilization',
-      'prom_memory_utilization',
-    ],
-    shape: 0, // CURRENT
-    refreshInterval: 15_000,
-    enabled: !!connectionID && !!resourceID,
+    resources: ctx.resource?.record ? [podMetricResource(ctx.resource.record)] : [],
+    metricIDs: ['cpu_usage', 'cpu_capacity', 'memory_usage', 'memory_capacity'],
+    bindingID: 'native',
   });
-
-  // Extract CPU/memory values from metrics response.
-  const CPU_USAGE_IDS = new Set(['cpu_usage', 'prom_cpu_utilization']);
-  const CPU_CAP_IDS = new Set(['cpu_capacity']);
-  const MEM_USAGE_IDS = new Set(['memory_usage', 'prom_memory_utilization']);
-  const MEM_CAP_IDS = new Set(['memory_capacity']);
-
-  let cpuUsage: number | undefined;
-  let cpuCapacity: number | undefined;
-  let memoryUsage: number | undefined;
-  let memoryCapacity: number | undefined;
-
-  if (metricsData) {
-    for (const resp of Object.values(metricsData)) {
-      if (!resp?.success || !resp.results) continue;
-      for (const result of resp.results) {
-        const mid = result.current_value?.metric_id ?? '';
-        const val = result.current_value?.value;
-        if (val == null) continue;
-
-        if (CPU_USAGE_IDS.has(mid) && cpuUsage == null) cpuUsage = val;
-        else if (CPU_CAP_IDS.has(mid) && cpuCapacity == null) cpuCapacity = val;
-        else if (MEM_USAGE_IDS.has(mid) && memoryUsage == null) memoryUsage = val;
-        else if (MEM_CAP_IDS.has(mid) && memoryCapacity == null) memoryCapacity = val;
-      }
-    }
-  }
+  const cpuUsage = aggregateMetricValue(metricsData?.results, 'cpu_usage');
+  const cpuCapacity = aggregateMetricValue(metricsData?.results, 'cpu_capacity');
+  const memoryUsage = aggregateMetricValue(metricsData?.results, 'memory_usage');
+  const memoryCapacity = aggregateMetricValue(metricsData?.results, 'memory_capacity');
 
   if (!node) {
     return null;
@@ -94,6 +58,13 @@ export const NodeSidebar: React.FC<Props> = ({ ctx }) => {
         cpuCapacity={cpuCapacity}
         memoryUsage={memoryUsage}
         memoryCapacity={memoryCapacity}
+      />
+      <NodeMetricsSection
+        connectionID={connectionID}
+        resourceKey="k8s:/nodes"
+        resourceID={resourceID}
+        reference={ctx.resource?.reference}
+        route={ctx.resource?.route}
       />
 
       {/* Topology + Karpenter */}

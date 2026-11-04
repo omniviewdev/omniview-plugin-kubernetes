@@ -67,7 +67,6 @@ func compositeQuery(
 	}
 
 	// Prometheus query — route to range-query variants for time-series requests.
-	// For batch mode (empty ResourceID), use the batch Prometheus handler.
 	if wantAll || hasProm {
 		if req.Shape == sdkmetric.ShapeTimeseries {
 			switch req.ResourceKey {
@@ -81,11 +80,7 @@ func compositeQuery(
 		} else {
 			switch req.ResourceKey {
 			case "k8s:/pods":
-				if req.ResourceID == "" {
-					promResp, promErr = promClient.queryAllPodPrometheus(qctx, req)
-				} else {
-					promResp, promErr = promClient.queryPodPrometheus(qctx, req)
-				}
+				promResp, promErr = promClient.queryPodPrometheus(qctx, req)
 			case "k8s:/nodes":
 				promResp, promErr = promClient.queryNodePrometheus(qctx, req)
 			}
@@ -129,10 +124,7 @@ func admitMetricRequest(qctx *sdkmetric.QueryContext, req *sdkmetric.QueryReques
 		return nil
 	}
 	if !intent {
-		if req.ResourceID != "" {
-			return resourcev2.NewError("INVALID_REQUEST", "Targeted resource metrics require an observation or reference")
-		}
-		return nil
+		return resourcev2.NewError("INVALID_REQUEST", "Resource metrics require explicit resource identity; use QueryResources for finite sets")
 	}
 	if req.ResourceKey != "k8s:/pods" && req.ResourceKey != "k8s:/nodes" {
 		return resourcev2.NewError("UNSUPPORTED", "This native metric selector does not support resource intent")
@@ -219,9 +211,8 @@ func getMetricsClient(qctx *sdkmetric.QueryContext) (metricsclientset.Interface,
 }
 
 func queryPodMetrics(qctx *sdkmetric.QueryContext, req sdkmetric.QueryRequest) (*sdkmetric.QueryResponse, error) {
-	// Empty resourceID = batch mode: list metrics for all pods in the namespace.
 	if req.ResourceID == "" {
-		return queryAllPodMetrics(qctx, req)
+		return nil, fmt.Errorf("pod metrics require explicit resource identity")
 	}
 
 	metricsClient, err := getMetricsClient(qctx)
@@ -246,41 +237,6 @@ func queryPodMetrics(qctx *sdkmetric.QueryContext, req sdkmetric.QueryRequest) (
 	}
 
 	return buildPodMetricResponse(podMetrics, req.MetricIDs), nil
-}
-
-// queryAllPodMetrics fetches metrics for all pods in a namespace via a single List call.
-// Returns one MetricResult per metric per pod, with pod/namespace in Labels.
-func queryAllPodMetrics(qctx *sdkmetric.QueryContext, req sdkmetric.QueryRequest) (*sdkmetric.QueryResponse, error) {
-	metricsClient, err := getMetricsClient(qctx)
-	if err != nil {
-		return &sdkmetric.QueryResponse{
-			Success: false,
-			Error:   err.Error(),
-		}, nil
-	}
-
-	podMetricsList, err := metricsClient.MetricsV1beta1().PodMetricses(req.ResourceNamespace).List(
-		metricQueryContext(qctx), metav1.ListOptions{},
-	)
-	if err != nil {
-		return &sdkmetric.QueryResponse{
-			Success: false,
-			Error:   fmt.Sprintf("failed to list pod metrics: %v", err),
-		}, nil
-	}
-
-	results := make([]sdkmetric.MetricResult, 0, len(podMetricsList.Items)*2)
-	for i := range podMetricsList.Items {
-		resp := buildPodMetricResponse(&podMetricsList.Items[i], req.MetricIDs)
-		if resp.Success {
-			results = append(results, resp.Results...)
-		}
-	}
-
-	return &sdkmetric.QueryResponse{
-		Success: true,
-		Results: results,
-	}, nil
 }
 
 func queryNodeMetrics(qctx *sdkmetric.QueryContext, req sdkmetric.QueryRequest) (*sdkmetric.QueryResponse, error) {

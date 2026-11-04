@@ -1,111 +1,75 @@
-import { MetricClient } from '@omniviewdev/runtime/api';
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-
+import { useResourceSetMetrics, type HostRecord, type MetricResource, type ResourceSetQueryRequest, type ResourceMetricResult } from '@omniviewdev/runtime';
+import { MetricClient } from '@omniviewdev/runtime/api';
+import { PLUGIN_ID } from '@/pluginId';
 import { useDocumentVisibility } from './useDocumentVisibility';
 
-export type PodMetricEntry = {
-  cpuMillicores: number;
-  memoryBytes: number;
-};
-
-/** Map keyed by "namespace/podName" → { cpuMillicores, memoryBytes } */
+export type PodMetricEntry = { cpu?: ResourceMetricResult; memory?: ResourceMetricResult };
 export type PodMetricsMap = Map<string, PodMetricEntry>;
+export const POD_CURRENT_METRICS = ['cpu_usage', 'memory_usage'];
+const ZERO_TIME = '0001-01-01T00:00:00Z';
 
-/** Stable empty map — avoids creating a new reference on every render when metrics haven't loaded */
-const EMPTY_MAP: PodMetricsMap = new Map();
-
-// Metric IDs for CPU usage (millicores)
-const CPU_METRIC_IDS = new Set(['cpu_usage', 'prom_cpu_usage_rate']);
-// Metric IDs for memory usage (bytes)
-const MEM_METRIC_IDS = new Set(['memory_usage', 'prom_memory_working_set']);
-
-/**
- * Fetch CPU/memory metrics for ALL pods in one batch call.
- * Uses empty resourceID to trigger the batch endpoint on the Go side.
- * Requests both metrics-server IDs and Prometheus IDs — whichever source
- * is available will respond.
- */
-export function usePodMetricsBatch(opts: {
-  connectionID: string;
-  /** Namespace to scope metrics to (empty = all namespaces) */
-  namespace?: string;
-  /** Auto-refresh interval in ms (default 30s) */
-  refreshInterval?: number;
-  enabled?: boolean;
-}): { metricsMap: PodMetricsMap; isLoading: boolean } {
-  const { connectionID, namespace = '', refreshInterval = 30_000, enabled = true } = opts;
-  const documentVisible = useDocumentVisibility();
-
-  const resourceKey = 'k8s:/pods';
-
-  const query = useQuery<PodMetricsMap>({
-    queryKey: ['metric', 'pod-batch', connectionID, namespace],
-    queryFn: async () => {
-      const resp = await MetricClient.QueryAll(
-        connectionID,
-        {
-          resource_key: resourceKey,
-          resource_id: '', // empty native ID selects the existing batch operation
-          resource_namespace: namespace,
-          // Native batch metrics are not one resource observation.
-          metric_ids: [
-            'cpu_usage',
-            'memory_usage',
-            'prom_cpu_usage_rate',
-            'prom_memory_working_set',
-          ],
-          shape: 0, // ShapeCurrent
-          start_time: new Date(0).toISOString(),
-          end_time: new Date(0).toISOString(),
-          step: 0,
-        },
-      );
-
-      const map = new Map<string, PodMetricEntry>();
-      if (!resp) return map;
-
-      // Aggregate results from all providers
-      for (const providerResp of Object.values(resp)) {
-        const qr = providerResp;
-        if (!qr?.success || !qr.results) continue;
-
-        for (const result of qr.results) {
-          const cv = result.current_value;
-          if (!cv?.labels) continue;
-
-          const pod = cv.labels['pod'];
-          const ns = cv.labels['namespace'];
-          if (!pod) continue;
-
-          const key = ns ? `${ns}/${pod}` : pod;
-          const existing = map.get(key) ?? {
-            cpuMillicores: 0,
-            memoryBytes: 0,
-          };
-
-          const mid = cv.metric_id ?? '';
-
-          if (CPU_METRIC_IDS.has(mid)) {
-            // Both metrics-server and Prometheus batch return millicores
-            existing.cpuMillicores = cv.value ?? 0;
-          } else if (MEM_METRIC_IDS.has(mid)) {
-            existing.memoryBytes = cv.value ?? 0;
-          }
-
-          map.set(key, existing);
-        }
-      }
-
-      return map;
-    },
-    enabled: enabled && documentVisible && !!connectionID,
-    refetchInterval: refreshInterval > 0 ? refreshInterval : undefined,
-    staleTime: 10_000,
-    retry: (failureCount) => failureCount < 1 && enabled && document.visibilityState !== 'hidden',
-  });
-
+/** Only host-issued identity and route cross the metric admission boundary. */
+export function podMetricResource(record: HostRecord): MetricResource {
+  const reference = record.record.reference;
   return {
-    metricsMap: query.data ?? EMPTY_MAP,
-    isLoading: query.isLoading,
-  };
+    token: JSON.stringify(reference), reference, route: record.route,
+    resource_key: reference.address.type, resource_id: reference.address.id,
+    resource_namespace: reference.address.scope.find((scope) => scope.dimension === 'namespace')?.value ?? '',
+  } as MetricResource;
+}
+
+export function usePodResourceSetMetrics(opts: {
+  connectionID: string; resources: MetricResource[]; metricIDs?: string[];
+  shape?: ResourceSetQueryRequest['shape']; startTime?: string; endTime?: string; step?: number;
+  enabled?: boolean; refreshInterval?: number; bindingID?: string;
+}) {
+  const visible = useDocumentVisibility();
+  const enabled = opts.enabled !== false && visible && !!opts.connectionID && opts.resources.length > 0;
+  const bindings = useQuery({
+    queryKey: ['metric', 'bindings', PLUGIN_ID, opts.connectionID],
+    queryFn: () => MetricClient.GetMetricBindings(PLUGIN_ID, opts.connectionID), enabled,
+  });
+  const definitions = useQuery({
+    queryKey: ['metric', 'definitions'], queryFn: () => MetricClient.GetMetricDefinitions(), enabled,
+  });
+  const binding = bindings.data?.find((item) => item.signal === 'metrics' && (opts.bindingID === undefined || item.id === opts.bindingID));
+  const missingBinding = !!opts.bindingID && opts.bindingID !== 'native' && bindings.isSuccess && !binding;
+  const request = bindings.isSuccess && definitions.isSuccess && !missingBinding ? {
+    resource_plugin_id: PLUGIN_ID, resource_connection_id: opts.connectionID,
+    binding_id: opts.bindingID === '' || opts.bindingID === 'native' ? 'native' : binding?.id ?? '',
+    source: binding?.source ?? { plugin_id: '', connection_id: '', datasource_uid: '', datasource_kind: '' },
+    resources: opts.resources, metric_ids: opts.metricIDs ?? POD_CURRENT_METRICS,
+    definitions: [], public_scope: {}, mapping_revision: binding?.revision ?? '',
+    shape: opts.shape ?? 0, start_time: opts.startTime ?? ZERO_TIME,
+    end_time: opts.endTime ?? ZERO_TIME, step: opts.step ?? 0,
+  } as ResourceSetQueryRequest : undefined;
+  const query = useResourceSetMetrics(request, { enabled, refreshInterval: opts.refreshInterval ?? 30_000 });
+  const data = query.data && binding ? { ...query.data, results: query.data.results.filter((result) => result.provenance.binding_id === binding.id && !result.provenance.native) } : query.data;
+  return { ...query, data, error: bindings.error ?? definitions.error ?? (missingBinding ? new Error('Selected metric binding is unavailable') : query.error),
+    isLoading: enabled && (bindings.isLoading || definitions.isLoading || query.isLoading) };
+}
+
+export function podMetricsMap(resources: MetricResource[], results: ResourceMetricResult[]): PodMetricsMap {
+  const keys = new Map(resources.map((resource) => [resource.token, `${resource.resource_namespace}/${resource.resource_id}`]));
+  const metrics = new Map<string, PodMetricEntry>();
+  for (const result of results) {
+    const key = keys.get(result.resource_token);
+    if (!key) continue;
+    const entry = metrics.get(key) ?? {};
+    if (result.metric_id === 'cpu_usage') entry.cpu = result;
+    if (result.metric_id === 'memory_usage') entry.memory = result;
+    metrics.set(key, entry);
+  }
+  return metrics;
+}
+
+export function usePodMetricsBatch(opts: {
+  connectionID: string; records: readonly HostRecord[]; refreshInterval?: number; enabled?: boolean;
+}) {
+  const resources = useMemo(() => opts.records.map(podMetricResource), [opts.records]);
+  const query = usePodResourceSetMetrics({ ...opts, resources });
+  const metricsMap = useMemo(() => podMetricsMap(resources, query.data?.results ?? []), [resources, query.data]);
+  return { ...query, metricsMap };
 }

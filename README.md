@@ -42,6 +42,13 @@ this plugin release.
 The plugin pins SDK 0.14.6 for completed-source handling while preserving the
 existing source-session wire contract and stock grpc-go dependency.
 
+Pod table metrics query only the finite host records currently acquired by the table.
+Canonical references and routes preserve namespace, cluster, and pod-incarnation identity;
+opaque host keys are never parsed. Table and sidebar consumers use the runtime's shared
+resource-set scheduler. Saved metric bindings select external sources, while explicit
+native requests retain Kubernetes metrics. Cells distinguish missing, denied, failed,
+partial, and stale results from measured zero and expose source provenance in their tooltip.
+
 ## MCP resource actions
 
 The resource catalog exposes unary `rollout-restart` actions for Deployments, StatefulSets and

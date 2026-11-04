@@ -1,6 +1,7 @@
 import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import { Button, DataTable, Progress, Skeleton, dataTableFeatures } from '@omniviewdev/base-ui';
 import { useResources, useResourceType, useResolvedResourceTarget, useRightDrawer, usePluginRouter, DrawerComponent } from '@omniviewdev/runtime';
+import type { HostRecord } from '@omniviewdev/runtime';
 import {
   type ColumnDef,
   type ColumnFiltersState,
@@ -78,7 +79,7 @@ export type Props<T extends RowData = any> = {
   /** Column picker supplied by the resource view; defaults to the standard picker. */
   columnPicker?: React.ComponentType<ColumnPickerProps<T>>;
   /** Wrap table content with consumers that need persisted visibility before mounting. */
-  contentWrapper?: React.ComponentType<React.PropsWithChildren<{ columnVisibility: VisibilityState }>>;
+  contentWrapper?: React.ComponentType<React.PropsWithChildren<{ columnVisibility: VisibilityState; records: readonly HostRecord[]; connectionID: string }>>;
 };
 
 const visibilityFromColumnDefs = <T extends RowData,>(defs: Array<ColumnDef<DataTableFeatures, T>>): VisibilityState => {
@@ -429,7 +430,7 @@ const ResourceTableContainer = <T extends RowData,>({
       </div>
     </TableDrawerContext.Provider>
   );
-  return ContentWrapper ? <ContentWrapper columnVisibility={effectiveColumnVisibility}>{content}</ContentWrapper> : content;
+  return ContentWrapper ? <ContentWrapper columnVisibility={effectiveColumnVisibility} records={acquired?.page.records ?? []} connectionID={connectionID}>{content}</ContentWrapper> : content;
 };
 
 ResourceTableContainer.displayName = 'ResourceTableContainer';
