@@ -3,6 +3,7 @@ import { usePluginContext, useConnection, useConnectionReadiness } from '@omnivi
 import React from 'react';
 import { LuArrowLeft, LuCircle, LuSave, LuX } from 'react-icons/lu';
 import { useParams, useNavigate, useSearchParams } from 'react-router';
+import { SiPrometheus } from 'react-icons/si';
 
 import MetricsTabContent from '../../components/settings/MetricsTabContent';
 import NodeShellTabContent from '../../components/settings/NodeShellTabContent';
@@ -251,16 +252,17 @@ const ClusterEditForm: React.FC<{ connectionId: string }> = ({ connectionId }) =
           <ConnectionSection conn={conn} formatTime={formatTime} />
         )}
         {section === 'metrics' && (
-          <SectionWrapper
-            title="Metrics"
-            description="Configure Prometheus metrics collection for this cluster."
-          >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+            <header style={{ paddingBottom: 16, borderBottom: '1px solid var(--ov-color-border-default)' }}>
+              <h1 style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 20, fontWeight: 600, margin: '0 0 6px' }}><SiPrometheus style={{ color: '#eaa057' }} />Metrics</h1>
+              <Text size="xs" tone="muted">{connectionId}</Text>
+            </header>
             <MetricsTabContent
               pluginID={meta.id}
               connectionID={connectionId}
               connected={connected}
             />
-          </SectionWrapper>
+          </div>
         )}
         {section === 'node-shell' && (
           <SectionWrapper

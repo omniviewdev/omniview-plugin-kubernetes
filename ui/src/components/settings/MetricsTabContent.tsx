@@ -268,6 +268,7 @@ const MetricsForm: React.FC<Props> = ({ pluginID, connectionID, connected }) => 
     <Stack direction="column" spacing={3}>
       <ConnectionSettingsContributions resourcePluginID={pluginID} connectionID={connectionID}
         signal="metrics" catalogRevision="1" publicMetadata={{}} resourceTypes={['k8s:/pods', 'k8s:/nodes']} />
+      <details className="cluster-native-metrics"><summary style={{ cursor: 'pointer', padding: '10px 0', fontSize: 12, color: 'var(--ov-color-fg-muted)' }}>Native metrics configuration</summary>
       {/* Provider status */}
       <Card style={cardStyle}>
         <div style={cardBodyStyle}>
@@ -423,38 +424,41 @@ const MetricsForm: React.FC<Props> = ({ pluginID, connectionID, connected }) => 
           <Grid columns={12} spacing={3}>
             <Grid.Item span={{ xs: 12, md: 5 }}>
               <FormField label="Service Name" htmlFor={serviceId} size="sm">
-                <Input.Control
-                  id={serviceId}
-                  size="sm"
-                  placeholder="prometheus-server"
-                  value={service}
-                  onChange={inputChange(setService)}
-                  onBlur={onBlur}
-                />
+                <Input.Root size="md">
+                  <Input.Control
+                    id={serviceId}
+                    placeholder="prometheus-server"
+                    value={service}
+                    onChange={inputChange(setService)}
+                    onBlur={onBlur}
+                  />
+                </Input.Root>
               </FormField>
             </Grid.Item>
             <Grid.Item span={{ xs: 12, md: 5 }}>
               <FormField label="Namespace" htmlFor={namespaceId} size="sm">
-                <Input.Control
-                  id={namespaceId}
-                  size="sm"
-                  placeholder="monitoring"
-                  value={namespace}
-                  onChange={inputChange(setNamespace)}
-                  onBlur={onBlur}
-                />
+                <Input.Root size="md">
+                  <Input.Control
+                    id={namespaceId}
+                    placeholder="monitoring"
+                    value={namespace}
+                    onChange={inputChange(setNamespace)}
+                    onBlur={onBlur}
+                  />
+                </Input.Root>
               </FormField>
             </Grid.Item>
             <Grid.Item span={{ xs: 12, md: 2 }}>
               <FormField label="Port" htmlFor={portId} size="sm">
-                <Input.Control
-                  id={portId}
-                  size="sm"
-                  placeholder="9090"
-                  value={port}
-                  onChange={inputChange(setPort)}
-                  onBlur={onBlur}
-                />
+                <Input.Root size="md">
+                  <Input.Control
+                    id={portId}
+                    placeholder="9090"
+                    value={port}
+                    onChange={inputChange(setPort)}
+                    onBlur={onBlur}
+                  />
+                </Input.Root>
               </FormField>
             </Grid.Item>
           </Grid>
@@ -522,6 +526,7 @@ const MetricsForm: React.FC<Props> = ({ pluginID, connectionID, connected }) => 
           </Grid>
         </div>
       </Card>
+      </details>
     </Stack>
   );
 };
