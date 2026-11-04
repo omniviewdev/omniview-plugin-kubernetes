@@ -39,8 +39,7 @@ of `SinceSeconds`. Kubernetes accepts only one time filter per log request.
 Released Kubernetes plugin 0.15.1 requires Omniview 0.27.2 or newer for its log
 lifecycle fixes. Activity-enabled development builds require Omniview 0.28.0 or
 newer; update the desktop before installing the next plugin release.
-These development builds pin SDK commit `ddc51a65ce873a4107a17bb532cb18e19b096401`
-(`v0.14.4-0.20261103224420-ddc51a65ce87`) and its required grpc-go fork.
+These development builds use published SDK `v0.15.0` and its required grpc-go fork.
 Source observations carry compact representation references without repeating
 schema documents; source admission retains the full catalog representation binding.
 
