@@ -78,7 +78,14 @@ Kubernetes plugin 0.16.0 requires Omniview 0.29.0 or newer, runtime/Vite 0.29.0,
 Container log requests with an explicit `SinceTime` use that timestamp instead
 of `SinceSeconds`. Kubernetes accepts only one time filter per log request.
 
-Standalone release packaging uses published SDK `v0.15.0` and the SDK-compatible grpc-go fork for activity streams and completed-source handling. Explorer evidence below records an earlier reviewed-source cohort; it does not prove the integrated activity release.
+Standalone release 0.15.1 used SDK 0.14.6 for completed-source handling with stock grpc-go. The historical live explorer evidence used the independently reviewed source cohort pinned to SDK `6ce85c8b42cab1547396217510196b29e63ffe55`; it does not establish evidence for this candidate. Source-cohort approval and standalone release verification remain separate gates.
+
+Kubernetes plugin 0.15.1 requires Omniview 0.27.2 or newer so the host includes
+the matching log lifecycle fixes. Update the desktop application before installing
+this plugin release.
+This source candidate pins SDK `v0.14.4-0.20261104020743-10249bc3ffd6`,
+including completed-source handling and the C04 source-session wire contract.
+It replaces grpc-go with the scoped Omniview fork required by source sessions.
 
 ## MCP resource actions
 
@@ -1002,10 +1009,9 @@ Registry installs retain pnpm's 24-hour release-age protection. Only coordinated
 The current frontend cohort uses `@omniviewdev/base-ui` 0.14.0,
 `@omniviewdev/editors` 6.1.8, and runtime/Vite plugin 0.30.0.
 The published runtime and Vite plugin must match; source builds use the reviewed host runtime.
-The backend pins published Go SDK `v0.15.0` and replaces
-`google.golang.org/grpc` with
-`github.com/omniviewdev/grpc-go v1.79.3-0.20261103012409-4c6f1d1c4e10`.
-This SDK release includes typed activity events and completed-source log handling.
+The backend pins SDK `v0.14.4-0.20261104020743-10249bc3ffd6` and replaces
+grpc-go with `github.com/omniviewdev/grpc-go` at
+`v1.79.3-0.20261103012409-4c6f1d1c4e10` for source-session receive controls.
 Debug preferences discard unsaved drafts when reopened or switched to another
 connection, but preserve active drafts when saved defaults refresh.
 
