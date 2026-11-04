@@ -17,6 +17,7 @@ it('keeps native node metrics under connection-default supplement with pod-only 
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<QueryClientProvider client={client}><PodMetricsSection connectionID="cluster" resourceKey="k8s:/nodes" resourceID="node" reference={{ address: { provider: 'kubernetes', authority: 'cluster', type: 'k8s:/nodes', id: 'node', scope: [] }, incarnation: 'uid' }} route={{ connection: 'cluster' }} nativeMetricIDs={['cpu_usage', 'cpu_capacity', 'memory_usage', 'memory_capacity']} /></QueryClientProvider>);
   await waitFor(() => expect(screen.getByText(/42/)).toBeTruthy());
+  expect(screen.getByRole('button', { name: 'cpu_usage: Line' })).toBeDisabled();
   expect(screen.getByText(/1,000/)).toBeTruthy();
   expect(screen.getAllByText('Ki').some(element => element.parentElement?.textContent === '2 Ki')).toBe(true);
   expect(screen.queryByText('Pod CPU')).toBeNull();
@@ -34,6 +35,7 @@ it.each(['replace', 'supplement'])('keeps timeseries-only selections out of curr
   render(<QueryClientProvider client={client}><PodMetricsSection connectionID="cluster" resourceKey="k8s:/nodes" resourceID="node" reference={{ address: { provider: 'kubernetes', authority: 'cluster', type: 'k8s:/nodes', id: 'node', scope: [] }, incarnation: 'uid' }} route={{ connection: 'cluster' }} /></QueryClientProvider>);
   fireEvent.click(screen.getByRole('button', { name: 'Add metric' }));
   fireEvent.click(await screen.findByLabelText('Request history'));
+  expect(screen.getByRole('button', { name: 'Request history: Stat' })).toBeDisabled();
   await waitFor(() => {
     const calls = mocks.query.mock.calls.map(([options]) => options);
     const currentLanes = calls.filter(options => options.shape === undefined).slice(-2);

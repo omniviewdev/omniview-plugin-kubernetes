@@ -235,7 +235,10 @@ export default function PodMetricsSection(props: MetricSidebarProps) {
         }
         const color = palette[index % palette.length];
         const supportsHistory = descriptors.some(item => item.id === definition.id && item.supported_shapes?.includes(1));
-        const visualization = visualizations[definition.id] ?? (supportsHistory ? 'area' : 'stat');
+        const supportsCurrent = descriptors.some(item => item.id === definition.id && item.supported_shapes?.includes(0));
+        const preferredVisualization = visualizations[definition.id] ?? (supportsHistory ? 'area' : 'stat');
+        const visualization = (preferredVisualization === 'stat' ? supportsCurrent : supportsHistory)
+          ? preferredVisualization : supportsHistory ? 'area' : 'stat';
         const series = histories.filter(result => ['ok', 'partial', 'stale'].includes(result.status)).flatMap((result, seriesIndex) => {
           const points = result.value?.time_series?.data_points ?? [];
           return points.length ? [{
@@ -250,7 +253,7 @@ export default function PodMetricsSection(props: MetricSidebarProps) {
               {VISUALIZATIONS.map(({ value, label, Icon }) => <IconButton key={value}
                 size="sm" variant={visualization === value ? 'soft' : 'ghost'}
                 aria-label={`${definition.name}: ${label}`} title={label} aria-pressed={visualization === value}
-                disabled={!supportsHistory && value !== 'stat'}
+                disabled={value === 'stat' ? !supportsCurrent : !supportsHistory}
                 onClick={() => setVisualizations(previous => ({ ...previous, [definition.id]: value }))}>
                 <Icon size={14} />
               </IconButton>)}
