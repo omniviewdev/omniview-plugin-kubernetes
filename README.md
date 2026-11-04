@@ -78,6 +78,12 @@ Pod and Node Metrics tabs use the same finite, source-selectable metrics section
 
 This frontend requires the paired host/runtime source cohort tracked in [metrics epic #388](https://github.com/omniviewdev/omniview/issues/388). Before marketplace publication, release the compatible host/npm packages, then update registry dependency pins, the lockfile, and the minimum host version. The existing registry pins do not establish compatibility with this source feature.
 
+## Real-cluster metrics lab
+
+`make metrics-lab` installs pinned kube-prometheus-stack and two bounded application workloads into the existing local `kind-kind` cluster. This uses real kubelet/cAdvisor and kube-state-metrics telemetry, not a synthetic exporter. The setup refuses remote contexts and does not create, reset, or delete the cluster.
+
+See [the metrics lab instructions](hack/metrics-lab/README.md) for private kubeconfig import, loopback port forwards, Grafana credentials, IDE binding, `make metrics-lab-verify`, and ownership-scoped cleanup. Generated credentials stay under the ignored `hack/metrics-lab/.state/` directory or Kubernetes Secrets.
+
 ## MCP resource actions
 
 The resource catalog exposes unary `rollout-restart` actions for Deployments, StatefulSets and

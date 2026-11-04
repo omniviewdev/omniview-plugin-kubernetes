@@ -109,3 +109,14 @@ cluster-delete:
 cluster-reset:
 	kubectl --kubeconfig "$(CLUSTER_KUBECONFIG)" delete --context "kind-$(CLUSTER_NAME)" -k "$(SEED_DIR)" --ignore-not-found
 	kubectl --kubeconfig "$(CLUSTER_KUBECONFIG)" apply --context "kind-$(CLUSTER_NAME)" -k "$(SEED_DIR)"
+
+# Real monitoring and bounded application activity on the existing local Kind cluster.
+.PHONY: metrics-lab metrics-lab-verify metrics-lab-down
+metrics-lab:
+	python3 hack/metrics-lab/setup.py up --context kind-kind
+
+metrics-lab-verify:
+	python3 hack/metrics-lab/verify.py --context kind-kind --kubeconfig hack/metrics-lab/.state/kubeconfig
+
+metrics-lab-down:
+	python3 hack/metrics-lab/setup.py down --context kind-kind --confirm-down

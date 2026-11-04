@@ -20,3 +20,4 @@ generators/dist
 ui/_tmp
 ui/node_modules
 /.tools/
+/hack/metrics-lab/.state/

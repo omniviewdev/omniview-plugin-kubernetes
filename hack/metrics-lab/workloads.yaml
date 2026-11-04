@@ -1,0 +1,205 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: metrics-workloads
+  labels:
+    app.kubernetes.io/part-of: omniview-metrics-lab
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: metrics-workload-source
+  namespace: metrics-workloads
+  labels:
+    app.kubernetes.io/part-of: omniview-metrics-lab
+data:
+  workload.py: |
+    """Bounded real application work; deliberately exposes no metrics endpoint."""
+    import hashlib
+    import http.server
+    import os
+    import threading
+    import time
+    import urllib.request
+
+    PROFILE = os.environ['PROFILE']
+    PEER = os.environ['PEER']
+    MEMORY = bytearray((24 if PROFILE == 'cpu' else 48) * 1024 * 1024)
+    for offset in range(0, len(MEMORY), 4096):
+        MEMORY[offset] = 1
+    PAYLOAD = b'workload-data\n' * 4096
+    ready = False
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            if self.path == '/ready':
+                body = b'ready\n' if ready else b'starting\n'
+                status = 200 if ready else 503
+            elif self.path == '/data':
+                body, status = PAYLOAD, 200
+            else:
+                body, status = b'not found\n', 404
+            self.send_response(status)
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.ThreadingHTTPServer(('0.0.0.0', 8080), Handler)
+    server.daemon_threads = True
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    block = b'bounded-file-work\n' * 4096
+    while True:
+        started = time.monotonic()
+        # Fixed CPU-time budget per cycle, with a hard Kubernetes CPU ceiling.
+        until = time.process_time() + (0.075 if PROFILE == 'cpu' else 0.015)
+        while time.process_time() < until:
+            hashlib.sha256(block).digest()
+        # Overwrite and fsync one bounded file; never accumulate disk contents.
+        with open('/data/activity.bin', 'wb') as stream:
+            for _ in range(4 if PROFILE == 'cpu' else 32):
+                stream.write(block)
+            stream.flush()
+            os.fsync(stream.fileno())
+        ready = True
+        # Real pod-to-pod HTTP traffic only; no external destinations.
+        for _ in range(1 if PROFILE == 'cpu' else 4):
+            try:
+                with urllib.request.urlopen(PEER + '/data', timeout=1) as response:
+                    while response.read(65536):
+                        pass
+            except OSError:
+                pass  # Peer rollout does not make this application's server unhealthy.
+        time.sleep(max(0.05, 1.0 - (time.monotonic() - started)))
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: metrics-cpu
+  namespace: metrics-workloads
+  labels:
+    app.kubernetes.io/part-of: omniview-metrics-lab
+spec:
+  replicas: 1
+  revisionHistoryLimit: 1
+  selector:
+    matchLabels: {app: metrics-cpu}
+  template:
+    metadata:
+      labels:
+        app: metrics-cpu
+        app.kubernetes.io/part-of: omniview-metrics-lab
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 5
+      securityContext: {runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001}
+      containers:
+        - name: workload
+          image: python:3.12.8-alpine3.21
+          command: [python, -B, /app/workload.py]
+          env:
+            - {name: PROFILE, value: cpu}
+            - {name: PEER, value: 'http://metrics-io.metrics-workloads.svc:8080'}
+          ports: [{name: http, containerPort: 8080}]
+          resources:
+            requests: {cpu: 100m, memory: 64Mi}
+            limits: {cpu: 250m, memory: 128Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          readinessProbe:
+            httpGet: {path: /ready, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 2
+          livenessProbe:
+            httpGet: {path: /ready, port: http}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 2
+          volumeMounts:
+            - {name: source, mountPath: /app, readOnly: true}
+            - {name: data, mountPath: /data}
+      volumes:
+        - name: source
+          configMap: {name: metrics-workload-source}
+        - name: data
+          emptyDir: {sizeLimit: 16Mi}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: metrics-io
+  namespace: metrics-workloads
+  labels:
+    app.kubernetes.io/part-of: omniview-metrics-lab
+spec:
+  replicas: 1
+  revisionHistoryLimit: 1
+  selector:
+    matchLabels: {app: metrics-io}
+  template:
+    metadata:
+      labels:
+        app: metrics-io
+        app.kubernetes.io/part-of: omniview-metrics-lab
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 5
+      securityContext: {runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001}
+      containers:
+        - name: workload
+          image: python:3.12.8-alpine3.21
+          command: [python, -B, /app/workload.py]
+          env:
+            - {name: PROFILE, value: io}
+            - {name: PEER, value: 'http://metrics-cpu.metrics-workloads.svc:8080'}
+          ports: [{name: http, containerPort: 8080}]
+          resources:
+            requests: {cpu: 50m, memory: 96Mi}
+            limits: {cpu: 150m, memory: 192Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          readinessProbe:
+            httpGet: {path: /ready, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 2
+          livenessProbe:
+            httpGet: {path: /ready, port: http}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 2
+          volumeMounts:
+            - {name: source, mountPath: /app, readOnly: true}
+            - {name: data, mountPath: /data}
+      volumes:
+        - name: source
+          configMap: {name: metrics-workload-source}
+        - name: data
+          emptyDir: {sizeLimit: 16Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: metrics-cpu
+  namespace: metrics-workloads
+  labels:
+    app.kubernetes.io/part-of: omniview-metrics-lab
+spec:
+  selector: {app: metrics-cpu}
+  ports: [{name: http, port: 8080, targetPort: http}]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: metrics-io
+  namespace: metrics-workloads
+  labels:
+    app.kubernetes.io/part-of: omniview-metrics-lab
+spec:
+  selector: {app: metrics-io}
+  ports: [{name: http, port: 8080, targetPort: http}]
