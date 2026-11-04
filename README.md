@@ -33,6 +33,33 @@ Cluster avatar initials tolerate leading, trailing, and repeated whitespace or
 dash separators while a display name is being edited. Whitespace-only names use
 `NA`; the display name itself is not normalized or changed.
 
+## Production notification compatibility
+
+Plugin notifications use the runtime's `useNotifications` API, not its retired
+`useSnackbar` export. In the affected production artifact,
+`entry2.js:332:197118` maps to `ClustersPage.tsx:58` calling `useSnackbar`;
+its runtime setter assigns that missing export to the minified name `zs`.
+The desktop host no longer exports it, so opening the cluster list failed
+before any connection request. Current plugin source already uses the supported
+notification API; older packaged plugins must be rebuilt and replaced.
+
+The release workflow builds through `hack/package.sh`. The affected release's
+frozen dependency typecheck accepted the older runtime API, while component
+tests mocked that API. Neither check exercised the actual desktop's shared
+runtime namespace. The UI build now also inspects the emitted `System.register`
+runtime setters and rejects the retired notification import before packaging.
+This targeted artifact check does not prove compatibility with every desktop
+API or replace an installed-host render smoke test.
+
+Run the guard regressions with
+`node --test ui/scripts/check-runtime-imports.test.mjs`. After a UI build, inspect
+its assets with `node ui/scripts/check-runtime-imports.mjs ui/dist/assets`.
+Before publishing, install the packaged plugin in the intended desktop release,
+open the cluster list, create and delete a folder, open cluster resources, and
+trigger a resource-link resolution error. Confirm notifications appear and
+navigation remains usable after a child-route render failure. Host-owned route
+boundaries isolate child pages; the plugin does not duplicate those boundaries.
+
 ## Cluster explorer
 
 Cluster explorer search supports free text and `region:`, `provider:`, `env:`,
