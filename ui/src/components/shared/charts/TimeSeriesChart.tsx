@@ -177,9 +177,9 @@ const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
   const handlePointerLeave = useCallback(() => setHoverIdx(null), []);
 
   let body: React.ReactNode;
-  if (loading) {
+  if (loading && isEmpty) {
     body = <Skeleton variant="rectangular" width="100%" height={height} />;
-  } else if (error) {
+  } else if (error && isEmpty) {
     body = (
       <ChartState height={height}>
         <Text size="sm" tone="danger">
@@ -227,14 +227,15 @@ const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
           <g clipPath={`url(#${clipId})`}>
             {!bars && paths.map((p, i) =>
               p.area ? (
-                <path key={`a${series[i].id}`} d={p.area} style={{ fill: p.color, fillOpacity: AREA_OPACITY, stroke: 'none' }} />
+                <path key={`a${series[i].id}`} className={styles.refreshPath} d={p.area} style={{ d: `path("${p.area}")`, fill: p.color, fillOpacity: AREA_OPACITY, stroke: 'none' }} />
               ) : null,
             )}
             {!bars && paths.map((p, i) => (
               <path
                 key={`l${series[i].id}`}
+                className={styles.refreshPath}
                 d={p.line}
-                style={{ fill: 'none', stroke: p.color }}
+                style={{ d: `path("${p.line}")`, fill: 'none', stroke: p.color }}
                 strokeWidth={1.5}
                 strokeDasharray={p.dash}
                 strokeLinejoin="round"
@@ -363,6 +364,7 @@ const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
   return (
     <div ref={rootRef} className={[styles.chartRoot, className].filter(Boolean).join(' ')} style={{ height, ...style }}>
       {body}
+      {error && !isEmpty && <Text role="alert" size="sm" tone="danger">{error}</Text>}
     </div>
   );
 };

@@ -3,12 +3,13 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import PodMetricsSection from './PodMetricsSection';
+import { updateMetricPreferences } from './useMetricPreferences';
 
 const mocks = vi.hoisted(() => ({ query: vi.fn(), bindings: vi.fn(), definitions: vi.fn() }));
 vi.mock('@omniviewdev/runtime/api', () => ({ MetricClient: { GetMetricBindings: mocks.bindings, GetMetricDefinitions: mocks.definitions, GetProviderConnections: vi.fn(async () => [{ id: 'team', name: 'Production EU' }]), GetDataSources: vi.fn(async () => [{ uid: 'a', name: 'Prometheus' }]) } }));
 vi.mock('@omniviewdev/runtime', () => ({ useMetricProvidersForResource: () => ({ data: [{ plugin_id: 'kubernetes', handlers: [{ resource: 'k8s:/nodes', metrics: ['cpu_usage', 'cpu_capacity', 'memory_usage', 'memory_capacity'].map(id => ({ id, name: id, unit: id.startsWith('cpu') ? 11 : 1, supported_shapes: [0] })) }] }], error: null, isLoading: false }) }));
 vi.mock('@/hooks/usePodMetricsBatch', () => ({ usePodResourceSetMetrics: mocks.query }));
-afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.clearAllMocks(); });
+afterEach(() => { cleanup(); window.localStorage.clear(); window.dispatchEvent(new StorageEvent('storage', { key: null })); vi.useRealTimers(); vi.restoreAllMocks(); vi.clearAllMocks(); });
 
 it('keeps native node metrics under connection-default supplement with pod-only external definitions', async () => {
   mocks.bindings.mockResolvedValue([{ id: 'external', signal: 'metrics', policy: 'supplement', source: { plugin_id: 'grafana', connection_id: 'team', datasource_uid: 'a' } }]);
@@ -168,8 +169,11 @@ it('formats values, resolves friendly source names, and combines current/history
   expect(screen.getByText('Mi').parentElement?.textContent).toBe('16 Mi');
   const summaries = container.querySelectorAll('article details > summary');
   expect(summaries).toHaveLength(1);
-  expect(summaries[0].textContent).toContain('stale');
-  expect(summaries[0].textContent).not.toContain('ok');
+  expect(screen.getByRole('button', { name: 'Memory status: stale' })).toBeInTheDocument();
+  expect(summaries[0].textContent).toBe('Details');
+  fireEvent.click(summaries[0]);
+  expect(screen.getByText('History · stale')).toBeVisible();
+  expect(screen.getByText('Current · ok')).toBeVisible();
   client.clear();
 });
 
@@ -209,10 +213,17 @@ it('shares aligned history windows across views, advances at the boundary, and r
   expect(mocks.query.mock.calls.map(([options]) => options).filter(options => options.shape === 1).slice(-2).every(options => !options.enabled)).toBe(true);
   first.unmount();
   second.unmount();
+  visibility.mockRestore();
+  act(() => updateMetricPreferences('k8s:/nodes', previous => ({ ...previous, duration: '900000' })));
+  vi.setSystemTime(new Date('2026-11-04T14:00:12.000Z'));
+  const reopened = render(<QueryClientProvider client={client}><PodMetricsSection {...props} resourceID="other-node" /></QueryClientProvider>);
+  expect(mocks.query.mock.calls.map(([options]) => options).filter(options => options.shape === 1 && options.enabled).at(-1)).toMatchObject({
+    startTime: '2026-11-04T13:45:00.000Z', endTime: '2026-11-04T14:00:00.000Z',
+  });
+  reopened.unmount();
   client.clear();
   await act(async () => { await vi.advanceTimersByTimeAsync(0); });
   expect(vi.getTimerCount()).toBe(0);
-  visibility.mockRestore();
 });
 
 it('switches actual chart visuals without hiding current and history states', async () => {
@@ -251,12 +262,31 @@ it('switches actual chart visuals without hiding current and history states', as
   expect(memory.querySelector('svg[role="img"]')).toBeNull();
   expect(memory.textContent).toContain('1 Ki');
   expect(memory.textContent).toContain('container: app');
-  expect(memory.querySelector('summary')?.textContent).toContain('partial');
-  expect(memory.querySelector('summary')?.textContent).toContain('stale');
+  expect(screen.getByRole('button', { name: 'Memory status: partial · stale' })).toBeInTheDocument();
+  expect(memory.querySelector('summary')?.textContent).toBe('Details');
   fireEvent.click(screen.getByRole('button', { name: 'CPU: Stat' }));
   expect(container.textContent).toContain('Not reported');
   fireEvent.click(screen.getByRole('button', { name: 'Memory: Area' }));
   expect(memory.querySelector('[aria-label="Time series area chart"]')).not.toBeNull();
   expect(screen.getByRole('button', { name: 'CPU: Stat' }).getAttribute('aria-pressed')).toBe('true');
+  client.clear();
+});
+
+it('retains unavailable selections across native and external source changes', async () => {
+  const user = userEvent.setup();
+  mocks.bindings.mockResolvedValue([{ id: 'external', signal: 'metrics', policy: 'replace', source: { plugin_id: 'grafana', connection_id: 'team', datasource_uid: 'a' } }]);
+  mocks.definitions.mockResolvedValue([{ id: 'requests', name: 'Requests', native: false, resource_keys: ['k8s:/nodes'], supported_shapes: [0] }]);
+  mocks.query.mockReturnValue({ data: { results: [] }, error: null, isLoading: false });
+  updateMetricPreferences('k8s:/nodes', previous => ({ ...previous, additional: ['requests'], hidden: ['cpu_usage'] }));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<QueryClientProvider client={client}><PodMetricsSection connectionID="cluster" resourceKey="k8s:/nodes" resourceID="node" reference={{ address: { provider: 'kubernetes', authority: 'cluster', type: 'k8s:/nodes', id: 'node', scope: [] }, incarnation: 'uid' }} route={{ connection: 'cluster' }} /></QueryClientProvider>);
+  await screen.findByRole('button', { name: 'Remove Requests' });
+  await user.click(screen.getByLabelText('Metric source'));
+  await user.click(await screen.findByRole('option', { name: 'Native Kubernetes' }));
+  expect(screen.queryByRole('button', { name: 'Remove Requests' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Remove cpu_usage' })).toBeNull();
+  await user.click(screen.getByLabelText('Metric source'));
+  await user.click(await screen.findByRole('option', { name: /Connection default/ }));
+  expect(await screen.findByRole('button', { name: 'Remove Requests' })).toBeInTheDocument();
   client.clear();
 });

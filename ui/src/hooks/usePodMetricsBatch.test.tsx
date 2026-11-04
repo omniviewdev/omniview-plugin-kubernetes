@@ -8,6 +8,7 @@ vi.mock('@omniviewdev/runtime/api', () => ({ MetricClient: { GetMetricBindings: 
 vi.mock('@omniviewdev/runtime', () => ({ useResourceSetMetrics: mocks.query }));
 vi.mock('./useDocumentVisibility', () => ({ useDocumentVisibility: () => true }));
 import { podMetricResource, podMetricsMap, usePodResourceSetMetrics } from './usePodMetricsBatch';
+import { PLUGIN_ID } from '@/pluginId';
 
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
@@ -132,5 +133,98 @@ describe('resource-set acquisition admission', () => {
     await waitFor(() => expect(query.current.error?.message).toBe('Selected metric binding is unavailable'));
     expect(mocks.query.mock.calls.every(([request]) => request === undefined)).toBe(true);
     client.clear();
+  });
+});
+
+describe('rolling history continuity', () => {
+  function setup(bindingID = 'native') {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    client.setQueryData(['metric', 'bindings', PLUGIN_ID, 'cluster'], []);
+    mocks.bindings.mockResolvedValue([]);
+    const resource = podMetricResource(record('team'));
+    const history = { ...result(resource.token, 'cpu_usage', 'ok'), expires_at: '2026-11-04T12:05:00Z', value: {
+      time_series: { data_points: [{ timestamp: '2026-11-04T12:00:00Z', value: 1 }] },
+    } } as ResourceMetricResult;
+    let snapshot: { data?: { results: ResourceMetricResult[] }; error: Error | null; isLoading: boolean; isFetching: boolean } =
+      { data: { results: [history] }, error: null, isLoading: false, isFetching: false };
+    mocks.query.mockImplementation(request => request ? snapshot : { isLoading: false, isFetching: false, error: null });
+    const wrapper = ({ children }: PropsWithChildren) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    const initialProps = { connectionID: 'cluster', resources: [resource], bindingID, metricIDs: ['cpu_usage'],
+      shape: 1, startTime: '2026-11-04T11:00:00Z', endTime: '2026-11-04T12:00:00Z' };
+    const hook = renderHook(props => usePodResourceSetMetrics(props), { initialProps, wrapper });
+    return { ...hook, client, history, initialProps, setSnapshot: (next: typeof snapshot) => { snapshot = next; } };
+  }
+
+  it('retains history freshness during a deferred rolling refresh, then replaces it with resolved samples', async () => {
+    const hook = setup();
+    await waitFor(() => expect(hook.result.current.data?.results).toEqual([hook.history]));
+    hook.setSnapshot({ error: null, isLoading: true, isFetching: true });
+    hook.rerender({ ...hook.initialProps, startTime: '2026-11-04T11:00:30Z', endTime: '2026-11-04T12:00:30Z' });
+    expect(hook.result.current.data?.results[0]).toBe(hook.history);
+    expect(hook.result.current.isLoading).toBe(false);
+    expect(hook.result.current.isFetching).toBe(true);
+    const { promise: pending, resolve } = Promise.withResolvers<{ results: ResourceMetricResult[] }>();
+    const updated = { ...hook.history, value: { time_series: { data_points: [{ timestamp: '2026-11-04T12:00:30Z', value: 2 }] } } } as ResourceMetricResult;
+    resolve({ results: [updated] });
+    hook.setSnapshot({ data: await pending, error: null, isLoading: false, isFetching: false });
+    hook.rerender({ ...hook.initialProps, startTime: '2026-11-04T11:00:30Z', endTime: '2026-11-04T12:00:30Z' });
+    expect(hook.result.current.data?.results).toEqual([updated]);
+    hook.client.clear();
+  });
+
+  it.each(['resource', 'source', 'sourceDetails', 'metrics', 'duration', 'step', 'mapping'])('clears prior history immediately after %s changes', async change => {
+    const hook = setup();
+    await waitFor(() => expect(hook.result.current.data?.results).toEqual([hook.history]));
+    hook.setSnapshot({ error: null, isLoading: true, isFetching: true });
+    if (change === 'mapping' || change === 'sourceDetails') {
+      hook.client.setQueryData(['metric', 'bindings', PLUGIN_ID, 'cluster'], [
+        { id: 'native', signal: 'metrics', revision: change === 'mapping' ? 'new' : '', source: { plugin_id: 'grafana', datasource_uid: 'other' } },
+      ]);
+    }
+    hook.rerender({ ...hook.initialProps,
+      ...(change === 'resource' ? { resources: [podMetricResource(record('other'))] } : {}),
+      ...(change === 'source' ? { bindingID: 'other' } : {}),
+      ...(change === 'metrics' ? { metricIDs: ['memory_usage'] } : {}),
+      ...(change === 'duration' ? { startTime: '2026-11-04T10:00:00Z' } : {}),
+      ...(change === 'step' ? { step: 60 } : {}),
+    });
+    if (change === 'mapping' || change === 'sourceDetails') await waitFor(() => expect(hook.result.current.data).toBeUndefined());
+    else expect(hook.result.current.data).toBeUndefined();
+    hook.client.clear();
+  });
+
+  it('does not mask settled empty or denied results, and keeps background errors visible', async () => {
+    const hook = setup();
+    await waitFor(() => expect(hook.result.current.data?.results).toEqual([hook.history]));
+    const error = new Error('Provider unavailable');
+    hook.setSnapshot({ error, isLoading: false, isFetching: false });
+    hook.rerender(hook.initialProps);
+    expect(hook.result.current.error).toBe(error);
+    expect(hook.result.current.data?.results[0]).toBe(hook.history);
+    hook.setSnapshot({ data: { results: [] }, error: null, isLoading: false, isFetching: false });
+    hook.rerender(hook.initialProps);
+    expect(hook.result.current.data?.results).toEqual([]);
+    const denied = { ...hook.history, status: 'denied', value: undefined } as ResourceMetricResult;
+    hook.setSnapshot({ data: { results: [denied] }, error: null, isLoading: false, isFetching: false });
+    hook.rerender(hook.initialProps);
+    expect(hook.result.current.data?.results).toEqual([denied]);
+    hook.setSnapshot({ error, isLoading: false, isFetching: false });
+    hook.rerender(hook.initialProps);
+    expect(hook.result.current.data).toBeUndefined();
+    expect(hook.result.current.error).toBe(error);
+    hook.client.clear();
+  });
+
+  it.each(['stale', 'partial'])('preserves provider %s status and deadline during refresh', async status => {
+    const hook = setup();
+    const providerResult = { ...hook.history, status } as ResourceMetricResult;
+    hook.setSnapshot({ data: { results: [providerResult] }, error: null, isLoading: false, isFetching: false });
+    hook.rerender(hook.initialProps);
+    await waitFor(() => expect(hook.result.current.data?.results[0]).toBe(providerResult));
+    hook.setSnapshot({ error: null, isLoading: true, isFetching: true });
+    hook.rerender({ ...hook.initialProps, startTime: '2026-11-04T11:00:30Z', endTime: '2026-11-04T12:00:30Z' });
+    expect(hook.result.current.data?.results[0]).toBe(providerResult);
+    expect(hook.result.current.data?.results[0].expires_at).toBe(hook.history.expires_at);
+    hook.client.clear();
   });
 });

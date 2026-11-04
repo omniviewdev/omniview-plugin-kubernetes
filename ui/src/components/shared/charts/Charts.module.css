@@ -9,6 +9,18 @@
   overflow: visible;
 }
 
+/* SVG path interpolation only runs for matching command topology. Changed gaps
+   or sample counts update immediately rather than inventing connecting data. */
+.refreshPath {
+  transition: d 160ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .refreshPath {
+    transition: none;
+  }
+}
+
 .axisLabel {
   fill: var(--ov-color-fg-muted);
   font-family: var(--ov-font-sans);

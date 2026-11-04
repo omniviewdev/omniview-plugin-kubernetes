@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useLayoutEffect, useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useResourceSetMetrics, type HostRecord, type MetricResource, type ResourceSetQueryRequest, type ResourceMetricResult } from '@omniviewdev/runtime';
 import { MetricClient } from '@omniviewdev/runtime/api';
@@ -44,8 +44,30 @@ export function usePodResourceSetMetrics(opts: {
   } as ResourceSetQueryRequest : undefined;
   const query = useResourceSetMetrics(request, { enabled, refreshInterval: opts.refreshInterval ?? 30_000 });
   const data = query.data && binding ? { ...query.data, results: query.data.results.filter((result) => result.provenance.binding_id === binding.id && !result.provenance.native || binding.policy === 'supplement' && result.provenance.native) } : query.data;
-  return { ...query, data, error: bindings.error ?? (missingBinding ? new Error('Selected metric binding is unavailable') : query.error),
-    isLoading: enabled && (bindings.isLoading || query.isLoading) };
+  // Rolling bounds change acquisition identity, not the authority of plotted history.
+  // Everything else, including duration and mapping, must invalidate it synchronously.
+  const historyKey = request?.shape === 1 ? JSON.stringify({
+    ...request, start_time: undefined, end_time: undefined,
+    duration: Date.parse(request.end_time) - Date.parse(request.start_time),
+    selection: opts.bindingID, binding,
+  }) : '';
+  const previous = useRef<{ key: string; data: NonNullable<typeof data> } | undefined>(undefined);
+  const hasPlot = data?.results.some(result =>
+    ['ok', 'partial', 'stale'].includes(result.status)
+    && result.value?.time_series?.data_points.some(point => Number.isFinite(point.value)));
+  const compatible = historyKey && previous.current?.key === historyKey ? previous.current.data : undefined;
+  // Revalidation does not change sample freshness. Preserve provider deadlines
+  // and statuses so presentation can report actual expiry, partiality, or staleness.
+  const retained = !data && compatible && (query.isLoading || query.isFetching || query.error)
+    ? compatible : undefined;
+  useLayoutEffect(() => {
+    if (!historyKey || previous.current?.key !== historyKey) previous.current = undefined;
+    if (hasPlot && data) previous.current = { key: historyKey, data };
+    // A completed empty/missing/denied response must replace the old plot.
+    else if (data || (!query.isLoading && !query.isFetching && !query.error)) previous.current = undefined;
+  }, [historyKey, data, hasPlot, query.isLoading, query.isFetching, query.error]);
+  return { ...query, data: data ?? retained, error: bindings.error ?? (missingBinding ? new Error('Selected metric binding is unavailable') : query.error),
+    isLoading: enabled && !hasPlot && !retained && (bindings.isLoading || query.isLoading) };
 }
 
 export function podMetricsMap(resources: MetricResource[], results: ResourceMetricResult[]): PodMetricsMap {

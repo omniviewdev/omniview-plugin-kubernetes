@@ -10,9 +10,11 @@ import { LuChartArea, LuChartColumn, LuChartLine, LuChevronRight, LuCode, LuData
 import styles from './PodMetricsSection.module.css';
 import type { ChartTimeRange } from '../../../shared/charts';
 import { PLUGIN_ID } from '@/pluginId';
-import { metricResultDisplay, metricResourceToken } from '../metricPresentation';
+import { metricResultDisplay, metricResourceToken, metricResultStatus } from '../metricPresentation';
+import MetricStateIndicator from '../MetricStateIndicator';
 import { usePodResourceSetMetrics } from '@/hooks/usePodMetricsBatch';
 import { useDocumentVisibility } from '@/hooks/useDocumentVisibility';
+import { useMetricPreferences } from './useMetricPreferences';
 
 const HISTORY_STEP_MS = 30_000;
 const VISUALIZATIONS = [
@@ -21,7 +23,6 @@ const VISUALIZATIONS = [
   { value: 'bars', label: 'Bars', Icon: LuChartColumn },
   { value: 'stat', label: 'Stat', Icon: LuHash },
 ] as const;
-type Visualization = typeof VISUALIZATIONS[number]['value'];
 function alignedHistoryEnd() {
   return Math.floor(Date.now() / HISTORY_STEP_MS) * HISTORY_STEP_MS;
 }
@@ -48,7 +49,7 @@ function displayMeasurement(result: Parameters<typeof metricResultDisplay>[0], u
   const separator = formatted.lastIndexOf(' ');
   return {
     value: separator < 0 ? formatted : formatted.slice(0, separator),
-    unit: `${separator < 0 ? '' : formatted.slice(separator + 1)}${display.endsWith('(stale)') ? ' (stale)' : ''}`,
+    unit: separator < 0 ? '' : formatted.slice(separator + 1),
   };
 }
 
@@ -66,14 +67,11 @@ export interface MetricSidebarProps {
 /** Resource ownership always comes from the host target, never the provider source. */
 export default function PodMetricsSection(props: MetricSidebarProps) {
   const { connectionID, resourceKey, resourceID, reference, route } = props;
-  const [bindingID, setBindingID] = useState('');
-  const [additional, setAdditional] = useState<string[]>([]);
-  const [hidden, setHidden] = useState<string[]>([]);
+  const { preferences, update, bindingID, setBindingID } = useMetricPreferences(resourceKey, connectionID);
+  const { additional, hidden, duration, visualizations } = preferences;
   const [search, setSearch] = useState('');
   const [browserOpen, setBrowserOpen] = useState(false);
-  const [duration, setDuration] = useState('3600000');
   const [rangeEnd, setRangeEnd] = useState(alignedHistoryEnd);
-  const [visualizations, setVisualizations] = useState<Record<string, Visualization>>({});
   const timeRange = useMemo<ChartTimeRange>(() => ({ from: new Date(rangeEnd - Number(duration)), to: new Date(rangeEnd) }), [rangeEnd, duration]);
   const visible = useDocumentVisibility();
   const enabled = Boolean(connectionID && resourceID && reference && route);
@@ -179,13 +177,13 @@ export default function PodMetricsSection(props: MetricSidebarProps) {
   return <section className={styles.root} aria-label="Resource metrics">
     <header className={styles.heading}><Text weight="semibold" size="lg">Metrics</Text><Text size="xs" tone="muted">{props.resourceNamespace}</Text></header>
     <div className={styles.toolbar}>
-      <SimpleSelect aria-label="Metric source" value={bindingID} onChange={value => { setBindingID(value); setAdditional([]); setHidden([]); }} options={[
+      <SimpleSelect aria-label="Metric source" value={bindingID} onChange={setBindingID} options={[
         { value: '', label: <><LuDatabase size={14} />{!bindingID ? sourceLabel : 'Connection default'}</> },
         { value: 'native', label: 'Native Kubernetes' },
         ...sources.map(binding => ({ value: binding.id, label: <><LuDatabase size={14} />{selectedBinding?.id === binding.id ? sourceLabel : `${binding.source.connection_id} / ${binding.source.datasource_uid}`} ({binding.policy})</> })),
       ]} className={styles.source} />
       <div className={styles.timeControls}>
-        <SimpleSelect aria-label="Time range" value={duration} onChange={value => { setDuration(value); setRangeEnd(alignedHistoryEnd()); }} options={[
+        <SimpleSelect aria-label="Time range" value={duration} onChange={value => { update(previous => ({ ...previous, duration: value })); setRangeEnd(alignedHistoryEnd()); }} options={[
           { value: '900000', label: 'Last 15 minutes' }, { value: '3600000', label: 'Last 1 hour' },
           { value: '10800000', label: 'Last 3 hours' }, { value: '21600000', label: 'Last 6 hours' },
           { value: '43200000', label: 'Last 12 hours' }, { value: '86400000', label: 'Last 24 hours' },
@@ -196,7 +194,7 @@ export default function PodMetricsSection(props: MetricSidebarProps) {
     </div>
     <div className={styles.selection}>
       {selected.map((definition, index) => <Button key={definition.id} size="xs" variant="outline" className={styles.chip} aria-label={`Remove ${definition.name}`} onClick={() => {
-        setHidden(ids => [...ids, definition.id]); setAdditional(ids => ids.filter(id => id !== definition.id));
+        update(previous => ({ ...previous, hidden: [...new Set([...previous.hidden, definition.id])], additional: previous.additional.filter(id => id !== definition.id) }));
       }}><span className={styles.swatch} style={{ background: palette[index % palette.length] }} />{definition.name}<LuX size={11} /></Button>)}
       <Popover.Root open={browserOpen} onOpenChange={setBrowserOpen}>
         <Popover.Trigger render={<Button size="xs" variant="outline" className={styles.add}><LuPlus />Add metric</Button>} />
@@ -207,8 +205,8 @@ export default function PodMetricsSection(props: MetricSidebarProps) {
             <div className={styles.options}>
               {available.filter((definition, index) => available.findIndex(item => item.id === definition.id) === index && definition.name.toLowerCase().includes(search.toLowerCase())).map(definition =>
                 <Button key={definition.id} aria-label={definition.name} variant="ghost" size="sm" disabled={selectedIDs.includes(definition.id)} className={styles.option} onClick={() => {
-                  setHidden(ids => ids.filter(id => id !== definition.id));
-                  setAdditional(ids => [...new Set([...ids, definition.id])]); setBrowserOpen(false); setSearch('');
+                  update(previous => ({ ...previous, hidden: previous.hidden.filter(id => id !== definition.id), additional: [...new Set([...previous.additional, definition.id])] }));
+                  setBrowserOpen(false); setSearch('');
                 }}><span><strong>{definition.name}</strong><small>{UNIT_LABELS[definition.unit]}{definition.supported_shapes?.includes(1) ? ' · Time series' : ' · Current value'}</small></span><LuPlus /></Button>)}
               {!available.some(definition => definition.name.toLowerCase().includes(search.toLowerCase())) && <Text size="xs" tone="muted">No matching metrics</Text>}
             </div>
@@ -254,7 +252,7 @@ export default function PodMetricsSection(props: MetricSidebarProps) {
                 size="sm" variant={visualization === value ? 'soft' : 'ghost'}
                 aria-label={`${definition.name}: ${label}`} title={label} aria-pressed={visualization === value}
                 disabled={value === 'stat' ? !supportsCurrent : !supportsHistory}
-                onClick={() => setVisualizations(previous => ({ ...previous, [definition.id]: value }))}>
+                onClick={() => update(previous => ({ ...previous, visualizations: { ...previous.visualizations, [definition.id]: value } }))}>
                 <Icon size={14} />
               </IconButton>)}
             </div>
@@ -274,13 +272,13 @@ export default function PodMetricsSection(props: MetricSidebarProps) {
           <footer className={styles.cardFooter}>
             {[...lanes.values()].map((lane, laneIndex) => {
               const result = lane[0];
-              const states = [...new Set(lane.map(item => metricResultDisplay(item).endsWith('(stale)') ? 'stale' : item.status).filter(status => status !== 'ok'))];
+              const states = [...new Set(lane.flatMap(item => [metricResultStatus(item), ...(item.status === 'partial' ? ['partial'] : [])]).filter(status => status !== 'ok'))];
               const laneSource = result.provenance.native ? 'Native Kubernetes' : result.provenance.source.connection_id === selectedBinding?.source.connection_id && result.provenance.source.datasource_uid === selectedBinding?.source.datasource_uid ? sourceLabel : `${result.provenance.source.plugin_id} / ${result.provenance.source.datasource_uid}`;
               return <details key={laneIndex} className={styles.provenance}>
-                <summary aria-label={`${definition.name} ${lanes.size > 1 ? laneSource : 'source'} details`}><span className={styles.swatch} style={{ background: color }} />{lanes.size > 1 ? laneSource : 'Details'}<span>{states.join(' · ')}</span></summary>
+                <summary aria-label={`${definition.name} ${lanes.size > 1 ? laneSource : 'source'} details`}><span className={styles.swatch} style={{ background: color }} />{lanes.size > 1 ? laneSource : 'Details'}<MetricStateIndicator states={states} label={`${definition.name} status`} /></summary>
                 <div>Source: {laneSource}</div>
                 {lane.map((item, itemIndex) => <div key={itemIndex}>
-                  <div>{item.value?.time_series ? 'History' : 'Current'} · {item.status}</div>
+                  <div>{item.value?.time_series ? 'History' : 'Current'} · {metricResultStatus(item)}{item.status === 'partial' && metricResultStatus(item) === 'stale' ? ' · partial' : ''}</div>
                   {!item.provenance.native && <div>Connection: {item.provenance.source.connection_id}</div>}
                   {item.observed_at && <div>Observed: {item.observed_at}</div>}
                   {item.expires_at && <div>Expires: {item.expires_at}</div>}

@@ -5,11 +5,16 @@ export function metricResourceToken(reference: ResourceReference | undefined, re
   return reference ? JSON.stringify(reference) : JSON.stringify([resourceKey, namespace, resourceID]);
 }
 
+/** Expiry applies only to usable measurements; it never masks a failure. */
+export function metricResultStatus(result: metric.ResourceMetricResult, now = Date.now()): string {
+  if (!['ok', 'partial', 'stale'].includes(result.status)) return result.status;
+  const expires = Date.parse(result.expires_at);
+  return result.status === 'stale' || (Number.isFinite(expires) && expires > 0 && expires <= now) ? 'stale' : result.status;
+}
+
 /** Gauges cannot represent denied, partial, or expired measurements faithfully. */
 export function currentMetricValue(result: metric.ResourceMetricResult | undefined, now = Date.now()): number | undefined {
-  if (!result || result.status !== 'ok') return undefined;
-  const expires = Date.parse(result.expires_at);
-  if (Number.isFinite(expires) && expires > 0 && expires <= now) return undefined;
+  if (!result || metricResultStatus(result, now) !== 'ok') return undefined;
   const value = result.value?.current_value?.value;
   return value != null && Number.isFinite(value) ? value : undefined;
 }
@@ -22,11 +27,9 @@ export function aggregateMetricValue(results: metric.ResourceMetricResult[] | un
 }
 
 /** Missing, denied, and invalid values must never masquerade as zero. */
-export function metricResultDisplay(result: metric.ResourceMetricResult, now = Date.now()): string {
+export function metricResultDisplay(result: metric.ResourceMetricResult): string {
   if (!['ok', 'partial', 'stale'].includes(result.status)) return result.status === 'missing' ? 'Not reported' : result.status;
   const value = result.value?.current_value?.value;
   if (value == null || !Number.isFinite(value)) return 'Not reported';
-  const expires = Date.parse(result.expires_at);
-  const stale = result.status === 'stale' || (Number.isFinite(expires) && expires > 0 && expires <= now);
-  return `${value}${stale ? ' (stale)' : ''}`;
+  return `${value}`;
 }

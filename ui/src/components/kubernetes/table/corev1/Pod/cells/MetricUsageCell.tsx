@@ -2,6 +2,8 @@ import { Stack, Text } from '@omniviewdev/base-ui';
 import React, { createContext, useContext } from 'react';
 
 import type { PodMetricsMap } from '../../../../../../hooks/usePodMetricsBatch';
+import { metricResultStatus } from '../../../../sidebar/metricPresentation';
+import MetricStateIndicator from '../../../../sidebar/MetricStateIndicator';
 
 const emptyValueStyle = {
   fontSize: 12,
@@ -70,14 +72,13 @@ const MetricUsageCell: React.FC<MetricUsageCellProps> = ({ podKey, format }) => 
     metric?.provenance.source.plugin_id, metric?.provenance.source.connection_id,
     metric?.provenance.source.datasource_uid,
   ].filter(Boolean).join(' / ');
-  const expired = !!metric?.expires_at && Date.parse(metric.expires_at) > 0 && Date.parse(metric.expires_at) < Date.now();
-  const status = error ? 'error' : expired ? 'stale' : metric?.status ?? (isLoading ? 'loading' : 'unavailable');
+  const status = error ? 'error' : metric ? metricResultStatus(metric) : (isLoading ? 'loading' : 'unavailable');
   if (typeof raw !== 'number' || !Number.isFinite(raw) || !['ok', 'stale', 'partial'].includes(status)) {
     return <span title={[status, source, ...(metric?.warnings ?? [])].filter(Boolean).join(' · ')}>
       <Text style={emptyValueStyle}>{status === 'loading' ? '…' : status === 'error' || status === 'failed' ? 'Error' : status === 'denied' ? 'Denied' : 'Unavailable'}</Text>
     </span>;
   }
-  const label = (format === 'cpu' ? formatCpu(raw) : formatMemory(raw)) + (status !== 'ok' ? ` (${status})` : '');
+  const label = format === 'cpu' ? formatCpu(raw) : formatMemory(raw);
 
   // Estimate a percentage for the bar. Without per-pod limits available in the
   // table row we use a soft heuristic: CPU caps at 1000m (1 core),
@@ -112,6 +113,7 @@ const MetricUsageCell: React.FC<MetricUsageCellProps> = ({ podKey, format }) => 
       <Text truncate style={valueLabelStyle}>
         {label}
       </Text>
+      <MetricStateIndicator states={[status, ...(metric?.status === 'partial' ? ['partial'] : [])]} />
     </Stack>
   );
 };

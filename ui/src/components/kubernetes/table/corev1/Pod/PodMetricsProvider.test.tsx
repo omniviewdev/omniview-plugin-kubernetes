@@ -40,9 +40,42 @@ it('shows unavailable, denied, stale, and error without inventing zero', () => {
   expect(screen.getByTitle('ambiguous · Native · Container series are not a pod total')).toBeInTheDocument();
   state.metricsMap = new Map([['default/pod', { cpu: { status: 'stale', provenance: { native: true }, value: { current_value: { value: 0 } } } }]]);
   app.rerender(cell());
-  expect(screen.getByText('0.0m (stale)')).toBeInTheDocument();
+  expect(screen.getByText('0.0m')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Metric: stale' })).toBeInTheDocument();
   expect(screen.getByTitle('stale · Native')).toBeInTheDocument();
   state.error = new Error('network');
   app.rerender(cell());
   expect(screen.getByText('Error')).toBeInTheDocument();
+});
+it('marks expired partial values without masking expired missing or failed results', () => {
+  const cell = () => <PodMetricsContext.Provider value={{ ...state }}>
+    <MetricUsageCell podKey="default/pod" format="cpu" />
+  </PodMetricsContext.Provider>;
+  const setMetric = (status: string, expires = '2000-01-01T00:00:00Z') => {
+    state.metricsMap = new Map([['default/pod', { cpu: {
+      status, expires_at: expires, provenance: { native: true },
+      value: { current_value: { value: 42 } },
+    } }]]);
+  };
+  setMetric('ok', '2099-01-01T00:00:00Z');
+  const app = render(cell());
+  expect(screen.getByText('42m')).toBeInTheDocument();
+  expect(screen.queryByRole('button')).toBeNull();
+  setMetric('ok');
+  app.rerender(cell());
+  expect(screen.getByText('42m')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Metric: stale' })).toBeInTheDocument();
+  setMetric('partial');
+  app.rerender(cell());
+  expect(screen.getByText('42m')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Metric: stale · partial' })).toBeInTheDocument();
+  setMetric('failed');
+  app.rerender(cell());
+  expect(screen.getByText('Error')).toBeInTheDocument();
+  expect(screen.queryByText('42m')).toBeNull();
+  expect(screen.queryByRole('button')).toBeNull();
+  setMetric('missing');
+  app.rerender(cell());
+  expect(screen.getByText('Unavailable')).toBeInTheDocument();
+  expect(screen.queryByRole('button')).toBeNull();
 });
