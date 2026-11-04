@@ -19,9 +19,9 @@ vi.mock('@omniviewdev/runtime', () => ({
 }));
 vi.mock('@omniviewdev/runtime/api', () => ({ ResourceClient: { GetSchemaDocument: mocks.schema } }));
 vi.mock('../../../../utils/kubernetesReference', () => ({ resolveKubernetesReference: mocks.resolve }));
-vi.mock('./CreateResourceModal', () => ({ default: ({ open, onCreate }: {
-  open: boolean; onCreate: (yaml: string, isCurrent: () => boolean) => Promise<void>;
-}) => open ? <button onClick={() => void onCreate('apiVersion: v1\nkind: Pod\nmetadata:\n  name: exact-name\n  namespace: team\nspec:\n  containers: [{name: main, image: nginx}]\n  exact: 9007199254740993\n', () => true)}>Submit native manifest</button> : null }));
+vi.mock('./CreateResourceModal', () => ({ default: ({ open, onCreate, onClose }: {
+  open: boolean; onCreate: (yaml: string, isCurrent: () => boolean) => Promise<void>; onClose: () => void;
+}) => open ? <><button onClick={onClose}>Close editor</button><button onClick={() => void onCreate('apiVersion: v1\nkind: Pod\nmetadata:\n  name: exact-name\n  namespace: team\nspec:\n  containers: [{name: main, image: nginx}]\n  exact: 9007199254740993\n', () => true)}>Submit native manifest</button></> : null }));
 
 describe('canonical create mutation', () => {
   beforeEach(async () => {
@@ -33,6 +33,22 @@ describe('canonical create mutation', () => {
     const actual = await vi.importActual<{ jsonToValue: typeof EncodeValue }>('@omniviewdev/runtime');
     mocks.encode.mockImplementation(actual.jsonToValue);
     mocks.mutate.mockResolvedValue({});
+  });
+
+  it('requests model paths only while open and retires demand on close or scope change', async () => {
+    const view = render(<CreateResourceButton connectionID="selected" resourceKey="k8s:/pods" />);
+    expect(mocks.editorPath).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: false, route: { connection: 'selected' }, type: 'k8s:/pods' }));
+    expect(mocks.schema).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Create Pod' }));
+    await screen.findByRole('button', { name: 'Close editor' });
+    expect(mocks.editorPath).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: true }));
+    fireEvent.click(screen.getByRole('button', { name: 'Close editor' }));
+    expect(mocks.editorPath).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: false }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create Pod' }));
+    await screen.findByRole('button', { name: 'Close editor' });
+    view.rerender(<CreateResourceButton connectionID="other" resourceKey="k8s:/services" />);
+    expect(screen.queryByRole('button', { name: 'Close editor' })).toBeNull();
+    expect(mocks.editorPath).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: false, route: { connection: 'other' }, type: 'k8s:/services' }));
   });
 
   it('creates pasted manifests without schema using host reference and exact tagged body', async () => {

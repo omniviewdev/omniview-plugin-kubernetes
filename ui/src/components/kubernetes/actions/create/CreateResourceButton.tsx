@@ -20,13 +20,15 @@ interface Props {
   selectedNamespaces?: string[];
 }
 
-const CreateResourceButton: React.FC<Props> = ({ connectionID, resourceKey, selectedNamespaces = [] }) => {
+const CreateResourceButton: React.FC<Props> = (props) => <CreateResourceButtonSession key={JSON.stringify([props.connectionID, props.resourceKey])} {...props} />;
+
+const CreateResourceButtonSession: React.FC<Props> = ({ connectionID, resourceKey, selectedNamespaces = [] }) => {
   const [open, setOpen] = React.useState(false);
   const [isCreating, setIsCreating] = React.useState(false);
   const [isPreparing, setIsPreparing] = React.useState(false);
   const [template, setTemplate] = React.useState(getTemplate());
   const route = { connection: connectionID };
-  const editorPath = useResourceEditorModelPath({ pluginID: PLUGIN_ID, route, type: resourceKey, name: 'create' });
+  const editorPath = useResourceEditorModelPath({ pluginID: PLUGIN_ID, route, type: resourceKey, name: 'create', enabled: open });
   const { resourceTypes } = useResourceTypes({ pluginID: PLUGIN_ID, route });
   const descriptor = resourceTypes.data?.find((entry) => entry.type === resourceKey);
   const label = descriptor?.displayName ?? resourceKey;

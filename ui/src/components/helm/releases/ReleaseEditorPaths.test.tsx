@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { DrawerContext } from '@omniviewdev/runtime';
 import { PLUGIN_ID } from '@/pluginId';
@@ -24,17 +24,30 @@ const ctx = {
 } as DrawerContext<{ version?: bigint }>;
 
 describe('Helm values editor paths', () => {
-  it('separates read-only preview from upgrade draft within the same association', () => {
+  it('separates read-only preview from upgrade draft within the same association', async () => {
     mocks.editorPath.mockImplementation(({ name }: { name: string }) => `file:///catalog/helm/${name}.yaml`);
     mocks.execute.mockResolvedValue({});
-    render(<ReleaseSidebar ctx={ctx} />);
+    const sidebar = render(<ReleaseSidebar ctx={ctx} />);
+    await act(async () => {});
     expect(mocks.editorPath).toHaveBeenCalledWith({
-      pluginID: PLUGIN_ID, route: { connection: 'cluster' }, type: 'helm:releases', key: 'team/release', name: 'values-preview',
+      pluginID: PLUGIN_ID, route: { connection: 'cluster' }, type: 'helm:releases', key: 'team/release', name: 'values-preview', enabled: true,
     });
     expect(screen.getByTestId('editor').getAttribute('data-path')).toBe('file:///catalog/helm/values-preview.yaml');
-    render(<UpgradeDialog open={false} onClose={() => {}} releaseName="release" namespace="team" chartRef="chart" connectionID="cluster" />);
+    await act(async () => { fireEvent.click(screen.getByRole('tab', { name: 'Notes' })); });
+    expect(mocks.editorPath).toHaveBeenCalledWith(expect.objectContaining({ name: 'values-preview', enabled: false }));
+    expect(screen.queryByTestId('editor')).toBeNull();
+    sidebar.unmount();
+    const props = { onClose: () => {}, releaseName: 'release', namespace: 'team', chartRef: 'chart', connectionID: 'cluster' };
+    const upgrade = render(<UpgradeDialog {...props} open={false} />);
+    expect(screen.queryByTestId('editor')).toBeNull();
     expect(mocks.editorPath).toHaveBeenCalledWith({
-      pluginID: PLUGIN_ID, route: { connection: 'cluster' }, type: 'helm:releases', key: 'team/release', name: 'values',
+      pluginID: PLUGIN_ID, route: { connection: 'cluster' }, type: 'helm:releases', key: 'team/release', name: 'values', enabled: false,
     });
+    await act(async () => { upgrade.rerender(<UpgradeDialog {...props} open />); });
+    expect(mocks.editorPath).toHaveBeenLastCalledWith(expect.objectContaining({ name: 'values', enabled: true }));
+    expect(screen.getByTestId('editor').getAttribute('data-path')).toBe('file:///catalog/helm/values.yaml');
+    upgrade.rerender(<UpgradeDialog {...props} open={false} />);
+    expect(screen.queryByTestId('editor')).toBeNull();
+    expect(mocks.editorPath).toHaveBeenLastCalledWith(expect.objectContaining({ name: 'values', enabled: false }));
   });
 });
