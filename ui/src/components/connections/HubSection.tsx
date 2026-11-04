@@ -81,11 +81,23 @@ const HubSection: React.FC<Props> = ({
   return (
     <div ref={setNodeRef} style={style}>
       <div className={styles.sectionHeader}>
-        <div {...attributes} {...listeners} className={styles.dragHandle}>
+        <IconButton
+          {...attributes}
+          {...listeners}
+          size="xs"
+          variant="ghost"
+          aria-label={`Reorder ${title}`}
+          className={styles.dragHandle}
+        >
           <LuGripVertical size={14} />
-        </div>
-        {/* eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/no-static-element-interactions */}
-        <div className={styles.sectionToggle} onClick={onToggleCollapse}>
+        </IconButton>
+        <button
+          type="button"
+          className={styles.sectionToggle}
+          onClick={onToggleCollapse}
+          aria-expanded={!collapsed}
+          style={{ background: 'none', border: 0, color: 'inherit', font: 'inherit' }}
+        >
           {collapsed ? <LuChevronRight size={14} /> : <LuChevronDown size={14} />}
           {isFolder && (
             <span style={{ display: 'flex', color: folderColor }}>
@@ -103,7 +115,7 @@ const HubSection: React.FC<Props> = ({
           <Text size="xs" style={countStyle}>
             ({count})
           </Text>
-        </div>
+        </button>
         {onEdit && (
           <IconButton
             className={styles.sectionEditButton}

@@ -1,0 +1,44 @@
+{
+  "title": "Cluster explorer actual development IDE evidence",
+  "capturedOn": "2026-11-04",
+  "applicationGeneration": "940ddee0-e544-40a2-b72d-4db6cf9ca03d",
+  "sourceCohortSDK": "6ce85c8b42cab1547396217510196b29e63ffe55",
+  "standalonePackagingSDK": "v0.14.6",
+  "cohortDisclosure": "These live explorer captures exercise the approved reviewed-source SDK cohort. Standalone packaging preserves its baseline released SDK v0.14.6 and requires separate verification; these captures do not prove that artifact cohort.",
+  "fixtureDisclosure": "Real local Kubernetes API v1.36.2 and etcd; four namespaces, zero Nodes, no scheduler. All 26 context aliases target one owned fixture, not a cloud fleet. Cloud-like names and provider hints do not establish infrastructure ownership, cloud connectivity, or workload health.",
+  "captureDisclosure": "Screenshots are unmodified captures of the running development IDE. They do not prove packaged-desktop behavior or native OS window creation.",
+  "screenshots": [
+    { "file": "final-cards-1568.png", "caption": "Cards, 1568px: actual IDE; 26 aliases of one real local Kubernetes API, no Nodes or cloud-health claim." },
+    { "file": "final-cards-1063.png", "caption": "Cards, 1063px: same owned real-API fixture." },
+    { "file": "final-cards-768.png", "caption": "Cards, 768px: same owned real-API fixture." },
+    { "file": "final-cards-360.png", "caption": "Cards, 360px: same owned real-API fixture." },
+    { "file": "final-table-1568.png", "caption": "Table, 1568px: actual IDE; configured metadata remains separate from readiness and health." },
+    { "file": "final-table-1063.png", "caption": "Table, 1063px: same owned real-API fixture." },
+    { "file": "final-table-768.png", "caption": "Table, 768px: same owned real-API fixture." },
+    { "file": "final-table-360.png", "caption": "Table, 360px: same owned real-API fixture." },
+    { "file": "final-debug-1568.png", "caption": "Debug, 1568px: actual IDE; unknown workload health is not invented." },
+    { "file": "final-debug-1063.png", "caption": "Debug, 1063px: same owned real-API fixture." },
+    { "file": "final-debug-768.png", "caption": "Debug, 768px: same owned real-API fixture." },
+    { "file": "final-debug-360.png", "caption": "Debug, 360px: same owned real-API fixture." },
+    { "file": "organize-final.png", "caption": "Actual Organize view with owned verification folders and a saved lens before cleanup; all 26 aliases target one real local API." },
+    { "file": "key-search-highlight-final.png", "caption": "Actual keyed search and keyboard result selection; context IDs are literal fixture aliases." },
+    { "file": "connected-real-api-settled.png", "caption": "Actual settled dashboard backed by the real local API; no Nodes, scheduler, or workload-health inference." },
+    { "file": "namespaces-real-api-settled.png", "caption": "Actual API-backed namespace table with four real namespaces; not a simulated resource response." },
+    { "file": "actual-hook-owned-fixture.png", "caption": "Supplemental host/runtime evidence: temporary React verification overlay using the real served usePluginData hook, not production explorer UI." }
+  ],
+  "proof": [
+    { "file": "packaging-cohort.json", "description": "Published producer provenance, exact standalone dependency cohort, generated lockfile and successful frozen install; separate from source-cohort live proof." },
+    { "file": "live-summary.json", "description": "Original exercised scenario summary, limits, cleanup, and final application generation." },
+    { "file": "responsive.json", "description": "Original viewport and scroll widths plus 144px toolbar-control measurements at all four widths." },
+    { "file": "pre-restart.json", "description": "Original owned profile snapshot before restart: folders, lenses, section order and collapse, recent history, and raster library." },
+    { "file": "post-restart.json", "description": "Original snapshot after restart into the final approved SDK cohort; equal=true for all five persisted keys." },
+    { "file": "atomic-hook-summary.json", "description": "Credential-free extract of actual two-context hook contention, literal replacement, deletion, and limits." }
+  ],
+  "limits": [
+    "No native OS window, dialog, or storage behavior was proved through browser mode.",
+    "No production cluster, cloud health, scheduler, Node, or workload availability claim follows from this fixture.",
+    "New-tab handoff was exercised; native new-window creation was not proved.",
+    "The supplemental hook write-failure scenario was not induced.",
+    "These captures predate registry-cohort packaging and do not prove a packaged release."
+  ]
+}

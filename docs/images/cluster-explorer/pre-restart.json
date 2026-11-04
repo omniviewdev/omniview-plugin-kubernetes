@@ -1,0 +1,96 @@
+{
+  "generation": "8b067c67-7c4d-481e-ae07-0404873007f9",
+  "fixtureDisclosure": "Real Kubernetes API and etcd; no Nodes or scheduler.26 aliases same owned fixture.",
+  "groups": [
+    {
+      "color": "#9C27B0",
+      "connectionIds": [
+        "kind-kind"
+      ],
+      "customImage": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADklEQVR4AWL6////fwAAAAD//w7I1cwAAAAGSURBVAMACgUD/9k79a8AAAAASUVORK5CYII=",
+      "icon": "LuRocket",
+      "iconAssetId": "a8613e71-2c15-44da-bc59-74ed2d7f3a54",
+      "id": "ea597a55-afd2-410f-9a6e-19cc22783909",
+      "name": "Local fixture folder",
+      "ruleSet": {
+        "logic": "and",
+        "rules": [
+          {
+            "field": "name",
+            "id": "8efe7911-6da6-4bc2-a34c-ec2504a0b2a8",
+            "operator": "equals",
+            "value": "kind-kind"
+          }
+        ]
+      }
+    },
+    {
+      "color": "#2196F3",
+      "connectionIds": [
+        "kind-kind"
+      ],
+      "customImage": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADklEQVR4AWL6////fwAAAAD//w7I1cwAAAAGSURBVAMACgUD/9k79a8AAAAASUVORK5CYII=",
+      "icon": "LuFolder",
+      "iconAssetId": "a8613e71-2c15-44da-bc59-74ed2d7f3a54",
+      "id": "e1520a94-f9f8-45c3-868c-5189f0d5791f",
+      "name": "Local copied folder"
+    }
+  ],
+  "lenses": [
+    {
+      "filters": {},
+      "groupBy": "none",
+      "id": "3da3f0d0-1f7a-47d5-9455-ab7c83eb3b9a",
+      "name": "Local fixture attribute table",
+      "query": "provider:kind",
+      "scope": "all",
+      "sortBy": "name",
+      "sortDirection": "desc",
+      "viewMode": "list"
+    }
+  ],
+  "sections": [
+    {
+      "collapsed": false,
+      "type": "connected"
+    },
+    {
+      "collapsed": false,
+      "type": "recent"
+    },
+    {
+      "collapsed": false,
+      "type": "favorites"
+    },
+    {
+      "collapsed": true,
+      "type": "group:e1520a94-f9f8-45c3-868c-5189f0d5791f"
+    },
+    {
+      "collapsed": false,
+      "type": "group:ea597a55-afd2-410f-9a6e-19cc22783909"
+    },
+    {
+      "collapsed": false,
+      "type": "browse"
+    }
+  ],
+  "recent": {
+    "joshuapare-dev/api-sandbox-m2-ll9k-p1-openshiftapps-com:6443/joshuapare": {
+      "accessCount": 1,
+      "lastAccessed": 1793781730810
+    },
+    "kind-kind": {
+      "accessCount": 3,
+      "lastAccessed": 1793781667769
+    }
+  },
+  "assets": [
+    {
+      "createdAt": 1793778871763,
+      "dataUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADklEQVR4AWL6////fwAAAAD//w7I1cwAAAAGSURBVAMACgUD/9k79a8AAAAASUVORK5CYII=",
+      "id": "a8613e71-2c15-44da-bc59-74ed2d7f3a54",
+      "name": "Dropped local raster fixture"
+    }
+  ]
+}

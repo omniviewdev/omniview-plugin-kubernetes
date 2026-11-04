@@ -3,6 +3,7 @@ import React from 'react';
 import { LuArrowLeft } from 'react-icons/lu';
 
 import type { ConnectionAttribute, EnrichedConnection } from '../../types/clusters';
+import { useClusterAction } from '../../hooks/useClusterAction';
 
 import CompactClusterCard from './CompactClusterCard';
 import styles from './Connections.module.css';
@@ -11,7 +12,6 @@ import SimpleSelect from './SimpleSelect';
 type Props = {
   connections: EnrichedConnection[];
   availableAttributes: ConnectionAttribute[];
-  onConnectionClick: (connectionId: string) => void;
 };
 
 const headerStyle: React.CSSProperties = { marginBottom: 8 };
@@ -35,7 +35,12 @@ const groupCountStyle: React.CSSProperties = { opacity: 0.6, display: 'block' };
 
 const MIN_COVERAGE = 0.3;
 
-const GroupBrowser: React.FC<Props> = ({ connections, availableAttributes, onConnectionClick }) => {
+const DrillDownCluster: React.FC<{ enriched: EnrichedConnection }> = ({ enriched }) => {
+  const { handleClick } = useClusterAction(enriched.connection.id, enriched.isConnected);
+  return <CompactClusterCard enriched={enriched} onClick={() => { void handleClick(); }} />;
+};
+
+const GroupBrowser: React.FC<Props> = ({ connections, availableAttributes }) => {
   // Filter attributes to those with sufficient coverage
   const filteredAttributes = React.useMemo(
     () => availableAttributes.filter((a) => a.coverage >= MIN_COVERAGE),
@@ -106,11 +111,7 @@ const GroupBrowser: React.FC<Props> = ({ connections, availableAttributes, onCon
         </Stack>
         <div style={drillDownGridStyle}>
           {groupConns.map((conn) => (
-            <CompactClusterCard
-              key={conn.connection.id}
-              enriched={conn}
-              onClick={() => onConnectionClick(conn.connection.id)}
-            />
+            <DrillDownCluster key={conn.connection.id} enriched={conn} />
           ))}
         </div>
       </div>
@@ -139,11 +140,12 @@ const GroupBrowser: React.FC<Props> = ({ connections, availableAttributes, onCon
       </Stack>
       <div style={browseGridStyle}>
         {groups.map(([value, conns]) => (
-          // eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/no-static-element-interactions
-          <div
+          <button
+            type="button"
             key={value}
             onClick={() => setDrillDown(value)}
             className={`${styles.tile} ${styles.groupTile}`}
+            style={{ textAlign: 'left', color: 'inherit', font: 'inherit' }}
           >
             <Text as="div" weight="semibold" size="sm" truncate>
               {value}
@@ -151,7 +153,7 @@ const GroupBrowser: React.FC<Props> = ({ connections, availableAttributes, onCon
             <Text size="xs" style={groupCountStyle}>
               {conns.length} cluster{conns.length !== 1 ? 's' : ''}
             </Text>
-          </div>
+          </button>
         ))}
       </div>
     </div>

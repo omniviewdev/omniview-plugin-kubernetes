@@ -1,5 +1,5 @@
 import { Avatar, Chip, IconButton, NavList, Stack, Text } from '@omniviewdev/base-ui';
-import { usePluginContext, useConnection } from '@omniviewdev/runtime';
+import { usePluginContext, useConnection, useConnectionStatus } from '@omniviewdev/runtime';
 import React from 'react';
 import { LuArrowLeft, LuCircle, LuSave, LuX } from 'react-icons/lu';
 import { useParams, useNavigate, useSearchParams } from 'react-router';
@@ -47,7 +47,9 @@ const ClusterEditForm: React.FC<{ connectionId: string }> = ({ connectionId }) =
   const section = (searchParams.get('section') ?? 'identity') as SectionId;
 
   const { connection } = useConnection({ pluginID: meta.id, connectionID: connectionId });
-  const { connectionOverrides, availableTags, updateOverride } = useClusterPreferences(meta.id);
+  const { entries } = useConnectionStatus();
+  const preferences = useClusterPreferences(meta.id);
+  const { connectionOverrides, availableTags } = preferences;
 
   const existing = connectionOverrides[connectionId] ?? {};
   const conn = connection.data;
@@ -79,7 +81,7 @@ const ClusterEditForm: React.FC<{ connectionId: string }> = ({ connectionId }) =
     override.avatar = avatarUrl || undefined;
     override.avatarColor = avatarColor || undefined;
     override.tags = tags.length > 0 ? tags : undefined;
-    await updateOverride(connectionId, override);
+    await preferences.updateOverride(connectionId, override);
     void rrNavigate(-1);
   };
 
@@ -98,13 +100,10 @@ const ClusterEditForm: React.FC<{ connectionId: string }> = ({ connectionId }) =
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [handleBack]);
 
-  const connected = React.useMemo(() => {
-    if (!conn) return false;
-    const refreshTime = new Date(conn.last_refresh);
-    if (refreshTime.toString() === 'Invalid Date') return false;
-    // eslint-disable-next-line react-hooks/purity -- Date.now() is intentionally impure here
-    return refreshTime.getTime() + conn.expiry_time > Date.now();
-  }, [conn]);
+  const connected = entries.some(
+    (entry) => entry.pluginID === meta.id &&
+      entry.connectionID === connectionId && entry.readiness === 'CONNECTED',
+  );
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- conn.last_refresh is time.Time (Go wrapper), Date constructor accepts it at runtime
   const formatTime = React.useCallback((timestamp: any): string => {

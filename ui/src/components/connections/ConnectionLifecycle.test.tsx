@@ -30,17 +30,10 @@ vi.mock('@omniviewdev/runtime', () => ({
   // The runtime owns rejected lifecycle notifications; these tests check plugin-owned effects only.
   useConnection: () => ({ startConnection: mocks.start, stopConnection: mocks.stop }),
 }));
-vi.mock('@omniviewdev/base-ui', () => ({
-  Text: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
-  Avatar: () => null,
-  Chip: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
-  Spinner: () => <span role="status">Connecting</span>,
-  IconButton: () => null,
-}));
 vi.mock('../shared/NamedAvatar', () => ({ default: () => null }));
 vi.mock('./ProviderIcon', () => ({ default: () => null }));
 vi.mock('./FavoriteButton', () => ({ default: () => null }));
-vi.mock('./ColumnPicker', () => ({ default: () => null }));
+
 vi.mock('./ConnectionStatusBadge', () => ({
   default: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
@@ -78,25 +71,25 @@ const enriched: EnrichedConnection = {
   displayDescription: '',
   tags: [],
 };
-const callbacks = {
-  onToggleFavorite: vi.fn(),
-  onAssignToGroup: vi.fn(),
-  onDelete: vi.fn(),
-  onRecordAccess: vi.fn(),
-};
+const callbacks = { onToggleFavorite: vi.fn(), onAssignToGroup: vi.fn(), onDelete: vi.fn() };
 function mount(view: 'row' | 'grid') {
   if (view === 'row')
     return render(
-      <table>
-        <tbody>
-          <ConnectionTableItem
-            enriched={enriched}
-            visibleColumns={[]}
-            customGroups={[]}
-            {...callbacks}
-          />
-        </tbody>
-      </table>,
+      <div>
+        <ConnectionTableItem
+          enriched={enriched}
+          visibleColumns={[]}
+          customGroups={[]}
+          {...callbacks}
+        />
+        <ConnectionTableItem
+          enriched={enriched}
+          visibleColumns={[]}
+          customGroups={[]}
+          {...callbacks}
+          part="actions"
+        />
+      </div>,
     );
   const props: ComponentProps<typeof ConnectionTable> = {
     grouped: {
@@ -145,8 +138,8 @@ describe('connection lifecycle notification ownership', () => {
               : screen.getByRole('button', { name: 'Open cluster' })
             : screen.getByRole('button', { name: action, exact: true }),
         );
-        if (view === 'row' && action !== 'Disconnect')
-          expect(screen.getByRole('status')).toHaveTextContent('Connecting');
+        if (view === 'row' && action === 'open')
+          expect(screen.getByRole('status')).toHaveAccessibleName('Connecting');
         await act(async () => {
           reject(failure);
         });
@@ -202,8 +195,7 @@ describe('connection lifecycle notification ownership', () => {
   });
 
   it('hub consumes rejected starts but preserves returned warnings and successful navigation', async () => {
-    const access = vi.fn();
-    const { result } = renderHook(() => useClusterAction('opaque/cluster', false, access));
+    const { result } = renderHook(() => useClusterAction('opaque/cluster', false));
     mocks.start.mockRejectedValueOnce(failure);
     await act(async () => result.current.handleClick());
     expect(mocks.notice).not.toHaveBeenCalled();
@@ -218,6 +210,5 @@ describe('connection lifecycle notification ownership', () => {
     );
     await act(async () => result.current.handleClick());
     expect(mocks.navigate).toHaveBeenCalledWith('/cluster/opaque%2Fcluster/resources');
-    expect(access).toHaveBeenCalledTimes(3);
   });
 });
