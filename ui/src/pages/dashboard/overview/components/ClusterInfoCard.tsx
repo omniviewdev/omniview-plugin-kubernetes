@@ -34,7 +34,8 @@ import {
 type Props = {
   connectionID: string;
   loading?: boolean;
-  nodes: K8sNode[];
+  nodes?: K8sNode[];
+  nodeCount?: number;
   pods: Pod[];
   events: K8sEvent[];
 };
@@ -54,9 +55,9 @@ function StatItem({ icon, label, value }: { icon: React.ReactNode; label: string
   );
 }
 
-function useHealthStatus(nodes: K8sNode[], pods: Pod[], events: K8sEvent[]) {
+function useHealthStatus(nodes: K8sNode[] | undefined, pods: Pod[], events: K8sEvent[]) {
   return React.useMemo(() => {
-    const unhealthyNodes = nodes.filter((n) => {
+    const unhealthyNodes = (nodes ?? []).filter((n) => {
       const conditions: NodeCondition[] = n.status?.conditions ?? [];
       const ready = conditions.find((c) => c.type === 'Ready');
       return !ready || ready.status !== 'True';
@@ -80,9 +81,9 @@ function useHealthStatus(nodes: K8sNode[], pods: Pod[], events: K8sEvent[]) {
   }, [nodes, pods, events]);
 }
 
-const ClusterInfoCard: React.FC<Props> = ({ connectionID, loading, nodes, pods, events }) => {
+const ClusterInfoCard: React.FC<Props> = ({ connectionID, loading, nodes, nodeCount, pods, events }) => {
   const metadata = useConnectionMetadata('kubernetes', connectionID);
-  const fact = (key: string, label: string) => <ConnectionMetadataValue {...metadata} metadataKey={`kubernetes.${key}`} label={label} />;
+  const fact = (key: string, label: string, provenance: 'observed' | 'configured' = 'observed') => <ConnectionMetadataValue {...metadata} metadataKey={`kubernetes.${key}`} label={label} provenance={provenance} />;
   const health = useHealthStatus(nodes, pods, events);
 
   if (loading) {
@@ -103,7 +104,7 @@ const ClusterInfoCard: React.FC<Props> = ({ connectionID, loading, nodes, pods, 
       {/* Left: cluster info + stats with dividers */}
       <Stack direction="row" align="center" divider spacing={3} style={statListStyle}>
         <ConnectionEnvironment {...metadata} />
-        <StatItem icon={<LuGlobe size={12} />} label="Cluster" value={fact('server_url', 'API server')} />
+        <StatItem icon={<LuGlobe size={12} />} label="Cluster" value={fact('server_url', 'API server', 'configured')} />
         <StatItem
           icon={<LuTag size={12} />}
           label="Version"
@@ -117,7 +118,7 @@ const ClusterInfoCard: React.FC<Props> = ({ connectionID, loading, nodes, pods, 
         <StatItem
           icon={<LuServer size={12} />}
           label="Nodes"
-          value={String(nodes.length)}
+          value={nodeCount === undefined ? 'Unknown' : String(nodeCount)}
         />
       </Stack>
 
@@ -130,6 +131,7 @@ const ClusterInfoCard: React.FC<Props> = ({ connectionID, loading, nodes, pods, 
         style={healthChipStyle}
       >
         {health.issues.length === 0 ? 'No issues observed' : `Issues: ${health.issues.join(' \u00b7 ')}`}
+        {nodes === undefined ? '; Node health unknown' : nodeCount === undefined ? '; Node health incomplete' : ''}
       </Chip>
     </Stack>
   );

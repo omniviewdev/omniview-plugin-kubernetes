@@ -3,12 +3,15 @@ package resource
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
+	"net"
 	"time"
 
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/rest"
 )
 
@@ -58,10 +61,32 @@ func connectionMetadata(ctx context.Context, connection types.Connection, client
 		GitVersion string `json:"gitVersion"`
 		Platform   string `json:"platform"`
 	}
-	if err != nil || len(data) > 64*1024 || json.Unmarshal(data, &info) != nil {
-		// Never surface transport errors: they can contain credentials or server responses.
-		unavailable("kubernetes.server_version", "OBSERVATION_FAILED", "Server version could not be observed.")
-		unavailable("kubernetes.server_platform", "OBSERVATION_FAILED", "Server platform could not be observed.")
+	code, message := "", ""
+	switch {
+	case errors.Is(ctx.Err(), context.Canceled), errors.Is(err, context.Canceled):
+		code, message = "CANCELED", "The observation was canceled."
+	case errors.Is(ctx.Err(), context.DeadlineExceeded), errors.Is(err, context.DeadlineExceeded), apierrors.IsTimeout(err), apierrors.IsServerTimeout(err):
+		code, message = "TIMEOUT", "The observation timed out."
+	case apierrors.IsUnauthorized(err):
+		code, message = "UNAUTHENTICATED", "Authentication is required to observe the server."
+	case apierrors.IsForbidden(err):
+		code, message = "FORBIDDEN", "Permission to observe the server was denied."
+	case err != nil:
+		var timeout net.Error
+		if errors.As(err, &timeout) && timeout.Timeout() {
+			code, message = "TIMEOUT", "The observation timed out."
+		} else {
+			code, message = "TRANSPORT_FAILED", "The server could not be reached."
+		}
+	case len(data) > 64*1024:
+		code, message = "RESPONSE_LIMIT", "The server observation exceeded the response limit."
+	case json.Unmarshal(data, &info) != nil:
+		code, message = "MALFORMED_RESPONSE", "The server returned an invalid observation."
+	}
+	if code != "" {
+		// Keep typed failure categories, never raw transport errors or provider responses.
+		unavailable("kubernetes.server_version", code, message)
+		unavailable("kubernetes.server_platform", code, message)
 		return update, nil
 	}
 	version = info.GitVersion

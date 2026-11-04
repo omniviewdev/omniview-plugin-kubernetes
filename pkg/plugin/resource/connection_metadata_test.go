@@ -5,14 +5,17 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 func TestMetadataEndpointSanitization(t *testing.T) {
@@ -115,7 +118,85 @@ func TestConnectionMetadataCanceledRequestKeepsEndpointSibling(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "success", update.Set["kubernetes.server_url"].State)
 	require.Equal(t, "unavailable", update.Set["kubernetes.server_version"].State)
+	require.Equal(t, "CANCELED", update.Set["kubernetes.server_version"].Error.Code)
 	require.Equal(t, "kind", update.Set["kubernetes.provider"].Value)
 	require.Equal(t, "connection_config", update.Set["kubernetes.provider_source"].Value)
 	require.Contains(t, update.Remove, "aws.account_id")
+}
+
+// Exercise the actual discovery HTTP request, not a fake discovery interface.
+func TestConnectionMetadataPublicSafeHTTPFailures(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		status int
+		body   string
+		code   string
+	}{
+		{"authentication", http.StatusUnauthorized, "secret-provider-response", "UNAUTHENTICATED"},
+		{"authorization", http.StatusForbidden, "secret-provider-response", "FORBIDDEN"},
+		{"transport status", http.StatusBadGateway, "secret-provider-response", "TRANSPORT_FAILED"},
+		{"limit", http.StatusOK, strings.Repeat("x", 65537), "RESPONSE_LIMIT"},
+		{"malformed", http.StatusOK, "secret-provider-response", "MALFORMED_RESPONSE"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			calls := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				require.Equal(t, "/version", r.URL.Path)
+				w.WriteHeader(tt.status)
+				_, _ = w.Write([]byte(tt.body))
+			}))
+			defer server.Close()
+			config := &rest.Config{Host: server.URL}
+			client, err := discovery.NewDiscoveryClientForConfig(config)
+			require.NoError(t, err)
+			update, err := connectionMetadata(context.Background(), types.Connection{}, &clients.ClientSet{RESTConfig: config, DiscoveryClient: client})
+			require.NoError(t, err)
+			require.Equal(t, 1, calls)
+			require.Equal(t, server.URL, update.Set["kubernetes.server_url"].Value)
+			for _, key := range []string{"kubernetes.server_version", "kubernetes.server_platform"} {
+				require.Equal(t, tt.code, update.Set[key].Error.Code)
+				require.NotContains(t, update.Set[key].Error.Message, "secret-provider-response")
+			}
+		})
+	}
+}
+
+func TestConnectionMetadataTimeout(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { <-r.Context().Done() }))
+	defer server.Close()
+	config := &rest.Config{Host: server.URL}
+	client, err := discovery.NewDiscoveryClientForConfig(config)
+	require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	update, err := connectionMetadata(ctx, types.Connection{}, &clients.ClientSet{RESTConfig: config, DiscoveryClient: client})
+	require.NoError(t, err)
+	require.Equal(t, "TIMEOUT", update.Set["kubernetes.server_version"].Error.Code)
+	require.Equal(t, server.URL, update.Set["kubernetes.server_url"].Value)
+}
+
+// Opt in with an explicitly owned kubeconfig. This exercises only the provider;
+// host profile replacement and SDK generation fencing require the native cohort.
+func TestConnectionMetadataOwnedKind(t *testing.T) {
+	path := os.Getenv("OMNIVIEW_METADATA_SMOKE_KUBECONFIG")
+	if path == "" {
+		t.Skip("requires an explicitly owned kind kubeconfig")
+	}
+	config, err := clientcmd.BuildConfigFromFlags("", path)
+	require.NoError(t, err)
+	client, err := discovery.NewDiscoveryClientForConfig(config)
+	require.NoError(t, err)
+	update, err := connectionMetadata(context.Background(), types.Connection{ID: "owned-kind"}, &clients.ClientSet{RESTConfig: config, DiscoveryClient: client})
+	require.NoError(t, err)
+	require.Equal(t, sanitizedMetadataEndpoint(config), update.Set["kubernetes.server_url"].Value)
+	if code := os.Getenv("OMNIVIEW_METADATA_SMOKE_FAILURE"); code != "" {
+		require.Equal(t, code, update.Set["kubernetes.server_version"].Error.Code)
+		require.Equal(t, code, update.Set["kubernetes.server_platform"].Error.Code)
+		return
+	}
+	require.Equal(t, "success", update.Set["kubernetes.server_version"].State)
+	require.Equal(t, "success", update.Set["kubernetes.server_platform"].State)
+	require.NotEmpty(t, update.Set["kubernetes.server_version"].Value)
+	require.NotEmpty(t, update.Set["kubernetes.server_platform"].Value)
 }

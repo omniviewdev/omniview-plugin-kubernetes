@@ -7,7 +7,7 @@ export type ConnectionMetadataDisplay = {
 };
 
 /** Keep observation detail separate from the value shown in compact surfaces. */
-export function connectionMetadataDisplay(snapshot: ConnectionMetadataSnapshot | undefined, transportAvailable: boolean, key: string): ConnectionMetadataDisplay {
+export function connectionMetadataDisplay(snapshot: ConnectionMetadataSnapshot | undefined, transportAvailable: boolean, key: string, provenance: 'observed' | 'configured' = 'observed'): ConnectionMetadataDisplay {
   const entry = snapshot?.entries[key];
   if (!entry) return { value: '—', state: 'unobserved', detail: 'No observation yet.' };
   if (entry.state === 'unavailable') {
@@ -15,6 +15,9 @@ export function connectionMetadataDisplay(snapshot: ConnectionMetadataSnapshot |
   }
   if (typeof entry.value !== 'string') {
     return { value: '—', state: 'unavailable', detail: 'The server returned an unexpected value.' };
+  }
+  if (provenance === 'configured') {
+    return { value: entry.value, state: 'current', detail: 'Configured endpoint; not a network observation or proof of reachability.' };
   }
   const stale = !transportAvailable || !snapshot.active || entry.state === 'stale';
   const observed = new Date(entry.observedAt);

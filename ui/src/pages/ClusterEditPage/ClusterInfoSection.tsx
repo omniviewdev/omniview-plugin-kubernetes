@@ -20,7 +20,7 @@ function ClusterInfoSection({ conn }: { conn: types.Connection; formatTime: (t: 
             </span>
             <Stack direction="column" spacing={1} style={{ minWidth: 0, flex: 1 }}>
               <Text size="xs" tone="muted">API server</Text>
-              <ConnectionMetadataValue {...metadata} metadataKey="kubernetes.server_url" label="API server" size="sm" mono />
+              <ConnectionMetadataValue {...metadata} metadataKey="kubernetes.server_url" label="API server" provenance="configured" size="sm" mono />
             </Stack>
             {metadata.snapshot?.active && metadata.transportAvailable && (
               <SimpleTooltip content="Queries the server version endpoint without reading resource inventory.">

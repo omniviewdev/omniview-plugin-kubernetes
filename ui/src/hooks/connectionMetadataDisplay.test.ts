@@ -22,4 +22,11 @@ describe('connection metadata display', () => {
     }
     expect(connectionMetadataDisplay(undefined, true, 'kubernetes.server_version').state).toBe('unobserved');
   });
+  it('shows configured provenance without claiming observation freshness', () => {
+    const source = { ...snapshot, active: false };
+    const display = connectionMetadataDisplay(source, false, 'kubernetes.server_version', 'configured');
+    expect(display.state).toBe('current');
+    expect(display.detail).toBe('Configured endpoint; not a network observation or proof of reachability.');
+    expect(display.detail).not.toContain('Observed');
+  });
 });
