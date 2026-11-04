@@ -1,5 +1,15 @@
 import React from 'react';
 import type { IconType } from 'react-icons';
+import type { ConnectionGroup } from '../types/clusters';
+import type { ClusterIconAsset } from '../types/clusterExplorer';
+
+/** Library references take precedence; legacy inline images remain a lossless fallback. */
+export function resolveFolderImage(
+  group: Pick<ConnectionGroup, 'iconAssetId' | 'customImage'>,
+  assets: readonly ClusterIconAsset[],
+): string | undefined {
+  return assets.find((asset) => asset.id === group.iconAssetId)?.dataUrl ?? group.customImage;
+}
 import {
   LuFolder,
   LuStar,

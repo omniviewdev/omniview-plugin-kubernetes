@@ -2,14 +2,7 @@ import { type types } from '@omniviewdev/runtime/models';
 
 // Special grouping modes + dynamic label-based grouping via `label:${string}`
 export type GroupByMode =
-  | 'none'
-  | 'provider'
-  | 'status'
-  | 'favorites'
-  | 'custom'
-  | 'tags'
-  | 'recent'
-  | `label:${string}`;
+  'none' | 'provider' | 'status' | 'favorites' | 'custom' | 'tags' | 'recent' | `label:${string}`;
 
 // Legacy aliases that map to label-based grouping
 export const LEGACY_GROUP_ALIASES: Record<string, string> = {
@@ -18,7 +11,16 @@ export const LEGACY_GROUP_ALIASES: Record<string, string> = {
   cluster: 'cluster',
 };
 
-export type SortByField = 'name' | 'provider' | 'status' | 'recency' | `label:${string}`;
+export type SortByField =
+  | 'name'
+  | 'provider'
+  | 'status'
+  | 'recency'
+  | 'fact:region'
+  | 'fact:account'
+  | 'fact:environment'
+  | 'metadata'
+  | `label:${string}`;
 
 // Legacy aliases that map to label-based sorting
 export const LEGACY_SORT_ALIASES: Record<string, string> = {
@@ -28,7 +30,7 @@ export const LEGACY_SORT_ALIASES: Record<string, string> = {
 };
 
 export type SortDirection = 'asc' | 'desc';
-export type ViewMode = 'list' | 'grid';
+export type ViewMode = 'list' | 'grid' | 'debug';
 
 export interface FilterState {
   providers?: string[];
@@ -40,14 +42,17 @@ export interface FilterState {
 // ── Folder auto-match rule types ──────────────────────────────────────────────
 
 export type RuleField =
-  | 'name' | 'id' | 'provider' | 'tag' | 'isConnected'
+  | 'name'
+  | 'id'
+  | 'provider'
+  | 'tag'
+  | 'isConnected'
   | `label:${string}`
   | `metadata:${string}`
   | `data:${string}`;
 
 export type RuleOperator =
-  | 'equals' | 'not_equals' | 'contains' | 'not_contains'
-  | 'matches_regex' | 'exists' | 'not_exists';
+  'equals' | 'not_equals' | 'contains' | 'not_contains' | 'matches_regex' | 'exists' | 'not_exists';
 
 export interface FolderRule {
   id: string;
@@ -71,6 +76,7 @@ export interface ConnectionGroup {
   color?: string;
   icon?: string;
   customImage?: string; // data URI (data:image/png;base64,... or data:image/svg+xml;base64,...)
+  iconAssetId?: string;
   connectionIds: string[];
   ruleSet?: FolderRuleSet;
 }

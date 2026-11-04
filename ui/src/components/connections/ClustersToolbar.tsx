@@ -1,7 +1,12 @@
-import { Chip, Stack, Text } from '@omniviewdev/base-ui';
+import {
+  Chip,
+  KeyedSearch,
+  Stack,
+  Text,
+  type KeyedSearchField,
+  type KeyedSearchDiagnostic,
+} from '@omniviewdev/base-ui';
 import React from 'react';
-import { SiKubernetes } from 'react-icons/si';
-
 import type {
   GroupByMode,
   SortByField,
@@ -9,26 +14,18 @@ import type {
   ViewMode,
   ConnectionAttribute,
 } from '../../types/clusters';
-import SearchInput from '../shared/SearchInput';
-
 import GroupBySelector from './GroupBySelector';
 import SortBySelector from './SortBySelector';
 import ViewModeToggle from './ViewModeToggle';
 
-const toolbarStyle: React.CSSProperties = {
-  padding: '4px 8px',
-  display: 'flex',
-  flexDirection: 'column',
-  width: '100%',
-  borderRadius: 'var(--ov-radius-md, 6px)',
-  gap: 4,
-  border: '1px solid var(--ov-color-border-default)',
-  backgroundColor: 'var(--ov-color-bg-surface)',
-};
-
 type Props = {
   search: string;
   onSearchChange: (value: string) => void;
+  searchFields?: readonly KeyedSearchField[];
+  searchDiagnostics?: readonly KeyedSearchDiagnostic[];
+  searchRef?: React.Ref<HTMLInputElement>;
+  onSearchKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
+  onSubmit?: () => void;
   groupBy: GroupByMode;
   onGroupByChange: (value: GroupByMode) => void;
   sortBy: SortByField;
@@ -44,63 +41,50 @@ type Props = {
   availableTags: string[];
 };
 
-const ClustersToolbar: React.FC<Props> = ({
-  search,
-  onSearchChange,
-  groupBy,
-  onGroupByChange,
-  sortBy,
-  onSortByChange,
-  sortDirection,
-  onSortDirectionChange,
-  viewMode,
-  onViewModeChange,
-  totalCount,
-  filteredCount,
-  hasCustomGroups,
-  availableAttributes,
-  availableTags,
-}) => (
-  <div style={toolbarStyle}>
-    <Stack direction="row" align="center" justify="between" spacing={2}>
-      {/* Left: title + count */}
-      <Stack direction="row" align="center" style={{ gap: 6, paddingLeft: 2 }}>
-        <SiKubernetes size={16} />
-        <Text size="sm" weight="semibold">
-          Clusters
-        </Text>
-        <Chip size="xs" variant="soft" color="neutral">
-          {filteredCount < totalCount ? `${filteredCount}/${totalCount}` : String(totalCount)}
+export default function ClustersToolbar({ searchRef, ...props }: Props) {
+  return (
+    <Stack direction="column" spacing={2} style={{ minWidth: 0 }}>
+      <Stack direction="row" align="center" spacing={2} style={{ flexWrap: 'wrap' }}>
+        <Text weight="semibold">Clusters</Text>
+        <Chip size="xs" variant="soft">
+          {props.filteredCount}/{props.totalCount}
         </Chip>
-      </Stack>
-
-      {/* Right: controls */}
-      <Stack direction="row" align="center" style={{ gap: 6 }}>
-        <SearchInput
-          placeholder="Search clusters..."
-          value={search}
-          onChange={onSearchChange}
-          // eslint-disable-next-line jsx-a11y-x/no-autofocus
-          autoFocus
-        />
+        <div style={{ flex: '1 1 260px', minWidth: 0 }}>
+          <KeyedSearch
+            ref={searchRef}
+            query={props.search}
+            onQueryChange={props.onSearchChange}
+            fields={props.searchFields ?? []}
+            aria-label="Search clusters"
+            aria-describedby={
+              props.searchDiagnostics?.length ? 'cluster-search-diagnostics' : undefined
+            }
+            placeholder="Search clusters or region:, provider:, env:…"
+            onKeyDown={props.onSearchKeyDown}
+            onSubmit={props.onSubmit}
+          />
+        </div>
         <GroupBySelector
-          value={groupBy}
-          onChange={onGroupByChange}
-          hasCustomGroups={hasCustomGroups}
-          availableAttributes={availableAttributes}
-          availableTags={availableTags}
+          value={props.groupBy}
+          onChange={props.onGroupByChange}
+          hasCustomGroups={props.hasCustomGroups}
+          availableAttributes={props.availableAttributes}
+          availableTags={props.availableTags}
         />
         <SortBySelector
-          sortBy={sortBy}
-          sortDirection={sortDirection}
-          onSortByChange={onSortByChange}
-          onSortDirectionChange={onSortDirectionChange}
-          availableAttributes={availableAttributes}
+          sortBy={props.sortBy}
+          sortDirection={props.sortDirection}
+          onSortByChange={props.onSortByChange}
+          onSortDirectionChange={props.onSortDirectionChange}
+          availableAttributes={props.availableAttributes}
         />
-        <ViewModeToggle value={viewMode} onChange={onViewModeChange} />
+        <ViewModeToggle value={props.viewMode} onChange={props.onViewModeChange} />
       </Stack>
+      {!!props.searchDiagnostics?.length && (
+        <Text id="cluster-search-diagnostics" role="status" size="sm" tone="muted">
+          {props.searchDiagnostics.map((diagnostic) => diagnostic.message).join(' · ')}
+        </Text>
+      )}
     </Stack>
-  </div>
-);
-
-export default ClustersToolbar;
+  );
+}

@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://omniview.dev"><img src="https://img.shields.io/badge/omniview-plugin-326CE5?style=flat-square&logo=kubernetes&logoColor=white" alt="Omniview Plugin" /></a>
-  <img src="https://img.shields.io/badge/version-0.15.1-blue?style=flat-square" alt="Version" />
+  <img src="https://img.shields.io/badge/version-0.16.0-blue?style=flat-square" alt="Version" />
   <img src="https://img.shields.io/badge/license-Apache--2.0-green?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/category-cloud-326CE5?style=flat-square" alt="Category" />
 </p>
@@ -33,14 +33,52 @@ Cluster avatar initials tolerate leading, trailing, and repeated whitespace or
 dash separators while a display name is being edited. Whitespace-only names use
 `NA`; the display name itself is not normalized or changed.
 
+## Cluster explorer
+
+Cluster explorer search supports free text and `region:`, `provider:`, `env:`,
+`account:`, `status:`, `tag:`, and available attribute keys. Repeat one key to
+match any value; combine different keys to require every field. Quote literal
+identifiers containing colons, for example `"arn:aws:eks:cluster"`. Unknown keys
+and unfinished quotes show diagnostics and do not silently widen results.
+Displayed region, account, project, and environment facts retain their source.
+Explicit user tags take precedence over current metadata, followed by configured
+label/data hints; mutable AWS/GCP configuration metadata remains a labeled hint,
+not verified infrastructure ownership. Cluster names never establish production
+or local facts. Metadata freshness is separate from connection readiness and
+workload health. The ready cluster resource route records each mounted view once
+in the shared backend-backed, 100-entry recent history, covering homepage,
+explorer, launcher, tabs and windows. Nested resource navigation does not add
+accesses; reconnecting or opening another ready view does. Failed connections,
+failed window creation and connect-only actions do not add accesses.
+
+The primary card or row action opens the cluster. Use the independent action menu for Preview, cluster Settings, and opening another tab or window. Search combines keyed completion with result selection: completion owns the arrow keys while its popup is open; otherwise arrows select a cluster and Enter opens it.
+
+Long cluster names remain available in accessible names and full-name tooltips without changing the card height. Opaque context IDs stay literal identifiers, including colons and slashes; quote them when searching. Keyboard users can open results, use action menus, assign folders, and cancel drag operations without relying on pointer-only controls.
+
+Cards, Table, Debug, and Organize share the same scope and filters. Table includes account or project identity without dropping available project facts. Debug separates connection readiness, metadata freshness, and unknown workload health.
+
+Folders retain preset icons, colors, legacy custom images, manual membership, and automatic rules. Effective membership is the deduplicated union of manual assignments and rule matches. Dragging into a folder adds manual membership; explicit menu actions provide keyboard alternatives. Cancelled and no-target drops leave membership unchanged.
+
+The icon-only folder changer opens a searchable picker with reusable named images. Browse and drop share validation for PNG, JPEG, and WebP files up to 5 MiB; accepted images are normalized to PNG within 128×128 before profile-backed storage. SVG is not imported. Removing a library image preserves its appearance on folders already using it.
+
+Saved lenses retain query, facets, scope, grouping, sort, and view. Folders, assets, lens order, and shared recent history persist in backend plugin data rather than depending on one browser window.
+
+### Actual IDE evidence
+
+![Actual development IDE showing the cluster explorer Cards view](docs/images/cluster-explorer/final-cards-1568.png)
+
+![Actual development IDE showing manual and rule-based folder organization](docs/images/cluster-explorer/organize-final.png)
+
+These are unmodified captures from the running development IDE, not mockups or packaged-desktop screenshots. The owned fixture exposes a real Kubernetes API and etcd with four namespaces, zero Nodes, and no scheduler. All 26 context aliases point to that one fixture; cloud-like names and configured provider hints do not prove a cloud fleet, production ownership, workload health, or cloud connectivity.
+
+The [evidence index](docs/images/cluster-explorer/index.json) links all twelve final Cards/Table/Debug captures at 360, 768, 1063, and 1568 pixels, organization and search captures, settled API views, restart snapshots, and the live scenario summary. Nine themes, five text scales, both densities, keyboard actions, direct opening, new-tab handoff, folder assets, lenses, and shared recents were exercised. Native OS window creation was not proved.
+
+Kubernetes plugin 0.16.0 requires Omniview 0.29.0 or newer, runtime/Vite 0.29.0, Base UI 0.14.0, and Editors 6.1.8. This cohort supplies the plugin-data snapshot and compare-and-swap bindings used by the explorer. Upgrade the desktop before installing the plugin; older runtime packages with a Base UI `~0.13.0` peer are incompatible even if workspace source links resolve imports.
+
 Container log requests with an explicit `SinceTime` use that timestamp instead
 of `SinceSeconds`. Kubernetes accepts only one time filter per log request.
 
-Kubernetes plugin 0.15.1 requires Omniview 0.27.2 or newer so the host includes
-the matching log lifecycle fixes. Update the desktop application before installing
-this plugin release.
-The plugin pins SDK 0.14.6 for completed-source handling while preserving the
-existing source-session wire contract and stock grpc-go dependency.
+Standalone release packaging retains SDK 0.14.6 for completed-source handling, preserving the existing source-session wire contract and stock grpc-go dependency. The canonical reviewed-source cohort remains pinned independently to approved SDK `6ce85c8b42cab1547396217510196b29e63ffe55`; the live explorer evidence uses that source cohort, not the standalone artifact dependency. Source-cohort approval and standalone release verification are separate gates; neither authorizes changing the SDK approval variable or publishing another SDK release.
 
 ## MCP resource actions
 
@@ -154,7 +192,6 @@ A changed name or namespace cannot retarget an edit. Native dialogs own their
 portaled menus, help, and confirmations,
 so these controls remain visible and interactive inside the browser's top layer.
 
-
 ## Candidate frontend CI
 
 PRs explicitly labeled `resource-v2-candidate` use `hack/candidate-ui.mjs`, not
@@ -260,6 +297,7 @@ The replacement resource path retains native label selectors, every served API v
 The owned kind/history audit fixture below is unchanged. Helm release enumeration is bounded through native Secret/ConfigMap storage; other Helm storage drivers are not advertised as bounded enumeration sources.
 
 Node drain accepts `gracePeriodSeconds: -1` to leave Kubernetes eviction grace unset, preserving each pod's native termination grace period. The drawer sends that sentinel explicitly. Omitting the parameter retains the 30-second action default; zero requests immediate termination, nonnegative integers override the grace period, and all other negative values fail before cordon or eviction.
+
 ## Resource event and table performance
 
 Informer updates with the same nonempty resource version and the same UID, name,
@@ -368,22 +406,22 @@ The SDK serves profiling on a loopback-only endpoint. Treat profile files as sen
 
 The resource provider publishes core server facts through the optional SDK `connectionMetadata` trait:
 
-| Key | Source |
-| --- | --- |
-| `kubernetes.server_url` | Resolved REST endpoint, without userinfo, query, or fragment |
-| `kubernetes.server_version` | `/version.gitVersion` |
-| `kubernetes.server_platform` | `/version.platform` |
+| Key                          | Source                                                       |
+| ---------------------------- | ------------------------------------------------------------ |
+| `kubernetes.server_url`      | Resolved REST endpoint, without userinfo, query, or fragment |
+| `kubernetes.server_version`  | `/version.gitVersion`                                        |
+| `kubernetes.server_platform` | `/version.platform`                                          |
 
 Optional environment hints reuse connection configuration, the resolved endpoint, and the existing version response:
 
-| Keys | Meaning |
-| --- | --- |
-| `kubernetes.provider`, `kubernetes.provider_source` | Recognized environment and its inference source: `connection_config`, `server_endpoint`, or `server_version` |
-| `kubernetes.distribution`, `kubernetes.distribution_source` | Recognized server build distribution, separate from hosting |
-| `cloud.provider` | AWS, GCP, or Azure hint |
-| `aws.region`, `aws.account_id` | Region and account; account comes only from a valid configured EKS cluster ARN, never an authentication role |
-| `gcp.region`, `gcp.zone`, `gcp.project_id` | Configured or recognizable GKE context details |
-| `azure.subscription_id`, `azure.resource_group` | Configured Azure details |
+| Keys                                                        | Meaning                                                                                                      |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `kubernetes.provider`, `kubernetes.provider_source`         | Recognized environment and its inference source: `connection_config`, `server_endpoint`, or `server_version` |
+| `kubernetes.distribution`, `kubernetes.distribution_source` | Recognized server build distribution, separate from hosting                                                  |
+| `cloud.provider`                                            | AWS, GCP, or Azure hint                                                                                      |
+| `aws.region`, `aws.account_id`                              | Region and account; account comes only from a valid configured EKS cluster ARN, never an authentication role |
+| `gcp.region`, `gcp.zone`, `gcp.project_id`                  | Configured or recognizable GKE context details                                                               |
+| `azure.subscription_id`, `azure.resource_group`             | Configured Azure details                                                                                     |
 
 Unknown optional facts are omitted, and obsolete hints are explicitly removed on refresh. These are display hints, not verified hosting or feature-gating authority. Recognition uses bounded patterns rather than arbitrary display-name substrings. A Docker runtime is not evidence of Docker Desktop, kind, or a cloud provider.
 
@@ -402,7 +440,6 @@ The overview's node count uses the full acquired node collection, and health use
 Folder rules use `metadata:<namespaced-key>` for observed facts. Existing endpoint/version/platform rules migrate in memory and persist through normal folder edits. Retired inventory/last-checked rules remain visible for review and do not match, including negative operators. Configuration-backed `data:*` rules retain their existing meaning.
 
 Metadata folder rules read only own string-valued keys. Inherited properties and invalid values remain unknown, including for negative operators.
-
 
 ## Local audit evidence fixture
 
@@ -478,14 +515,14 @@ After deletion, archive desired evidence, then remove the private directory your
 
 ## Capabilities
 
-| Capability | Description |
-|---|---|
-| **Resource** | Browse, create, edit, and delete any Kubernetes resource |
-| **Exec** | Open an interactive shell in pod or node containers |
-| **Logs** | Stream and inspect container logs with filtering |
-| **Networking** | Port-forward from pods to localhost |
-| **Metrics** | CPU, memory, network, and disk metrics from metrics-server and Prometheus |
-| **UI** | Custom tables, sidebars, dashboards, and dialogs |
+| Capability     | Description                                                               |
+| -------------- | ------------------------------------------------------------------------- |
+| **Resource**   | Browse, create, edit, and delete any Kubernetes resource                  |
+| **Exec**       | Open an interactive shell in pod or node containers                       |
+| **Logs**       | Stream and inspect container logs with filtering                          |
+| **Networking** | Port-forward from pods to localhost                                       |
+| **Metrics**    | CPU, memory, network, and disk metrics from metrics-server and Prometheus |
+| **UI**         | Custom tables, sidebars, dashboards, and dialogs                          |
 
 ## Supported Resources
 
@@ -598,17 +635,17 @@ Search and resource views share the runtime's `resourceQueryKeys` snapshots. Que
 
 Click any resource row to open a rich sidebar panel with contextual information:
 
-| Resource | Sidebar Highlights |
-|---|---|
-| **Pod** | Container statuses, ports, volumes, environment, probes, resource requests/limits, live metrics graphs |
-| **Deployment / StatefulSet / DaemonSet** | Replica status, rollout progress, selector details |
-| **Service** | Port mappings, endpoint resolution |
-| **Ingress** | Rule table with host, path, and backend mapping |
-| **Job / CronJob** | Completion status, schedule, parallelism |
-| **Node** | System info, capacity, images, topology, conditions, live metrics |
-| **Namespace** | Resource quotas, pod counts, events |
-| **ConfigMap / Secret** | Key-value viewer |
-| **PV / PVC** | Binding status, storage details, access modes |
+| Resource                                 | Sidebar Highlights                                                                                     |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **Pod**                                  | Container statuses, ports, volumes, environment, probes, resource requests/limits, live metrics graphs |
+| **Deployment / StatefulSet / DaemonSet** | Replica status, rollout progress, selector details                                                     |
+| **Service**                              | Port mappings, endpoint resolution                                                                     |
+| **Ingress**                              | Rule table with host, path, and backend mapping                                                        |
+| **Job / CronJob**                        | Completion status, schedule, parallelism                                                               |
+| **Node**                                 | System info, capacity, images, topology, conditions, live metrics                                      |
+| **Namespace**                            | Resource quotas, pod counts, events                                                                    |
+| **ConfigMap / Secret**                   | Key-value viewer                                                                                       |
+| **PV / PVC**                             | Binding status, storage details, access modes                                                          |
 
 All sidebars include a **YAML editor** tab with diff view and schema-validated editing.
 
@@ -802,10 +839,10 @@ A dedicated dashboard view per cluster with:
 
 The plugin supports two metrics backends:
 
-| Source | Data |
-|---|---|
-| **metrics-server** | Pod and node CPU/memory usage |
-| **Prometheus** | Time-series metrics: CPU throttle rate, memory working set, network I/O, disk throughput, IOPS, filesystem usage, OOM kills, restart counts, probe latency, and more |
+| Source             | Data                                                                                                                                                                 |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **metrics-server** | Pod and node CPU/memory usage                                                                                                                                        |
+| **Prometheus**     | Time-series metrics: CPU throttle rate, memory working set, network I/O, disk throughput, IOPS, filesystem usage, OOM kills, restart counts, probe latency, and more |
 
 Metrics are displayed in the dashboard, node sidebars, and pod sidebars as interactive time-series graphs.
 
@@ -1006,7 +1043,6 @@ Run local rule regressions from the plugin root:
 node --test ui/scripts/eslint/*.test.mjs
 ```
 
-
 ### Isolated workspace development
 
 Select this plugin in an Omniview feature workspace and start its host with the
@@ -1044,7 +1080,6 @@ set it to `podman` or `nerdctl` to use the same provider for kind and port inspe
 Generated configurations are published atomically. Cluster creation/seeding is a
 separate deliberate operation, not a workspace-start prerequisite or permission
 to use a production cluster.
-
 
 ### Project Structure
 

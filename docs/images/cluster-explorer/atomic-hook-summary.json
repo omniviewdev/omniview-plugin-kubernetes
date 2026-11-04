@@ -1,0 +1,25 @@
+{
+  "source": "Actual served usePluginData verification, extracted from actual-hook.json without local module paths.",
+  "generation": "4b0d4d13-3f25-46c1-83a8-b740460e83b0",
+  "fixtureDisclosure": "Temporary React consumer overlay uses the real served usePluginData hook. Screenshot shows an owned verification fixture, not production UI.",
+  "independentContexts": 2,
+  "independentQueryClients": 2,
+  "actualHookFunctionalUpdateRounds": 10,
+  "incremented": {
+    "count": 20,
+    "unrelated": {
+      "fixture": true,
+      "label": "actual usePluginData owned verification"
+    }
+  },
+  "onDiskMatches": true,
+  "literalReplacement": {
+    "count": 100,
+    "literalReplacement": true
+  },
+  "deleted": {
+    "value": null,
+    "revision": ""
+  },
+  "failureScenario": "Not induced: no naturally safe real backend write failure encountered; no mocks, disk corruption or profile mutation used."
+}

@@ -1,23 +1,19 @@
-import { IconButton, Text } from '@omniviewdev/base-ui';
-import {
-  usePluginContext,
-  useConnection,
-  useSnackbar,
-  usePluginRouter,
-} from '@omniviewdev/runtime';
-import { types } from '@omniviewdev/runtime/models';
+import { Button, DataTable, useDataTable, type DataTableColumnDef } from '@omniviewdev/base-ui';
+import { useSnackbar } from '@omniviewdev/runtime';
 import React from 'react';
-import { LuChevronLeft, LuChevronRight } from 'react-icons/lu';
 
+import { useClusterAction } from '../../hooks/useClusterAction';
 import type {
   GroupedConnectionsResult,
   GroupByMode,
   ViewMode,
   ConnectionGroup,
   EnrichedConnection,
+  SortByField,
+  SortDirection,
 } from '../../types/clusters';
+import { getClusterDisplayFacts, type ClusterDisplayFact } from '../../utils/clusterSearch';
 
-import ColumnPicker from './ColumnPicker';
 import ConnectionCard from './ConnectionCard';
 import ConnectionGroupComp from './ConnectionGroup';
 import ConnectionTableItem from './ConnectionTableItem';
@@ -37,367 +33,362 @@ type Props = {
   onRemoveFromGroup?: (groupId: string, connectionId: string) => void;
   onCreateFolder?: (connectionId: string) => void;
   onDeleteRequest: (connectionId: string, connectionName: string) => void;
-  onRecordAccess: (connectionId: string) => void;
+  selectedId?: string;
+  onVisualOrderChange?: (ids: string[]) => void;
+  debug?: boolean;
+  sortBy?: SortByField;
+  sortDirection?: SortDirection;
+  onSortChange?: (field: SortByField, direction: SortDirection) => void;
 };
 
-const getColumnWidth = (connections: EnrichedConnection[], col: string) => {
-  const px = 7;
-  const maxLabelWidth = 400;
-  let width = 0;
+const features = { sorting: true, columnVisibility: true, columnResizing: true, pagination: false };
+const factCell = (fact?: ClusterDisplayFact) =>
+  fact ? (
+    <span title={`${fact.provenance} · ${fact.key}`}>
+      {fact.value}
+      {fact.hint ? ' (configured hint)' : ''}
+    </span>
+  ) : (
+    'Unknown'
+  );
 
-  for (const { connection } of connections) {
-    if (!connection.labels) continue;
-    // connection.labels is Record<string, any> from the runtime SDK
-    const labels = connection.labels as Record<string, string | undefined>;
-    const val = labels[col];
-    if (val) {
-      const calcedWidth = String(val).length * px;
-      if (calcedWidth > width) {
-        width = calcedWidth > maxLabelWidth ? maxLabelWidth : calcedWidth;
-      }
-    }
-  }
-
-  return width;
-};
-
-/**
- * Helper sub-component for grid view of a single connection.
- * Handles connect/disconnect via hooks.
- */
-const GridCardWrapper: React.FC<{
-  enriched: EnrichedConnection;
-  customGroups: ConnectionGroup[];
-  onToggleFavorite: () => void;
-  onAssignToGroup: (groupId: string) => void;
-  onRemoveFromGroup?: (groupId: string) => void;
-  onCreateFolder?: (connectionId: string) => void;
-  onDelete: () => void;
-  onRecordAccess: () => void;
-}> = ({
-  enriched,
-  customGroups,
-  onToggleFavorite,
-  onAssignToGroup,
-  onRemoveFromGroup,
-  onCreateFolder,
-  onDelete,
-  onRecordAccess,
-}) => {
-  const { meta } = usePluginContext();
-  const { navigate } = usePluginRouter();
-  // eslint-disable-next-line @typescript-eslint/unbound-method
-  const { showSnackbar } = useSnackbar();
-  const { startConnection, stopConnection } = useConnection({
-    pluginID: meta.id,
-    connectionID: enriched.connection.id,
-  });
-
-  const handleClick = () => {
-    onRecordAccess();
-    if (enriched.isConnected) {
-      navigate(`/cluster/${encodeURIComponent(enriched.connection.id)}/resources`);
-      return;
-    }
-    startConnection()
-      .then((status) => {
-        if (status.status === types.ConnectionStatusCode.ConnectionStatusConnected) {
-          navigate(`/cluster/${encodeURIComponent(enriched.connection.id)}/resources`);
-        }
-      }, () => {
-        // useConnection already reports lifecycle failures with structured details.
-      });
-  };
-
-  const handleConnect = () => {
-    onRecordAccess();
-    startConnection().catch(() => {
-      // useConnection already reports lifecycle failures with structured details.
-    });
-  };
-
-  const handleDisconnect = () => {
-    stopConnection().catch(() => {
-      // useConnection already reports lifecycle failures with structured details.
-    });
-  };
-
-  const handleCopyId = () => {
-    navigator.clipboard
-      .writeText(enriched.connection.id)
-      .then(() => {
-        showSnackbar({ status: 'success', message: 'Connection ID copied' });
-      })
-      .catch((error: unknown) => {
-        showSnackbar({
-          status: 'error',
-          message: error instanceof Error ? error.message : 'Failed to copy connection ID',
-          icon: 'LuCircleAlert',
-        });
-      });
-  };
-
+const GridCardWrapper = ({ enriched, ...props }: Props & { enriched: EnrichedConnection }) => {
+  const id = enriched.connection.id;
+  const { handleClick, handleConnect, handleDisconnect } = useClusterAction(
+    id,
+    enriched.isConnected,
+  );
+  const snackbar = useSnackbar();
   return (
     <ConnectionCard
       enriched={enriched}
-      customGroups={customGroups}
-      onClick={handleClick}
-      onToggleFavorite={onToggleFavorite}
-      onConnect={handleConnect}
-      onDisconnect={handleDisconnect}
-      onAssignToGroup={onAssignToGroup}
-      onRemoveFromGroup={onRemoveFromGroup}
-      onCreateFolder={onCreateFolder}
-      onCopyId={handleCopyId}
-      onDelete={onDelete}
+      customGroups={props.customGroups}
+      selected={props.selectedId === id}
+      onClick={() => { void handleClick(); }}
+      onConnect={() => { void handleConnect(); }}
+      onDisconnect={() => { void handleDisconnect(); }}
+      onToggleFavorite={() => props.onToggleFavorite(id)}
+      onAssignToGroup={(groupId) => props.onAssignToGroup(groupId, id)}
+      onRemoveFromGroup={
+        props.onRemoveFromGroup ? (groupId) => props.onRemoveFromGroup?.(groupId, id) : undefined
+      }
+      onCreateFolder={props.onCreateFolder}
+      onDelete={() => props.onDeleteRequest(id, enriched.displayName)}
+      onCopyId={() => {
+        void navigator.clipboard.writeText(id).then(
+          () => {
+            snackbar.showSnackbar({ status: 'success', message: 'Connection ID copied' });
+          },
+          (error: unknown) => {
+            snackbar.showSnackbar({
+              status: 'error',
+              message: error instanceof Error ? error.message : 'Failed to copy connection ID',
+            });
+          },
+        );
+      }}
     />
   );
 };
 
-const gridContainerStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 8,
-};
-
-const paginationStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 8,
-  padding: '12px 0',
-};
-
-const tableWrapperStyle: React.CSSProperties = {
-  width: '100%',
-  borderRadius: 'var(--ov-radius-md, 6px)',
-  overflow: 'auto',
-  border: '1px solid var(--ov-color-border-default)',
-  backgroundColor: 'var(--ov-color-bg-surface)',
-};
-
-const tableStyle: React.CSSProperties = { width: '100%', borderCollapse: 'collapse' };
-
-const theadRowStyle: React.CSSProperties = {
-  backgroundColor: 'var(--ov-color-bg-inset)',
-  height: 28,
-};
-
-const columnHeaderStyle: React.CSSProperties = {
-  textTransform: 'uppercase',
-  letterSpacing: '0.04em',
-};
-
-const columnPickerStyle: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'flex-end',
-  position: 'relative',
-};
-
-/* ---- shared table styles ---- */
-const thStyle: React.CSSProperties = {
-  padding: '2px 8px',
-  textAlign: 'left',
-  verticalAlign: 'middle',
-  borderBottom: '1px solid var(--ov-color-border-muted)',
-  whiteSpace: 'nowrap',
-  height: 28,
-};
-
-const ConnectionTable: React.FC<Props> = ({
-  grouped,
-  groupBy,
-  viewMode,
-  customGroups,
-  collapsedGroups,
-  visibleColumns,
-  allLabelKeys,
-  onToggleColumn,
-  onToggleCollapse,
-  onToggleFavorite,
-  onAssignToGroup,
-  onRemoveFromGroup,
-  onCreateFolder,
-  onDeleteRequest,
-  onRecordAccess,
-}) => {
-  const allConnections = grouped.groups.flatMap((g) => g.connections);
-  const isFlat = groupBy === 'none';
-
-  const PAGE_SIZE = 40;
-  const [page, setPage] = React.useState(0);
-  const dataKey = grouped.groups.map((g) => g.key).join(',');
-  const [pageScope, setPageScope] = React.useState(dataKey);
-
-  if (pageScope !== dataKey) {
-    setPageScope(dataKey);
-    setPage(0);
-  }
-
-  if (viewMode === 'grid') {
-    return (
-      <div style={gridContainerStyle}>
-        {grouped.groups.map((group) => {
-          // Paginate only flat (ungrouped) views
-          const connections = isFlat
-            ? group.connections.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
-            : group.connections;
-          const totalPages = isFlat ? Math.ceil(group.connections.length / PAGE_SIZE) : 1;
-
-          return (
-            <ConnectionGroupComp
-              key={group.key}
-              groupKey={group.key}
-              label={group.label}
-              count={group.connections.length}
-              provider={group.provider}
-              isCollapsed={collapsedGroups.has(group.key)}
-              onToggleCollapse={() => onToggleCollapse(group.key)}
-              hideHeader={isFlat}
-            >
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))',
-                  gap: 12,
-                  padding: isFlat ? 0 : 8,
-                }}
-              >
-                {connections.map((enriched) => (
-                  <GridCardWrapper
-                    key={enriched.connection.id}
-                    enriched={enriched}
-                    customGroups={customGroups}
-                    onToggleFavorite={() => onToggleFavorite(enriched.connection.id)}
-                    onAssignToGroup={(gId) => onAssignToGroup(gId, enriched.connection.id)}
-                    onRemoveFromGroup={
-                      onRemoveFromGroup
-                        ? (gId) => onRemoveFromGroup(gId, enriched.connection.id)
-                        : undefined
-                    }
-                    onCreateFolder={onCreateFolder}
-                    onDelete={() => onDeleteRequest(enriched.connection.id, enriched.displayName)}
-                    onRecordAccess={() => onRecordAccess(enriched.connection.id)}
-                  />
-                ))}
-              </div>
-              {isFlat && totalPages > 1 && (
-                <div style={paginationStyle}>
-                  <IconButton
-                    size="sm"
-                    variant="ghost"
-                    color="neutral"
-                    aria-label="Previous page"
-                    disabled={page === 0}
-                    onClick={() => setPage((p) => p - 1)}
-                  >
-                    <LuChevronLeft size={16} />
-                  </IconButton>
-                  <Text size="sm" tone="muted">
-                    Page {page + 1} of {totalPages}
-                  </Text>
-                  <IconButton
-                    size="sm"
-                    variant="ghost"
-                    color="neutral"
-                    aria-label="Next page"
-                    disabled={page >= totalPages - 1}
-                    onClick={() => setPage((p) => p + 1)}
-                  >
-                    <LuChevronRight size={16} />
-                  </IconButton>
-                </div>
-              )}
-            </ConnectionGroupComp>
-          );
-        })}
-      </div>
-    );
-  }
-
-  // List view - only render visible label columns
-  const sortedVisibleCols = visibleColumns
-    .filter((c) => allConnections.some((e) => {
-      // connection.labels is Record<string, any> from the runtime SDK
-      const labels = e.connection.labels as Record<string, string | undefined> | undefined;
-      return labels?.[c] !== undefined;
-    }))
-    .sort();
-
+function TableSection({ connections, ...props }: Props & { connections: EnrichedConnection[] }) {
+  const [compact, setCompact] = React.useState(true);
+  const [coreVisibility, setCoreVisibility] = React.useState<Record<string, boolean>>({});
+  const [localSorting, setLocalSorting] = React.useState<{ id: string; desc: boolean }[]>([]);
+  const sorting = props.sortBy
+    ? [
+        {
+          id: props.sortBy === 'name' ? 'identity' : props.sortBy,
+          desc: props.sortDirection === 'desc',
+        },
+      ]
+    : localSorting;
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+  const debug = props.debug || props.viewMode === 'debug';
+  const data = debug
+    ? [...connections].sort((a, b) => Number(b.isConnected) - Number(a.isConnected))
+    : connections;
+  const item = (enriched: EnrichedConnection, part: 'identity' | 'actions') => (
+    <ConnectionTableItem
+      enriched={enriched}
+      part={part}
+      visibleColumns={props.visibleColumns}
+      customGroups={props.customGroups}
+      selectedId={props.selectedId}
+      onToggleFavorite={() => props.onToggleFavorite(enriched.connection.id)}
+      onAssignToGroup={(id) => props.onAssignToGroup(id, enriched.connection.id)}
+      onRemoveFromGroup={
+        props.onRemoveFromGroup
+          ? (id) => props.onRemoveFromGroup?.(id, enriched.connection.id)
+          : undefined
+      }
+      onCreateFolder={props.onCreateFolder}
+      onDelete={() => props.onDeleteRequest(enriched.connection.id, enriched.displayName)}
+    />
+  );
+  const columns: DataTableColumnDef<EnrichedConnection>[] = [
+    {
+      id: 'identity',
+      header: 'Cluster',
+      accessorFn: (row) => row.displayName,
+      size: 300,
+      enableHiding: false,
+      cell: ({ row }) => item(row.original, 'identity'),
+    },
+    { id: 'provider', header: 'Provider', accessorFn: (row) => row.provider, size: 130 },
+    ...(['region', 'account', 'environment'] as const).map((key) => ({
+      id: `fact:${key}`,
+      header: key === 'environment' ? 'Environment' : key === 'account' ? 'Account / Project' : 'Region',
+      accessorFn: (row: EnrichedConnection) => {
+        const facts = getClusterDisplayFacts(row);
+        return (key === 'account' ? facts.account ?? facts.project : facts[key])?.value ?? '';
+      },
+      size: 160,
+      cell: ({ row }: { row: { original: EnrichedConnection } }) => {
+        const facts = getClusterDisplayFacts(row.original);
+        if (key === 'account' && !facts.account && facts.project) {
+          return <>Project: {factCell(facts.project)}</>;
+        }
+        return factCell(facts[key]);
+      },
+    })),
+    {
+      id: 'status',
+      header: 'Connection',
+      accessorFn: (row) => (row.isConnected ? 'Connected' : 'Disconnected'),
+      size: 140,
+    },
+    {
+      id: 'recency',
+      header: 'Last opened',
+      accessorFn: (row) => row.lastAccessed ?? 0,
+      size: 160,
+      cell: ({ row }) =>
+        row.original.lastAccessed ? new Date(row.original.lastAccessed).toLocaleString() : 'Never',
+    },
+    {
+      id: 'metadata',
+      header: 'Metadata',
+      accessorFn: (row: EnrichedConnection) => getClusterDisplayFacts(row).metadataState,
+      size: 130,
+    },
+    ...(debug
+      ? [
+          {
+            id: 'workloads',
+            header: 'Workloads',
+            accessorFn: () => 'Unknown — not queried',
+            size: 200,
+            enableSorting: false,
+          },
+          {
+            id: 'metrics',
+            header: 'Metrics',
+            accessorFn: () => 'Unknown — provider required',
+            size: 230,
+            enableSorting: false,
+          },
+        ]
+      : []),
+    ...props.allLabelKeys.map((key) => ({
+      id: `label:${key}`,
+      header: key,
+      size: 180,
+      accessorFn: (row: EnrichedConnection) => String(row.connection.labels?.[key] ?? ''),
+    })),
+    {
+      id: 'actions',
+      header: 'Actions',
+      size: 90,
+      enableSorting: false,
+      enableHiding: false,
+      cell: ({ row }) => item(row.original, 'actions'),
+    },
+  ];
+  const columnVisibility = {
+    recency: false,
+    metadata: debug,
+    ...coreVisibility,
+    ...Object.fromEntries(
+      props.allLabelKeys.map((key) => [`label:${key}`, props.visibleColumns.includes(key)]),
+    ),
+  };
+  const table = useDataTable({
+    data,
+    columns,
+    features,
+    getRowId: (row) => row.connection.id,
+    state: { columnVisibility, sorting },
+    manualSorting: !!props.sortBy,
+    enableMultiSort: false,
+    onSortingChange: (next) => {
+      if (!props.onSortChange) {
+        setLocalSorting(next);
+        return;
+      }
+      const sort = next[0];
+      const field = sort?.id === 'identity' || !sort ? 'name' : (sort.id as SortByField);
+      props.onSortChange(field, sort?.desc ? 'desc' : 'asc');
+    },
+    onColumnVisibilityChange: (next) => {
+      setCoreVisibility(next);
+      for (const key of props.allLabelKeys) {
+        if ((next[`label:${key}`] !== false) !== props.visibleColumns.includes(key))
+          props.onToggleColumn(key);
+      }
+    },
+  });
+  const visualIds = table.getRowModel().rows.map((row) => row.original.connection.id);
+  const visualKey = JSON.stringify(visualIds);
+  React.useEffect(() => {
+    props.onVisualOrderChange?.(visualIds);
+  }, [visualKey, props.onVisualOrderChange]);
+  React.useEffect(() => {
+    if (!props.selectedId) return;
+    const index = visualIds.indexOf(props.selectedId);
+    if (index < 0) return;
+    if (data.length > 100 && scrollRef.current) {
+      scrollRef.current.scrollTop = index * (compact ? 40 : 48);
+      scrollRef.current.dispatchEvent(new Event('scroll'));
+    }
+    const frame = requestAnimationFrame(() => {
+      const action = [
+        ...(scrollRef.current?.querySelectorAll<HTMLElement>('[data-cluster-open]') ?? []),
+      ].find((node) => node.dataset.clusterOpen === props.selectedId);
+      action?.scrollIntoView?.({ block: 'nearest' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [props.selectedId, visualKey, compact, data.length]);
   return (
-    <div style={gridContainerStyle}>
-      {grouped.groups.map((group) => (
+    <DataTable
+      table={table}
+      features={features}
+      size={compact ? 'sm' : 'md'}
+      hoverable
+      stickyHeader
+    >
+      <DataTable.Toolbar>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => setCompact((value) => !value)}
+          aria-label="Toggle table density"
+        >
+          {compact ? 'Comfortable rows' : 'Compact rows'}
+        </Button>
+        <DataTable.ColumnVisibility />
+      </DataTable.Toolbar>
+      <DataTable.Container ref={scrollRef} style={{ maxHeight: 'min(70vh, 800px)' }}>
+        <DataTable.Header />
+        {data.length > 100 ? (
+          <DataTable.VirtualBody estimateRowSize={compact ? 40 : 48} overscan={12} />
+        ) : (
+          <DataTable.Body />
+        )}
+      </DataTable.Container>
+    </DataTable>
+  );
+}
+
+const ConnectionTable: React.FC<Props> = (input) => {
+  const debug = input.debug || input.viewMode === 'debug';
+  const debugConnections = debug
+    ? [
+        ...new Map(
+          input.grouped.groups.flatMap((group) =>
+            group.connections.map((connection) => [connection.connection.id, connection] as const),
+          ),
+        ).values(),
+      ].sort((left, right) => Number(right.isConnected) - Number(left.isConnected))
+    : [];
+  const props = debug
+    ? {
+        ...input,
+        groupBy: 'none' as const,
+        grouped: {
+          ...input.grouped,
+          groups: [{ key: 'debug', label: 'Debug', connections: debugConnections }],
+        },
+      }
+    : input;
+  const isFlat = props.groupBy === 'none';
+  const orders = React.useRef<Record<string, string[]>>({});
+  const lastOrder = React.useRef('');
+  const groupKeys = props.grouped.groups.map((group) => group.key).join('\u0000');
+  const onVisualOrderChange = React.useCallback(
+    (ids: string[]) => {
+      const uniqueIds = [...new Set(ids)];
+      const key = JSON.stringify(uniqueIds);
+      if (key === lastOrder.current) return;
+      lastOrder.current = key;
+      props.onVisualOrderChange?.(uniqueIds);
+    },
+    [props.onVisualOrderChange],
+  );
+  const orderCallbacks = React.useMemo(
+    () =>
+      Object.fromEntries(
+        props.grouped.groups.map((group) => [
+          group.key,
+          (ids: string[]) => {
+            orders.current[group.key] = ids;
+            onVisualOrderChange?.(
+              props.grouped.groups
+                .filter((section) => !props.collapsedGroups.has(section.key))
+                .flatMap(
+                  (section) =>
+                    orders.current[section.key] ??
+                    section.connections.map((row) => row.connection.id),
+                ),
+            );
+          },
+        ]),
+      ),
+    [groupKeys, props.grouped, props.collapsedGroups, onVisualOrderChange],
+  );
+  React.useEffect(() => {
+    if (props.viewMode === 'grid' && !debug) {
+      onVisualOrderChange?.(
+        props.grouped.groups
+          .filter((group) => !props.collapsedGroups.has(group.key))
+          .flatMap((group) => group.connections.map((row) => row.connection.id)),
+      );
+    }
+  }, [props.grouped, props.collapsedGroups, props.viewMode, debug, onVisualOrderChange]);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {props.grouped.groups.map((group) => (
         <ConnectionGroupComp
           key={group.key}
           groupKey={group.key}
           label={group.label}
           count={group.connections.length}
           provider={group.provider}
-          isCollapsed={collapsedGroups.has(group.key)}
-          onToggleCollapse={() => onToggleCollapse(group.key)}
+          isCollapsed={props.collapsedGroups.has(group.key)}
+          onToggleCollapse={() => props.onToggleCollapse(group.key)}
           hideHeader={isFlat}
         >
-          <div style={tableWrapperStyle}>
-            <table
-              aria-label="connections table"
-              style={tableStyle}
+          {props.viewMode === 'grid' && !debug ? (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 260px), 1fr))',
+                gridAutoRows: '1fr',
+                gap: 12,
+                padding: isFlat ? 0 : 8,
+              }}
             >
-              <thead>
-                <tr
-                  style={theadRowStyle}
-                >
-                  <th style={{ ...thStyle, width: 32, padding: '2px 4px' }} />
-                  <th style={{ ...thStyle, width: '40%' }}>
-                    <Text size="xs" weight="semibold" tone="muted" style={columnHeaderStyle}>
-                      Name
-                    </Text>
-                  </th>
-                  {sortedVisibleCols.map((col) => (
-                    <th
-                      key={col}
-                      style={{
-                        ...thStyle,
-                        width: getColumnWidth(allConnections, col) + 8,
-                      }}
-                    >
-                      <Text size="xs" weight="semibold" tone="muted" style={columnHeaderStyle}>
-                        {col.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
-                      </Text>
-                    </th>
-                  ))}
-                  <th style={{ ...thStyle, width: 36, padding: '0 4px', position: 'relative', textAlign: 'right' }}>
-                    <div style={columnPickerStyle}>
-                      <ColumnPicker
-                        allColumns={allLabelKeys}
-                        visibleColumns={visibleColumns}
-                        onToggleColumn={onToggleColumn}
-                      />
-                    </div>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {group.connections.map((enriched) => (
-                  <ConnectionTableItem
-                    key={enriched.connection.id}
-                    enriched={enriched}
-                    visibleColumns={sortedVisibleCols}
-                    customGroups={customGroups}
-                    onToggleFavorite={() => onToggleFavorite(enriched.connection.id)}
-                    onAssignToGroup={(gId) => onAssignToGroup(gId, enriched.connection.id)}
-                    onRemoveFromGroup={
-                      onRemoveFromGroup
-                        ? (gId) => onRemoveFromGroup(gId, enriched.connection.id)
-                        : undefined
-                    }
-                    onCreateFolder={onCreateFolder}
-                    onDelete={() => onDeleteRequest(enriched.connection.id, enriched.displayName)}
-                    onRecordAccess={() => onRecordAccess(enriched.connection.id)}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
+              {group.connections.map((enriched) => (
+                <GridCardWrapper key={enriched.connection.id} {...props} enriched={enriched} />
+              ))}
+            </div>
+          ) : (
+            <TableSection
+              {...props}
+              connections={group.connections}
+              onVisualOrderChange={orderCallbacks[group.key]}
+            />
+          )}
         </ConnectionGroupComp>
       ))}
     </div>

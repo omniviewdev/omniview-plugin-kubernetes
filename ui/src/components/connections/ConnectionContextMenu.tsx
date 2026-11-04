@@ -1,5 +1,12 @@
-import { IconButton, Menu } from '@omniviewdev/base-ui';
-import { usePluginContext, usePluginRouter, useWindowActions } from '@omniviewdev/runtime';
+import { Button, Dialog, IconButton, Menu } from '@omniviewdev/base-ui';
+import {
+  useConnection,
+  usePluginContext,
+  usePluginRouter,
+  useSnackbar,
+  useWindowActions,
+} from '@omniviewdev/runtime';
+import { types } from '@omniviewdev/runtime/models';
 import React from 'react';
 import {
   LuPencil,
@@ -16,8 +23,11 @@ import {
   LuSquarePlus,
 } from 'react-icons/lu';
 
-import type { ConnectionGroup } from '../../types/clusters';
-import { FolderIconDisplay } from '../../utils/folderIcons';
+import type { ConnectionGroup, EnrichedConnection } from '../../types/clusters';
+import { computeEffectiveMembers } from '../../utils/folderRules';
+import ClusterConnectionDetails from './ClusterConnectionDetails';
+import { FolderIconDisplay, resolveFolderImage } from '../../utils/folderIcons';
+import { useClusterPreferences } from '../../hooks/useClusterPreferences';
 
 const ICON_SIZE = 14;
 
@@ -35,6 +45,7 @@ type Props = {
   onCreateFolder?: (connectionId: string) => void;
   onCopyId: () => void;
   onDelete: () => void;
+  enriched?: EnrichedConnection;
 };
 
 const ConnectionContextMenu: React.FC<Props> = ({
@@ -51,10 +62,52 @@ const ConnectionContextMenu: React.FC<Props> = ({
   onCreateFolder,
   onCopyId,
   onDelete,
+  enriched,
 }) => {
   const { navigate } = usePluginRouter();
   const { pluginId } = usePluginContext();
+  const { iconAssets } = useClusterPreferences(pluginId);
   const { openInNewTab, openInNewWindow } = useWindowActions();
+  const [preview, setPreview] = React.useState(false);
+  const [opening, setOpening] = React.useState(false);
+  const pendingOpen = React.useRef(false);
+  const snackbar = useSnackbar();
+  const { startConnection } = useConnection({
+    pluginID: pluginId,
+    connectionID: connectionId,
+    enabled: false,
+  });
+  const openElsewhere = async (open: (path: string) => void) => {
+    if (pendingOpen.current) return;
+    pendingOpen.current = true;
+    setOpening(true);
+    try {
+      if (!isConnected) {
+        const result = await startConnection();
+        if (result.status !== types.ConnectionStatusCode.ConnectionStatusConnected) {
+          snackbar.showSnackbar({
+            status: 'warning',
+            message: 'Could not open cluster: connection is not ready',
+            details: result.details,
+          });
+          return;
+        }
+      }
+      try {
+        open(resourcesPath);
+      } catch (error) {
+        snackbar.showSnackbar({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Could not open cluster',
+        });
+      }
+    } catch {
+      // Connection failures already report lifecycle details.
+    } finally {
+      pendingOpen.current = false;
+      setOpening(false);
+    }
+  };
   // Same page a click on the connection opens, as a host route.
   const resourcesPath = `/_plugin/${pluginId}/cluster/${encodeURIComponent(connectionId)}/resources`;
 
@@ -69,7 +122,12 @@ const ConnectionContextMenu: React.FC<Props> = ({
       <Menu.Root size="xs">
         <Menu.Trigger
           render={
-            <IconButton aria-label="More" size="sm" variant="ghost" color="neutral">
+            <IconButton
+              aria-label={`Actions for ${connectionName}`}
+              size="sm"
+              variant="ghost"
+              color="neutral"
+            >
               <LuEllipsisVertical size={16} />
             </IconButton>
           }
@@ -90,13 +148,19 @@ const ConnectionContextMenu: React.FC<Props> = ({
 
               <Menu.Item
                 startDecorator={<LuSquarePlus size={ICON_SIZE} />}
-                onClick={() => openInNewTab(resourcesPath)}
+                disabled={opening}
+                onClick={() => {
+                  void openElsewhere(openInNewTab);
+                }}
               >
                 Open in new tab
               </Menu.Item>
               <Menu.Item
                 startDecorator={<LuAppWindow size={ICON_SIZE} />}
-                onClick={() => openInNewWindow(resourcesPath)}
+                disabled={opening}
+                onClick={() => {
+                  void openElsewhere(openInNewWindow);
+                }}
               >
                 Open in new window
               </Menu.Item>
@@ -106,10 +170,11 @@ const ConnectionContextMenu: React.FC<Props> = ({
                 startDecorator={<LuPencil size={ICON_SIZE} />}
                 onClick={() => navigate(`/cluster/${encodeURIComponent(connectionId)}/edit`)}
               >
-                Edit
+                Settings
               </Menu.Item>
+              {enriched && <Menu.Item onClick={() => setPreview(true)}>Preview</Menu.Item>}
               <Menu.Item startDecorator={<LuStar size={ICON_SIZE} />} onClick={onToggleFavorite}>
-                {isFavorite ? 'Unfavorite' : 'Favorite'}
+                {isFavorite ? 'Unpin' : 'Pin'}
               </Menu.Item>
 
               {hasFolders && (
@@ -122,6 +187,11 @@ const ConnectionContextMenu: React.FC<Props> = ({
                       <Menu.Popup>
                         {customGroups.map((group) => {
                           const isInGroup = group.connectionIds.includes(connectionId);
+                          const automatic =
+                            !!enriched &&
+                            computeEffectiveMembers([], group.ruleSet, [enriched]).has(
+                              connectionId,
+                            );
                           return (
                             <Menu.Item
                               key={`folder-${group.id}`}
@@ -131,7 +201,7 @@ const ConnectionContextMenu: React.FC<Props> = ({
                                 ) : (
                                   <FolderIconDisplay
                                     icon={group.icon}
-                                    customImage={group.customImage}
+                                    customImage={resolveFolderImage(group, iconAssets)}
                                     size={ICON_SIZE}
                                     color={group.color}
                                   />
@@ -146,6 +216,13 @@ const ConnectionContextMenu: React.FC<Props> = ({
                               }}
                             >
                               {group.name}
+                              {automatic
+                                ? isInGroup
+                                  ? ' · manual + automatic'
+                                  : ' · automatic (add manual)'
+                                : isInGroup
+                                  ? ' · manual (remove)'
+                                  : ''}
                             </Menu.Item>
                           );
                         })}
@@ -180,6 +257,37 @@ const ConnectionContextMenu: React.FC<Props> = ({
           </Menu.Positioner>
         </Menu.Portal>
       </Menu.Root>
+      {preview && enriched && (
+        <Dialog open onClose={() => setPreview(false)} size="md">
+          <Dialog.Title>Cluster preview</Dialog.Title>
+          <Dialog.Body>
+            <ClusterConnectionDetails
+              connectionID={connectionId}
+              connection={enriched.connection}
+              override={{
+                displayName: enriched.displayName,
+                description: enriched.displayDescription,
+                avatar: enriched.avatar,
+                avatarColor: enriched.avatarColor,
+                tags: enriched.tags,
+              }}
+            />
+          </Dialog.Body>
+          <Dialog.Footer>
+            <Button variant="ghost" onClick={() => setPreview(false)}>
+              Close
+            </Button>
+            <Button
+              onClick={() => {
+                setPreview(false);
+                navigate(`/cluster/${encodeURIComponent(connectionId)}/edit`);
+              }}
+            >
+              Settings
+            </Button>
+          </Dialog.Footer>
+        </Dialog>
+      )}
     </span>
   );
 };

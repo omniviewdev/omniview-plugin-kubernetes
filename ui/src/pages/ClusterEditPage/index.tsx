@@ -47,7 +47,8 @@ const ClusterEditForm: React.FC<{ connectionId: string }> = ({ connectionId }) =
   const section = (searchParams.get('section') ?? 'identity') as SectionId;
 
   const { connection } = useConnection({ pluginID: meta.id, connectionID: connectionId });
-  const { connectionOverrides, availableTags, updateOverride } = useClusterPreferences(meta.id);
+  const preferences = useClusterPreferences(meta.id);
+  const { connectionOverrides, availableTags } = preferences;
 
   const existing = connectionOverrides[connectionId] ?? {};
   const conn = connection.data;
@@ -79,7 +80,7 @@ const ClusterEditForm: React.FC<{ connectionId: string }> = ({ connectionId }) =
     override.avatar = avatarUrl || undefined;
     override.avatarColor = avatarColor || undefined;
     override.tags = tags.length > 0 ? tags : undefined;
-    await updateOverride(connectionId, override);
+    await preferences.updateOverride(connectionId, override);
     void rrNavigate(-1);
   };
 

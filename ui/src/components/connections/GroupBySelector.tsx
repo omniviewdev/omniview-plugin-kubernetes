@@ -15,7 +15,7 @@ type Props = {
 // Base connection attributes always shown (if they have 2+ distinct values)
 const BASE_ATTRIBUTES = new Set(['kubeconfig', 'cluster', 'user']);
 
-const selectStyle: React.CSSProperties = { minWidth: 140 };
+const selectStyle: React.CSSProperties = { inlineSize: '12em', maxInlineSize: '100%' };
 
 const GroupBySelector: React.FC<Props> = ({
   value,
