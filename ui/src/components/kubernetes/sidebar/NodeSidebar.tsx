@@ -17,6 +17,7 @@ import NodeStatusSection from './Node/NodeStatusSection';
 import NodeSystemSection from './Node/NodeSystemSection';
 import NodeTopologySection from './Node/NodeTopologySection';
 import NodeMetricsSection from './NodeMetricsSection';
+import { metricSidebarProps } from './metricsDrawerViews';
 
 interface Props {
   ctx: DrawerContext<Node>;
@@ -25,7 +26,6 @@ interface Props {
 export const NodeSidebar: React.FC<Props> = ({ ctx }) => {
   const node = ctx.data;
   const connectionID = ctx.resource?.route.connection || '';
-  const resourceID = ctx.resource?.reference.address.id || '';
 
   const { data: metricsData } = usePodResourceSetMetrics({
     connectionID,
@@ -59,13 +59,7 @@ export const NodeSidebar: React.FC<Props> = ({ ctx }) => {
         memoryUsage={memoryUsage}
         memoryCapacity={memoryCapacity}
       />
-      <NodeMetricsSection
-        connectionID={connectionID}
-        resourceKey="k8s:/nodes"
-        resourceID={resourceID}
-        reference={ctx.resource?.reference}
-        route={ctx.resource?.route}
-      />
+      <NodeMetricsSection {...metricSidebarProps(ctx)} />
 
       {/* Topology + Karpenter */}
       <NodeTopologySection node={node} />

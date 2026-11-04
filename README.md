@@ -54,6 +54,10 @@ Cluster Settings → Metrics hosts provider contributions, including per-cluster
 
 Sidebar current values and selected history use separate metric ID sets admitted by each descriptor's supported shapes and the selected source policy. A history-only selection never enters the current-value request. Supplemental admission considers native and external descriptors independently before deduplicating IDs. Native acquisition does not wait for the unrelated global external definition catalog; saved binding lookup still completes before acquisition, and missing saved bindings never fall back to native.
 
+Sidebar base current metrics keep their table-compatible subscription unchanged when additional metrics are selected. A separate current subscription requests only selected non-base IDs, then combines results, warnings, loading, and errors for display. History requests remain limited to explicitly selected metrics that support time series.
+
+Pod and Node Metrics tabs use the same finite, source-selectable metrics sections as Overview, including linked-resource drawers. Their owning views supply a typed metrics renderer; other resources retain their native metrics page. Both surfaces preserve the original host reference, route, and resource body through one canonical-context adapter.
+
 This frontend requires the paired host/runtime source cohort tracked in [metrics epic #388](https://github.com/omniviewdev/omniview/issues/388). Before marketplace publication, release the compatible host/npm packages, then update registry dependency pins, the lockfile, and the minimum host version. The existing registry pins do not establish compatibility with this source feature.
 
 ## MCP resource actions

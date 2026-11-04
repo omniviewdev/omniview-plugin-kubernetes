@@ -9,6 +9,7 @@ import { useParams } from 'react-router'
 
 import { convertByteUnits } from '../../../../../utils/units';
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
+import { renderNodeMetrics } from '../../../sidebar/metricsDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
 import ColumnPicker from '../../../../tables/ColumnFilter/ColumnPicker';
 import NodeSidebar from '../../../sidebar/NodeSidebar';
@@ -128,7 +129,7 @@ const NodeTable: React.FC = () => {
     () => ({
       title: resourceKey, // TODO: change runtime sdk to accept a function
       icon: <LuBox />,
-      views: createStandardViews({ SidebarComponent: NodeSidebar }),
+      views: createStandardViews({ SidebarComponent: NodeSidebar, metricsComponent: renderNodeMetrics }),
       actions: drawerActions,
     }),
     [],

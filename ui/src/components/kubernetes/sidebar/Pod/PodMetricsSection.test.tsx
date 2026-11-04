@@ -13,7 +13,7 @@ afterEach(() => { cleanup(); vi.clearAllMocks(); });
 it('keeps native node metrics under connection-default supplement with pod-only external definitions', async () => {
   mocks.bindings.mockResolvedValue([{ id: 'external', signal: 'metrics', policy: 'supplement', source: { plugin_id: 'grafana', connection_id: 'team', datasource_uid: 'a' } }]);
   mocks.definitions.mockResolvedValue([{ id: 'cpu_usage', name: 'Pod CPU', native: false, resource_keys: ['k8s:/pods'], unit: 12 }]);
-  mocks.query.mockImplementation(options => ({ data: { results: Object.entries({ cpu_usage: 42, cpu_capacity: 1000, memory_usage: 1024, memory_capacity: 2048 }).map(([metric_id, value]) => ({ resource_token: options.resources[0]?.token, metric_id, status: 'ok', provenance: { native: true }, value: { current_value: { value } } })) }, error: null, isLoading: false }));
+  mocks.query.mockImplementation(options => ({ data: { results: Object.entries({ cpu_usage: 42, cpu_capacity: 1000, memory_usage: 1024, memory_capacity: 2048 }).filter(([id]) => options.enabled && options.shape === undefined && options.metricIDs.includes(id)).map(([metric_id, value]) => ({ resource_token: options.resources[0]?.token, metric_id, status: 'ok', provenance: { native: true }, value: { current_value: { value } } })) }, error: null, isLoading: false }));
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<QueryClientProvider client={client}><PodMetricsSection connectionID="cluster" resourceKey="k8s:/nodes" resourceID="node" reference={{ address: { provider: 'kubernetes', authority: 'cluster', type: 'k8s:/nodes', id: 'node', scope: [] }, incarnation: 'uid' }} route={{ connection: 'cluster' }} nativeMetricIDs={['cpu_usage', 'cpu_capacity', 'memory_usage', 'memory_capacity']} /></QueryClientProvider>);
   await waitFor(() => expect(screen.getByText('42 millicores')).toBeTruthy());
@@ -35,13 +35,42 @@ it.each(['replace', 'supplement'])('keeps timeseries-only selections out of curr
   fireEvent.click(await screen.findByLabelText('Request history'));
   await waitFor(() => {
     const calls = mocks.query.mock.calls.map(([options]) => options);
-    const current = calls.filter(options => options.shape === undefined).at(-1);
+    const currentLanes = calls.filter(options => options.shape === undefined).slice(-2);
+    const [current, additionalCurrent] = currentLanes;
     const history = calls.filter(options => options.shape === 1).at(-1);
     expect(current.metricIDs).toEqual(['cpu_usage', 'memory_usage']);
     expect(current.enabled).toBe(true);
+    expect(additionalCurrent.metricIDs).toEqual([]);
+    expect(additionalCurrent.enabled).toBe(false);
     expect(history.metricIDs).toEqual(['requests']);
     expect(history.enabled).toBe(true);
   });
+  client.clear();
+});
+
+it.each(['replace', 'supplement'])('keeps base current subscription unchanged when selecting current and history extras under %s', async policy => {
+  mocks.bindings.mockResolvedValue([{ id: 'external', signal: 'metrics', policy, source: { plugin_id: 'grafana', connection_id: 'team', datasource_uid: 'a' } }]);
+  mocks.definitions.mockResolvedValue([
+    ...['cpu_usage', 'memory_usage'].map(id => ({ id, name: id, native: false, resource_keys: ['k8s:/nodes'], supported_shapes: [0] })),
+    { id: 'network_receive', name: 'Network receive', native: false, resource_keys: ['k8s:/nodes'], supported_shapes: [0, 1] },
+  ]);
+  mocks.query.mockReturnValue({ data: { results: [] }, error: null, isLoading: false });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<QueryClientProvider client={client}><PodMetricsSection connectionID="cluster" resourceKey="k8s:/nodes" resourceID="node" reference={{ address: { provider: 'kubernetes', authority: 'cluster', type: 'k8s:/nodes', id: 'node', scope: [] }, incarnation: 'uid' }} route={{ connection: 'cluster' }} /></QueryClientProvider>);
+  const checkbox = await screen.findByLabelText('Network receive');
+  const before = mocks.query.mock.calls.map(([options]) => options);
+  const baseBefore = before.filter(options => options.shape === undefined).at(-2);
+  expect(baseBefore.metricIDs).toEqual(['cpu_usage', 'memory_usage']);
+  expect(before.filter(options => options.shape === 1).at(-1).enabled).toBe(false);
+  fireEvent.click(checkbox);
+  const calls = mocks.query.mock.calls.map(([options]) => options);
+  const [base, extra] = calls.filter(options => options.shape === undefined).slice(-2);
+  expect(base).toEqual(baseBefore);
+  expect(base.enabled).toBe(true);
+  expect(extra).toMatchObject({ metricIDs: ['network_receive'], enabled: true });
+  expect(extra.resources).toBe(base.resources);
+  expect(extra.bindingID).toBe(base.bindingID);
+  expect(calls.filter(options => options.shape === 1).at(-1)).toMatchObject({ metricIDs: ['network_receive'], enabled: true });
   client.clear();
 });
 
@@ -56,7 +85,7 @@ it.each(['replace', 'supplement'])('admits overlapping native and external shape
   render(<QueryClientProvider client={client}><PodMetricsSection connectionID="cluster" resourceKey="k8s:/nodes" resourceID="node" reference={{ address: { provider: 'kubernetes', authority: 'cluster', type: 'k8s:/nodes', id: 'node', scope: [] }, incarnation: 'uid' }} route={{ connection: 'cluster' }} /></QueryClientProvider>);
   fireEvent.click(await screen.findByLabelText('CPU history'));
   const calls = mocks.query.mock.calls.map(([options]) => options);
-  expect(calls.filter(options => options.shape === undefined).at(-1).metricIDs).toEqual(
+  expect(calls.filter(options => options.shape === undefined).at(-2).metricIDs).toEqual(
     policy === 'replace' ? ['memory_usage'] : ['memory_usage', 'cpu_usage'],
   );
   expect(calls.filter(options => options.shape === 1).at(-1).metricIDs).toEqual(['cpu_usage']);
@@ -71,7 +100,7 @@ it('keeps explicit native sidebar acquisition enabled after external catalog fai
   render(<QueryClientProvider client={client}><PodMetricsSection connectionID="cluster" resourceKey="k8s:/nodes" resourceID="node" reference={{ address: { provider: 'kubernetes', authority: 'cluster', type: 'k8s:/nodes', id: 'node', scope: [] }, incarnation: 'uid' }} route={{ connection: 'cluster' }} /></QueryClientProvider>);
   await screen.findByText('External catalog failed');
   fireEvent.change(screen.getByLabelText('Metric source'), { target: { value: 'native' } });
-  const current = mocks.query.mock.calls.map(([options]) => options).filter(options => options.shape === undefined).at(-1);
+  const current = mocks.query.mock.calls.map(([options]) => options).filter(options => options.shape === undefined).at(-2);
   expect(current).toMatchObject({ bindingID: 'native', metricIDs: ['cpu_usage', 'memory_usage'], enabled: true });
   expect(screen.queryByRole('alert')).toBeNull();
   client.clear();

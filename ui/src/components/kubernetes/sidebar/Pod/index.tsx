@@ -11,6 +11,7 @@ import PodContainersSection from './PodContainersSection';
 import PodStatusSection from './PodStatusSection';
 import PodVolumesSection from './PodVolumesSection';
 import PodMetricsSection from './PodMetricsSection';
+import { metricSidebarProps } from '../metricsDrawerViews';
 
 import { podMetricResource, usePodResourceSetMetrics } from '@/hooks/usePodMetricsBatch';
 import { aggregateMetricValue } from '../metricPresentation';
@@ -45,14 +46,7 @@ export const PodSidebar: React.FC<Props> = ({ ctx }) => {
         <PodConfigSection pod={pod} connectionID={connectionID} />
       </Stack>
       <DebugSessionsSection connectionID={connectionID} pod={pod} />
-      <PodMetricsSection
-        connectionID={connectionID}
-        resourceKey="k8s:/pods"
-        resourceID={resourceID}
-        resourceNamespace={pod.metadata?.namespace}
-        reference={ctx.resource?.reference}
-        route={ctx.resource?.route}
-      />
+      <PodMetricsSection {...metricSidebarProps(ctx)} />
 
       {/* Containers — separated by section heading */}
       <PodContainersSection
