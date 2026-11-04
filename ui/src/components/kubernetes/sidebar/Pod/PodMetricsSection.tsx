@@ -252,8 +252,10 @@ export default function PodMetricsSection(props: MetricSidebarProps) {
             {[...lanes.values()].map((lane, laneIndex) => {
               const result = lane[0];
               const states = [...new Set(lane.map(item => metricResultDisplay(item).endsWith('(stale)') ? 'stale' : item.status).filter(status => status !== 'ok'))];
+              const laneSource = result.provenance.native ? 'Native Kubernetes' : result.provenance.source.connection_id === selectedBinding?.source.connection_id && result.provenance.source.datasource_uid === selectedBinding?.source.datasource_uid ? sourceLabel : `${result.provenance.source.plugin_id} / ${result.provenance.source.datasource_uid}`;
               return <details key={laneIndex} className={styles.provenance}>
-                <summary><span className={styles.swatch} style={{ background: color }} />{result.provenance.native ? 'Native Kubernetes' : result.provenance.source.connection_id === selectedBinding?.source.connection_id && result.provenance.source.datasource_uid === selectedBinding?.source.datasource_uid ? sourceLabel : `${result.provenance.source.plugin_id} / ${result.provenance.source.datasource_uid}`}<span>{states.join(' · ')}</span></summary>
+                <summary aria-label={`${definition.name} ${lanes.size > 1 ? laneSource : 'source'} details`}><span className={styles.swatch} style={{ background: color }} />{lanes.size > 1 ? laneSource : 'Details'}<span>{states.join(' · ')}</span></summary>
+                <div>Source: {laneSource}</div>
                 {lane.map((item, itemIndex) => <div key={itemIndex}>
                   <div>{item.value?.time_series ? 'History' : 'Current'} · {item.status}</div>
                   {!item.provenance.native && <div>Connection: {item.provenance.source.connection_id}</div>}
@@ -273,7 +275,7 @@ export default function PodMetricsSection(props: MetricSidebarProps) {
     {[...(current.data?.warnings ?? []), ...(additionalCurrent.data?.warnings ?? []), ...(history.data?.warnings ?? []), ...(additionalHistory.data?.warnings ?? [])].map((warning, index) => <Text key={index} size="xs">{warning}</Text>)}
     {!selected.length && <Text size="xs" tone="muted">No metrics selected.</Text>}
     <details className={styles.queries}>
-      <summary><LuChevronRight size={12} /><LuCode size={14} />Queries · {queryDefinitions.length}<span>{sourceLabel}</span></summary>
+      <summary><LuChevronRight size={12} /><LuCode size={14} />Queries · {queryDefinitions.length}</summary>
       {queryDefinitions.map(definition => {
         const override = selectedBinding?.overrides?.find(item => item.metric_id === definition.id);
         const query = override?.query ?? definition.query;

@@ -1,5 +1,5 @@
-.root { container-type: inline-size; display: flex; flex-direction: column; gap: 18px; padding: 20px 4px; color: var(--ov-color-fg-default); }
-.heading { display: flex; align-items: baseline; gap: 12px; }
+.root { container-type: inline-size; display: flex; flex-direction: column; gap: 12px; padding: 12px 4px; color: var(--ov-color-fg-default); }
+.heading { display: flex; align-items: baseline; gap: 8px; }
 .toolbar, .timeControls, .selection { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .toolbar { justify-content: space-between; gap: 12px; }
 .toolbar > .source { width: auto; flex: 0 1 280px; min-width: 180px; max-width: min(50%, 320px); }
@@ -35,7 +35,6 @@
 .browserFooter { display: flex; justify-content: space-between; gap: 12px; color: var(--ov-color-fg-muted); font-size: 10px; border-top: 1px solid var(--ov-color-border-default); padding-top: 12px; }
 .queries { border: 1px solid var(--ov-color-border-default); border-radius: 6px; overflow: hidden; font-size: 12px; }
 .queries > summary { display: flex; gap: 8px; align-items: center; padding: 14px 16px; cursor: pointer; color: var(--ov-color-fg-muted); }
-.queries > summary > span { margin-left: auto; font-size: 10px; }
 .queries[open] > summary > svg:first-child { transform: rotate(90deg); }
 .query { padding: 16px; border-top: 1px solid var(--ov-color-border-default); }
 .query header { display: flex; gap: 8px; align-items: center; font-weight: 500; }
@@ -46,5 +45,5 @@
 .fn { color: #81a6ff; }
 .string { color: #a3c98c; }
 .variable { color: #e2ba7a; background: #e2ba7a12; border-radius: 2px; }
-@container (max-width: 620px) { .cards { grid-template-columns: minmax(0, 1fr); } .root { padding: 12px 0; } .queries > summary > span { max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } }
+@container (max-width: 620px) { .cards { grid-template-columns: minmax(0, 1fr); } .root { padding: 12px 0; } }
 @container (max-width: 480px) { .toolbar > .source { max-width: 100%; flex-basis: 100%; } .timeControls { margin-left: 0; } }

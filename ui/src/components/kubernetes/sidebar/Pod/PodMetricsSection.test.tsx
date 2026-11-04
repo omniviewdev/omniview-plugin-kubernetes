@@ -167,7 +167,6 @@ it('formats values, resolves friendly source names, and combines current/history
   expect(screen.getByText('Mi').parentElement?.textContent).toBe('16 Mi');
   const summaries = container.querySelectorAll('article details > summary');
   expect(summaries).toHaveLength(1);
-  expect(summaries[0].textContent).toContain('Production EU / Prometheus');
   expect(summaries[0].textContent).toContain('stale');
   expect(summaries[0].textContent).not.toContain('ok');
   client.clear();
