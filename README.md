@@ -73,12 +73,12 @@ These are unmodified captures from the running development IDE, not mockups or p
 
 The [evidence index](docs/images/cluster-explorer/index.json) links all twelve final Cards/Table/Debug captures at 360, 768, 1063, and 1568 pixels, organization and search captures, settled API views, restart snapshots, and the live scenario summary. Nine themes, five text scales, both densities, keyboard actions, direct opening, new-tab handoff, folder assets, lenses, and shared recents were exercised. Native OS window creation was not proved.
 
-Kubernetes plugin 0.16.0 requires Omniview 0.29.0 or newer, runtime/Vite 0.29.0, Base UI 0.14.0, and Editors 6.1.8. This cohort supplies the plugin-data snapshot and compare-and-swap bindings used by the explorer. Upgrade the desktop before installing the plugin; older runtime packages with a Base UI `~0.13.0` peer are incompatible even if workspace source links resolve imports.
+Kubernetes plugin 0.16.0 requires Omniview 0.30.0 or newer, runtime/Vite 0.30.0, Base UI 0.14.0, and Editors 6.1.8. This cohort supplies the plugin-data snapshot and compare-and-swap bindings used by the explorer and the activity integration. Upgrade the desktop before installing the plugin; older runtime packages with a Base UI `~0.13.0` peer are incompatible even if workspace source links resolve imports.
 
 Container log requests with an explicit `SinceTime` use that timestamp instead
 of `SinceSeconds`. Kubernetes accepts only one time filter per log request.
 
-Standalone releases 0.15.1 and 0.16.0 used SDK 0.14.6 for completed-source handling with stock grpc-go. The historical live explorer evidence used the independently reviewed source cohort pinned to SDK `6ce85c8b42cab1547396217510196b29e63ffe55`; it does not establish evidence for this candidate. Source-cohort approval and standalone release verification remain separate gates.
+Standalone release 0.15.1 used SDK 0.14.6 for completed-source handling with stock grpc-go. The historical live explorer evidence used the independently reviewed source cohort pinned to SDK `6ce85c8b42cab1547396217510196b29e63ffe55`; it does not establish evidence for this candidate or the integrated activity release. Source-cohort approval and standalone release verification remain separate gates.
 
 This source candidate pins SDK `v0.15.0` (`427ef1da1f1d`),
 including completed-source handling and the C04 source-session wire contract.
