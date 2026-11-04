@@ -8,7 +8,7 @@ const fixture = vi.hoisted(() => ({
   connectionID: 'cluster-a',
   results: {} as Record<string, { bodies?: Pod[]; isLoading: boolean; isError?: boolean }>,
   nodes: [] as K8sNode[],
-  nodeState: { isLoading: false, isError: false },
+  nodeState: { isLoading: false, isError: false, sourceError: false },
   nodeCoverage: 'exhausted',
   navigate: vi.fn(),
   ingest: vi.fn(),
@@ -64,7 +64,7 @@ beforeEach(() => {
   fixture.ingest.mockClear();
   fixture.retry.mockClear();
   fixture.nodes = [];
-  fixture.nodeState = { isLoading: false, isError: false };
+  fixture.nodeState = { isLoading: false, isError: false, sourceError: false };
   fixture.nodeCoverage = 'exhausted';
   fixture.results = {
     'cluster-a': {
@@ -106,18 +106,30 @@ describe('dashboard shared Pod result', () => {
   });
 
   it('keeps unavailable and loading Node counts unknown, but permits authoritative empty collections', () => {
-    fixture.nodeState = { isLoading: true, isError: false };
+    fixture.nodeState = { isLoading: true, isError: false, sourceError: false };
     const view = render(<ClusterDashboardOverviewPage />);
     fireEvent.click(screen.getByRole('button', { name: 'Load Node health and count' }));
     expect(screen.getByText('Nodes').parentElement).toHaveTextContent('Unknown');
-    fixture.nodeState = { isLoading: false, isError: true };
+    fixture.nodeState = { isLoading: false, isError: true, sourceError: false };
     view.rerender(<ClusterDashboardOverviewPage />);
     expect(screen.getByText('Nodes').parentElement).toHaveTextContent('Unknown');
     expect(screen.getByText(/Node health unknown/)).toBeInTheDocument();
-    fixture.nodeState = { isLoading: false, isError: false };
+    fixture.nodeState = { isLoading: false, isError: false, sourceError: false };
     view.rerender(<ClusterDashboardOverviewPage />);
     expect(screen.getByText('Nodes').parentElement).toHaveTextContent('0');
     expect(screen.queryByText(/Node health unknown/)).not.toBeInTheDocument();
+  });
+
+  it('surfaces live source failure without trusting retained Node counts or promising source restart', () => {
+    fixture.nodeState.sourceError = true;
+    fixture.nodes = [{ status: { conditions: [{ type: 'Ready', status: 'True' }] } }];
+    render(<ClusterDashboardOverviewPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Load Node health and count' }));
+    expect(screen.getByText('Nodes').parentElement).toHaveTextContent('Unknown');
+    expect(screen.getByRole('alert')).toHaveTextContent(/live.*source unavailable/i);
+    expect(screen.getByText(/Node health unknown/).closest('[data-ov-color]')).toHaveAttribute('data-ov-color', 'danger');
+    fireEvent.click(screen.getByRole('button', { name: 'Retry nodes' }));
+    expect(fixture.retry).toHaveBeenCalledOnce();
   });
 
   it.each(['partial', 'unknown'])('never treats %s Node collection membership as a cluster total', (coverage) => {

@@ -151,7 +151,7 @@ const ClusterDashboardOverviewPage: React.FC = () => {
           events={allEvents}
         />
         <CollectionStatus {...pods} label="Pods" />
-        {nodesRequested ? <CollectionStatus {...nodes} label="Nodes" /> : (
+        {nodesRequested ? <CollectionStatus {...nodes} error={nodes.error ?? (nodes.sourceError ? 'Live Node source unavailable; retry refreshes the collection, not the live source.' : undefined)} label="Nodes" /> : (
           <Button size="sm" variant="outline" onClick={() => setNodeDemand(id)}>
             Load Node health and count
           </Button>

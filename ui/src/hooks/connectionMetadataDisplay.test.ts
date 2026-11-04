@@ -22,11 +22,17 @@ describe('connection metadata display', () => {
     }
     expect(connectionMetadataDisplay(undefined, true, 'kubernetes.server_version').state).toBe('unobserved');
   });
-  it('shows configured provenance without claiming observation freshness', () => {
-    const source = { ...snapshot, active: false };
-    const display = connectionMetadataDisplay(source, false, 'kubernetes.server_version', 'configured');
-    expect(display.state).toBe('current');
-    expect(display.detail).toBe('Configured endpoint; not a network observation or proof of reachability.');
-    expect(display.detail).not.toContain('Observed');
+  it('retains configured endpoint values while distinguishing saved configuration', () => {
+    const key = 'kubernetes.server_url';
+    const entry = { state: 'current' as const, value: 'https://configured.example', observedAt: '2026-10-31T10:00:00Z' };
+    const source = { ...snapshot, entries: { [key]: entry } };
+    expect(connectionMetadataDisplay(source, true, key, 'configured')).toMatchObject({ value: entry.value, state: 'current' });
+    for (const [saved, transport] of [
+      [source, false],
+      [{ ...source, active: false }, true],
+      [{ ...source, entries: { [key]: { ...entry, state: 'stale' as const } } }, true],
+    ] as const) {
+      expect(connectionMetadataDisplay(saved, transport, key, 'configured')).toMatchObject({ value: entry.value, state: 'stale' });
+    }
   });
 });

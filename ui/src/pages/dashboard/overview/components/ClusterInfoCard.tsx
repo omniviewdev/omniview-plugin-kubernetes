@@ -94,10 +94,11 @@ const ClusterInfoCard: React.FC<Props> = ({ connectionID, loading, nodes, nodeCo
     );
   }
 
+  const healthComplete = nodes !== undefined && nodeCount !== undefined;
   const healthColor =
-    health.issues.length === 0 ? 'success' : health.hasErrors ? 'danger' : 'warning';
+    health.hasErrors ? 'danger' : health.issues.length > 0 || !healthComplete ? 'warning' : 'success';
   const HealthIcon =
-    health.issues.length === 0 ? LuCircleCheck : health.hasErrors ? LuCircleX : LuTriangleAlert;
+    health.hasErrors ? LuCircleX : health.issues.length > 0 || !healthComplete ? LuTriangleAlert : LuCircleCheck;
 
   return (
     <Stack direction="row" align="center" justify="between" style={cardRowStyle}>

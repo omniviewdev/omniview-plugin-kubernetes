@@ -62,15 +62,18 @@ func connectionMetadata(ctx context.Context, connection types.Connection, client
 		Platform   string `json:"platform"`
 	}
 	code, message := "", ""
+	var status apierrors.APIStatus
 	switch {
-	case errors.Is(ctx.Err(), context.Canceled), errors.Is(err, context.Canceled):
+	case errors.Is(err, context.Canceled), err != nil && errors.Is(ctx.Err(), context.Canceled):
 		code, message = "CANCELED", "The observation was canceled."
-	case errors.Is(ctx.Err(), context.DeadlineExceeded), errors.Is(err, context.DeadlineExceeded), apierrors.IsTimeout(err), apierrors.IsServerTimeout(err):
+	case errors.Is(err, context.DeadlineExceeded), err != nil && errors.Is(ctx.Err(), context.DeadlineExceeded), apierrors.IsTimeout(err), apierrors.IsServerTimeout(err):
 		code, message = "TIMEOUT", "The observation timed out."
 	case apierrors.IsUnauthorized(err):
 		code, message = "UNAUTHENTICATED", "Authentication is required to observe the server."
 	case apierrors.IsForbidden(err):
 		code, message = "FORBIDDEN", "Permission to observe the server was denied."
+	case errors.As(err, &status):
+		code, message = "SERVER_RESPONSE_FAILED", "The server could not provide the observation."
 	case err != nil:
 		var timeout net.Error
 		if errors.As(err, &timeout) && timeout.Timeout() {
