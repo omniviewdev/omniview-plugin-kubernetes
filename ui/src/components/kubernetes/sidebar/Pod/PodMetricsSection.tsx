@@ -14,6 +14,7 @@ import { metricResultDisplay, metricResourceToken, metricResultStatus } from '..
 import MetricStateIndicator from '../MetricStateIndicator';
 import { usePodResourceSetMetrics } from '@/hooks/usePodMetricsBatch';
 import { useDocumentVisibility } from '@/hooks/useDocumentVisibility';
+import MetricDetails from './MetricDetails';
 import { useMetricPreferences } from './useMetricPreferences';
 
 const HISTORY_STEP_MS = 30_000;
@@ -62,6 +63,7 @@ export interface MetricSidebarProps {
   reference?: ResourceReference;
   route?: AccessRoute;
   nativeMetricIDs?: string[];
+  showHeading?: boolean;
 }
 
 /** Resource ownership always comes from the host target, never the provider source. */
@@ -174,8 +176,8 @@ export default function PodMetricsSection(props: MetricSidebarProps) {
     if (currentBaseIDs.length) current.refetch();
     if (additionalCurrentIDs.length) additionalCurrent.refetch();
   };
-  return <section className={styles.root} aria-label="Resource metrics">
-    <header className={styles.heading}><Text weight="semibold" size="lg">Metrics</Text><Text size="xs" tone="muted">{props.resourceNamespace}</Text></header>
+  return <section className={styles.root} data-embedded={props.showHeading === false || undefined} aria-label="Resource metrics">
+    {props.showHeading !== false && <header className={styles.heading}><Text weight="semibold" size="lg">Metrics</Text><Text size="xs" tone="muted">{props.resourceNamespace}</Text></header>}
     <div className={styles.toolbar}>
       <SimpleSelect aria-label="Metric source" value={bindingID} onChange={setBindingID} options={[
         { value: '', label: <><LuDatabase size={14} />{!bindingID ? sourceLabel : 'Connection default'}</> },
@@ -276,16 +278,7 @@ export default function PodMetricsSection(props: MetricSidebarProps) {
               const laneSource = result.provenance.native ? 'Native Kubernetes' : result.provenance.source.connection_id === selectedBinding?.source.connection_id && result.provenance.source.datasource_uid === selectedBinding?.source.datasource_uid ? sourceLabel : `${result.provenance.source.plugin_id} / ${result.provenance.source.datasource_uid}`;
               return <details key={laneIndex} className={styles.provenance}>
                 <summary aria-label={`${definition.name} ${lanes.size > 1 ? laneSource : 'source'} details`}><span className={styles.swatch} style={{ background: color }} />{lanes.size > 1 ? laneSource : 'Details'}<MetricStateIndicator states={states} label={`${definition.name} status`} /></summary>
-                <div>Source: {laneSource}</div>
-                {lane.map((item, itemIndex) => <div key={itemIndex}>
-                  <div>{item.value?.time_series ? 'History' : 'Current'} · {metricResultStatus(item)}{item.status === 'partial' && metricResultStatus(item) === 'stale' ? ' · partial' : ''}</div>
-                  {!item.provenance.native && <div>Connection: {item.provenance.source.connection_id}</div>}
-                  {item.observed_at && <div>Observed: {item.observed_at}</div>}
-                  {item.expires_at && <div>Expires: {item.expires_at}</div>}
-                  {item.mapping_revision && <div>Revision: {item.mapping_revision}</div>}
-                  {Object.entries(item.dimensions ?? {}).map(([key, value]) => <div key={key}>{key}: {value}</div>)}
-                  {Object.entries(item.value?.time_series?.labels ?? item.value?.current_value?.labels ?? {}).map(([key, value]) => <div key={key}>{key}: {value}</div>)}
-                </div>)}
+                <MetricDetails results={lane} source={laneSource} />
               </details>;
             })}
             {[...matches, ...histories].flatMap(result => result.warnings ?? []).map((warning, warningIndex) => <Text key={warningIndex} size="xs" tone="warning">{warning}</Text>)}

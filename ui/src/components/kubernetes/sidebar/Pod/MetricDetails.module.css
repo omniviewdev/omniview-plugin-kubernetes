@@ -1,0 +1,21 @@
+.root { display: grid; gap: 10px; padding-top: 10px; min-width: 0; }
+.source { display: flex; align-items: center; gap: 6px; color: var(--ov-color-fg-default); }
+.source > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.timing { width: 100%; border-collapse: collapse; font-size: 10px; font-variant-numeric: tabular-nums; }
+.timing th, .timing td { padding: 5px 0; text-align: left; font-weight: 400; white-space: nowrap; }
+.timing thead { color: var(--ov-color-fg-muted); }
+.timing tbody { color: var(--ov-color-fg-default); }
+.timing tbody tr + tr { border-top: 1px solid var(--ov-color-border-default); }
+.status { display: inline-block; width: 5px; height: 5px; margin-right: 5px; border-radius: 50%; background: var(--ov-color-danger); }
+.status[data-status="ok"] { background: var(--ov-color-success); }
+.status[data-status="stale"], .status[data-status="partial"] { background: var(--ov-color-warning); }
+.labels { display: flex; flex-wrap: wrap; gap: 5px; }
+.labels > span { display: inline-flex; max-width: 100%; overflow: hidden; border: 1px solid var(--ov-color-border-default); border-radius: 4px; font-size: 10px; }
+.labels > span > span { padding: 3px 5px; background: var(--ov-color-bg-inset); }
+.labels code { padding: 3px 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ov-color-fg-default); }
+.diagnostics { border-top: 1px solid var(--ov-color-border-default); padding-top: 8px; }
+.diagnostics > summary { cursor: pointer; font-size: 10px; }
+.diagnostics dl { display: grid; gap: 5px; margin: 8px 0 0; }
+.diagnostics dt { font-size: 10px; }
+.diagnostics dd { margin: 0; color: var(--ov-color-fg-default); overflow-wrap: anywhere; user-select: text; }
+.groupName { margin-bottom: 4px; font-size: 10px; color: var(--ov-color-fg-muted); }

@@ -172,7 +172,22 @@ describe('rolling history continuity', () => {
     hook.client.clear();
   });
 
-  it.each(['resource', 'source', 'sourceDetails', 'metrics', 'duration', 'step', 'mapping'])('clears prior history immediately after %s changes', async change => {
+  it.each(['2026-11-04T10:00:00Z', '2026-11-04T11:45:00Z'])('keeps measured history visible while an uncached range starting %s loads', async startTime => {
+    const hook = setup();
+    await waitFor(() => expect(hook.result.current.data?.results).toEqual([hook.history]));
+    const props = { ...hook.initialProps, startTime };
+    hook.setSnapshot({ error: null, isLoading: true, isFetching: true });
+    hook.rerender(props);
+    expect(hook.result.current.data?.results[0]).toBe(hook.history);
+    expect(hook.result.current.isLoading).toBe(false);
+    const replacement = { ...hook.history, value: { time_series: { data_points: [{ timestamp: '2026-11-04T12:00:00Z', value: 7 }] } } } as ResourceMetricResult;
+    hook.setSnapshot({ data: { results: [replacement] }, error: null, isLoading: false, isFetching: false });
+    hook.rerender(props);
+    expect(hook.result.current.data?.results).toEqual([replacement]);
+    hook.client.clear();
+  });
+
+  it.each(['resource', 'source', 'sourceDetails', 'metrics', 'step', 'mapping'])('clears prior history immediately after %s changes', async change => {
     const hook = setup();
     await waitFor(() => expect(hook.result.current.data?.results).toEqual([hook.history]));
     hook.setSnapshot({ error: null, isLoading: true, isFetching: true });
@@ -185,7 +200,6 @@ describe('rolling history continuity', () => {
       ...(change === 'resource' ? { resources: [podMetricResource(record('other'))] } : {}),
       ...(change === 'source' ? { bindingID: 'other' } : {}),
       ...(change === 'metrics' ? { metricIDs: ['memory_usage'] } : {}),
-      ...(change === 'duration' ? { startTime: '2026-11-04T10:00:00Z' } : {}),
       ...(change === 'step' ? { step: 60 } : {}),
     });
     if (change === 'mapping' || change === 'sourceDetails') await waitFor(() => expect(hook.result.current.data).toBeUndefined());

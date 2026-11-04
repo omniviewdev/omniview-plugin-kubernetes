@@ -164,16 +164,13 @@ it('formats values, resolves friendly source names, and combines current/history
     }] : [] }, error: null, isLoading: false,
   }));
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const { container } = render(<QueryClientProvider client={client}><PodMetricsSection connectionID="cluster" resourceKey="k8s:/nodes" resourceID="node" reference={{ address: { provider: 'kubernetes', authority: 'cluster', type: 'k8s:/nodes', id: 'node', scope: [] }, incarnation: 'uid' }} route={{ connection: 'cluster' }} /></QueryClientProvider>);
+  render(<QueryClientProvider client={client}><PodMetricsSection connectionID="cluster" resourceKey="k8s:/nodes" resourceID="node" reference={{ address: { provider: 'kubernetes', authority: 'cluster', type: 'k8s:/nodes', id: 'node', scope: [] }, incarnation: 'uid' }} route={{ connection: 'cluster' }} /></QueryClientProvider>);
   await waitFor(() => expect(screen.getByLabelText('Metric source').textContent).toContain('Production EU / Prometheus'));
   expect(screen.getByText('Mi').parentElement?.textContent).toBe('16 Mi');
-  const summaries = container.querySelectorAll('article details > summary');
-  expect(summaries).toHaveLength(1);
   expect(screen.getByRole('button', { name: 'Memory status: stale' })).toBeInTheDocument();
-  expect(summaries[0].textContent).toBe('Details');
-  fireEvent.click(summaries[0]);
-  expect(screen.getByText('History · stale')).toBeVisible();
-  expect(screen.getByText('Current · ok')).toBeVisible();
+  fireEvent.click(screen.getByLabelText('Memory source details'));
+  expect(screen.getByRole('row', { name: /History/ })).toContainElement(screen.getByRole('img', { name: 'stale' }));
+  expect(screen.getByRole('row', { name: /Current/ })).toContainElement(screen.getByRole('img', { name: 'ok' }));
   client.clear();
 });
 

@@ -17,9 +17,9 @@ export function metricSidebarProps<T>(ctx: DrawerContext<T>): MetricSidebarProps
 }
 
 export function renderPodMetrics<T>(ctx: DrawerContext<T>) {
-  return <PodMetricsSection {...metricSidebarProps(ctx)} />;
+  return <PodMetricsSection {...metricSidebarProps(ctx)} showHeading={false} />;
 }
 
 export function renderNodeMetrics<T>(ctx: DrawerContext<T>) {
-  return <NodeMetricsSection {...metricSidebarProps(ctx)} />;
+  return <NodeMetricsSection {...metricSidebarProps(ctx)} showHeading={false} />;
 }

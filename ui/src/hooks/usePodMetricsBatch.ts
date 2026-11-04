@@ -44,11 +44,10 @@ export function usePodResourceSetMetrics(opts: {
   } as ResourceSetQueryRequest : undefined;
   const query = useResourceSetMetrics(request, { enabled, refreshInterval: opts.refreshInterval ?? 30_000 });
   const data = query.data && binding ? { ...query.data, results: query.data.results.filter((result) => result.provenance.binding_id === binding.id && !result.provenance.native || binding.policy === 'supplement' && result.provenance.native) } : query.data;
-  // Rolling bounds change acquisition identity, not the authority of plotted history.
-  // Everything else, including duration and mapping, must invalidate it synchronously.
+  // Time bounds change the viewport, not the authority of plotted history.
+  // Resource, source, mapping, metric, and step changes invalidate it synchronously.
   const historyKey = request?.shape === 1 ? JSON.stringify({
     ...request, start_time: undefined, end_time: undefined,
-    duration: Date.parse(request.end_time) - Date.parse(request.start_time),
     selection: opts.bindingID, binding,
   }) : '';
   const previous = useRef<{ key: string; data: NonNullable<typeof data> } | undefined>(undefined);
