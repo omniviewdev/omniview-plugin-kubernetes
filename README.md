@@ -350,6 +350,8 @@ The resource route subtree uses the shared runtime `ConnectionBoundary`, so dire
 
 Connection failures offer retry and credential-edit recovery. A disconnect removes protected resource content; watch progress and individual resource permission errors remain separate from connection readiness. The host protects detached resource drawers using the same runtime boundary.
 
+Cluster connect and disconnect failures use the runtime's single structured error notification. Hub, grid, and list actions consume the rejected lifecycle promise without adding a second raw JSON notice. Returned unsuccessful connection statuses still show their existing warnings, failed starts do not navigate, and row loading indicators clear after settlement. Unrelated errors, such as clipboard failures, keep their own notifications.
+
 The splash shows the saved cluster identity while checking, connecting, or recovering: avatar, provider, display name and description, context, auth-user name, kubeconfig path, and full connection ID. Display overrides are honored. Metadata loads independently without connecting; a missing or failed metadata read leaves the route ID and recovery controls visible. Credential contents and arbitrary metadata are not displayed. Successful connection replaces the splash with the requested resources.
 
 Storybook's **Connections/ConnectionBoundary** stories provide mocked loading, disconnected, connecting, authorization, missing-connection, and error states, including metadata loading/failure. Interactive recovery opens a mocked Pod table instead of a redundant connected splash. The preview makes no backend connection requests.
