@@ -37,7 +37,9 @@ interface DryRunUpgradeData {
   manifest?: string;
 }
 
-const UpgradeDialog: React.FC<Props> = ({
+const UpgradeDialog: React.FC<Props> = (props) => <UpgradeDialogSession key={JSON.stringify([props.connectionID, props.namespace, props.releaseName])} {...props} />;
+
+const UpgradeDialogSession: React.FC<Props> = ({
   open,
   onClose,
   releaseName,
@@ -52,7 +54,7 @@ const UpgradeDialog: React.FC<Props> = ({
 
   const editorPath = useResourceEditorModelPath({
     pluginID: PLUGIN_ID, route: { connection: connectionID }, type: 'helm:releases',
-    key: `${namespace}/${releaseName}`, name: 'values',
+    key: `${namespace}/${releaseName}`, name: 'values', enabled: open,
   });
   const { executeAction, isExecuting } = useExecuteAction({ pluginID: PLUGIN_ID });
   const runAction = async (action: string, input = jsonToValue({})) => {
@@ -109,6 +111,8 @@ const UpgradeDialog: React.FC<Props> = ({
     onClose();
   };
 
+  if (!open) return null;
+
   return (
     <Dialog open={open} onClose={handleClose} size="xl" style={dialogStyle}>
       <Dialog.Title>Upgrade {releaseName}</Dialog.Title>
@@ -134,6 +138,7 @@ const UpgradeDialog: React.FC<Props> = ({
               <CodeEditor
                 filename="values.yaml"
                 path={editorPath}
+                schemaScope={{ pluginID: PLUGIN_ID, connectionID, resourceType: 'helm:releases' }}
                 language="yaml"
                 value={values}
                 onChange={(v) => setValues(v)}
