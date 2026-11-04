@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { TimeSeriesChart } from '../../../shared/charts';
 import { formatBytes, formatDuration, formatNumber, formatPercent, formatRate } from '../../../shared/charts/formatters';
 import SimpleSelect from '../../../connections/SimpleSelect';
-import { LuChevronRight, LuCode, LuDatabase, LuPlus, LuRefreshCw, LuX } from 'react-icons/lu';
+import { LuChartArea, LuChartColumn, LuChartLine, LuChevronRight, LuCode, LuDatabase, LuHash, LuPlus, LuRefreshCw, LuX } from 'react-icons/lu';
 import styles from './PodMetricsSection.module.css';
 import type { ChartTimeRange } from '../../../shared/charts';
 import { PLUGIN_ID } from '@/pluginId';
@@ -15,6 +15,13 @@ import { usePodResourceSetMetrics } from '@/hooks/usePodMetricsBatch';
 import { useDocumentVisibility } from '@/hooks/useDocumentVisibility';
 
 const HISTORY_STEP_MS = 30_000;
+const VISUALIZATIONS = [
+  { value: 'area', label: 'Area', Icon: LuChartArea },
+  { value: 'line', label: 'Line', Icon: LuChartLine },
+  { value: 'bars', label: 'Bars', Icon: LuChartColumn },
+  { value: 'stat', label: 'Stat', Icon: LuHash },
+] as const;
+type Visualization = typeof VISUALIZATIONS[number]['value'];
 function alignedHistoryEnd() {
   return Math.floor(Date.now() / HISTORY_STEP_MS) * HISTORY_STEP_MS;
 }
@@ -66,6 +73,7 @@ export default function PodMetricsSection(props: MetricSidebarProps) {
   const [browserOpen, setBrowserOpen] = useState(false);
   const [duration, setDuration] = useState('3600000');
   const [rangeEnd, setRangeEnd] = useState(alignedHistoryEnd);
+  const [visualizations, setVisualizations] = useState<Record<string, Visualization>>({});
   const timeRange = useMemo<ChartTimeRange>(() => ({ from: new Date(rangeEnd - Number(duration)), to: new Date(rangeEnd) }), [rangeEnd, duration]);
   const visible = useDocumentVisibility();
   const enabled = Boolean(connectionID && resourceID && reference && route);
@@ -227,6 +235,7 @@ export default function PodMetricsSection(props: MetricSidebarProps) {
         }
         const color = palette[index % palette.length];
         const supportsHistory = descriptors.some(item => item.id === definition.id && item.supported_shapes?.includes(1));
+        const visualization = visualizations[definition.id] ?? (supportsHistory ? 'area' : 'stat');
         const series = histories.filter(result => ['ok', 'partial', 'stale'].includes(result.status)).flatMap((result, seriesIndex) => {
           const points = result.value?.time_series?.data_points ?? [];
           return points.length ? [{
@@ -234,8 +243,19 @@ export default function PodMetricsSection(props: MetricSidebarProps) {
             color, data: points.filter(point => Number.isFinite(point.value)).map(point => ({ timestamp: new Date(point.timestamp).getTime(), value: point.value })),
           }] : [];
         });
-        return <article key={definition.id} className={styles.card}>
-          <header className={styles.cardTitle}>{definition.name}</header>
+        return <article key={definition.id} className={styles.card} data-visualization={visualization}>
+          <header className={styles.cardTitle}>
+            <span>{definition.name}</span>
+            <div className={styles.visualizations} role="group" aria-label={`${definition.name} visualization`}>
+              {VISUALIZATIONS.map(({ value, label, Icon }) => <IconButton key={value}
+                size="sm" variant={visualization === value ? 'soft' : 'ghost'}
+                aria-label={`${definition.name}: ${label}`} title={label} aria-pressed={visualization === value}
+                disabled={!supportsHistory && value !== 'stat'}
+                onClick={() => setVisualizations(previous => ({ ...previous, [definition.id]: value }))}>
+                <Icon size={14} />
+              </IconButton>)}
+            </div>
+          </header>
           <div className={styles.values}>
             {!matches.length && <Text size="xs" tone="muted">{currentLoading ? 'Loading…' : 'Not reported'}</Text>}
             {matches.map((result, resultIndex) => {
@@ -247,7 +267,7 @@ export default function PodMetricsSection(props: MetricSidebarProps) {
               </div>;
             })}
           </div>
-          {supportsHistory ? <TimeSeriesChart series={series} timeRange={timeRange} area height={180} yAxis="outside" valueFormatter={value => value == null ? '–' : formatMeasurement(value, definition.unit)} loading={historyLane.isLoading} error={historyLane.error instanceof Error ? historyLane.error.message : undefined} emptyContent={<Text size="xs" tone="muted">No history measurements</Text>} /> : <div className={styles.noHistory}><Text size="xs" tone="muted">Current value only</Text></div>}
+          {visualization !== 'stat' && (supportsHistory ? <TimeSeriesChart series={series} timeRange={timeRange} area={visualization === 'area'} bars={visualization === 'bars'} height={180} yAxis="outside" valueFormatter={value => value == null ? '–' : formatMeasurement(value, definition.unit)} loading={historyLane.isLoading} error={historyLane.error instanceof Error ? historyLane.error.message : undefined} emptyContent={<Text size="xs" tone="muted">No history measurements</Text>} /> : <div className={styles.noHistory}><Text size="xs" tone="muted">Current value only</Text></div>)}
           <footer className={styles.cardFooter}>
             {[...lanes.values()].map((lane, laneIndex) => {
               const result = lane[0];

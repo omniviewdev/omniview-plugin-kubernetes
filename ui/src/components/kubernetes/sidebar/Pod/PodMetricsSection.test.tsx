@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({ query: vi.fn(), bindings: vi.fn(), definitions
 vi.mock('@omniviewdev/runtime/api', () => ({ MetricClient: { GetMetricBindings: mocks.bindings, GetMetricDefinitions: mocks.definitions, GetProviderConnections: vi.fn(async () => [{ id: 'team', name: 'Production EU' }]), GetDataSources: vi.fn(async () => [{ uid: 'a', name: 'Prometheus' }]) } }));
 vi.mock('@omniviewdev/runtime', () => ({ useMetricProvidersForResource: () => ({ data: [{ plugin_id: 'kubernetes', handlers: [{ resource: 'k8s:/nodes', metrics: ['cpu_usage', 'cpu_capacity', 'memory_usage', 'memory_capacity'].map(id => ({ id, name: id, unit: id.startsWith('cpu') ? 11 : 1, supported_shapes: [0] })) }] }], error: null, isLoading: false }) }));
 vi.mock('@/hooks/usePodMetricsBatch', () => ({ usePodResourceSetMetrics: mocks.query }));
-vi.mock('../../../shared/charts', () => ({ TimeSeriesChart: () => null }));
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.clearAllMocks(); });
 
 it('keeps native node metrics under connection-default supplement with pod-only external definitions', async () => {
@@ -212,4 +211,50 @@ it('shares aligned history windows across views, advances at the boundary, and r
   await act(async () => { await vi.advanceTimersByTimeAsync(0); });
   expect(vi.getTimerCount()).toBe(0);
   visibility.mockRestore();
+});
+
+it('switches actual chart visuals without hiding current and history states', async () => {
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ width: 400, height: 180, top: 0, left: 0, right: 400, bottom: 180, x: 0, y: 0, toJSON: () => ({}) });
+  const source = { plugin_id: 'grafana', connection_id: 'team', datasource_uid: 'a' };
+  mocks.bindings.mockResolvedValue([{ id: 'external', signal: 'metrics', policy: 'replace', source }]);
+  mocks.definitions.mockResolvedValue([
+    { id: 'memory_usage', name: 'Memory', native: false, resource_keys: ['k8s:/nodes'], supported_shapes: [0, 1], unit: 1 },
+    { id: 'cpu_usage', name: 'CPU', native: false, resource_keys: ['k8s:/nodes'], supported_shapes: [0, 1], unit: 11 },
+  ]);
+  mocks.query.mockImplementation(options => ({
+    data: { results: options.enabled ? options.metricIDs.map((metric_id: string) => ({
+      resource_token: options.resources[0]?.token, metric_id,
+      status: options.shape === 1 ? 'stale' : metric_id === 'cpu_usage' ? 'missing' : 'partial',
+      dimensions: { container: 'app' }, provenance: { native: false, source },
+      value: options.shape === 1 ? { time_series: { data_points: [
+        { timestamp: new Date(Math.floor(Date.now() / 30_000) * 30_000 - 60_000).toISOString(), value: 1024 },
+        { timestamp: new Date(Math.floor(Date.now() / 30_000) * 30_000 - 30_000).toISOString(), value: 2048 },
+      ] } } : metric_id === 'cpu_usage' ? undefined : { current_value: { value: 1024 } },
+    })) : [] }, error: null, isLoading: false,
+  }));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const { container } = render(<QueryClientProvider client={client}><PodMetricsSection connectionID="cluster" resourceKey="k8s:/nodes" resourceID="node" reference={{ address: { provider: 'kubernetes', authority: 'cluster', type: 'k8s:/nodes', id: 'node', scope: [] }, incarnation: 'uid' }} route={{ connection: 'cluster' }} /></QueryClientProvider>);
+  await screen.findByRole('button', { name: 'Memory: Line' });
+  const memory = screen.getByRole('button', { name: 'Memory: Line' }).closest('article')!;
+  expect(memory.querySelector('[aria-label="Time series area chart"]')).not.toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Memory: Line' }));
+  expect(memory.querySelector('[aria-label="Time series line chart"]')).not.toBeNull();
+  expect(memory.querySelectorAll('g[clip-path] > path')).toHaveLength(1);
+  fireEvent.click(screen.getByRole('button', { name: 'Memory: Bars' }));
+  const bars = memory.querySelectorAll('g[clip-path] > rect');
+  expect(bars).toHaveLength(2);
+  expect(Number(bars[1].getAttribute('height'))).toBeGreaterThan(Number(bars[0].getAttribute('height')));
+  expect(memory.querySelectorAll('g[clip-path] > path')).toHaveLength(0);
+  fireEvent.click(screen.getByRole('button', { name: 'Memory: Stat' }));
+  expect(memory.querySelector('svg[role="img"]')).toBeNull();
+  expect(memory.textContent).toContain('1 Ki');
+  expect(memory.textContent).toContain('container: app');
+  expect(memory.querySelector('summary')?.textContent).toContain('partial');
+  expect(memory.querySelector('summary')?.textContent).toContain('stale');
+  fireEvent.click(screen.getByRole('button', { name: 'CPU: Stat' }));
+  expect(container.textContent).toContain('Not reported');
+  fireEvent.click(screen.getByRole('button', { name: 'Memory: Area' }));
+  expect(memory.querySelector('[aria-label="Time series area chart"]')).not.toBeNull();
+  expect(screen.getByRole('button', { name: 'CPU: Stat' }).getAttribute('aria-pressed')).toBe('true');
+  client.clear();
 });

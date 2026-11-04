@@ -44,6 +44,8 @@ export interface TimeSeriesChartProps extends ChartStateProps {
   annotations?: ChartAnnotation[];
   /** Fill the area under every series (per-series `area` wins). */
   area?: boolean;
+  /** Render grouped sample bars instead of lines. Values remain time-series samples, not event counts. */
+  bars?: boolean;
   /** Draw horizontal grid lines. Default true. */
   grid?: boolean;
   /** Custom palette for series without an explicit colour. */
@@ -102,6 +104,7 @@ const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
   valueFormatter,
   annotations,
   area = false,
+  bars = false,
   grid = true,
   colors,
   xAxisPosition = 'bottom',
@@ -142,23 +145,23 @@ const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
     const x0 = timeRange ? timeRange.from.getTime() : (timestamps[0] ?? 0);
     const x1 = timeRange ? timeRange.to.getTime() : (timestamps[timestamps.length - 1] ?? 1);
     const ext = valueExtent(values) ?? [0, 1];
-    const y = niceTicks(Math.min(0, ext[0]), ext[1], Math.max(2, Math.round((plotBottom - plotTop) / 40)));
+    const y = niceTicks(Math.min(0, ext[0]), bars ? Math.max(0, ext[1]) : ext[1], Math.max(2, Math.round((plotBottom - plotTop) / 40)));
     const xScale = linearScale([x0, x1 === x0 ? x0 + 1 : x1], [plotLeft, plotRight]);
     const yScale = linearScale([y.min, y.max], [plotBottom, plotTop]);
     const xs = timestamps.map(xScale);
     const baseline = yScale(Math.max(y.min, 0));
     const paths = series.map((s, i) => {
-      const ys = values[i].map((v) => (v == null ? null : yScale(v)));
+      const ys = bars ? [] : values[i].map((v) => (v == null ? null : yScale(v)));
       return {
-        line: buildLinePath(xs, ys),
-        area: (s.area ?? area) ? buildAreaPath(xs, ys, baseline) : '',
+        line: bars ? '' : buildLinePath(xs, ys),
+        area: !bars && (s.area ?? area) ? buildAreaPath(xs, ys, baseline) : '',
         color: seriesColor(i, s.color, colors),
         dash: DASH[s.lineStyle ?? 'solid'],
       };
     });
     const xTicks = timeTicks(x0, x1, Math.max(2, Math.floor((plotRight - plotLeft) / 90)));
     return { x0, x1, xs, xScale, yScale, yTicks: y.ticks, paths, xTicks };
-  }, [aligned, series, area, colors, timeRange, plotLeft, plotRight, plotTop, plotBottom]);
+  }, [aligned, series, area, bars, colors, timeRange, plotLeft, plotRight, plotTop, plotBottom]);
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<SVGRectElement>) => {
@@ -206,7 +209,7 @@ const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
     const inlineRight = yAxis === 'right';
     body = (
       <>
-        <svg className={styles.svg} width={width} height={height} role="img" aria-label="Time series chart">
+        <svg className={styles.svg} width={width} height={height} role="img" aria-label={bars ? 'Time series bar chart' : area ? 'Time series area chart' : 'Time series line chart'}>
           <defs>
             <clipPath id={clipId}>
               <rect x={plotLeft} y={plotTop - 2} width={plotRight - plotLeft} height={plotBottom - plotTop + 4} />
@@ -222,12 +225,12 @@ const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
             })}
 
           <g clipPath={`url(#${clipId})`}>
-            {paths.map((p, i) =>
+            {!bars && paths.map((p, i) =>
               p.area ? (
                 <path key={`a${series[i].id}`} d={p.area} style={{ fill: p.color, fillOpacity: AREA_OPACITY, stroke: 'none' }} />
               ) : null,
             )}
-            {paths.map((p, i) => (
+            {!bars && paths.map((p, i) => (
               <path
                 key={`l${series[i].id}`}
                 d={p.line}
@@ -238,6 +241,25 @@ const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
                 strokeLinecap="round"
               />
             ))}
+            {bars && paths.map((p, seriesIndex) => aligned.values[seriesIndex].map((value, sampleIndex) => {
+              if (value == null) return null;
+              const x = xs[sampleIndex];
+              const previous = xs[sampleIndex - 1];
+              const next = xs[sampleIndex + 1];
+              const spacing = Math.min(
+                previous == null ? Infinity : x - previous,
+                next == null ? Infinity : next - x,
+                xs.length === 1 ? Math.min(8, plotRight - plotLeft) : (plotRight - plotLeft) / xs.length,
+              );
+              const bucketWidth = Math.max(0, spacing * 0.8);
+              const barWidth = bucketWidth / paths.length;
+              const baseline = yScale(0);
+              const y = yScale(value);
+              return <rect key={`b${series[seriesIndex].id}-${sampleIndex}`}
+                x={x - bucketWidth / 2 + seriesIndex * barWidth}
+                y={Math.min(y, baseline)} width={barWidth} height={Math.abs(baseline - y)}
+                rx={Math.min(1, barWidth / 2)} style={{ fill: p.color, fillOpacity: 0.8 }} />;
+            }))}
             {annotations?.map((ann, i) => {
               const y = yScale(ann.value);
               if (y < plotTop - 1 || y > plotBottom + 1) return null;
