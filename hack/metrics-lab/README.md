@@ -57,11 +57,13 @@ No password or API token is committed. Create a Grafana Viewer service account w
 
 ## Connect the IDE
 
-1. Add the generated absolute kubeconfig path to the Kubernetes plugin's **Kubeconfigs** setting. Apply its required plugin restart, then open **kind-kind**.
+1. Add the generated absolute kubeconfig path to the Kubernetes plugin's **Kubeconfigs** setting. Apply its required plugin restart, then open **kind-kind**. Choose **Connect and continue** if prompted; **Retry check** only checks readiness.
 2. Open **Grafana → Connect Grafana**. Choose **Self-hosted Grafana gateway**, URL `http://127.0.0.1:48573`, and allow unencrypted HTTP **only for this loopback endpoint**. Enter the service account token, then **Save and test**.
 3. Open **kind-kind → Cluster Settings → Metrics**. Select that Grafana connection and datasource **Prometheus** (UID `prometheus`).
 4. Set **Use for → Replace mapped metrics** and **Cluster label value → kind-kind**. Keep standard global Pod mappings inherited; save with **Save connection metrics**.
 5. Open Pods in namespace **metrics-workloads**. Both application Pods should be Running with Ready containers. Open a Pod's Metrics tab and select the desired panels.
+
+After restarting the host during a browser audit, reload the page before reconnecting.
 
 The lab does not install metrics-server. Pod CPU/memory use the Grafana binding; resource kinds without mappings may still report unavailable native metrics. Grafana Pod replacement can invalidate service accounts because this lab uses ephemeral storage; recreate the token and update the IDE credential when that happens.
 
