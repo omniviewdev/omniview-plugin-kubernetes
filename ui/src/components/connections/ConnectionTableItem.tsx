@@ -89,7 +89,12 @@ const ConnectionTableItem: React.FC<Props> = ({
       data-cluster-open={connection.id}
       aria-label={`Open ${displayName}`}
       aria-current={selectedId === connection.id ? 'true' : undefined}
-      aria-description={[connection.id, enriched.displayDescription, enriched.tags.join(', ')]
+      aria-description={[
+        `Context: ${connection.name || connection.id}`,
+        connection.id,
+        enriched.displayDescription,
+        enriched.tags.join(', '),
+      ]
         .filter(Boolean)
         .join('\n')}
       title={`${displayName}\n${connection.name}\n${connection.id}\n${enriched.displayDescription}`}

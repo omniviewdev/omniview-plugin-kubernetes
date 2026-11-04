@@ -12,11 +12,10 @@ import ClusterResourcesPage from './ClusterResourcesPage';
  */
 export function ConnectedClusterView({ connectionID }: { connectionID: string }) {
   const preferences = useClusterPreferences(PLUGIN_ID);
-  const { isLoading } = preferences;
   const snackbar = useSnackbar();
   const recordedID = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (isLoading || recordedID.current === connectionID) return;
+    if (recordedID.current === connectionID) return;
     recordedID.current = connectionID;
     // A failed preference write must not turn a successful view into a failed connection.
     void preferences.recordAccess(connectionID).catch(() => {
@@ -25,7 +24,7 @@ export function ConnectedClusterView({ connectionID }: { connectionID: string })
         message: 'Cluster opened, but recent history could not be saved.',
       });
     });
-  }, [connectionID, isLoading, preferences, snackbar]);
+  }, [connectionID, preferences, snackbar]);
   return <ClusterResourcesPage />;
 }
 

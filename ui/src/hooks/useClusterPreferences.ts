@@ -48,7 +48,9 @@ export interface ClusterPreferencesState {
   updateOverride(id: string, override: ConnectionOverride): Promise<void>;
   removeOverride(id: string): Promise<void>;
   recordAccess(id: string): Promise<void>;
-  setHubSections(sections: HubSectionConfig[]): Promise<void>;
+  setHubSections(
+    sections: HubSectionConfig[] | ((current: HubSectionConfig[]) => HubSectionConfig[]),
+  ): Promise<void>;
   updateHubSectionCollapsed(type: string, collapsed: boolean): Promise<void>;
   saveLens(lens: ClusterLens): Promise<ClusterLens>;
   removeLens(id: string): Promise<void>;
@@ -122,7 +124,7 @@ export function useClusterPreferences(pluginID: string): ClusterPreferencesState
   } = usePluginData<HubSectionConfig[]>(pluginID, 'hub_sections', DEFAULT_HUB_SECTIONS);
 
   const setHubSections = useCallback(
-    async (sections: HubSectionConfig[]) => {
+    async (sections: HubSectionConfig[] | ((current: HubSectionConfig[]) => HubSectionConfig[])) => {
       await setHubSectionsRaw(sections);
     },
     [setHubSectionsRaw],

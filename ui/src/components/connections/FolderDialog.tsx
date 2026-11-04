@@ -217,6 +217,9 @@ const FolderDialog: React.FC<Props> = ({
     existingNames.some((n) => n.toLowerCase() === trimmed.toLowerCase()) &&
     trimmed.toLowerCase() !== (initial?.name ?? '').toLowerCase();
   const canSubmit = trimmed.length > 0 && !isDuplicate && !uploadPending && !removePending;
+  const selectedAssetId = iconAssets.some((asset) => asset.id === iconAssetId)
+    ? iconAssetId
+    : undefined;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -226,7 +229,7 @@ const FolderDialog: React.FC<Props> = ({
       color,
       icon,
       customImage,
-      iconAssetId,
+      iconAssetId: selectedAssetId,
       ruleSet: ruleSet.rules.length > 0 ? ruleSet : undefined,
     });
   };
@@ -318,7 +321,7 @@ const FolderDialog: React.FC<Props> = ({
                   const file = event.dataTransfer.files[0];
                   if (file) void handleImageFile(file);
                 }}
-                value={iconAssetId ?? (customImage ? 'legacy-image' : icon)}
+                value={selectedAssetId ?? (customImage ? 'legacy-image' : icon)}
                 items={[
                   ...iconKeys.map((key) => ({
                     id: key,
@@ -333,7 +336,7 @@ const FolderDialog: React.FC<Props> = ({
                     src: asset.dataUrl,
                     removable: true,
                   })),
-                  ...(customImage && !iconAssetId
+                  ...(customImage && !selectedAssetId
                     ? [
                         {
                           id: 'legacy-image',

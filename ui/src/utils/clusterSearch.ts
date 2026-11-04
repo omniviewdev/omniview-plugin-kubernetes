@@ -129,7 +129,7 @@ export function buildClusterSearch(connections: readonly SearchableConnection[])
     for (const [key, value] of Object.entries(enriched.metadata ?? {})) addAttribute(key, value);
     for (const [key, fact] of [
       ['region', facts.region],
-      ['account', facts.account],
+      ['account', facts.account ?? facts.project],
       ['env', facts.environment],
     ] as const) {
       if (fact) add(key, fact.value);

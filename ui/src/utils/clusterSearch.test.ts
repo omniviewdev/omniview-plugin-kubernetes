@@ -88,6 +88,21 @@ describe('cluster explorer search', () => {
       project: { value: 'billing-project', key: 'gcp.project_id', hint: true },
     });
   });
+  it('searches and suggests the project shown by the Account / Project fallback', () => {
+    const gcp = {
+      ...cluster('gcp'),
+      metadata: { 'gcp.project_id': 'billing-project' },
+    };
+    expect(results([gcp], 'account:billing-project')).toEqual(['gcp']);
+    expect(buildClusterSearch([gcp]).fields.find((field) => field.name === 'account')?.values)
+      .toContain('billing-project');
+    const account = {
+      ...gcp,
+      metadata: { ...gcp.metadata, account: 'primary-account' },
+    };
+    expect(results([account], 'account:primary-account')).toEqual(['gcp']);
+    expect(results([account], 'account:billing-project')).toEqual([]);
+  });
   it('lets explicit environment tags override live metadata and configuration hints', () => {
     const tagged = { ...west, tags: ['env:development'], metadata: { environment: 'staging' } };
     expect(getClusterDisplayFacts(tagged).environment).toMatchObject({

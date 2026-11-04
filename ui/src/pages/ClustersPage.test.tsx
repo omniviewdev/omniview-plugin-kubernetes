@@ -2,18 +2,25 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import type { EnrichedConnection, ConnectionGroup, HubSectionConfig } from '../types/clusters';
+import type { ConnectionGroup, HubSectionConfig } from '../types/clusters';
+import type { ClusterLens } from '../types/clusterExplorer';
+import type ConnectionTableComponent from '../components/connections/ConnectionTable';
 import ClustersPage from './ClustersPage';
 
 const state = vi.hoisted(() => ({
-  connections: [] as { id: string; name: string }[],
+  connections: [] as { id: string; name: string; labels?: Record<string, string> }[],
   loading: false,
   open: vi.fn(),
   saveLens: vi.fn().mockResolvedValue(undefined),
   folders: [] as ConnectionGroup[],
+  lenses: [] as ClusterLens[],
+  favorites: [] as string[],
+  connectedIds: [] as string[],
+  metadata: new Map(),
   sections: [] as HubSectionConfig[],
   setSections: vi.fn().mockResolvedValue(undefined),
   visualIds: undefined as string[] | undefined,
+  nativeTable: false,
 }));
 vi.mock('@omniviewdev/runtime', () => ({
   usePluginContext: () => ({ meta: { id: 'kubernetes' }, pluginId: 'kubernetes' }),
@@ -22,6 +29,15 @@ vi.mock('@omniviewdev/runtime', () => ({
   }),
   useConnection: () => ({ removeConnection: vi.fn() }),
   useSnackbar: () => ({ showSnackbar: vi.fn() }),
+  useConnectionMetadataConnections: () => state.metadata,
+  readCurrentConnectionMetadataString: vi.fn(),
+  useConnectionStatus: () => ({
+    entries: state.connectedIds.map((connectionID) => ({
+      pluginID: 'kubernetes',
+      connectionID,
+      readiness: 'CONNECTED',
+    })),
+  }),
 }));
 vi.mock('../hooks/useClusterAction', () => ({
   useClusterAction: (id: string) => ({ handleClick: () => state.open(id) }),
@@ -31,12 +47,12 @@ vi.mock('@/hooks/useStoredState', () => ({
 }));
 vi.mock('../hooks/useClusterPreferences', () => ({
   useClusterPreferences: () => ({
-    favorites: [],
+    favorites: state.favorites,
     connectionOverrides: {},
     customGroups: state.folders,
     recentConnections: {},
     hubSections: state.sections,
-    savedLenses: [],
+    savedLenses: state.lenses,
     iconAssets: [],
     availableTags: [],
     saveLens: state.saveLens,
@@ -54,73 +70,35 @@ vi.mock('../hooks/useClusterPreferences', () => ({
     updateHubSectionCollapsed: vi.fn(),
   }),
 }));
-vi.mock('../hooks/useConnectionGrouping', () => ({
-  useConnectionGrouping: ({
-    connections,
-    search,
-  }: {
-    connections: { id: string; name: string }[];
-    search: string;
-  }) => {
-    const results = connections.filter(
-      (connection) => !search || search.includes(':') || connection.name.includes(search),
-    );
-    return {
-      groups: [
-        {
-          key: 'all',
-          label: 'All',
-          connections: results.map((connection) => ({
-            connection,
-            displayName: connection.name,
-            displayDescription: '',
-            tags: [],
-            isFavorite: false,
-            isConnected: false,
-          })),
-        },
-      ],
-      totalCount: connections.length,
-      filteredCount: results.length,
-      availableProviders: [],
-      availableAttributes: [],
-      availableTags: [],
-      searchDiagnostics: [],
-      searchFields: [{ name: 'region', label: 'Region', values: ['eu-west-1'] }],
-    };
-  },
-}));
 vi.mock('../components/connections/ClusterOrganization', () => ({
   ClusterOrganization: ({ children }: { children: React.ReactNode }) => children,
   ClusterFolderDropTarget: ({ children }: { children: React.ReactNode }) => children,
+  ClusterDragHandle: () => null,
 }));
 vi.mock('../components/connections/ClusterHub', () => ({
   default: () => <div>Folder and section organization</div>,
 }));
 vi.mock('../components/connections/FilterChips', () => ({ default: () => null }));
-vi.mock('../components/connections/ConnectionTable', () => ({
-  default: function MockConnectionTable({
+vi.mock('../components/connections/ConnectionContextMenu', () => ({
+  default: () => <button>Cluster actions</button>,
+}));
+vi.mock('../components/connections/ConnectionTable', async (importOriginal) => {
+  const actual = await importOriginal<{ default: typeof ConnectionTableComponent }>();
+  function MockConnectionTable({
     grouped,
     onVisualOrderChange,
     selectedId,
     collapsedGroups,
     viewMode,
     onToggleCollapse,
-  }: {
-    grouped: { groups: { connections: EnrichedConnection[] }[] };
-    onVisualOrderChange: (ids: string[]) => void;
-    selectedId?: string;
-    collapsedGroups: Set<string>;
-    viewMode: string;
-    onToggleCollapse: (key: string) => void;
-  }) {
+  }: React.ComponentProps<typeof ConnectionTableComponent>) {
     const rows =
       viewMode !== 'debug' && collapsedGroups.has('all')
         ? []
         : grouped.groups.flatMap((group) => group.connections).reverse();
     const ids = (state.visualIds ?? rows.map((row) => row.connection.id)).join(',');
     React.useEffect(
-      () => onVisualOrderChange(ids.split(',').filter(Boolean)),
+      () => onVisualOrderChange?.(ids.split(',').filter(Boolean)),
       [ids, onVisualOrderChange],
     );
     return (
@@ -136,16 +114,30 @@ vi.mock('../components/connections/ConnectionTable', () => ({
         ))}
       </div>
     );
-  },
-}));
+  }
+  return {
+    default: (props: React.ComponentProps<typeof ConnectionTableComponent>) =>
+      state.nativeTable ? <actual.default {...props} /> : <MockConnectionTable {...props} />,
+  };
+});
 vi.mock('../components/connections/DeleteConfirmationModal', () => ({ default: () => null }));
 vi.mock('../components/connections/FolderDialog', () => ({ default: () => null }));
 
 beforeEach(() => {
   vi.clearAllMocks();
   state.loading = false;
+  state.nativeTable = false;
   state.folders = [];
+  state.lenses = [];
+  state.favorites = [];
+  state.connectedIds = [];
   state.sections = [];
+  state.setSections.mockImplementation(
+    (next: HubSectionConfig[] | ((current: HubSectionConfig[]) => HubSectionConfig[])) => {
+      state.sections = typeof next === 'function' ? next(state.sections) : next;
+      return Promise.resolve();
+    },
+  );
   state.visualIds = undefined;
   state.connections = [
     { id: 'a', name: 'alpha' },
@@ -249,7 +241,7 @@ describe('Cluster explorer', () => {
     render(<ClustersPage />);
     await user.click(screen.getByRole('button', { name: 'Actions for folder Folder B' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Move up' }));
-    expect(state.setSections).toHaveBeenCalledWith([
+    expect(state.sections).toEqual([
       { type: 'connected', collapsed: false },
       { type: 'group:b', collapsed: false },
       { type: 'recent', collapsed: true },
@@ -257,5 +249,135 @@ describe('Cluster explorer', () => {
       { type: 'favorites', collapsed: false },
       { type: 'browse', collapsed: true },
     ]);
+  });
+
+  it('applies a deleted-folder lens to all clusters while preserving its query and view', async () => {
+    const user = userEvent.setup();
+    state.lenses = [{
+      id: 'orphaned',
+      name: 'Billing fleet',
+      query: 'beta',
+      filters: {},
+      groupBy: 'none',
+      sortBy: 'name',
+      sortDirection: 'asc',
+      viewMode: 'list',
+      scope: 'group:deleted',
+    }];
+    render(<ClustersPage />);
+    await user.click(screen.getByRole('button', { name: 'Billing fleet', exact: true }));
+    expect(screen.getByRole('button', { name: /All clusters/ })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('combobox', { name: 'Search clusters' })).toHaveValue('beta');
+    expect(screen.getByRole('button', { name: 'Table view' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'beta', exact: true })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'alpha', exact: true })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('combobox', { name: 'Search clusters' }));
+    await user.keyboard('{Escape}{Enter}');
+    expect(state.open).toHaveBeenLastCalledWith('b');
+  });
+
+  it('keeps existing folder lenses scoped to manual and automatic members', async () => {
+    const user = userEvent.setup();
+    state.connections.push({ id: 'c', name: 'charlie' });
+    state.folders = [{
+      id: 'team',
+      name: 'Team',
+      connectionIds: ['a'],
+      ruleSet: {
+        logic: 'and',
+        rules: [{ id: 'beta', field: 'name', operator: 'equals', value: 'beta' }],
+      },
+    }];
+    state.lenses = [{
+      id: 'team-lens',
+      name: 'Team lens',
+      query: '',
+      filters: {},
+      groupBy: 'none',
+      sortBy: 'name',
+      sortDirection: 'asc',
+      viewMode: 'grid',
+      scope: 'group:team',
+    }];
+    render(<ClustersPage />);
+    await user.click(screen.getByRole('button', { name: 'Team lens', exact: true }));
+    expect(screen.getByRole('button', { name: 'alpha', exact: true })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'beta', exact: true })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'charlie', exact: true })).not.toBeInTheDocument();
+    await user.type(screen.getByRole('combobox', { name: 'Search clusters' }), 'beta');
+    expect(screen.getByRole('button', { name: 'beta', exact: true })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'alpha', exact: true })).not.toBeInTheDocument();
+  });
+
+  it('browses global attribute values outside the current folder scope', async () => {
+    const user = userEvent.setup();
+    state.connections = [
+      { id: 'a', name: 'alpha', labels: { team: 'payments' } },
+      { id: 'b', name: 'beta', labels: { team: 'platform' } },
+    ];
+    state.folders = [{ id: 'payments', name: 'Payments folder', connectionIds: ['a'] }];
+    render(<ClustersPage />);
+    await user.click(screen.getByRole('button', { name: /^Payments folder/ }));
+    expect(screen.queryByRole('button', { name: 'beta', exact: true })).not.toBeInTheDocument();
+    await user.click(screen.getByText('Browse attributes'));
+    await user.click(screen.getByText('Team', { selector: 'summary' }));
+    await user.click(screen.getByRole('button', { name: 'platform', exact: true }));
+    expect(screen.getByRole('button', { name: /All clusters/ })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('button', { name: 'beta', exact: true })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'alpha', exact: true })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('combobox', { name: 'Search clusters' }));
+    await user.keyboard('{Escape}{Enter}');
+    expect(state.open).toHaveBeenLastCalledWith('b');
+  });
+
+  it.each(['Recent', 'Connected', 'Pinned', 'Empty folder'])(
+    'escapes an empty %s scope through Clear Filters',
+    async (label) => {
+      const user = userEvent.setup();
+      state.folders = [{ id: 'empty', name: 'Empty folder', connectionIds: [] }];
+      render(<ClustersPage />);
+      await user.click(screen.getByRole('button', { name: new RegExp(`^${label}`) }));
+      expect(screen.queryByRole('button', { name: 'alpha', exact: true })).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Clear Filters', exact: true }));
+      expect(screen.getByRole('button', { name: /All clusters/ })).toHaveAttribute('aria-current', 'page');
+      expect(screen.getByRole('button', { name: 'alpha', exact: true })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'beta', exact: true })).toBeInTheDocument();
+    },
+  );
+
+  it('sorts Debug globally across folders and opens the visually selected cluster', async () => {
+    const user = userEvent.setup();
+    state.nativeTable = true;
+    state.connections = [
+      { id: 'z', name: 'zulu' },
+      { id: 'a', name: 'alpha' },
+    ];
+    state.connectedIds = ['z'];
+    state.folders = [
+      { id: 'first', name: 'First', connectionIds: ['z'] },
+      { id: 'second', name: 'Second', connectionIds: ['a'] },
+    ];
+    state.lenses = [{
+      id: 'debug-lens',
+      name: 'Debug fleet',
+      query: '',
+      filters: {},
+      groupBy: 'custom',
+      sortBy: 'name',
+      sortDirection: 'asc',
+      viewMode: 'debug',
+      scope: 'all',
+    }];
+    const { container } = render(<ClustersPage />);
+    await user.click(screen.getByRole('button', { name: 'Debug fleet', exact: true }));
+    expect(
+      [...container.querySelectorAll('[data-cluster-open]')].map((node) =>
+        node.getAttribute('data-cluster-open'),
+      ),
+    ).toEqual(['a', 'z']);
+    expect(screen.getByRole('columnheader', { name: /Cluster/ })).toHaveAttribute('aria-sort', 'ascending');
+    await user.click(screen.getByRole('combobox', { name: 'Search clusters' }));
+    await user.keyboard('{Escape}{Enter}');
+    expect(state.open).toHaveBeenLastCalledWith('a');
   });
 });

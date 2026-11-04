@@ -80,18 +80,20 @@ describe('successful connected cluster route history', () => {
     view.rerender(fixture());
     await waitFor(() => expect(state.record).toHaveBeenCalledTimes(2));
   });
-  it('waits for persisted preferences and counts separate mounted tab/window views', async () => {
+  it('records each ready mounted view while unrelated preferences still load, even before unmount', async () => {
     state.connected = true;
     state.loading = true;
+    const first = render(fixture());
+    await waitFor(() => expect(state.record).toHaveBeenCalledTimes(1));
+    first.unmount();
+    expect(state.loading).toBe(true);
     render(fixture());
-    expect(state.record).not.toHaveBeenCalled();
+    await waitFor(() => expect(state.record).toHaveBeenCalledTimes(2));
     act(() => {
       state.loading = false;
       state.listeners.forEach((notify) => notify());
     });
-    await waitFor(() => expect(state.record).toHaveBeenCalledTimes(1));
-    render(fixture());
-    await waitFor(() => expect(state.record).toHaveBeenCalledTimes(2));
+    expect(state.record).toHaveBeenCalledTimes(2);
   });
   it('keeps the opened view usable and reports a persistence failure', async () => {
     state.connected = true;

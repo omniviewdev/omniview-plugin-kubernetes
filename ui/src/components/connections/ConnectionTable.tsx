@@ -105,9 +105,7 @@ function TableSection({ connections, ...props }: Props & { connections: Enriched
     : localSorting;
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const debug = props.debug || props.viewMode === 'debug';
-  const data = debug
-    ? [...connections].sort((a, b) => Number(b.isConnected) - Number(a.isConnected))
-    : connections;
+  const data = connections;
   const item = (enriched: EnrichedConnection, part: 'identity' | 'actions') => (
     <ConnectionTableItem
       enriched={enriched}
@@ -299,7 +297,7 @@ const ConnectionTable: React.FC<Props> = (input) => {
             group.connections.map((connection) => [connection.connection.id, connection] as const),
           ),
         ).values(),
-      ].sort((left, right) => Number(right.isConnected) - Number(left.isConnected))
+      ]
     : [];
   const props = debug
     ? {

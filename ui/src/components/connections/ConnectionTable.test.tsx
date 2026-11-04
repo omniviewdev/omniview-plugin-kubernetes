@@ -102,7 +102,7 @@ describe('ConnectionTable', () => {
     expect(value).toHaveAttribute('title', expect.stringContaining('gcp.project_id'));
   });
 
-  it('puts connected clusters first in Debug without claiming workload or metric health', () => {
+  it('preserves supplied Debug order without claiming workload or metric health', () => {
     const { container } = render(
       <ConnectionTable {...props([connection('offline'), connection('online', true)])} debug />,
     );
@@ -110,7 +110,7 @@ describe('ConnectionTable', () => {
       [...container.querySelectorAll('[data-cluster-open]')].map((node) =>
         node.getAttribute('data-cluster-open'),
       ),
-    ).toEqual(['online', 'offline']);
+    ).toEqual(['offline', 'online']);
     expect(screen.getAllByText('Unknown — not queried')).toHaveLength(2);
     expect(screen.getAllByText('Unknown — provider required')).toHaveLength(2);
     expect(screen.getByText('Disconnected')).toBeInTheDocument();
@@ -188,7 +188,7 @@ describe('ConnectionTable', () => {
       />,
     );
     expect(screen.getByRole('button', { name: 'Open offline' })).toBeInTheDocument();
-    expect(order).toHaveBeenLastCalledWith(['online', 'offline']);
+    expect(order).toHaveBeenLastCalledWith(['offline', 'online']);
   });
 
   it('deduplicates navigation IDs while keeping overlapping visual memberships', () => {
@@ -203,5 +203,56 @@ describe('ConnectionTable', () => {
     );
     expect(screen.getAllByRole('button', { name: 'x' })).toHaveLength(2);
     expect(order).toHaveBeenLastCalledWith(['x', 'y', 'z']);
+  });
+
+  it.each(['asc', 'desc'] as const)(
+    'honors selected Name %s order in Debug regardless of connection state',
+    (direction) => {
+      const rows = [connection('alpha'), connection('zulu', true)];
+      if (direction === 'desc') rows.reverse();
+      const onVisualOrderChange = vi.fn();
+      const { container } = render(
+        <ConnectionTable
+          {...props(rows)}
+          viewMode="debug"
+          sortBy="name"
+          sortDirection={direction}
+          onVisualOrderChange={onVisualOrderChange}
+        />,
+      );
+      const ids = rows.map((row) => row.connection.id);
+      expect(
+        [...container.querySelectorAll('[data-cluster-open]')].map((node) =>
+          node.getAttribute('data-cluster-open'),
+        ),
+      ).toEqual(ids);
+      expect(screen.getByRole('columnheader', { name: /Cluster/ })).toHaveAttribute(
+        'aria-sort',
+        direction === 'asc' ? 'ascending' : 'descending',
+      );
+      expect(onVisualOrderChange).toHaveBeenLastCalledWith(ids);
+    },
+  );
+
+  it('distinguishes identical display names through accessible original context names', () => {
+    const first = connection('id-a');
+    first.displayName = 'Production';
+    first.connection.name = 'payments-context';
+    const second = connection('id-b');
+    second.displayName = 'Production';
+    second.connection.name = 'billing-context';
+    render(<ConnectionTable {...props([first, second])} />);
+    const buttons = screen.getAllByRole('button', { name: 'Open Production' });
+    expect(buttons[0]).toHaveAccessibleDescription(/payments-context/);
+    expect(buttons[1]).toHaveAccessibleDescription(/billing-context/);
+  });
+
+  it('uses the connection ID as accessible context when no original name exists', () => {
+    const unnamed = connection('id-only');
+    unnamed.connection.name = '';
+    render(<ConnectionTable {...props([unnamed])} />);
+    expect(screen.getByRole('button', { name: 'Open id-only' })).toHaveAccessibleDescription(
+      /id-only/,
+    );
   });
 });

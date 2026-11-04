@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ConnectionGroup } from '../types/clusters';
+import type { ConnectionGroup, HubSectionConfig } from '../types/clusters';
 import type { ClusterIconAsset, ClusterLens } from '../types/clusterExplorer';
 
 const store = vi.hoisted(() => ({
@@ -111,6 +111,30 @@ describe('saved organization', () => {
     expect(recent.opened.accessCount).toBe(2);
     expect(Object.keys(recent)).toHaveLength(100);
     expect(recent['old-0']).toBeUndefined();
+  });
+  it('applies section updaters to stored state newer than the rendered snapshot', async () => {
+    store.values.hub_sections = [
+      { type: 'group:a', collapsed: false },
+      { type: 'group:b', collapsed: false },
+    ];
+    const { result } = renderHook(() => useClusterPreferences('kubernetes'));
+    // Another view publishes a collapse change after this hook rendered.
+    store.values.hub_sections = [
+      { type: 'connected', collapsed: true },
+      { type: 'group:a', collapsed: true },
+      { type: 'group:b', collapsed: false },
+    ];
+    await act(async () => {
+      await result.current.setHubSections((current) => [
+        current[0], current[2], current[1],
+      ]);
+    });
+    const sections = store.values.hub_sections as HubSectionConfig[];
+    expect(sections).toEqual([
+      { type: 'connected', collapsed: true },
+      { type: 'group:b', collapsed: false },
+      { type: 'group:a', collapsed: true },
+    ]);
   });
   it('removes an in-use asset only after preserving every folder image and rule', async () => {
     const asset: ClusterIconAsset = {

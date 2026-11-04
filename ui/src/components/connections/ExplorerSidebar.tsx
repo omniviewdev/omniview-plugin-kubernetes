@@ -75,22 +75,26 @@ export default function ExplorerSidebar(props: Props) {
     void run(() => preferences.reorderLenses(ids));
   };
   const moveFolder = (id: string, delta: number) => {
-    const from = folders.findIndex((folder) => folder.id === id);
-    const to = from + delta;
-    if (from < 0 || to < 0 || to >= folders.length) return;
-    const sections = [...preferences.hubSections];
-    for (const folder of folders) {
-      if (sections.some((section) => section.type === `group:${folder.id}`)) continue;
-      const browse = sections.findIndex((section) => section.type === 'browse');
-      sections.splice(browse < 0 ? sections.length : browse, 0, {
-        type: `group:${folder.id}`,
-        collapsed: false,
-      });
-    }
-    const left = sections.findIndex((section) => section.type === `group:${folders[from].id}`);
-    const right = sections.findIndex((section) => section.type === `group:${folders[to].id}`);
-    [sections[left], sections[right]] = [sections[right], sections[left]];
-    void run(() => preferences.setHubSections(sections));
+    void run(() => preferences.setHubSections((current) => {
+      const sections = [...current];
+      for (const folder of preferences.customGroups) {
+        if (sections.some((section) => section.type === `group:${folder.id}`)) continue;
+        const browse = sections.findIndex((section) => section.type === 'browse');
+        sections.splice(browse < 0 ? sections.length : browse, 0, {
+          type: `group:${folder.id}`,
+          collapsed: false,
+        });
+      }
+      const folderIDs = new Set(preferences.customGroups.map((folder) => `group:${folder.id}`));
+      const positions = sections.flatMap((section, index) => folderIDs.has(section.type) ? [index] : []);
+      const from = positions.findIndex((position) => sections[position].type === `group:${id}`);
+      const to = from + delta;
+      if (from < 0 || to < 0 || to >= positions.length) return current;
+      const left = positions[from];
+      const right = positions[to];
+      [sections[left], sections[right]] = [sections[right], sections[left]];
+      return sections;
+    }));
   };
   return (
     <aside className={styles.sidebar} aria-label="Cluster explorer navigation">

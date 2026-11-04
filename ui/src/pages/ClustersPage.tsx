@@ -92,31 +92,39 @@ export default function ClustersPage(): React.ReactElement {
     () => hubGrouped.groups.flatMap((group) => group.connections),
     [hubGrouped.groups],
   );
+  const hubById = React.useMemo(
+    () => new Map(hubEnriched.map((entry) => [entry.connection.id, entry])),
+    [hubEnriched],
+  );
+  const folderMembers = React.useMemo(() => {
+    if (!scope.startsWith('group:')) return undefined;
+    const folder = preferences.customGroups.find((group) => group.id === scope.slice(6));
+    return folder
+      ? computeEffectiveMembers(folder.connectionIds, folder.ruleSet, hubEnriched)
+      : new Set<string>();
+  }, [scope, preferences.customGroups, hubEnriched]);
+  const scopedConnections = React.useMemo(
+    () =>
+      (connections.data ?? []).filter((connection) => {
+        if (folderMembers) return folderMembers.has(connection.id);
+        const enriched = hubById.get(connection.id);
+        if (scope === 'favorites') return !!enriched?.isFavorite;
+        if (scope === 'recent') return !!enriched?.lastAccessed;
+        if (scope === 'connected') return !!enriched?.isConnected;
+        return true;
+      }),
+    [connections.data, scope, hubById, folderMembers],
+  );
 
   // Grouped/filtered/sorted result
   const grouped = useConnectionGrouping({
-    connections: (connections.data ?? []).filter((connection) => {
-      const enriched = hubEnriched.find((entry) => entry.connection.id === connection.id);
-      if (scope === 'favorites') return !!enriched?.isFavorite;
-      if (scope === 'recent') return !!enriched?.lastAccessed;
-      if (scope === 'connected') return !!enriched?.isConnected;
-      if (scope.startsWith('group:')) {
-        const folder = preferences.customGroups.find((group) => group.id === scope.slice(6));
-        return (
-          !!folder &&
-          computeEffectiveMembers(folder.connectionIds, folder.ruleSet, hubEnriched).has(
-            connection.id,
-          )
-        );
-      }
-      return true;
-    }),
+    connections: scopedConnections,
     favorites: preferences.favorites,
     connectionOverrides: preferences.connectionOverrides,
     customGroups: preferences.customGroups,
     recentConnections: preferences.recentConnections,
     search,
-    groupBy,
+    groupBy: viewMode === 'debug' ? 'none' : groupBy,
     sortBy,
     sortDirection,
     filters,
@@ -352,11 +360,18 @@ export default function ClustersPage(): React.ReactElement {
             setSortBy(lens.sortBy);
             setSortDirection(lens.sortDirection);
             setViewMode(lens.viewMode);
-            setScope(lens.scope ?? 'all');
+            const lensScope = lens.scope ?? 'all';
+            setScope(
+              lensScope.startsWith('group:') &&
+                !preferences.customGroups.some((group) => group.id === lensScope.slice(6))
+                ? 'all'
+                : lensScope,
+            );
             setOrganize(false);
           }}
           attributes={hubGrouped.availableAttributes}
           onBrowse={(key, value) => {
+            setScope('all');
             setFilters((previous) => ({
               ...previous,
               labels: { ...previous.labels, [key]: [value] },
@@ -440,7 +455,13 @@ export default function ClustersPage(): React.ReactElement {
               onEditFolder={handleEditFolder}
             />
           ) : noResults ? (
-            <EmptyState variant="no-results" onClearFilters={handleClearFilters} />
+            <EmptyState
+              variant="no-results"
+              onClearFilters={() => {
+                handleClearFilters();
+                setScope('all');
+              }}
+            />
           ) : (
             <div ref={resultsRef} className={styles.results}>
               <ConnectionTable

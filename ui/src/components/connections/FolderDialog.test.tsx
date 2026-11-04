@@ -7,6 +7,7 @@ import FolderDialog from './FolderDialog';
 
 const state = vi.hoisted(() => ({
   asset: { id: 'logo', name: 'Logo', dataUrl: 'data:image/png;base64,YQ==', createdAt: 1 },
+  assets: [] as { id: string; name: string; dataUrl: string; createdAt: number }[],
   remove: vi.fn(),
   accept: [] as string[],
   add: vi.fn(),
@@ -14,7 +15,7 @@ const state = vi.hoisted(() => ({
 }));
 vi.mock('../../hooks/useClusterPreferences', () => ({
   useClusterPreferences: () => ({
-    iconAssets: [state.asset],
+    iconAssets: state.assets,
     addIconAsset: state.add,
     removeIconAsset: state.remove,
   }),
@@ -52,6 +53,7 @@ vi.mock('@omniviewdev/base-ui', async () => {
 
 afterEach(cleanup);
 beforeEach(() => {
+  state.assets = [state.asset];
   state.remove.mockReset();
   state.remove.mockResolvedValue(undefined);
   state.add.mockReset();
@@ -61,6 +63,23 @@ beforeEach(() => {
 });
 
 describe('folder icon library removal', () => {
+  it('keeps the inline image without restoring an asset removed by another window', async () => {
+    const submit = vi.fn();
+    const props = {
+      open: true,
+      mode: 'edit' as const,
+      initial: { name: 'Folder', iconAssetId: 'logo', customImage: state.asset.dataUrl },
+      onSubmit: submit,
+      onClose: vi.fn(),
+    };
+    const { rerender } = render(<FolderDialog {...props} />);
+    state.assets = [];
+    rerender(<FolderDialog {...props} />);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Save' }));
+    expect(submit).toHaveBeenCalledWith(
+      expect.objectContaining({ iconAssetId: undefined, customImage: state.asset.dataUrl }),
+    );
+  });
   it('saves the removed referenced raster image as an inline fallback', async () => {
     const submit = vi.fn();
     render(

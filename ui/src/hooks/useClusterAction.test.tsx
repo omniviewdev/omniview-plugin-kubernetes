@@ -39,10 +39,22 @@ describe('cluster open actions', () => {
     expect(mocks.start).not.toHaveBeenCalled();
     expect(mocks.stop).toHaveBeenCalledOnce();
   });
-  it('connect-only does not navigate into a view or record route-owned history', async () => {
-    mocks.start.mockResolvedValue({ status: types.ConnectionStatusCode.ConnectionStatusConnected });
+  it('keeps connect-only pending until ready and suppresses duplicate starts without opening a view', async () => {
+    const start = Promise.withResolvers<{ status: types.ConnectionStatusCode }>();
+    mocks.start.mockReturnValue(start.promise);
     const { result } = renderHook(() => useClusterAction('cluster', false));
+    let pending!: Promise<void>;
+    act(() => {
+      pending = result.current.handleConnect();
+    });
+    expect(result.current.connecting).toBe(true);
     await act(() => result.current.handleConnect());
+    expect(mocks.start).toHaveBeenCalledOnce();
+    await act(async () => {
+      start.resolve({ status: types.ConnectionStatusCode.ConnectionStatusConnected });
+      await pending;
+    });
+    expect(result.current.connecting).toBe(false);
     expect(mocks.navigate).not.toHaveBeenCalled();
   });
 });
