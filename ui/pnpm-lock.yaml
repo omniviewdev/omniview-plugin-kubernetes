@@ -185,14 +185,14 @@ importers:
         specifier: 4.7.0
         version: 4.7.0(monaco-editor@0.52.2(patch_hash=c9b4df6cf0c9f7250a4cac07c32e978eff7b3e8a3972ccf4e016e437eac285e0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@omniviewdev/base-ui':
-        specifier: 0.12.0
-        version: 0.12.0(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        specifier: 0.13.0
+        version: 0.13.0(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@omniviewdev/editors':
-        specifier: 6.1.6
-        version: 6.1.6(@omniviewdev/base-ui@0.12.0(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        specifier: 6.1.7
+        version: 6.1.7(@omniviewdev/base-ui@0.13.0(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@omniviewdev/runtime':
-        specifier: 0.27.2
-        version: 0.27.2(@omniviewdev/base-ui@0.12.0(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@tanstack/react-query@5.105.0(@types/react@19.3.0)(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react-router@8.5.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
+        specifier: 0.28.0
+        version: 0.28.0(@omniviewdev/base-ui@0.13.0(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@tanstack/react-query@5.105.0(@types/react@19.3.0)(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react-router@8.5.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
       '@tanstack/react-query':
         specifier: 5.105.0
         version: 5.105.0(@types/react@19.3.0)(react@19.3.1)
@@ -252,8 +252,8 @@ importers:
         specifier: 10.0.1
         version: 10.0.1(eslint@10.13.0)
       '@omniviewdev/vite-plugin':
-        specifier: 0.27.2
-        version: 0.27.2(vite@7.3.7(yaml@2.9.1))
+        specifier: 0.28.0
+        version: 0.28.0(vite@7.3.7(yaml@2.9.1))
       '@storybook/addon-docs':
         specifier: 10.6.5
         version: 10.6.5(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react@19.3.1))
@@ -973,30 +973,30 @@ packages:
   '@neoconfetti/react@1.0.0':
     resolution: {integrity: sha512-klcSooChXXOzIm+SE5IISIAn3bYzYfPjbX7D7HoqZL84oAfgREeSg5vSIaSFH+DaGzzvImTyWe1OyrJ67vik4A==}
 
-  '@omniviewdev/base-ui@0.12.0':
-    resolution: {integrity: sha512-DrebFOt9NSJuuIpj7dx3fJ7b68gWoEbr/MqIqw8FLB9J7vEpHslYStJ4KXFVgLNP2PrhQwHzIAw01ncDsT3YYg==}
+  '@omniviewdev/base-ui@0.13.0':
+    resolution: {integrity: sha512-lGPGAxvobTyT+d1m2g6UWumP8HwCk6ELXIQ7hFybzoxvbWKfTfZ6YGp2fmGJ1IC+ABeUuUWB2M1dNRy9JIfMbQ==}
     peerDependencies:
       react: ^19.3.1
       react-dom: ^19.3.1
 
-  '@omniviewdev/editors@6.1.6':
-    resolution: {integrity: sha512-9vLxz39r4EQY9ZjklGKfOMc9G5GsRSKSwKTUo5RXbLb6UIv7NT21GcMjKtk7W3GBpDxlFd2tpnCwgE43c2D+/g==}
+  '@omniviewdev/editors@6.1.7':
+    resolution: {integrity: sha512-wjaBoWIxCI7aQICCyVE4xgl74sbP8RznigFffnJ4hzS9u2HIsuoLOO+T6zxjshMPWG0BMLezKoJqCwWTMED9VQ==}
     peerDependencies:
-      '@omniviewdev/base-ui': 0.12.0
+      '@omniviewdev/base-ui': 0.13.0
       react: ^19.3.1
       react-dom: ^19.3.1
 
-  '@omniviewdev/runtime@0.27.2':
-    resolution: {integrity: sha512-IGRK2cslF4HMW3FXtiHNbc8wFHeAUpJ9xJuURkHjStPOzv19A5Lo50hrQ+G72Vrut+0rQT0PhfMRyjaFqW0CKA==}
+  '@omniviewdev/runtime@0.28.0':
+    resolution: {integrity: sha512-KSi29W4MtuU7a8j/F08YAAF9n8gz5Ff99A+4VyncqVSFgsXuY9nTsyao0ABUaENpeI9WHLEQ0387asdwFJDtIg==}
     peerDependencies:
-      '@omniviewdev/base-ui': ~0.12.0
+      '@omniviewdev/base-ui': ~0.13.0
       '@tanstack/react-query': ^5.105.0
       react: ^19.3.1
       react-dom: ^19.3.1
       react-router: ^8.5.0
 
-  '@omniviewdev/vite-plugin@0.27.2':
-    resolution: {integrity: sha512-JdeRc5xIX78iUiqIlyy1v/xmMvZQxUzCsl6YAtM1+gjzL60vPVh1xzvvkM8oqFLGS/b6wHkzgFZKqomn/Ys51w==}
+  '@omniviewdev/vite-plugin@0.28.0':
+    resolution: {integrity: sha512-QKy3TJUEzIF1m09H0Hb5NhIKBCDgSWnLQwMlTK5HrGW++sc5RPPVCFOulXjQe41309CbIR16ePK/PSbvWfXqNA==}
     peerDependencies:
       vite: ^7.3.7
 
@@ -4260,7 +4260,7 @@ snapshots:
 
   '@neoconfetti/react@1.0.0': {}
 
-  '@omniviewdev/base-ui@0.12.0(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
+  '@omniviewdev/base-ui@0.13.0(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
       '@base-ui/react': 1.9.0(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@dnd-kit/core': 6.3.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -4277,9 +4277,9 @@ snapshots:
       - '@types/react'
       - date-fns
 
-  '@omniviewdev/editors@6.1.6(@omniviewdev/base-ui@0.12.0(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
+  '@omniviewdev/editors@6.1.7(@omniviewdev/base-ui@0.13.0(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
-      '@omniviewdev/base-ui': 0.12.0(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@omniviewdev/base-ui': 0.13.0(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@xterm/addon-fit': 0.11.0
       '@xterm/addon-search': 0.16.0
       '@xterm/addon-serialize': 0.14.0
@@ -4299,9 +4299,9 @@ snapshots:
       - '@types/react'
       - supports-color
 
-  '@omniviewdev/runtime@0.27.2(@omniviewdev/base-ui@0.12.0(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@tanstack/react-query@5.105.0(@types/react@19.3.0)(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react-router@8.5.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)':
+  '@omniviewdev/runtime@0.28.0(@omniviewdev/base-ui@0.13.0(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@tanstack/react-query@5.105.0(@types/react@19.3.0)(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react-router@8.5.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)':
     dependencies:
-      '@omniviewdev/base-ui': 0.12.0(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@omniviewdev/base-ui': 0.13.0(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@tanstack/react-query': 5.105.0(@types/react@19.3.0)(react@19.3.1)
       '@wailsio/runtime': 3.0.0-beta.34
       lodash.get: 4.4.2
@@ -4310,7 +4310,7 @@ snapshots:
       react-router: 8.5.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       ts-invariant: 0.10.3
 
-  '@omniviewdev/vite-plugin@0.27.2(vite@7.3.7(yaml@2.9.1))':
+  '@omniviewdev/vite-plugin@0.28.0(vite@7.3.7(yaml@2.9.1))':
     dependencies:
       vite: 7.3.7(yaml@2.9.1)
 

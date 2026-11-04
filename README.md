@@ -961,13 +961,13 @@ rather than adding unsupported manifest fields.
 
 Registry installs retain pnpm's 24-hour release-age protection. Only coordinated
 `@omniviewdev/*` packages are exempted; linked source worktrees resolve locally.
-The current frontend cohort uses `@omniviewdev/base-ui` 0.12.0,
-`@omniviewdev/editors` 6.1.6, and runtime/Vite plugin 0.27.2.
+The current frontend cohort uses `@omniviewdev/base-ui` 0.13.0,
+`@omniviewdev/editors` 6.1.7, and runtime/Vite plugin 0.28.0.
 The published runtime and Vite plugin must match; source builds use the reviewed host runtime.
-The backend pins Go SDK `v0.14.4-0.20261103224420-ddc51a65ce87` and replaces
+The backend pins published Go SDK `v0.15.0` and replaces
 `google.golang.org/grpc` with
 `github.com/omniviewdev/grpc-go v1.79.3-0.20261103012409-4c6f1d1c4e10`.
-This immutable SDK commit includes typed activity events and completed-source log handling.
+This SDK release includes typed activity events and completed-source log handling.
 Debug preferences discard unsaved drafts when reopened or switched to another
 connection, but preserve active drafts when saved defaults refresh.
 
