@@ -1,35 +1,20 @@
-import React, { useEffect, useState, type PropsWithChildren } from 'react';
-import { useParams } from 'react-router';
-
-import { useDocumentVisibility } from '@/hooks/useDocumentVisibility';
-import { usePodMetricsBatch, type PodMetricsMap } from '@/hooks/usePodMetricsBatch';
-
+import React, { type PropsWithChildren } from 'react';
+import type { HostRecord } from '@omniviewdev/runtime';
+import { usePodMetricsBatch } from '@/hooks/usePodMetricsBatch';
 import { PodMetricsContext } from './cells/MetricUsageCell';
 
-function PodMetricsObserver({ connectionID, onMetrics }: {
-  connectionID: string;
-  onMetrics: (metrics: PodMetricsMap) => void;
-}) {
-  const { metricsMap } = usePodMetricsBatch({ connectionID });
-  useEffect(() => { onMetrics(metricsMap); }, [metricsMap, onMetrics]);
-  return null;
-}
-
-/** Keep table descendants mounted while the independently gated query observer pauses. */
+/** Keep table descendants mounted while visibility pauses the shared metric observer. */
 const PodMetricsProvider: React.FC<PropsWithChildren<{
   columnVisibility: Record<string, boolean>;
-}>> = ({ columnVisibility, children }) => {
-  const { id = '' } = useParams<{ id: string }>();
-  const visible = useDocumentVisibility();
-  const enabled = visible && (columnVisibility.cpuUsage !== false || columnVisibility.memUsage !== false);
-  const [metricsMap, setMetricsMap] = useState<PodMetricsMap>(() => new Map());
-
+  connectionID: string;
+  records: readonly HostRecord[];
+}>> = ({ columnVisibility, connectionID, records, children }) => {
+  const query = usePodMetricsBatch({ connectionID, records,
+    enabled: columnVisibility.cpuUsage !== false || columnVisibility.memUsage !== false });
   return (
-    <PodMetricsContext.Provider value={metricsMap}>
+    <PodMetricsContext.Provider value={{ metricsMap: query.metricsMap, error: query.error, isLoading: query.isLoading }}>
       {children}
-      {enabled && <PodMetricsObserver connectionID={id} onMetrics={setMetricsMap} />}
     </PodMetricsContext.Provider>
   );
 };
-
 export default PodMetricsProvider;

@@ -116,6 +116,7 @@ import StorageClassTable from './components/kubernetes/table/storagev1/StorageCl
 import VolumeAttachmentSidebar from './components/kubernetes/table/storagev1/VolumeAttachment/Sidebar';
 import VolumeAttachmentTable from './components/kubernetes/table/storagev1/VolumeAttachment/Table';
 import { createStandardViews } from './components/shared/sidebar/createDrawerViews';
+import { renderNodeMetrics, renderPodMetrics } from './components/kubernetes/sidebar/metricsDrawerViews';
 import GenericResourceSidebar from './components/shared/sidebar/GenericResourceSidebar';
 import { kubernetesResourceIconSet } from './icons/resourceIcons';
 import ClusterEditPage from './pages/ClusterEditPage';
@@ -225,7 +226,12 @@ function createResourceDrawerFactory(
   const shared = resourceDrawerActions[resourceKey];
   return (_closeDrawer: () => void): DrawerComponent => ({
     title: resourceKey,
-    views: createStandardViews({ SidebarComponent }),
+    views: createStandardViews({
+      SidebarComponent,
+      metricsComponent: resourceKey === 'k8s:/pods'
+        ? renderPodMetrics
+        : resourceKey === 'k8s:/nodes' ? renderNodeMetrics : undefined,
+    }),
     actions: shared?.actions ?? [],
   });
 }

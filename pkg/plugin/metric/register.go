@@ -674,6 +674,7 @@ func Register(plugin *sdk.Plugin) func(string) {
 				},
 			},
 		},
+		ResourceSetProvider: promClient,
 		QueryFunc: func(qctx *metric.QueryContext, req metric.QueryRequest) (*metric.QueryResponse, error) {
 			return compositeQuery(promClient, qctx, req)
 		},

@@ -14,6 +14,7 @@ import { sumIntegerValues } from '@/utils/convert';
 
 
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
+import { renderPodMetrics } from '../../../sidebar/metricsDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
 import ResourceLinkChip from '../../../../shared/ResourceLinkChip';
 import ColumnPicker from '../../../../tables/ColumnFilter/ColumnPicker';
@@ -257,7 +258,7 @@ const PodTable: React.FC = () => {
     () => ({
       title: resourceKey, // TODO: change runtime sdk to accept a function
       icon: <LuContainer />,
-      views: createStandardViews({ SidebarComponent: PodSidebar }),
+      views: createStandardViews({ SidebarComponent: PodSidebar, metricsComponent: renderPodMetrics }),
       actions: drawerActions,
     }),
     [],

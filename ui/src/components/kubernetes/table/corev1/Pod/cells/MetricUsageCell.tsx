@@ -31,7 +31,9 @@ const valueLabelStyle = {
 
 // ── Context for passing batch metrics to table cells ──
 
-export const PodMetricsContext = createContext<PodMetricsMap>(new Map());
+export const PodMetricsContext = createContext<{ metricsMap: PodMetricsMap; error: unknown; isLoading: boolean }>({
+  metricsMap: new Map(), error: null, isLoading: false,
+});
 
 // ── Formatters ──
 
@@ -60,17 +62,22 @@ interface MetricUsageCellProps {
  * Reads pod metrics from PodMetricsContext.
  */
 const MetricUsageCell: React.FC<MetricUsageCellProps> = ({ podKey, format }) => {
-  const metricsMap = useContext(PodMetricsContext);
+  const { metricsMap, error, isLoading } = useContext(PodMetricsContext);
   const entry = metricsMap.get(podKey);
-
-  if (!entry) {
-    return (
-      <Text style={emptyValueStyle}>—</Text>
-    );
+  const metric = format === 'cpu' ? entry?.cpu : entry?.memory;
+  const raw = metric?.value?.current_value?.value;
+  const source = metric?.provenance.native ? 'Native' : [
+    metric?.provenance.source.plugin_id, metric?.provenance.source.connection_id,
+    metric?.provenance.source.datasource_uid,
+  ].filter(Boolean).join(' / ');
+  const expired = !!metric?.expires_at && Date.parse(metric.expires_at) > 0 && Date.parse(metric.expires_at) < Date.now();
+  const status = error ? 'error' : expired ? 'stale' : metric?.status ?? (isLoading ? 'loading' : 'unavailable');
+  if (typeof raw !== 'number' || !Number.isFinite(raw) || !['ok', 'stale', 'partial'].includes(status)) {
+    return <span title={[status, source, ...(metric?.warnings ?? [])].filter(Boolean).join(' · ')}>
+      <Text style={emptyValueStyle}>{status === 'loading' ? '…' : status === 'error' || status === 'failed' ? 'Error' : status === 'denied' ? 'Denied' : 'Unavailable'}</Text>
+    </span>;
   }
-
-  const raw = format === 'cpu' ? entry.cpuMillicores : entry.memoryBytes;
-  const label = format === 'cpu' ? formatCpu(raw) : formatMemory(raw);
+  const label = (format === 'cpu' ? formatCpu(raw) : formatMemory(raw)) + (status !== 'ok' ? ` (${status})` : '');
 
   // Estimate a percentage for the bar. Without per-pod limits available in the
   // table row we use a soft heuristic: CPU caps at 1000m (1 core),
@@ -88,7 +95,7 @@ const MetricUsageCell: React.FC<MetricUsageCellProps> = ({ podKey, format }) => 
         : 'var(--ov-color-success)';
 
   return (
-    <Stack direction="row" spacing={1} align="center" style={outerStackStyle}>
+    <Stack direction="row" spacing={1} align="center" style={outerStackStyle} title={[status, source, ...(metric?.warnings ?? [])].filter(Boolean).join(' · ')}>
       {/* Mini bar */}
       <div style={barTrackStyle}>
         <div

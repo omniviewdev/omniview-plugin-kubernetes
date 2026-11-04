@@ -82,7 +82,7 @@ func TestMetricClusterOverridesAreNotResourceIntent(t *testing.T) {
 	_, err = (&prometheusClient{}).getConfig(req.Params)
 	require.Equal(t, "INVALID_REQUEST", resourcev2.ErrorCode(err))
 	batch := sdkmetric.QueryRequest{ResourceKey: "k8s:/pods", ResourceNamespace: "selected"}
-	require.NoError(t, admitMetricRequest(qctx, &batch), "native batch metrics remain independent of one resource identity")
+	require.Equal(t, "INVALID_REQUEST", resourcev2.ErrorCode(admitMetricRequest(qctx, &batch)), "empty-ID batching is not a supported query convention")
 	named := sdkmetric.QueryRequest{ResourceKey: "k8s:/pods", ResourceID: "unadmitted-name"}
 	require.Equal(t, "INVALID_REQUEST", resourcev2.ErrorCode(admitMetricRequest(qctx, &named)))
 	canceled, cancel := context.WithCancel(context.Background())

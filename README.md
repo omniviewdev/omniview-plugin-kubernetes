@@ -39,8 +39,26 @@ of `SinceSeconds`. Kubernetes accepts only one time filter per log request.
 Kubernetes plugin 0.15.1 requires Omniview 0.27.2 or newer so the host includes
 the matching log lifecycle fixes. Update the desktop application before installing
 this plugin release.
-The plugin pins SDK 0.14.6 for completed-source handling while preserving the
-existing source-session wire contract and stock grpc-go dependency.
+The source branch pins SDK `v0.14.7-0.20261104035605-e391d4f586e2` for finite metrics contracts while preserving the resource source-session wire contract and stock grpc-go dependency.
+
+Pod table metrics query only the finite host records currently acquired by the table.
+Canonical references and routes preserve namespace, cluster, and pod-incarnation identity;
+opaque host keys are never parsed. Table and sidebar consumers use the runtime's shared
+resource-set scheduler. Saved metric bindings select external sources, while explicit
+native requests retain Kubernetes metrics. Cells distinguish missing, denied, failed,
+partial, and stale results from measured zero and expose source provenance in their tooltip.
+Pod-total cells reject dimensional series and duplicate aggregate results as ambiguous:
+per-container values require an explicit aggregate mapping, never last-container selection.
+
+Cluster Settings → Metrics hosts provider contributions, including per-cluster datasource selection and sparse mapping overrides. The default sidebar source follows the saved connection policy; Native remains an explicit choice. Supplement keeps native-only metrics alongside applicable external mappings without using native results as an error fallback.
+
+Sidebar current values and selected history use separate metric ID sets admitted by each descriptor's supported shapes and the selected source policy. A history-only selection never enters the current-value request. Supplemental admission considers native and external descriptors independently before deduplicating IDs. Native acquisition does not wait for the unrelated global external definition catalog; saved binding lookup still completes before acquisition, and missing saved bindings never fall back to native.
+
+Sidebar base current metrics keep their table-compatible subscription unchanged when additional metrics are selected. A separate current subscription requests only selected non-base IDs, then combines results, warnings, loading, and errors for display. History requests remain limited to explicitly selected metrics that support time series.
+
+Pod and Node Metrics tabs use the same finite, source-selectable metrics sections as Overview, including linked-resource drawers. Their owning views supply a typed metrics renderer; other resources retain their native metrics page. Both surfaces preserve the original host reference, route, and resource body through one canonical-context adapter.
+
+This frontend requires the paired host/runtime source cohort tracked in [metrics epic #388](https://github.com/omniviewdev/omniview/issues/388). Before marketplace publication, release the compatible host/npm packages, then update registry dependency pins, the lockfile, and the minimum host version. The existing registry pins do not establish compatibility with this source feature.
 
 ## MCP resource actions
 

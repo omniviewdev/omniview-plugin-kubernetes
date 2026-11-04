@@ -1,117 +1,136 @@
-import React, { type PropsWithChildren } from 'react';
-import { act, cleanup, renderHook } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { PropsWithChildren } from 'react';
+import type { HostRecord, ResourceMetricResult } from '@omniviewdev/runtime';
+const mocks = vi.hoisted(() => ({ bindings: vi.fn(), definitions: vi.fn(), query: vi.fn() }));
+vi.mock('@omniviewdev/runtime/api', () => ({ MetricClient: { GetMetricBindings: mocks.bindings, GetMetricDefinitions: mocks.definitions } }));
+vi.mock('@omniviewdev/runtime', () => ({ useResourceSetMetrics: mocks.query }));
+vi.mock('./useDocumentVisibility', () => ({ useDocumentVisibility: () => true }));
+import { podMetricResource, podMetricsMap, usePodResourceSetMetrics } from './usePodMetricsBatch';
 
-const transport = vi.hoisted(() => ({ query: vi.fn() }));
-vi.mock('@omniviewdev/runtime/api', () => ({ MetricClient: { QueryAll: transport.query } }));
-import { usePodMetricsBatch } from './usePodMetricsBatch';
+afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
-let client: QueryClient;
-let visibility: DocumentVisibilityState;
-function Wrapper({ children }: PropsWithChildren) {
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+function record(namespace: string, authority = 'cluster-a'): HostRecord {
+  return { key: 'opaque-host-key', addressKey: 'opaque-address', targetId: 'target', route: { connection: authority },
+    record: { reference: { address: { provider: 'kubernetes', authority, type: 'k8s:/pods', id: 'same', scope: [{ dimension: 'namespace', value: namespace }] }, incarnation: 'uid' } },
+  } as HostRecord;
 }
-async function settle() {
-  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
-}
-async function show(value: DocumentVisibilityState) {
-  visibility = value;
-  // Native visibilitychange bubbles to TanStack Query's window focus listener.
-  await act(async () => { document.dispatchEvent(new Event('visibilitychange', { bubbles: true })); });
-  await settle();
+function result(resource_token: string, metric_id: string, status: string, value?: number) {
+  return { resource_token, metric_id, status, provenance: { native: true },
+    ...(value === undefined ? {} : { value: { current_value: { value } } }),
+  } as ResourceMetricResult;
 }
 
-beforeEach(() => {
-  vi.useFakeTimers();
-  client = new QueryClient({ defaultOptions: { queries: { gcTime: Infinity } } });
-  visibility = 'visible';
-  vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => visibility);
-  transport.query.mockReset();
-  transport.query.mockImplementation(async (connectionID: string, request: { resource_namespace: string }) => ({
-    fixture: { success: true, results: [
-      { current_value: { metric_id: 'cpu_usage', value: connectionID === 'a' ? 12 : 27, labels: { namespace: request.resource_namespace || 'default', pod: 'pod' } } },
-      { current_value: { metric_id: 'memory_usage', value: 4096, labels: { namespace: request.resource_namespace || 'default', pod: 'pod' } } },
-    ] },
-  }));
+describe('finite pod metric identity', () => {
+  it('retains canonical route, namespace, and incarnation without parsing opaque host keys', () => {
+    const source = record('team');
+    const resource = podMetricResource(source);
+    expect(resource.reference).toBe(source.record.reference);
+    expect(resource.route).toBe(source.route);
+    expect(resource.resource_id).toBe('same');
+    expect(resource.resource_namespace).toBe('team');
+    expect(resource).not.toHaveProperty('public_data');
+    expect(resource.token).not.toBe(podMetricResource(record('other')).token);
+    expect(resource.token).not.toBe(podMetricResource(record('team', 'cluster-b')).token);
+  });
+  it('keeps missing distinct from measured zero and rejects foreign resource results', () => {
+    const first = podMetricResource(record('first'));
+    const second = podMetricResource(record('second'));
+    const map = podMetricsMap([first, second], [
+      result(first.token, 'cpu_usage', 'ok', 0),
+      result(first.token, 'memory_usage', 'missing'),
+      result(second.token, 'cpu_usage', 'denied'),
+      result('foreign', 'cpu_usage', 'ok', 999),
+    ]);
+    expect(map.size).toBe(2);
+    expect(map.get('first/same')?.cpu?.value?.current_value?.value).toBe(0);
+    expect(map.get('first/same')?.memory?.status).toBe('missing');
+    expect(map.get('first/same')?.memory?.value).toBeUndefined();
+    expect(map.get('second/same')?.cpu?.status).toBe('denied');
+  });
+  it('never displays a container series as the pod total in either result order', () => {
+    const resource = podMetricResource(record('team'));
+    const containers = [
+      { ...result(resource.token, 'cpu_usage', 'ok', 10), dimensions: { container: 'first' } },
+      { ...result(resource.token, 'cpu_usage', 'ok', 20), dimensions: { container: 'second' } },
+    ];
+    for (const series of [containers, [...containers].reverse(), containers.slice(0, 1)]) {
+      const cpu = podMetricsMap([resource], series).get('team/same')?.cpu;
+      expect(cpu?.status).toBe('ambiguous');
+      expect(cpu?.value).toBeUndefined();
+    }
+  });
+  it('rejects duplicate aggregate samples instead of picking the last result', () => {
+    const resource = podMetricResource(record('team'));
+    const cpu = podMetricsMap([resource], [
+      result(resource.token, 'cpu_usage', 'ok', 10),
+      result(resource.token, 'cpu_usage', 'ok', 20),
+    ]).get('team/same')?.cpu;
+    expect(cpu?.status).toBe('ambiguous');
+    expect(cpu?.value).toBeUndefined();
+  });
+  it('keeps source totals separate and never hides external failure with native success', () => {
+    const resource = podMetricResource(record('team'));
+    const native = result(resource.token, 'cpu_usage', 'ok', 30);
+    const external = { ...result(resource.token, 'cpu_usage', 'ok', 10), provenance: { native: false, binding_id: 'selected' } } as ResourceMetricResult;
+    for (const series of [[native, external], [external, native]]) {
+      const cpu = podMetricsMap([resource], series).get('team/same')?.cpu;
+      expect(cpu?.value?.current_value?.value).toBe(10);
+      expect(cpu?.provenance.native).toBe(false);
+    }
+    const denied = { ...external, status: 'denied', value: undefined } as ResourceMetricResult;
+    const cpu = podMetricsMap([resource], [native, denied]).get('team/same')?.cpu;
+    expect(cpu?.status).toBe('denied');
+    expect(cpu?.value).toBeUndefined();
+  });
 });
-afterEach(() => { cleanup(); client.clear(); vi.restoreAllMocks(); vi.useRealTimers(); });
 
-describe('Pod metrics acquisition', () => {
-  it('starts disabled without an initial request and acquires when a metric becomes visible', async () => {
-    const hook = renderHook(({ enabled }) => usePodMetricsBatch({ connectionID: 'a', enabled }), {
-      wrapper: Wrapper, initialProps: { enabled: false },
-    });
-    await act(async () => { await vi.advanceTimersByTimeAsync(90_000); });
-    expect(transport.query).not.toHaveBeenCalled();
-    hook.rerender({ enabled: true });
-    await settle();
-    expect(transport.query).toHaveBeenCalledTimes(1);
-    expect(hook.result.current.metricsMap.get('default/pod')).toEqual({ cpuMillicores: 12, memoryBytes: 4096 });
-    hook.rerender({ enabled: false });
-    await act(async () => { await vi.advanceTimersByTimeAsync(90_000); });
-    expect(transport.query).toHaveBeenCalledTimes(1);
-    hook.rerender({ enabled: true });
-    await settle();
-    expect(transport.query).toHaveBeenCalledTimes(2);
+describe('resource-set acquisition admission', () => {
+  it.each(['native', undefined])('acquires %s native metrics despite external catalog failure', async bindingID => {
+    mocks.bindings.mockResolvedValue(bindingID === 'native'
+      ? [{ id: 'saved', signal: 'metrics', policy: 'replace', source: { plugin_id: 'grafana' } }]
+      : []);
+    mocks.definitions.mockRejectedValue(new Error('Unrelated provider catalog failed'));
+    const native = result('pod', 'cpu_usage', 'ok', 42);
+    mocks.query.mockImplementation(request => ({ data: request ? { results: [native] } : undefined, error: null, isLoading: false }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    await client.fetchQuery({ queryKey: ['metric', 'definitions'], queryFn: mocks.definitions }).catch(() => undefined);
+    const wrapper = ({ children }: PropsWithChildren) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    const { result: query } = renderHook(() => usePodResourceSetMetrics({
+      connectionID: 'cluster', resources: [podMetricResource(record('team'))], bindingID,
+    }), { wrapper });
+    await waitFor(() => expect(query.current.data?.results).toEqual([native]));
+    expect(query.current.error).toBeNull();
+    expect(mocks.query.mock.calls.at(-1)?.[0].binding_id).toBe(bindingID === 'native' ? 'native' : '');
+    client.clear();
   });
 
-  it('does not acquire in a hidden document and resumes stale data once', async () => {
-    visibility = 'hidden';
-    renderHook(() => usePodMetricsBatch({ connectionID: 'a' }), { wrapper: Wrapper });
-    await act(async () => { await vi.advanceTimersByTimeAsync(90_000); });
-    expect(transport.query).not.toHaveBeenCalled();
-    await show('visible');
-    expect(transport.query).toHaveBeenCalledTimes(1);
-    await show('hidden');
-    await act(async () => { await vi.advanceTimersByTimeAsync(90_000); });
-    expect(transport.query).toHaveBeenCalledTimes(1);
-    await show('visible');
-    expect(transport.query).toHaveBeenCalledTimes(2);
+  it('keeps saved replace binding authoritative without catalog admission in the consumer', async () => {
+    mocks.bindings.mockResolvedValue([{ id: 'saved', signal: 'metrics', policy: 'replace', revision: 'r2', source: { plugin_id: 'grafana' } }]);
+    const native = result('pod', 'cpu_usage', 'ok', 42);
+    const external = { ...native, provenance: { native: false, binding_id: 'saved' } };
+    mocks.query.mockImplementation(request => ({ data: request ? { results: [native, external] } : undefined, error: null, isLoading: false }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: PropsWithChildren) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    const { result: query } = renderHook(() => usePodResourceSetMetrics({
+      connectionID: 'cluster', resources: [podMetricResource(record('team'))],
+    }), { wrapper });
+    await waitFor(() => expect(query.current.data?.results).toEqual([external]));
+    expect(mocks.query.mock.calls.at(-1)?.[0]).toMatchObject({ binding_id: 'saved', mapping_revision: 'r2', source: { plugin_id: 'grafana' } });
+    client.clear();
   });
 
-  it('never presents previous connection or namespace data while new metrics are pending', async () => {
-    const hook = renderHook(({ connectionID, namespace }) => usePodMetricsBatch({ connectionID, namespace }), {
-      wrapper: Wrapper, initialProps: { connectionID: 'a', namespace: 'first' },
-    });
-    await settle();
-    expect(hook.result.current.metricsMap.get('first/pod')?.cpuMillicores).toBe(12);
-    const { promise, resolve: finish } = Promise.withResolvers<object>();
-    transport.query.mockImplementationOnce(() => promise);
-    hook.rerender({ connectionID: 'b', namespace: 'second' });
-    expect(hook.result.current.metricsMap.size).toBe(0);
-    await act(async () => { finish({}); });
-    await settle();
-    expect(hook.result.current.metricsMap.size).toBe(0);
-  });
-
-  it('reports controlled request counts through the real hook and query client', async () => {
-    visibility = 'hidden';
-    const hook = renderHook(({ enabled, connectionID }) => usePodMetricsBatch({ connectionID, enabled }), {
-      wrapper: Wrapper, initialProps: { enabled: true, connectionID: 'a' },
-    });
-    await settle();
-    await act(async () => { await vi.advanceTimersByTimeAsync(120_000); });
-    const initialHidden = transport.query.mock.calls.length;
-    await show('visible');
-    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
-    const visible = transport.query.mock.calls.length - initialHidden;
-    const beforeColumnsHidden = transport.query.mock.calls.length;
-    hook.rerender({ enabled: false, connectionID: 'a' });
-    await act(async () => { await vi.advanceTimersByTimeAsync(120_000); });
-    const columnsHidden = transport.query.mock.calls.length - beforeColumnsHidden;
-    hook.rerender({ enabled: true, connectionID: 'a' });
-    await settle();
-    await show('hidden');
-    const beforeHidden = transport.query.mock.calls.length;
-    hook.rerender({ enabled: true, connectionID: 'b' });
-    await act(async () => { await vi.advanceTimersByTimeAsync(120_000); });
-    const hiddenConnectionSwitch = transport.query.mock.calls.length - beforeHidden;
-    await show('visible');
-    expect(initialHidden).toBe(0);
-    expect(visible).toBeGreaterThan(0);
-    expect(columnsHidden).toBe(0);
-    expect(hiddenConnectionSwitch).toBe(0);
-    expect(hook.result.current.metricsMap.get('default/pod')?.memoryBytes).toBe(4096);
+  it('rejects missing saved binding rather than acquiring native metrics', async () => {
+    mocks.bindings.mockResolvedValue([]);
+    mocks.query.mockReturnValue({ error: null, isLoading: false });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: PropsWithChildren) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    const { result: query } = renderHook(() => usePodResourceSetMetrics({
+      connectionID: 'cluster', resources: [podMetricResource(record('team'))], bindingID: 'removed',
+    }), { wrapper });
+    await waitFor(() => expect(query.current.error?.message).toBe('Selected metric binding is unavailable'));
+    expect(mocks.query.mock.calls.every(([request]) => request === undefined)).toBe(true);
+    client.clear();
   });
 });

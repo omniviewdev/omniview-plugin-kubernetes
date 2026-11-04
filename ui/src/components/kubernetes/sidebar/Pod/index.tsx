@@ -1,5 +1,5 @@
 import { Stack } from '@omniviewdev/base-ui';
-import { DrawerContext, useResourceMetrics } from '@omniviewdev/runtime';
+import { DrawerContext } from '@omniviewdev/runtime';
 import { Pod } from 'kubernetes-types/core/v1';
 import React from 'react';
 
@@ -10,8 +10,11 @@ import PodConfigSection from './PodConfigSection';
 import PodContainersSection from './PodContainersSection';
 import PodStatusSection from './PodStatusSection';
 import PodVolumesSection from './PodVolumesSection';
+import PodMetricsSection from './PodMetricsSection';
+import { metricSidebarProps } from '../metricsDrawerViews';
 
-import { PLUGIN_ID } from '@/pluginId';
+import { podMetricResource, usePodResourceSetMetrics } from '@/hooks/usePodMetricsBatch';
+import { aggregateMetricValue } from '../metricPresentation';
 
 interface Props {
   ctx: DrawerContext<Pod>;
@@ -22,52 +25,13 @@ export const PodSidebar: React.FC<Props> = ({ ctx }) => {
   const connectionID = ctx.resource?.route.connection || '';
   const resourceID = ctx.resource?.reference.address.id || '';
 
-  // Fetch live CPU/memory metrics for this pod.
-  // Request both metrics-server and Prometheus IDs — whichever is available responds.
-  const { data: metricsData } = useResourceMetrics({
-    pluginID: PLUGIN_ID,
+  const { data: metricsData } = usePodResourceSetMetrics({
     connectionID,
-    resourceKey: 'k8s:/pods',
-    resourceID,
-    resourceNamespace: pod?.metadata?.namespace,
-    resourceData: ctx.resource?.record?.record.body,
-    reference: ctx.resource?.reference,
-    route: ctx.resource?.route,
-    metricIDs: [
-      'cpu_usage',
-      'memory_usage', // metrics-server
-      'prom_cpu_usage_rate',
-      'prom_memory_working_set', // prometheus
-    ],
-    shape: 0, // CURRENT
-    refreshInterval: 15_000,
-    enabled: !!connectionID && !!resourceID,
+    resources: ctx.resource?.record ? [podMetricResource(ctx.resource.record)] : [],
+    bindingID: 'native',
   });
-
-  // Extract aggregate CPU/memory from the first provider's results.
-  // Handle both metrics-server IDs and Prometheus IDs.
-  const CPU_IDS = new Set(['cpu_usage', 'prom_cpu_usage_rate']);
-  const MEM_IDS = new Set(['memory_usage', 'prom_memory_working_set']);
-
-  let podCpuUsage: number | undefined;
-  let podMemoryUsage: number | undefined;
-
-  if (metricsData) {
-    for (const resp of Object.values(metricsData)) {
-      if (!resp?.success || !resp.results) continue;
-      for (const result of resp.results) {
-        const mid = result.current_value?.metric_id ?? '';
-        if (CPU_IDS.has(mid) && podCpuUsage == null) {
-          // prom_cpu_usage_rate is in cores from single-pod queries — convert to millicores
-          const raw = result.current_value!.value;
-          podCpuUsage = mid === 'prom_cpu_usage_rate' ? raw * 1000 : raw;
-        } else if (MEM_IDS.has(mid) && podMemoryUsage == null) {
-          podMemoryUsage = result.current_value!.value;
-        }
-      }
-      if (podCpuUsage != null && podMemoryUsage != null) break;
-    }
-  }
+  const podCpuUsage = aggregateMetricValue(metricsData?.results, 'cpu_usage');
+  const podMemoryUsage = aggregateMetricValue(metricsData?.results, 'memory_usage');
 
   if (!pod) {
     return null;
@@ -82,6 +46,7 @@ export const PodSidebar: React.FC<Props> = ({ ctx }) => {
         <PodConfigSection pod={pod} connectionID={connectionID} />
       </Stack>
       <DebugSessionsSection connectionID={connectionID} pod={pod} />
+      <PodMetricsSection {...metricSidebarProps(ctx)} />
 
       {/* Containers — separated by section heading */}
       <PodContainersSection

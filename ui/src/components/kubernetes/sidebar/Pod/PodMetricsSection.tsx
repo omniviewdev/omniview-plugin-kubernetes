@@ -1,401 +1,139 @@
+import { useMemo, useState } from 'react';
 import { Spinner, Stack, Text } from '@omniviewdev/base-ui';
-import { useResourceMetrics, type Value, type ResourceReference, type AccessRoute } from '@omniviewdev/runtime';
-import { metric } from '@omniviewdev/runtime/models';
-import React, { useState, useMemo, useCallback } from 'react';
-
+import { useMetricProvidersForResource, type MetricResource, type ResourceReference, type AccessRoute, type Value } from '@omniviewdev/runtime';
+import { MetricClient } from '@omniviewdev/runtime/api';
+import { useQuery } from '@tanstack/react-query';
 import { MetricsPanel } from '../../../shared/charts';
-import type { TimeSeriesDef, ChartTimeRange } from '../../../shared/charts';
-
+import type { ChartTimeRange } from '../../../shared/charts';
 import { PLUGIN_ID } from '@/pluginId';
+import { metricResultDisplay, metricResourceToken } from '../metricPresentation';
+import { usePodResourceSetMetrics } from '@/hooks/usePodMetricsBatch';
 
-const metricTileBoxStyle: React.CSSProperties = {
-  paddingBlock: 6,
-  paddingInline: 8,
-  borderRadius: 4,
-  border: '1px solid var(--ov-color-border-default)',
-  background: 'var(--ov-color-bg-surface-raised)',
+const UNIT_LABELS: Record<number, string> = {
+  0: '', 1: 'B', 2: 'KB', 3: 'MB', 4: 'GB', 5: '%', 6: 'ms',
+  7: 's', 8: 'count', 9: 'ops/s', 10: 'B/s', 11: 'millicores', 12: 'cores',
 };
 
-const metricTileLabelStyle: React.CSSProperties = { marginBottom: 2, display: 'block' };
-
-const metricTileValueStyle: React.CSSProperties = { fontVariantNumeric: 'tabular-nums' };
-
-const loadingContainerStyle: React.CSSProperties = { display: 'flex', justifyContent: 'center', paddingBlock: 16 };
-
-const sectionBorderStyle: React.CSSProperties = {
-  borderRadius: 4,
-  border: '1px solid var(--ov-color-border-default)',
-};
-
-const sectionHeaderStyle: React.CSSProperties = { paddingBlock: 4, paddingInline: 8 };
-
-const sectionHeaderWithActionsStyle: React.CSSProperties = {
-  paddingBlock: 4,
-  paddingInline: 8,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-};
-
-const errorBoxStyle: React.CSSProperties = { paddingInline: 8, paddingBottom: 4 };
-
-const bodyPaddingStyle: React.CSSProperties = { paddingInline: 4, paddingBottom: 8 };
-
-const noMetricsBodyStyle: React.CSSProperties = { paddingInline: 8, paddingBottom: 8 };
-
-const tileContainerStyle: React.CSSProperties = { paddingInline: 4 };
-
-const tileHeadingStyle: React.CSSProperties = {
-  display: 'block',
-  textTransform: 'uppercase',
-  letterSpacing: '0.04em',
-  fontSize: '0.6rem',
-  marginBottom: 4,
-};
-
-/** Two equal columns with 4px gap (MUI Grid spacing 0.5, size 6). */
-const tileGridStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-  gap: 4,
-};
-
-interface Props {
+export interface MetricSidebarProps {
   connectionID: string;
   resourceKey: string;
   resourceID: string;
-  resourceNamespace: string;
+  resourceNamespace?: string;
   resourceData?: Value;
   reference?: ResourceReference;
   route?: AccessRoute;
+  nativeMetricIDs?: string[];
 }
 
-function formatValue(value: number, unitCode: number): string {
-  if (unitCode === 1) {
-    if (value >= 1024 * 1024 * 1024) return `${(value / (1024 * 1024 * 1024)).toFixed(1)} GB`;
-    if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`;
-    if (value >= 1024) return `${(value / 1024).toFixed(1)} KB`;
-    return `${value} B`;
-  }
-  if (unitCode === 10) {
-    if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB/s`;
-    if (value >= 1024) return `${(value / 1024).toFixed(1)} KB/s`;
-    return `${value.toFixed(0)} B/s`;
-  }
-  if (unitCode === 11) {
-    if (value >= 1000) return `${(value / 1000).toFixed(2)} cores`;
-    return `${Math.round(value)}m`;
-  }
-  if (unitCode === 12) return `${value.toFixed(3)} cores`;
-  if (unitCode === 5) return `${value.toFixed(1)}%`;
-  if (Number.isInteger(value)) return `${value}`;
-  return `${value.toFixed(2)}`;
-}
-
-/** Compact metric tile for instant values */
-const MetricTile: React.FC<{
-  label: string;
-  value: string;
-}> = ({ label, value }) => (
-  <div style={metricTileBoxStyle}>
-    <Text size="xs" tone="muted" style={metricTileLabelStyle}>
-      {label}
-    </Text>
-    <Text size="sm" weight="semibold" style={metricTileValueStyle}>
-      {value}
-    </Text>
-  </div>
-);
-
-/** Readable display name for known metric IDs */
-const METRIC_NAMES: Record<string, string> = {
-  cpu_usage: 'CPU (metrics-server)',
-  memory_usage: 'Memory (metrics-server)',
-  prom_cpu_usage_rate: 'CPU Usage Rate',
-  prom_cpu_throttle_rate: 'CPU Throttle',
-  prom_memory_working_set: 'Working Set',
-  prom_memory_rss: 'RSS',
-  prom_network_receive_rate: 'Receive',
-  prom_network_transmit_rate: 'Transmit',
-  prom_fs_usage: 'Filesystem Usage',
-  prom_restart_count: 'Restarts',
-};
-
-/** Extract current-value metrics from all providers keyed by metric_id */
-function extractCurrentMetrics(
-  data: Record<string, metric.QueryResponse> | undefined,
-): Map<string, { value: number; unit: number }> {
-  const out = new Map<string, { value: number; unit: number }>();
-  if (!data) return out;
-
-  for (const [, resp] of Object.entries(data)) {
-    if (!resp?.success || !resp.results) continue;
-    for (const result of resp.results) {
-      if (result.current_value) {
-        out.set(result.current_value.metric_id, {
-          value: result.current_value.value,
-          unit: 0,
-        });
-      }
-    }
-  }
-  return out;
-}
-
-/** Extract time-series results keyed by metric_id */
-function extractTimeSeries(
-  data: Record<string, metric.QueryResponse> | undefined,
-): Map<string, metric.TimeSeries> {
-  const out = new Map<string, metric.TimeSeries>();
-  if (!data) return out;
-
-  for (const [, resp] of Object.entries(data)) {
-    if (!resp?.success || !resp.results) continue;
-    for (const result of resp.results) {
-      if (result.time_series) {
-        out.set(result.time_series.metric_id, result.time_series);
-      }
-    }
-  }
-  return out;
-}
-
-/** Convert SDK TimeSeries to chart-compatible TimeSeriesDef */
-function toTimeSeriesDef(ts: metric.TimeSeries, label: string, color?: string): TimeSeriesDef {
-  return {
-    id: ts.metric_id,
-    label,
-    // dp.timestamp is a Wails-serialized time.Time (ISO string at runtime)
-    data: (ts.data_points ?? []).map((dp) => ({
-      timestamp: new Date(dp.timestamp).getTime(),
-      value: dp.value,
-    })),
-    color,
-    area: true,
-  };
-}
-
-/** Metrics that remain as instant-only tiles */
-const TILE_ONLY_METRICS = [
-  'cpu_usage',
-  'memory_usage',
-  'prom_fs_usage',
-  'prom_cpu_throttle_rate',
-  'prom_restart_count',
-];
-
-const PodMetricsSection: React.FC<Props> = ({
-  connectionID,
-  resourceKey,
-  resourceID,
-  resourceNamespace,
-  resourceData,
-  reference,
-  route,
-}) => {
-  const [timeRange, setTimeRange] = useState<ChartTimeRange>(() => ({
-    from: new Date(Date.now() - 60 * 60 * 1000), // 1h ago
-    to: new Date(),
-  }));
-
-  // Instant values (shape=0 CURRENT) for tiles and current value annotations
-  const {
-    data: currentData,
-    isLoading: currentLoading,
-    error,
-  } = useResourceMetrics({
-    pluginID: PLUGIN_ID,
-    connectionID,
-    resourceKey,
-    resourceID,
-    resourceNamespace,
-    resourceData,
-    reference,
-    route,
-    refreshInterval: 30000,
+/** Resource ownership always comes from the host target, never the provider source. */
+export default function PodMetricsSection(props: MetricSidebarProps) {
+  const { connectionID, resourceKey, resourceID, reference, route } = props;
+  const [bindingID, setBindingID] = useState('');
+  const [additional, setAdditional] = useState<string[]>([]);
+  const [timeRange, setTimeRange] = useState<ChartTimeRange>(() => ({ from: new Date(Date.now() - 3600000), to: new Date() }));
+  const enabled = Boolean(connectionID && resourceID && reference && route);
+  const bindings = useQuery({
+    queryKey: ['metric', 'bindings', PLUGIN_ID, connectionID],
+    queryFn: () => MetricClient.GetMetricBindings(PLUGIN_ID, connectionID),
+    enabled,
   });
-
-  // Time-series data (shape=1 TIMESERIES) for charts
-  const { data: tsData, isLoading: tsLoading } = useResourceMetrics({
-    pluginID: PLUGIN_ID,
-    connectionID,
-    resourceKey,
-    resourceID,
-    resourceNamespace,
-    resourceData,
-    reference,
-    route,
-    shape: 1,
-    timeRange: {
-      start: timeRange.from,
-      end: timeRange.to,
-      step: '',
-    },
-    metricIDs: [
-      'prom_cpu_usage_rate',
-      'prom_memory_working_set',
-      'prom_memory_rss',
-      'prom_network_receive_rate',
-      'prom_network_transmit_rate',
-    ],
-    refreshInterval: 30000,
+  const definitions = useQuery({ queryKey: ['metric', 'definitions'], queryFn: () => MetricClient.GetMetricDefinitions(), enabled });
+  const nativeProviders = useMetricProvidersForResource(resourceKey);
+  const sources = (bindings.data ?? []).filter(binding => binding.signal === 'metrics');
+  const selectedBinding = sources.find(binding => bindingID !== 'native' && (!bindingID || binding.id === bindingID));
+  const nativeMetrics = (nativeProviders.data ?? [])
+    .filter(provider => provider.plugin_id === PLUGIN_ID)
+    .flatMap(provider => (provider.handlers ?? []).filter(handler => handler.resource === resourceKey).flatMap(handler => handler.metrics ?? []));
+  const externalMetrics = (definitions.data ?? []).filter(definition => !definition.native && definition.resource_keys?.includes(resourceKey));
+  const needsNative = !selectedBinding || selectedBinding.policy === 'supplement';
+  const available = !selectedBinding ? nativeMetrics : selectedBinding.policy === 'supplement'
+    ? [...externalMetrics, ...nativeMetrics.filter(metric => !externalMetrics.some(definition => definition.id === metric.id))]
+    : externalMetrics;
+  const baseIDs = props.nativeMetricIDs ?? ['cpu_usage', 'memory_usage'];
+  // Shape admission uses both supplemental lanes before deduplicating IDs.
+  const descriptors = !selectedBinding ? nativeMetrics : selectedBinding.policy === 'supplement'
+    ? [...externalMetrics, ...nativeMetrics] : externalMetrics;
+  const currentBaseIDs = [...new Set(descriptors
+    .filter(definition => baseIDs.includes(definition.id) && definition.supported_shapes?.includes(0))
+    .map(definition => definition.id))];
+  const additionalCurrentIDs = [...new Set(descriptors
+    .filter(definition => !baseIDs.includes(definition.id) && additional.includes(definition.id) && definition.supported_shapes?.includes(0))
+    .map(definition => definition.id))];
+  const metricIDs = [...currentBaseIDs, ...additionalCurrentIDs];
+  const token = metricResourceToken(reference, resourceKey, props.resourceNamespace ?? '', resourceID);
+  const resources = useMemo(() => enabled ? [{
+    token, resource_key: resourceKey, resource_id: resourceID,
+    resource_namespace: reference?.address.scope.find(scope => scope.dimension === 'namespace')?.value ?? props.resourceNamespace ?? '',
+    reference, route,
+  } as MetricResource] : [], [enabled, token, resourceKey, resourceID, props.resourceNamespace, reference, route]);
+  // Keep the base lane table-compatible when additional metrics change.
+  const current = usePodResourceSetMetrics({ connectionID, resources, bindingID: bindingID || undefined, metricIDs: currentBaseIDs, enabled: enabled && currentBaseIDs.length > 0 });
+  const additionalCurrent = usePodResourceSetMetrics({ connectionID, resources, bindingID: bindingID || undefined, metricIDs: additionalCurrentIDs, enabled: enabled && additionalCurrentIDs.length > 0 });
+  const seriesIDs = [...new Set(descriptors
+    .filter(definition => additional.includes(definition.id) && definition.supported_shapes?.includes(1))
+    .map(definition => definition.id))];
+  const history = usePodResourceSetMetrics({
+    connectionID, resources, bindingID: bindingID || undefined, metricIDs: seriesIDs, shape: 1,
+    startTime: timeRange.from.toISOString(), endTime: timeRange.to.toISOString(), step: 30000000000,
+    enabled: enabled && seriesIDs.length > 0,
   });
-
-  const currentMetrics = useMemo(() => extractCurrentMetrics(currentData), [currentData]);
-  const tsSeries = useMemo(() => extractTimeSeries(tsData), [tsData]);
-
-  const isLoading = currentLoading && currentMetrics.size === 0;
-  const hasTimeSeries = tsSeries.size > 0;
-
-  // Build chart series
-  const cpuSeries = useMemo<TimeSeriesDef[]>(() => {
-    const s: TimeSeriesDef[] = [];
-    const cpu = tsSeries.get('prom_cpu_usage_rate');
-    if (cpu) s.push(toTimeSeriesDef(cpu, 'CPU Usage', 'var(--ov-color-brand-500)'));
-    return s;
-  }, [tsSeries]);
-
-  const memorySeries = useMemo<TimeSeriesDef[]>(() => {
-    const s: TimeSeriesDef[] = [];
-    const ws = tsSeries.get('prom_memory_working_set');
-    if (ws) s.push(toTimeSeriesDef(ws, 'Working Set', 'var(--ov-color-brand-500)'));
-    const rss = tsSeries.get('prom_memory_rss');
-    if (rss) s.push(toTimeSeriesDef(rss, 'RSS', 'var(--ov-color-secondary)'));
-    return s;
-  }, [tsSeries]);
-
-  const networkSeries = useMemo<TimeSeriesDef[]>(() => {
-    const s: TimeSeriesDef[] = [];
-    const rx = tsSeries.get('prom_network_receive_rate');
-    if (rx) s.push(toTimeSeriesDef(rx, 'Receive', 'var(--ov-color-success)'));
-    const tx = tsSeries.get('prom_network_transmit_rate');
-    if (tx) s.push(toTimeSeriesDef(tx, 'Transmit', 'var(--ov-color-warning)'));
-    return s;
-  }, [tsSeries]);
-
-  const handleTimeRangeChange = useCallback((range: ChartTimeRange) => {
-    setTimeRange(range);
-  }, []);
-
-  // Tile-only metrics
-  const tileMetrics = TILE_ONLY_METRICS.filter((id) => currentMetrics.has(id)).map((id) => ({
-    id,
-    ...currentMetrics.get(id)!,
-  }));
-
-  if (isLoading) {
-    return (
-      <div style={loadingContainerStyle}>
-        <Spinner size="sm" />
-      </div>
-    );
-  }
-
-  if (currentMetrics.size === 0 && !hasTimeSeries && !error) {
-    return (
-      <div style={sectionBorderStyle}>
-        <div style={sectionHeaderStyle}>
-          <Text weight="semibold" size="sm">
-            Metrics
-          </Text>
-        </div>
-        <div style={noMetricsBodyStyle}>
-          <Text size="xs" tone="subtle">
-            No metrics available. Ensure metrics-server or Prometheus is installed.
-          </Text>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div style={sectionBorderStyle}>
-      {/* Header */}
-      <div style={sectionHeaderWithActionsStyle}>
-        <Text weight="semibold" size="sm">
-          Metrics
-        </Text>
-        {(currentLoading || tsLoading) && <Spinner size="xs" />}
-      </div>
-
-      {error && (
-        <div style={errorBoxStyle}>
-          <Text size="xs" tone="danger">
-            {error.message || 'Failed to load metrics'}
-          </Text>
-        </div>
-      )}
-
-      <div style={bodyPaddingStyle}>
-        <Stack direction="column" spacing={0} style={{ gap: 6 }}>
-          {/* Time-series charts */}
-          {hasTimeSeries && (
-            <>
-              {cpuSeries.length > 0 && (
-                <MetricsPanel
-                  title="CPU"
-                  series={cpuSeries}
-                  timeRange={timeRange}
-                  onTimeRangeChange={handleTimeRangeChange}
-                  valueFormat="rate"
-                  unit="cores"
-                  area
-                  variant="compact"
-                  height={140}
-                  loading={tsLoading}
-                />
-              )}
-              {memorySeries.length > 0 && (
-                <MetricsPanel
-                  title="Memory"
-                  series={memorySeries}
-                  timeRange={timeRange}
-                  onTimeRangeChange={handleTimeRangeChange}
-                  valueFormat="bytes"
-                  area
-                  variant="compact"
-                  height={140}
-                  loading={tsLoading}
-                />
-              )}
-              {networkSeries.length > 0 && (
-                <MetricsPanel
-                  title="Network"
-                  series={networkSeries}
-                  timeRange={timeRange}
-                  onTimeRangeChange={handleTimeRangeChange}
-                  valueFormat="bytes"
-                  unit="/s"
-                  area
-                  variant="compact"
-                  height={140}
-                  loading={tsLoading}
-                />
-              )}
-            </>
-          )}
-
-          {/* Instant-only tiles */}
-          {tileMetrics.length > 0 && (
-            <div style={tileContainerStyle}>
-              <Text size="xs" weight="semibold" tone="muted" style={tileHeadingStyle}>
-                Current Values
-              </Text>
-              <div style={tileGridStyle}>
-                {tileMetrics.map((m) => (
-                  <MetricTile
-                    key={m.id}
-                    label={METRIC_NAMES[m.id] || m.id}
-                    value={formatValue(m.value, m.unit)}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-        </Stack>
-      </div>
-    </div>
-  );
-};
-
-export default PodMetricsSection;
+  const results = [...(current.data?.results ?? []), ...(additionalCurrent.data?.results ?? [])].filter(result => result.resource_token === token);
+  const currentLoading = current.isLoading || additionalCurrent.isLoading;
+  const error = bindings.error ?? (selectedBinding ? definitions.error : undefined) ?? (needsNative ? nativeProviders.error : undefined) ?? current.error ?? additionalCurrent.error ?? history.error;
+  return <Stack direction="column" spacing={2}>
+    <Text weight="semibold">Metrics</Text>
+    <label>Metric source <select aria-label="Metric source" value={bindingID} onChange={event => { setBindingID(event.target.value); setAdditional([]); }}>
+      <option value="">Connection default</option>
+      <option value="native">Native Kubernetes metrics</option>
+      {sources.map(binding => <option key={binding.id} value={binding.id}>{binding.source.plugin_id} · {binding.source.connection_id} · {binding.source.datasource_uid} ({binding.policy})</option>)}
+    </select></label>
+    <fieldset><legend>Additional metrics</legend>
+      {available.map(definition => <label key={definition.id} style={{ display: 'block' }}>
+        <input type="checkbox" checked={additional.includes(definition.id)} onChange={event => setAdditional(ids => event.target.checked ? [...ids, definition.id] : ids.filter(id => id !== definition.id))} />{definition.name}
+      </label>)}
+      {!available.length && <Text size="xs">No applicable metric definitions.</Text>}
+    </fieldset>
+    {!enabled && <Text size="xs">Canonical resource target unavailable.</Text>}
+    {error && <Text role="alert" tone="danger">{error instanceof Error ? error.message : 'Metrics request failed'}</Text>}
+    {(currentLoading || bindings.isLoading || (selectedBinding && definitions.isLoading) || (needsNative && nativeProviders.isLoading)) && <Spinner size="sm" />}
+    {enabled && !currentLoading && !error && !results.length && <Text size="xs">No measurements returned. This does not mean zero usage.</Text>}
+    {metricIDs.map(id => {
+      const matches = results.filter(result => result.metric_id === id);
+      return <div key={id}><Text size="sm">{available.find(definition => definition.id === id)?.name ?? id}</Text>
+        {!matches.length && !currentLoading && <Text size="xs">Not reported</Text>}
+        {matches.map((result, index) => {
+          const definition = (result.provenance.native ? nativeMetrics : externalMetrics).find(definition => definition.id === id);
+          const sourceLabel = result.provenance.native ? 'Native Kubernetes' : `${result.provenance.source.plugin_id} · ${result.provenance.source.datasource_uid}`;
+          const provenance = [
+            result.provenance.native ? 'Native Kubernetes' : `${result.provenance.source.plugin_id} · ${result.provenance.source.connection_id} · ${result.provenance.source.datasource_uid}`,
+            `Status: ${result.status}`,
+            result.mapping_revision ? `Revision: ${result.mapping_revision}` : '',
+            ...Object.entries(result.value?.current_value?.labels ?? {}).map(([key, value]) => `${key}: ${value}`),
+          ].filter(Boolean).join('\n');
+          return <div key={index} style={{ padding: '4px 0 8px' }}>
+          <div><Text size="sm" weight="semibold">{metricResultDisplay(result)} {definition ? UNIT_LABELS[definition.unit] : ''}</Text></div>
+          <div><Text size="xs" tone="muted" title={provenance}>{sourceLabel} · {result.status}</Text></div>
+          {Object.entries(result.dimensions ?? {}).map(([key, value]) => <div key={key}><Text size="xs">{key}: {value}</Text></div>)}
+          {result.warnings?.map((warning, index) => <Text key={index} size="xs">{warning}</Text>)}
+        </div>;
+        })}
+      </div>;
+    })}
+    {[...(current.data?.warnings ?? []), ...(additionalCurrent.data?.warnings ?? [])].map((warning, index) => <Text key={index} size="xs">{warning}</Text>)}
+    {(history.data?.results ?? []).filter(result => result.resource_token === token).map((result, index) => {
+      const series = result.value?.time_series;
+      const identity = JSON.stringify(result.dimensions ?? {});
+      const provenance = result.provenance.native ? 'Native Kubernetes' : `${result.provenance.source.plugin_id} · ${result.provenance.source.connection_id} · ${result.provenance.source.datasource_uid}`;
+      const sourceLabel = result.provenance.native ? 'Native Kubernetes' : `${result.provenance.source.plugin_id} · ${result.provenance.source.datasource_uid}`;
+      const details = [provenance, `Status: ${result.status}`, result.mapping_revision ? `Revision: ${result.mapping_revision}` : '', ...Object.entries(series?.labels ?? {}).map(([key, value]) => `${key}: ${value}`)].filter(Boolean).join('\n');
+      return <div key={`${result.metric_id}-${identity}-${index}`}>
+        <div><Text size="xs" tone="muted" title={details}>{sourceLabel} · {result.status}</Text></div>
+        {Object.entries(result.dimensions ?? {}).map(([key, value]) => <div key={`dimension-${key}`}><Text size="xs">{key}: {value}</Text></div>)}
+        {result.warnings?.map((warning, warningIndex) => <Text key={warningIndex} size="xs">{warning}</Text>)}
+        {!series?.data_points?.length || !['ok', 'partial', 'stale'].includes(result.status)
+          ? <Text size="xs">{result.metric_id}: No history measurements</Text>
+          : <MetricsPanel title={available.find(definition => definition.id === result.metric_id)?.name ?? result.metric_id} series={[{ id: `${result.metric_id}-${identity}`, label: `${result.metric_id} ${identity}`, data: series.data_points.filter(point => Number.isFinite(point.value)).map(point => ({ timestamp: new Date(point.timestamp).getTime(), value: point.value })) }]} timeRange={timeRange} onTimeRangeChange={setTimeRange} variant="compact" height={140} loading={history.isFetching} />}
+      </div>;
+    })}
+  </Stack>;
+}
