@@ -1,7 +1,7 @@
 import {
   usePluginContext,
   useConnection,
-  useSnackbar,
+  useNotifications,
   usePluginRouter,
 } from '@omniviewdev/runtime';
 import { types } from '@omniviewdev/runtime/models';
@@ -11,7 +11,7 @@ import { useCallback, useRef, useState } from 'react';
 export function useClusterAction(connectionId: string, isConnected: boolean) {
   const { meta } = usePluginContext();
   const { navigate } = usePluginRouter();
-  const snackbar = useSnackbar();
+  const { notify } = useNotifications();
   const { startConnection, stopConnection } = useConnection({
     pluginID: meta.id,
     connectionID: connectionId,
@@ -28,11 +28,10 @@ export function useClusterAction(connectionId: string, isConnected: boolean) {
         if (!isConnected) {
           const status = await startConnection();
           if (status.status !== types.ConnectionStatusCode.ConnectionStatusConnected) {
-            snackbar.showSnackbar({
-              status: 'warning',
-              message: 'Failed to connect to cluster',
+            void notify({
+              severity: 'warning',
+              title: 'Failed to connect to cluster',
               details: status.details,
-              icon: 'LuCircleAlert',
             });
             return;
           }
@@ -47,7 +46,7 @@ export function useClusterAction(connectionId: string, isConnected: boolean) {
         setConnecting(false);
       }
     },
-    [connectionId, isConnected, navigate, snackbar, startConnection],
+    [connectionId, isConnected, navigate, notify, startConnection],
   );
   const handleClick = useCallback(() => run(true), [run]);
   const handleConnect = useCallback(() => run(false), [run]);

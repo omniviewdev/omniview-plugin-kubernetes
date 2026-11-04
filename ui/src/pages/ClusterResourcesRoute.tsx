@@ -1,4 +1,4 @@
-import { usePluginRouter, useSnackbar } from '@omniviewdev/runtime';
+import { usePluginRouter, useNotifications } from '@omniviewdev/runtime';
 import { useEffect, useRef } from 'react';
 import { useParams } from 'react-router';
 
@@ -12,19 +12,19 @@ import ClusterResourcesPage from './ClusterResourcesPage';
  */
 export function ConnectedClusterView({ connectionID }: { connectionID: string }) {
   const preferences = useClusterPreferences(PLUGIN_ID);
-  const snackbar = useSnackbar();
+  const { notify } = useNotifications();
   const recordedID = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (recordedID.current === connectionID) return;
     recordedID.current = connectionID;
     // A failed preference write must not turn a successful view into a failed connection.
     void preferences.recordAccess(connectionID).catch(() => {
-      snackbar.showSnackbar({
-        status: 'warning',
-        message: 'Cluster opened, but recent history could not be saved.',
+      void notify({
+        severity: 'warning',
+        title: 'Cluster opened, but recent history could not be saved.',
       });
     });
-  }, [connectionID, preferences, snackbar]);
+  }, [connectionID, preferences, notify]);
   return <ClusterResourcesPage />;
 }
 

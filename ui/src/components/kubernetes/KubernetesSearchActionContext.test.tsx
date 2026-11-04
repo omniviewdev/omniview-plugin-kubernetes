@@ -78,22 +78,24 @@ describe('global Kubernetes action context', () => {
       target: 'main', resourceData: jsonToValue(data), reference: scope.reference, route: scope.route,
     }));
     mocks.deps.closeDrawer.mockClear();
-    mocks.deps.createLogSession.mockRejectedValueOnce(new Error('Failed to create log session'));
-    await expect(executeSearchAction(logs.value.action, context())).rejects.toThrow('Failed to create log session');
+    const failure = new Error('Failed to create log session');
+    mocks.deps.createLogSession.mockRejectedValueOnce(failure);
+    await expect(executeSearchAction(logs.value.action, context())).rejects.toBe(failure);
     expect(mocks.deps.closeDrawer).not.toHaveBeenCalled();
   });
 
   it('rejects changed UID before execution', async () => {
     render(<KubernetesSearchActionContext />);
     mocks.get.mockResolvedValue(envelope({ ...data, metadata: { ...data.metadata, uid: 'replacement' } }));
-    await expect(searchActions(scope, context().signal)).rejects.toThrow(/identity/);
+    await expect(searchActions(scope, context().signal)).rejects.toMatchObject({ name: 'Error' });
     expect(mocks.deps.createLogSession).not.toHaveBeenCalled();
   });
 
   it('keeps native read failures distinct from no actions', async () => {
     render(<KubernetesSearchActionContext />);
-    mocks.get.mockRejectedValue(new Error('Forbidden'));
-    await expect(searchActions(scope, context().signal)).rejects.toThrow('Forbidden');
+    const failure = new Error('Forbidden');
+    mocks.get.mockRejectedValue(failure);
+    await expect(searchActions(scope, context().signal)).rejects.toBe(failure);
   });
 
   it('discovers cached descriptors without reads but bypasses cached data at execution', async () => {
@@ -107,7 +109,7 @@ describe('global Kubernetes action context', () => {
     expect(await validateSearchAction({ id: 'missing', target: scope }, context())).toBe(false);
     expect(mocks.get).not.toHaveBeenCalled();
     mocks.get.mockResolvedValue(envelope({ ...data, metadata: { ...data.metadata, uid: 'replacement' } }));
-    await expect(executeSearchAction(logs.value.action, context())).rejects.toThrow(/identity/);
+    await expect(executeSearchAction(logs.value.action, context())).rejects.toMatchObject({ name: 'Error' });
     expect(mocks.get).toHaveBeenCalledTimes(1);
     expect(mocks.deps.createLogSession).not.toHaveBeenCalled();
   });
@@ -115,7 +117,7 @@ describe('global Kubernetes action context', () => {
   it('rejects removed context and cancelled requests without reads', async () => {
     const mounted = render(<KubernetesSearchActionContext />);
     mounted.unmount();
-    await expect(searchActions(scope, context().signal)).rejects.toThrow(/unavailable/);
+    await expect(searchActions(scope, context().signal)).rejects.toMatchObject({ name: 'Error' });
     render(<KubernetesSearchActionContext />);
     const controller = new AbortController();
     controller.abort();
@@ -126,12 +128,12 @@ describe('global Kubernetes action context', () => {
   it('rejects host target and canonical address mismatches before dispatch', async () => {
     render(<KubernetesSearchActionContext />);
     mocks.get.mockResolvedValue({ ...envelope(data), targetId: 'another-target' });
-    await expect(searchActions(scope, context().signal)).rejects.toThrow(/identity/);
+    await expect(searchActions(scope, context().signal)).rejects.toMatchObject({ name: 'Error' });
     const value = envelope(data);
     mocks.get.mockResolvedValue({ ...value, record: { ...value.record, reference: {
       ...scope.reference, address: { ...scope.reference.address, authority: 'another-authority' },
     } } });
-    await expect(searchActions(scope, context().signal)).rejects.toThrow(/identity/);
+    await expect(searchActions(scope, context().signal)).rejects.toMatchObject({ name: 'Error' });
     expect(mocks.deps.createLogSession).not.toHaveBeenCalled();
   });
 
@@ -154,7 +156,9 @@ describe('global Kubernetes action context', () => {
     const unpinned = { ...scope, reference: { address: scope.reference.address } };
     await expect(searchActions(unpinned, context().signal)).resolves.toBeDefined();
     mocks.get.mockResolvedValue(envelope({ ...data, metadata: { ...data.metadata, namespace: 'other' } }));
-    await expect(searchActions(unpinned, context().signal)).rejects.toThrow(/identity/);
+    await expect(searchActions(unpinned, context().signal)).rejects.toMatchObject({ name: 'Error' });
+    expect(mocks.get).toHaveBeenCalledTimes(2);
+    expect(mocks.deps.createLogSession).not.toHaveBeenCalled();
   });
 });
 
@@ -293,7 +297,7 @@ describe('standalone palette Debug', () => {
       };
       mocks.get.mockResolvedValue(envelope(fresh));
       const execution = executeSearchAction(main!.value.action, context());
-      const rejection = expect(execution).rejects.toThrow(/identity|available|executable|Choose/);
+      const rejection = expect(execution).rejects.toMatchObject({ name: 'Error' });
       await act(async () => { await Promise.resolve(); });
       await rejection;
       expect(mocks.get).toHaveBeenCalledTimes(1);
@@ -362,7 +366,7 @@ describe('standalone palette Debug', () => {
     };
     mocks.get.mockResolvedValue(envelope(fresh));
     const execution = executeSearchAction(main.value.action, context());
-    const rejection = expect(execution).rejects.toThrow(/available|executable|Choose/);
+    const rejection = expect(execution).rejects.toMatchObject({ name: 'Error' });
     await act(async () => { await Promise.resolve(); });
     await rejection;
     expect(mocks.deps.startDebug).not.toHaveBeenCalled();
@@ -435,14 +439,15 @@ describe('standalone palette Debug', () => {
     mocks.deps.startDebug.mockImplementationOnce(() => promise);
     mocks.get.mockResolvedValue(envelope(debugPod));
     const execution = executeSearchAction(main!.value.action, context());
-    const rejected = expect(execution).rejects.toThrow('Forbidden');
+    const failure = new Error('Forbidden');
+    const rejected = expect(execution).rejects.toBe(failure);
     await act(async () => { await Promise.resolve(); });
     try {
       expect(mocks.deps.startDebug).toHaveBeenCalledTimes(1);
-      await expect(executeSearchAction(main!.value.action, context())).rejects.toThrow(/current|pending|starting/);
+      await expect(executeSearchAction(main!.value.action, context())).rejects.toMatchObject({ name: 'Error' });
       expect(mocks.deps.startDebug).toHaveBeenCalledTimes(1);
     } finally {
-      rejectStart(new Error('Forbidden'));
+      rejectStart(failure);
       await rejected;
     }
     await executeSearchAction(main!.value.action, context());

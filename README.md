@@ -78,13 +78,30 @@ Kubernetes plugin 0.16.0 requires Omniview 0.29.0 or newer, runtime/Vite 0.29.0,
 Container log requests with an explicit `SinceTime` use that timestamp instead
 of `SinceSeconds`. Kubernetes accepts only one time filter per log request.
 
-Standalone release packaging retains SDK 0.14.6 for completed-source handling, preserving the existing source-session wire contract and stock grpc-go dependency. The canonical reviewed-source cohort remains pinned independently to approved SDK `6ce85c8b42cab1547396217510196b29e63ffe55`; the live explorer evidence uses that source cohort, not the standalone artifact dependency. Source-cohort approval and standalone release verification are separate gates; neither authorizes changing the SDK approval variable or publishing another SDK release.
+Standalone release packaging uses published SDK `v0.15.0` and the SDK-compatible grpc-go fork for activity streams and completed-source handling. Explorer evidence below records an earlier reviewed-source cohort; it does not prove the integrated activity release.
 
 ## MCP resource actions
 
 The resource catalog exposes unary `rollout-restart` actions for Deployments, StatefulSets and
 DaemonSets. The existing streaming `restart` action remains available to the UI. CronJobs expose
 `trigger`, `suspend` and `resume`; triggered Jobs use a controller owner reference to the CronJob.
+
+Streaming restarts publish typed activity progress and completion alongside validated business
+output. Notifications show updated, ready, and old replica or node counts against the actual
+desired count; zero desired units remain indeterminate. Completion requires the controller to
+observe the patched generation; StatefulSets also require matching current and update revisions.
+Watch errors, deletion, and closed watches fail observation rather than report success.
+The producer adds no guessed resource-navigation target; host-provided actions remain host-owned.
+
+Node `cordon` and `uncordon` remain finite actions. Node `drain` requires streaming execution
+and publishes typed activity stages and removed, remaining, and skipped pod counts.
+Drain cordons first and completes only after the selected pod incarnations disappear, not when
+evictions are accepted. Mirror pods, completed pods, and optionally DaemonSet pods are skipped.
+Setting `deleteEmptyDirData` to false refuses selected pods with emptyDir volumes.
+Grace defaults to 30 seconds; -1 preserves each pod's native termination grace period.
+Eviction rejection fails the activity unless explicit force deletion succeeds. Drain does not
+retry PDB rejection. Cancellation and observation errors fail without uncordoning or rollback.
+Node replacement stops execution; pod UID preconditions protect replacement pods from mutation.
 
 Pods expose a one-shot, non-TTY `exec` action. Its input contains a command array, an optional
 container and a timeout from 1 to 100 seconds (30 seconds by default). Each output stream keeps
@@ -930,6 +947,14 @@ Resource tables set horizontal cell padding on the table root so header checkbox
 
 The backend consumes the published SDK pinned in `go.mod`. Restart streams emit `ready` only after the native patch succeeds and the rollout watch is established. Native failures return through the SDK classifier; unsupported stream actions return typed `UNSUPPORTED` errors. An open failure does not roll back a Kubernetes mutation already committed before watch establishment.
 
+Restart activity progress counts nonterminating Ready pods carrying the requested restart annotation and owned by the patched workload (through owned ReplicaSets for Deployments). Old Ready pods never advance the percentage. Progress waits for the patched generation to be observed; replacement UIDs or superseding generations fail observation instead of reporting another rollout's success. This requires pod list access and, for Deployments, ReplicaSet list access. Updated, total Ready, and old workload counts remain separate diagnostic metrics; zero desired pods remains indeterminate.
+
+Readiness refreshes on workload watch events and once per second, including when pod changes leave aggregate workload status unchanged. Pod and ReplicaSet lists use the workload namespace and selector; UID ownership and the restart annotation further constrain counted pods. The periodic workload read also detects replacement or supersession without waiting for another watch event.
+
+Streams emit progress only when its counters change. Completion and failure checks remain active on every observation, including unchanged refreshes.
+
+The five-minute observation deadline also bounds readiness GET/LIST calls. Deadline expiry retains the rollout `TIMEOUT` error; caller cancellation remains caller cancellation.
+
 These action semantics require a compatible host/runtime cohort. Coordinate changes with [the host invocation contract](https://github.com/omniviewdev/omniview/issues/83); source integration does not publish a plugin release.
 
 Resource watch streams acknowledge actual SDK listener registration before the host admits connections. Build the plugin and host from the same reviewed SDK cohort; the host rejects streams without that acknowledgement.
@@ -972,12 +997,13 @@ rather than adding unsupported manifest fields.
 
 Registry installs retain pnpm's 24-hour release-age protection. Only coordinated
 `@omniviewdev/*` packages are exempted; linked source worktrees resolve locally.
-The current frontend cohort uses `@omniviewdev/base-ui` 0.12.0,
-`@omniviewdev/editors` 6.1.6, and runtime/Vite plugin 0.27.2.
+The current frontend cohort uses `@omniviewdev/base-ui` 0.14.0,
+`@omniviewdev/editors` 6.1.8, and runtime/Vite plugin 0.30.0.
 The published runtime and Vite plugin must match; source builds use the reviewed host runtime.
-The backend pins released Go SDK `v0.14.6`, matching completed-source log
-handling while preserving the deployed source-session wire protocol and stock
-grpc-go dependency.
+The backend pins published Go SDK `v0.15.0` and replaces
+`google.golang.org/grpc` with
+`github.com/omniviewdev/grpc-go v1.79.3-0.20261103012409-4c6f1d1c4e10`.
+This SDK release includes typed activity events and completed-source log handling.
 Debug preferences discard unsaved drafts when reopened or switched to another
 connection, but preserve active drafts when saved defaults refresh.
 
@@ -1120,7 +1146,7 @@ Commit curated notes in `docs/releases/X.Y.Z.md`, starting with
 `# Kubernetes X.Y.Z`, alongside the version bump. Include user-facing changes,
 linked feature PRs and real IDE screenshots. The workflow validates and publishes
 that file as the GitHub release body; it does not append generated notes.
-Kubernetes 0.15.1 requires IDE 0.27.2 or newer. Publish the Omniview 0.27.2
+Kubernetes 0.16.0 requires IDE 0.30.0 or newer. Publish the Omniview 0.30.0
 desktop and matching npm release before publishing the plugin; npm publication alone is not a desktop release.
 
 The release workflow uses the Go version declared in `go.mod`, Node.js 26.13.0,

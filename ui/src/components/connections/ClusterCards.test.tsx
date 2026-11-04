@@ -19,7 +19,7 @@ vi.mock('@omniviewdev/runtime', () => ({
   usePluginContext: () => ({ pluginId: 'kubernetes' }),
   useWindowActions: () => navigation,
   useConnection: () => ({ startConnection: vi.fn() }),
-  useSnackbar: () => ({ showSnackbar: vi.fn() }),
+  useNotifications: () => ({ notify: vi.fn() }),
 }));
 
 vi.mock('../../hooks/useClusterPreferences', () => ({

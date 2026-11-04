@@ -3,7 +3,7 @@ import {
   useConnection,
   usePluginContext,
   usePluginRouter,
-  useSnackbar,
+  useNotifications,
   useWindowActions,
 } from '@omniviewdev/runtime';
 import { types } from '@omniviewdev/runtime/models';
@@ -71,7 +71,7 @@ const ConnectionContextMenu: React.FC<Props> = ({
   const [preview, setPreview] = React.useState(false);
   const [opening, setOpening] = React.useState(false);
   const pendingOpen = React.useRef(false);
-  const snackbar = useSnackbar();
+  const { notify } = useNotifications();
   const { startConnection } = useConnection({
     pluginID: pluginId,
     connectionID: connectionId,
@@ -85,9 +85,9 @@ const ConnectionContextMenu: React.FC<Props> = ({
       if (!isConnected) {
         const result = await startConnection();
         if (result.status !== types.ConnectionStatusCode.ConnectionStatusConnected) {
-          snackbar.showSnackbar({
-            status: 'warning',
-            message: 'Could not open cluster: connection is not ready',
+          void notify({
+            severity: 'warning',
+            title: 'Could not open cluster: connection is not ready',
             details: result.details,
           });
           return;
@@ -96,9 +96,9 @@ const ConnectionContextMenu: React.FC<Props> = ({
       try {
         open(resourcesPath);
       } catch (error) {
-        snackbar.showSnackbar({
-          status: 'error',
-          message: error instanceof Error ? error.message : 'Could not open cluster',
+        void notify({
+          severity: 'error',
+          title: error instanceof Error ? error.message : 'Could not open cluster',
         });
       }
     } catch {

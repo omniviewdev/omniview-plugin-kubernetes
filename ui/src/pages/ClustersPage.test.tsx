@@ -28,7 +28,7 @@ vi.mock('@omniviewdev/runtime', () => ({
     connections: { data: state.loading ? undefined : state.connections, isLoading: state.loading },
   }),
   useConnection: () => ({ removeConnection: vi.fn() }),
-  useSnackbar: () => ({ showSnackbar: vi.fn() }),
+  useNotifications: () => ({ notify: vi.fn() }),
   useConnectionMetadataConnections: () => state.metadata,
   readCurrentConnectionMetadataString: vi.fn(),
   useConnectionStatus: () => ({

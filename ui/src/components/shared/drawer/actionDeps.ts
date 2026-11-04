@@ -6,7 +6,8 @@ import type {
   useLogs,
   NativeExecInput,
   MutationRequest,
-  useStreamAction,
+  ActivityRecord,
+  StartResourceActionRequest,
 } from '@omniviewdev/runtime';
 import type { Pod } from 'kubernetes-types/core/v1';
 
@@ -16,7 +17,12 @@ import type { Pod } from 'kubernetes-types/core/v1';
  * Context binding survives confirmation callbacks without a mounted table.
  */
 
-export type ScaleTarget = { resource: NonNullable<DrawerContext['resource']>; name: string; namespace: string; replicas: number };
+export type ScaleTarget = {
+  resource: NonNullable<DrawerContext['resource']>;
+  name: string;
+  namespace: string;
+  replicas: number;
+};
 
 type NodeShellConfig = { image?: string; command?: string };
 
@@ -38,7 +44,7 @@ export type DrawerActionDeps = {
   nativeExecPending: boolean;
   openNativeSession: (input: NativeExecInput) => Promise<boolean>;
   executeAction: ReturnType<typeof useExecuteAction>['executeAction'];
-  startStreamAction: ReturnType<typeof useStreamAction>['startStreamAction'];
+  startResourceAction: (request: StartResourceActionRequest) => Promise<ActivityRecord>;
   closeDrawer: () => void;
   /** Opens the replica count dialog; confirming runs the `scale` action. */
   openScale: (target: ScaleTarget) => void;
@@ -59,7 +65,8 @@ export function bindDrawerActionDeps(ctx: DrawerContext, deps: DrawerActionDeps)
   return ctx;
 }
 
-export const registryKey = (connectionID: string, resourceKey: string) => `${connectionID}\u0000${resourceKey}`;
+export const registryKey = (connectionID: string, resourceKey: string) =>
+  `${connectionID}\u0000${resourceKey}`;
 
 export function registerDrawerActionDeps(key: string, deps: DrawerActionDeps): () => void {
   const list = registry.get(key) ?? [];
@@ -81,12 +88,18 @@ export const drawerActionDepsStore = {
   getSnapshot(ctx: DrawerContext): DrawerActionDeps | undefined {
     const bound = contextDeps.get(ctx);
     if (bound) return bound;
-    const key = registryKey(ctx.resource?.route.connection ?? '', ctx.resource?.reference.address.type ?? '');
+    const key = registryKey(
+      ctx.resource?.route.connection ?? '',
+      ctx.resource?.reference.address.type ?? '',
+    );
     const list = registry.get(key);
     return list?.[list.length - 1];
   },
   subscribe(ctx: DrawerContext, listener: () => void): () => void {
-    const key = registryKey(ctx.resource?.route.connection ?? '', ctx.resource?.reference.address.type ?? '');
+    const key = registryKey(
+      ctx.resource?.route.connection ?? '',
+      ctx.resource?.reference.address.type ?? '',
+    );
     const current = listeners.get(key) ?? new Set<() => void>();
     current.add(listener);
     listeners.set(key, current);
@@ -103,7 +116,9 @@ export function drawerActionDeps(ctx: DrawerContext): DrawerActionDeps {
   const connectionID = ctx.resource?.route.connection ?? '';
   const resourceKey = ctx.resource?.reference.address.type ?? '';
   if (!deps) {
-    throw new Error(`No drawer action handlers are mounted for ${resourceKey} on connection ${connectionID}`);
+    throw new Error(
+      `No drawer action handlers are mounted for ${resourceKey} on connection ${connectionID}`,
+    );
   }
   return deps;
 }

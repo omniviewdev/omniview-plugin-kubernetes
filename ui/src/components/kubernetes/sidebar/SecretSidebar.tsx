@@ -1,5 +1,5 @@
 import { Button, Grid, IconButton, Input, Stack, Text, TextArea } from '@omniviewdev/base-ui';
-import { useSnackbar, DrawerContext } from '@omniviewdev/runtime';
+import { useNotifications, DrawerContext } from '@omniviewdev/runtime';
 import { Secret } from 'kubernetes-types/core/v1';
 import React from 'react';
 import {
@@ -38,9 +38,7 @@ const decodeEntries = (data?: Record<string, string>) => {
     return {};
   }
   // return a new data map with the decoded values
-  return Object.fromEntries(
-    Object.entries(data).map(([key, value]) => [key, atob(value)]),
-  );
+  return Object.fromEntries(Object.entries(data).map(([key, value]) => [key, atob(value)]));
 };
 
 interface Props {
@@ -53,8 +51,8 @@ interface Props {
 export const SecretSidebar: React.FC<Props> = ({ ctx }) => {
   const secret = ctx.data;
 
-  // eslint-disable-next-line @typescript-eslint/unbound-method
-  const { showSnackbar } = useSnackbar();
+   
+  const { notify } = useNotifications();
   const [shown, setShown] = React.useState<Record<string, boolean>>({});
   const [copied, setCopied] = React.useState<string | undefined>(undefined);
 
@@ -146,9 +144,7 @@ export const SecretSidebar: React.FC<Props> = ({ ctx }) => {
     );
 
     // add our new values
-    const encodedNew = Object.fromEntries(
-      newValues.map((entry) => [entry.key, btoa(entry.value)]),
-    );
+    const encodedNew = Object.fromEntries(newValues.map((entry) => [entry.key, btoa(entry.value)]));
 
     // Mutate the original secret's data in-place (expected by the drawer context)
     // eslint-disable-next-line react-hooks/immutability
@@ -172,9 +168,9 @@ export const SecretSidebar: React.FC<Props> = ({ ctx }) => {
   const handleCopyToClipboard = (key: string, value: string) => {
     void navigator.clipboard.writeText(atob(value));
     setCopied(key);
-    showSnackbar({
-      message: 'Copied value to clipboard',
-      status: 'success',
+    void notify({
+      title: 'Copied value to clipboard',
+      severity: 'success',
     });
   };
 
@@ -311,7 +307,9 @@ export const SecretSidebar: React.FC<Props> = ({ ctx }) => {
               variant="soft"
               startDecorator={<LuRotate3D />}
               size="sm"
-              onClick={() => { /* TODO: implement reload save */ }}
+              onClick={() => {
+                /* TODO: implement reload save */
+              }}
               disabled={Object.keys(newErrors).length > 0}
             >
               Save & Reload Resources

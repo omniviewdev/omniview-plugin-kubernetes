@@ -65,7 +65,8 @@ describe('folder metadata migration persistence', () => {
     expect(store.write).toHaveBeenCalledTimes(1);
   });
   it('propagates persistent write failure without an automatic retry or render loop', async () => {
-    store.write.mockRejectedValue(new Error('persistence unavailable'));
+    const failure = new Error('persistence unavailable');
+    store.write.mockRejectedValue(failure);
     const { result, rerender } = renderHook(() => useClusterPreferences('kubernetes'));
     await act(async () => {
       await expect(result.current.updateGroup('owned', { name: 'New' })).rejects.toThrow(

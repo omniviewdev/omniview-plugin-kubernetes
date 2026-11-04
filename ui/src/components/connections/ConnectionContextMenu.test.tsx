@@ -17,7 +17,7 @@ vi.mock('@omniviewdev/runtime', () => ({
   usePluginRouter: () => ({ navigate: actions.navigate }),
   useWindowActions: () => ({ openInNewTab: actions.tab, openInNewWindow: actions.window }),
   useConnection: () => ({ startConnection: actions.start }),
-  useSnackbar: () => ({ showSnackbar: actions.notice }),
+  useNotifications: () => ({ notify: actions.notice }),
 }));
 vi.mock('../../hooks/useClusterPreferences', () => ({
   useClusterPreferences: () => ({ iconAssets: [] }),
@@ -99,7 +99,7 @@ describe('Cluster overflow actions', () => {
     await user.click(screen.getByRole('button', { name: 'Actions for Full display name' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Open in new window' }));
     await waitFor(() =>
-      expect(actions.notice).toHaveBeenCalledWith(expect.objectContaining({ status: 'warning' })),
+      expect(actions.notice).toHaveBeenCalledWith(expect.objectContaining({ severity: 'warning' })),
     );
     expect(actions.window).not.toHaveBeenCalled();
   });

@@ -12,7 +12,7 @@ vi.mock('@omniviewdev/runtime', () => ({
   usePluginContext: () => ({ meta: { id: 'kubernetes' } }),
   useConnection: () => ({ startConnection: mocks.start, stopConnection: mocks.stop }),
   usePluginRouter: () => ({ navigate: mocks.navigate }),
-  useSnackbar: () => ({ showSnackbar: mocks.snackbar }),
+  useNotifications: () => ({ notify: mocks.snackbar }),
 }));
 beforeEach(() => vi.resetAllMocks());
 describe('cluster open actions', () => {

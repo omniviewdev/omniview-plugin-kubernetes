@@ -1,5 +1,5 @@
 import { Avatar, Button, Spinner } from '@omniviewdev/base-ui';
-import { useSnackbar } from '@omniviewdev/runtime';
+import { useNotifications } from '@omniviewdev/runtime';
 import React from 'react';
 
 import { useClusterAction } from '../../hooks/useClusterAction';
@@ -41,16 +41,16 @@ const ConnectionTableItem: React.FC<Props> = ({
     connection.id,
     isConnected,
   );
-  const snackbar = useSnackbar();
+  const { notify } = useNotifications();
   const handleCopyId = () => {
     void navigator.clipboard.writeText(connection.id).then(
       () => {
-        snackbar.showSnackbar({ status: 'success', message: 'Connection ID copied' });
+        void notify({ severity: 'success', title: 'Connection ID copied' });
       },
       (error: unknown) => {
-        snackbar.showSnackbar({
-          status: 'error',
-          message: error instanceof Error ? error.message : 'Failed to copy connection ID',
+        void notify({
+          severity: 'error',
+          title: error instanceof Error ? error.message : 'Failed to copy connection ID',
         });
       },
     );

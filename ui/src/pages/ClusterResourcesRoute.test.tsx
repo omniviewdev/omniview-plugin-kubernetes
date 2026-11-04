@@ -12,7 +12,7 @@ const state = vi.hoisted(() => ({
 }));
 vi.mock('@omniviewdev/runtime', () => ({
   usePluginRouter: () => ({ navigate: vi.fn() }),
-  useSnackbar: () => ({ showSnackbar: state.snackbar }),
+  useNotifications: () => ({ notify: state.snackbar }),
 }));
 vi.mock('../hooks/useClusterPreferences', () => {
   const subscribe = (notify: () => void) => {
@@ -103,7 +103,7 @@ describe('successful connected cluster route history', () => {
       await Promise.resolve();
     });
     expect(screen.getByText('Overview')).toBeTruthy();
-    expect(state.snackbar).toHaveBeenCalledWith(expect.objectContaining({ status: 'warning' }));
+    expect(state.snackbar).toHaveBeenCalledWith(expect.objectContaining({ severity: 'warning' }));
     expect(state.record).toHaveBeenCalledTimes(1);
   });
 });

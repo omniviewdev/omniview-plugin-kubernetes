@@ -1,11 +1,42 @@
-import { jsonToValue, type DrawerComponentAction, type DrawerContext } from '@omniviewdev/runtime'
+import { jsonToValue, type DrawerComponentAction, type DrawerContext } from '@omniviewdev/runtime';
 import type { Node } from 'kubernetes-types/core/v1';
 import { LuArrowDownToLine, LuShieldBan, LuShieldCheck, LuTerminal, LuTrash } from 'react-icons/lu';
-
 
 import { drawerActionDeps } from '../../../../shared/drawer/actionDeps';
 
 const resourceKey = 'k8s:/nodes';
+
+async function startNodeAction(
+  ctx: DrawerContext<Node>,
+  action: 'cordon' | 'uncordon' | 'drain',
+  title: string,
+  input = jsonToValue({}),
+) {
+  const resource = ctx.resource!;
+  const deps = drawerActionDeps(ctx);
+  await deps.startResourceAction({
+    pluginID: resource.pluginID,
+    request: { route: resource.route, reference: resource.reference, action, input },
+    presentation: {
+      title: `${title} ${ctx.data?.metadata?.name}`,
+      actions: [
+        {
+          id: 'view-resource',
+          kind: 'navigate-resource',
+          label: 'View resource',
+          target: {
+            pluginID: resource.pluginID,
+            targetId: resource.targetId,
+            representation: resource.representation,
+            reference: resource.reference,
+            route: resource.route,
+          },
+        },
+      ],
+    },
+  });
+  deps.closeDrawer();
+}
 
 /** Drawer header and row menu actions for Nodes. Handlers come from `drawerActionDeps`. */
 export const drawerActions: Array<DrawerComponentAction<Node>> = [
@@ -21,14 +52,12 @@ export const drawerActions: Array<DrawerComponentAction<Node>> = [
           </span>
         ),
         body: (
-          <span>
-            This will mark the node as unschedulable. No new pods will be placed on it.
-          </span>
+          <span>This will mark the node as unschedulable. No new pods will be placed on it.</span>
         ),
         confirmLabel: 'Cordon',
         cancelLabel: 'Cancel',
         onConfirm: async () => {
-          await drawerActionDeps(ctx).executeAction({ route: ctx.resource!.route, reference: ctx.resource!.reference, action: 'cordon', input: { kind: 'map', value: {} } });
+          await startNodeAction(ctx, 'cordon', 'Cordon');
         },
       });
     },
@@ -48,7 +77,7 @@ export const drawerActions: Array<DrawerComponentAction<Node>> = [
         confirmLabel: 'Uncordon',
         cancelLabel: 'Cancel',
         onConfirm: async () => {
-          await drawerActionDeps(ctx).executeAction({ route: ctx.resource!.route, reference: ctx.resource!.reference, action: 'uncordon', input: { kind: 'map', value: {} } });
+          await startNodeAction(ctx, 'uncordon', 'Uncordon');
         },
       });
     },
@@ -65,20 +94,25 @@ export const drawerActions: Array<DrawerComponentAction<Node>> = [
         ),
         body: (
           <span>
-            This will evict all pods from the node and cordon it. DaemonSet-managed pods will
-            be ignored. Each pod keeps its own termination grace period.
+            This will evict all pods from the node and cordon it. DaemonSet-managed pods will be
+            ignored. Each pod keeps its own termination grace period.
           </span>
         ),
         confirmLabel: 'Drain',
         cancelLabel: 'Cancel',
         onConfirm: async () => {
-          await drawerActionDeps(ctx).executeAction({ route: ctx.resource!.route, reference: ctx.resource!.reference, action: 'drain', input: jsonToValue({
-            // -1 leaves Kubernetes eviction grace unset, preserving each pod's default.
-            gracePeriodSeconds: -1,
-            ignoreDaemonSets: true,
-            deleteEmptyDirData: true,
-            force: false,
-          }) });
+          await startNodeAction(
+            ctx,
+            'drain',
+            'Drain',
+            jsonToValue({
+              // -1 leaves Kubernetes eviction grace unset, preserving each pod's default.
+              gracePeriodSeconds: -1,
+              ignoreDaemonSets: true,
+              deleteEmptyDirData: true,
+              force: false,
+            }),
+          );
         },
       });
     },
@@ -88,24 +122,24 @@ export const drawerActions: Array<DrawerComponentAction<Node>> = [
     icon: <LuTerminal />,
     action: (ctx: DrawerContext<Node>) => {
       const { nodeShellConfig } = drawerActionDeps(ctx);
-      void drawerActionDeps(ctx).createExecSession({
-        connectionID: ctx.resource?.route.connection ?? '',
-        label: `node/${ctx.data?.metadata?.name}`,
-        icon: 'LuTerminal',
-        opts: {
-          resource_plugin: ctx.resource!.reference.address.provider,
-          resource_data: ctx.resource!.record!.record.body,
-          reference: ctx.resource!.reference,
-          route: ctx.resource!.route,
-          resource_key: resourceKey,
-          params: {
-            ...(nodeShellConfig?.image ? { node_shell_image: nodeShellConfig.image } : {}),
-            ...(nodeShellConfig?.command
-              ? { node_shell_command: nodeShellConfig.command }
-              : {}),
+      void drawerActionDeps(ctx)
+        .createExecSession({
+          connectionID: ctx.resource?.route.connection ?? '',
+          label: `node/${ctx.data?.metadata?.name}`,
+          icon: 'LuTerminal',
+          opts: {
+            resource_plugin: ctx.resource!.reference.address.provider,
+            resource_data: ctx.resource!.record!.record.body,
+            reference: ctx.resource!.reference,
+            route: ctx.resource!.route,
+            resource_key: resourceKey,
+            params: {
+              ...(nodeShellConfig?.image ? { node_shell_image: nodeShellConfig.image } : {}),
+              ...(nodeShellConfig?.command ? { node_shell_command: nodeShellConfig.command } : {}),
+            },
           },
-        },
-      }).then(() => drawerActionDeps(ctx).closeDrawer());
+        })
+        .then(() => drawerActionDeps(ctx).closeDrawer());
     },
   },
   {
@@ -120,14 +154,19 @@ export const drawerActions: Array<DrawerComponentAction<Node>> = [
         ),
         body: (
           <span>
-            Are you sure you want to delete the Node <code>{ctx.data?.metadata?.name}</code>?
-            This cannot be undone.
+            Are you sure you want to delete the Node <code>{ctx.data?.metadata?.name}</code>? This
+            cannot be undone.
           </span>
         ),
         confirmLabel: 'Delete',
         cancelLabel: 'Cancel',
         onConfirm: async () => {
-          await drawerActionDeps(ctx).mutate({ route: ctx.resource!.route, reference: ctx.resource!.reference, operation: 'delete', input: { kind: 'map', value: {} } });
+          await drawerActionDeps(ctx).mutate({
+            route: ctx.resource!.route,
+            reference: ctx.resource!.reference,
+            operation: 'delete',
+            input: { kind: 'map', value: {} },
+          });
           drawerActionDeps(ctx).closeDrawer();
         },
       });

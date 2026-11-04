@@ -12,7 +12,7 @@ const actions = vi.hoisted(() => ({
   connecting: false,
 }));
 vi.mock('../../hooks/useClusterAction', () => ({ useClusterAction: () => actions }));
-vi.mock('@omniviewdev/runtime', () => ({ useSnackbar: () => ({ showSnackbar: vi.fn() }) }));
+vi.mock('@omniviewdev/runtime', () => ({ useNotifications: () => ({ notify: vi.fn() }) }));
 vi.mock('./ConnectionContextMenu', () => ({ default: () => <button>Cluster actions</button> }));
 vi.mock('./ProviderIcon', () => ({ default: () => null }));
 vi.mock('./FavoriteButton', () => ({ default: () => <button>Favorite</button> }));

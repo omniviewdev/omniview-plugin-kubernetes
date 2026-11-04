@@ -26,13 +26,14 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@omniviewdev/runtime', () => ({
   usePluginContext: () => ({ meta: { id: 'kubernetes' } }),
   usePluginRouter: () => ({ navigate: mocks.navigate }),
-  useSnackbar: () => ({ showSnackbar: mocks.notice }),
+  useNotifications: () => ({ notify: mocks.notice }),
   // The runtime owns rejected lifecycle notifications; these tests check plugin-owned effects only.
   useConnection: () => ({ startConnection: mocks.start, stopConnection: mocks.stop }),
 }));
 vi.mock('../shared/NamedAvatar', () => ({ default: () => null }));
 vi.mock('./ProviderIcon', () => ({ default: () => null }));
 vi.mock('./FavoriteButton', () => ({ default: () => null }));
+
 vi.mock('./ConnectionStatusBadge', () => ({
   default: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
@@ -160,7 +161,7 @@ describe('connection lifecycle notification ownership', () => {
     fireEvent.click(screen.getByText('Cluster'));
     await waitFor(() =>
       expect(mocks.notice).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 'warning', details: 'Credentials expired' }),
+        expect.objectContaining({ severity: 'warning', details: 'Credentials expired' }),
       ),
     );
     expect(mocks.navigate).not.toHaveBeenCalled();
@@ -188,7 +189,7 @@ describe('connection lifecycle notification ownership', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Copy ID' }));
     await waitFor(() =>
       expect(mocks.notice).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 'error', message: 'Clipboard denied' }),
+        expect.objectContaining({ severity: 'error', title: 'Clipboard denied' }),
       ),
     );
   });
@@ -205,7 +206,7 @@ describe('connection lifecycle notification ownership', () => {
     });
     await act(async () => result.current.handleClick());
     expect(mocks.notice).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'warning', details: 'Credentials expired' }),
+      expect.objectContaining({ severity: 'warning', details: 'Credentials expired' }),
     );
     await act(async () => result.current.handleClick());
     expect(mocks.navigate).toHaveBeenCalledWith('/cluster/opaque%2Fcluster/resources');
