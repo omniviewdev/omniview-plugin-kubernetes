@@ -15,6 +15,8 @@
 // node produce ambiguous results. Node capacities use the same inventory list,
 // independently of metrics-server availability. Failed groups never trigger
 // per-resource retries. Metrics-server cannot supply historical series.
+// Ambiguity uses a typed local execution error mapped to metric status; it is
+// not encoded as an unsupported resource-v2 error code.
 //
 // Each requested resource/metric pair has a status and native provenance.
 // Invalid or nonfinite Prometheus samples fail explicitly, never become zero.

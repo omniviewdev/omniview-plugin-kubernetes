@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
 	sdkmetric "github.com/omniviewdev/plugin-sdk/pkg/v1/metric"
 	"github.com/omniviewdev/plugin-sdk/settings"
@@ -108,7 +107,9 @@ func TestNodeFiniteSetRejectsSharedAddressesWithoutQuery(t *testing.T) {
 	}
 	failures := 0
 	(&prometheusClient{}).queryNodeSetPrometheus(nil, sdkmetric.ResourceSetQueryRequest{MetricIDs: []string{"prom_cpu_utilization"}}, identities, nodes, nil, func(identity nativeIdentity, id string, result *sdkmetric.MetricResult, err error) {
-		require.Equal(t, "AMBIGUOUS", resourcev2.ErrorCode(err))
+		var ambiguous nativeAmbiguityError
+		require.ErrorAs(t, err, &ambiguous)
+		require.Equal(t, sdkmetric.MetricStatusAmbiguous, nativeMetricErrorStatus(err))
 		require.Nil(t, result)
 		failures++
 	})

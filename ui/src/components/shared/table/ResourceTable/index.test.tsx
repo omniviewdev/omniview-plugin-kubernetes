@@ -4,15 +4,21 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as BaseUI from '@omniviewdev/base-ui';
 import type { ColumnDef } from '@tanstack/react-table';
+import type { HostRecord } from '@omniviewdev/runtime';
 import ResourceTable from './index';
 import { usePodMetricsBatch } from '@/hooks/usePodMetricsBatch';
 
 const mocks = vi.hoisted(() => {
-  const first = { key: 'host-first', record: { body: { name: 'First row' } } };
-  const second = { key: 'host-second', record: { body: { name: 'Second row' } } };
+  const resource = (key: string, name: string) => ({ key, addressKey: key, targetId: 'host-target',
+    route: { connection: 'test' }, record: { body: { name }, reference: { address: {
+      provider: 'kubernetes', authority: 'cluster', type: 'k8s:/pods', id: key,
+      scope: [{ dimension: 'namespace', value: 'default' }],
+    } } } });
+  const first = resource('host-first', 'First row');
+  const second = resource('host-second', 'Second row');
   return {
     resources: vi.fn(),
-    query: vi.fn(async () => ({})),
+    query: vi.fn(async (_request: unknown) => ({})),
     loading: false,
     sourceError: false,
     firstData: { records: [first, second] },
@@ -36,11 +42,18 @@ vi.mock('@omniviewdev/base-ui', async (importOriginal) => {
     },
   };
 });
-vi.mock('@omniviewdev/runtime/api', () => ({ MetricClient: { QueryAll: mocks.query } }));
+vi.mock('@omniviewdev/runtime/api', () => ({ MetricClient: {
+  GetMetricBindings: async () => [], GetMetricDefinitions: async () => [],
+} }));
 vi.mock('@omniviewdev/runtime', () => ({
   useResourceType: () => ({ resourceType: { data: { displayName: 'Charts', capabilities: [] } } }),
   useResolvedResourceTarget: () => ({ data: { targetId: mocks.targetId, target: { type: 'helm:charts' } } }),
   useResources: mocks.resources,
+  useResourceSetMetrics: (request: unknown, options: { enabled?: boolean }) => {
+    const key = JSON.stringify(request);
+    React.useEffect(() => { if (key && options.enabled) mocks.query(JSON.parse(key)); }, [key, options.enabled]);
+    return { error: null, isLoading: false, isFetching: false };
+  },
   usePluginRouter: () => ({ location: { search: '', key: 'location', pathname: '/' } }),
   useRightDrawer: () => ({ openDrawer: vi.fn() }),
 }));
@@ -63,8 +76,10 @@ const columns: Array<ColumnDef<BaseUI.DataTableFeatures, { name: string }>> = [
   { id: 'cpuUsage', accessorKey: 'name', header: 'CPU' },
   { id: 'memUsage', accessorKey: 'name', header: 'Memory' },
 ];
-function MetricsConsumer({ columnVisibility, children }: PropsWithChildren<{ columnVisibility: Record<string, boolean> }>) {
-  usePodMetricsBatch({ connectionID: 'test', enabled: columnVisibility.cpuUsage !== false || columnVisibility.memUsage !== false });
+function MetricsConsumer({ columnVisibility, records, connectionID, children }: PropsWithChildren<{
+  columnVisibility: Record<string, boolean>; records: readonly HostRecord[]; connectionID: string;
+}>) {
+  usePodMetricsBatch({ connectionID, records, enabled: columnVisibility.cpuUsage !== false || columnVisibility.memUsage !== false });
   return <>{children}</>;
 }
 
@@ -126,6 +141,13 @@ it('reads persisted hidden metric columns before mounting the query consumer', a
   expect(mocks.query).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Show CPU' }));
   await waitFor(() => expect(mocks.query).toHaveBeenCalledTimes(1));
+  expect(mocks.query).toHaveBeenCalledWith(expect.objectContaining({
+    resource_connection_id: 'test',
+    resources: mocks.firstData.records.map(({ record, route }) => expect.objectContaining({
+      token: JSON.stringify(record.reference), reference: record.reference, route,
+      resource_id: record.reference.address.id, resource_namespace: 'default',
+    })),
+  }));
   expect(JSON.parse(localStorage.getItem('kubernetes-test-k8s:/pods-column-visibility')!)).toMatchObject({ cpuUsage: true, memUsage: false });
 });
 

@@ -31,12 +31,9 @@ export function usePodResourceSetMetrics(opts: {
     queryKey: ['metric', 'bindings', PLUGIN_ID, opts.connectionID],
     queryFn: () => MetricClient.GetMetricBindings(PLUGIN_ID, opts.connectionID), enabled,
   });
-  const definitions = useQuery({
-    queryKey: ['metric', 'definitions'], queryFn: () => MetricClient.GetMetricDefinitions(), enabled,
-  });
   const binding = bindings.data?.find((item) => item.signal === 'metrics' && (opts.bindingID === undefined || item.id === opts.bindingID));
   const missingBinding = !!opts.bindingID && opts.bindingID !== 'native' && bindings.isSuccess && !binding;
-  const request = bindings.isSuccess && definitions.isSuccess && !missingBinding ? {
+  const request = bindings.isSuccess && !missingBinding ? {
     resource_plugin_id: PLUGIN_ID, resource_connection_id: opts.connectionID,
     binding_id: opts.bindingID === '' || opts.bindingID === 'native' ? 'native' : binding?.id ?? '',
     source: binding?.source ?? { plugin_id: '', connection_id: '', datasource_uid: '', datasource_kind: '' },
@@ -46,9 +43,9 @@ export function usePodResourceSetMetrics(opts: {
     end_time: opts.endTime ?? ZERO_TIME, step: opts.step ?? 0,
   } as ResourceSetQueryRequest : undefined;
   const query = useResourceSetMetrics(request, { enabled, refreshInterval: opts.refreshInterval ?? 30_000 });
-  const data = query.data && binding ? { ...query.data, results: query.data.results.filter((result) => result.provenance.binding_id === binding.id && !result.provenance.native) } : query.data;
-  return { ...query, data, error: bindings.error ?? definitions.error ?? (missingBinding ? new Error('Selected metric binding is unavailable') : query.error),
-    isLoading: enabled && (bindings.isLoading || definitions.isLoading || query.isLoading) };
+  const data = query.data && binding ? { ...query.data, results: query.data.results.filter((result) => result.provenance.binding_id === binding.id && !result.provenance.native || binding.policy === 'supplement' && result.provenance.native) } : query.data;
+  return { ...query, data, error: bindings.error ?? (missingBinding ? new Error('Selected metric binding is unavailable') : query.error),
+    isLoading: enabled && (bindings.isLoading || query.isLoading) };
 }
 
 export function podMetricsMap(resources: MetricResource[], results: ResourceMetricResult[]): PodMetricsMap {
@@ -58,8 +55,19 @@ export function podMetricsMap(resources: MetricResource[], results: ResourceMetr
     const key = keys.get(result.resource_token);
     if (!key) continue;
     const entry = metrics.get(key) ?? {};
-    if (result.metric_id === 'cpu_usage') entry.cpu = result;
-    if (result.metric_id === 'memory_usage') entry.memory = result;
+    const field = result.metric_id === 'cpu_usage' ? 'cpu' : result.metric_id === 'memory_usage' ? 'memory' : undefined;
+    if (!field) continue;
+    const previous = entry[field];
+    if (previous && previous.provenance.native !== result.provenance.native) {
+      // A configured external result wins even when unavailable; never hide its failure.
+      if (!previous.provenance.native) continue;
+      entry[field] = undefined;
+    }
+    // These cells display pod totals, not one arbitrary dimensional series.
+    entry[field] = entry[field] || Object.keys(result.dimensions ?? {}).length > 0
+      ? { ...result, status: 'ambiguous', value: undefined,
+        warnings: [...(result.warnings ?? []), 'Pod total unavailable: multiple or dimensional metric results require an explicit aggregate mapping.'] } as ResourceMetricResult
+      : result;
     metrics.set(key, entry);
   }
   return metrics;

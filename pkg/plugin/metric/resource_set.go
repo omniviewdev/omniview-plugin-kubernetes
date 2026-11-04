@@ -1,6 +1,7 @@
 package metric
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"regexp"
@@ -16,6 +17,25 @@ import (
 
 type nativeIdentity struct{ key, namespace, name string }
 type nativeGroup struct{ key, namespace string }
+
+// nativeAmbiguityError is local execution state, not a resource-v2 error code.
+type nativeAmbiguityError string
+
+func (e nativeAmbiguityError) Error() string { return string(e) }
+
+func nativeMetricErrorStatus(err error) sdkmetric.MetricResultStatus {
+	var ambiguous nativeAmbiguityError
+	if errors.As(err, &ambiguous) {
+		return sdkmetric.MetricStatusAmbiguous
+	}
+	if apierrors.IsForbidden(err) || apierrors.IsUnauthorized(err) {
+		return sdkmetric.MetricStatusDenied
+	}
+	if resourcev2.ErrorCode(err) == "UNSUPPORTED" {
+		return sdkmetric.MetricStatusUnsupported
+	}
+	return sdkmetric.MetricStatusFailed
+}
 
 // queryResources executes only explicit, host-admitted resources. No failed group
 // is retried as individual requests, and returned foreign series are discarded.
@@ -76,20 +96,11 @@ func (c *prometheusClient) QueryResources(qctx *sdkmetric.QueryContext, req sdkm
 					continue
 				}
 				if value != nil && result.Value != nil {
-					err = resourcev2.NewError("AMBIGUOUS", "Multiple native samples match one resource and metric")
+					err = nativeAmbiguityError("Multiple native samples match one resource and metric")
 				}
 				if err != nil {
 					result.Value = nil
-					result.Status = sdkmetric.MetricStatusFailed
-					switch resourcev2.ErrorCode(err) {
-					case "UNSUPPORTED":
-						result.Status = sdkmetric.MetricStatusUnsupported
-					case "AMBIGUOUS":
-						result.Status = sdkmetric.MetricStatusAmbiguous
-					}
-					if apierrors.IsForbidden(err) || apierrors.IsUnauthorized(err) {
-						result.Status = sdkmetric.MetricStatusDenied
-					}
+					result.Status = nativeMetricErrorStatus(err)
 					result.Warnings = []string{err.Error()}
 					continue
 				}

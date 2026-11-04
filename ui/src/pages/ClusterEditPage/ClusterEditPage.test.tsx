@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 
 import type { ConnectionOverride } from '../../types/clusters';
+import type { ConnectionReadinessPhase } from '@omniviewdev/runtime';
 
 import ClusterEditPage from '.';
 
@@ -37,6 +38,12 @@ const mockSubscribePreferences = (listener: () => void) => {
     mockPreferenceListeners.delete(listener);
   };
 };
+let mockReadiness: { phase: ConnectionReadinessPhase; message?: string } = { phase: 'connected' };
+const mockReadinessListeners = new Set<() => void>();
+const mockSubscribeReadiness = (listener: () => void) => {
+  mockReadinessListeners.add(listener);
+  return () => { mockReadinessListeners.delete(listener); };
+};
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -54,6 +61,7 @@ vi.mock('react-router', async () => {
 vi.mock('@omniviewdev/runtime', () => ({
   usePluginContext: () => ({ meta: { id: 'kubernetes' } }),
   useConnection: () => ({ connection: { data: mockConnectionData } }),
+  useConnectionReadiness: () => React.useSyncExternalStore(mockSubscribeReadiness, () => mockReadiness),
   useConnectionMetadata: () => ({
     transportAvailable: true, supported: true, isLoading: false,
     snapshot: { active: true, entries: {
@@ -212,6 +220,7 @@ beforeEach(() => {
   mockConnectionData = makeConnection();
   mockConnectionOverrides = {};
   mockAvailableTags = [];
+  mockReadiness = { phase: 'connected' };
 });
 
 // ---- 1. Sidebar cluster card ----
@@ -229,24 +238,37 @@ describe('Sidebar cluster card', () => {
     expect(screen.getByText('my-cluster')).toBeInTheDocument();
   });
 
-  it('shows Connected chip when within expiry window', () => {
-    renderPage();
+  it('shows live Connected status and enables native metrics despite expired auth metadata', () => {
+    mockConnectionData = makeConnection({ last_refresh: '2000-01-01T00:00:00Z', expiry_time: 0 });
+    renderPage('metrics');
     expect(screen.getByText('Connected')).toBeInTheDocument();
+    expect(screen.getByTestId('metrics-content')).toHaveAttribute('data-connected', 'true');
   });
 
-  it('shows Disconnected chip when expired', () => {
-    mockConnectionData = makeConnection({
-      last_refresh: new Date(Date.now() - 600_000).toISOString(), // 10min ago
-      expiry_time: 60_000, // 1 min
+  it('preserves real offline state even when auth metadata looks fresh', () => {
+    mockReadiness = { phase: 'disconnected' };
+    renderPage('metrics');
+    expect(screen.getByText('Disconnected')).toBeInTheDocument();
+    expect(screen.getByTestId('metrics-content')).toHaveAttribute('data-connected', 'false');
+  });
+
+  it('updates header and metric gating when canonical readiness changes', () => {
+    mockReadiness = { phase: 'checking' };
+    renderPage('metrics');
+    expect(screen.getByText('Checking…')).toBeInTheDocument();
+    act(() => {
+      mockReadiness = { phase: 'connected' };
+      mockReadinessListeners.forEach(listener => listener());
     });
-    renderPage();
-    expect(screen.getByText('Disconnected')).toBeInTheDocument();
-  });
-
-  it('shows Disconnected when last_refresh is invalid', () => {
-    mockConnectionData = makeConnection({ last_refresh: 'not-a-date' });
-    renderPage();
-    expect(screen.getByText('Disconnected')).toBeInTheDocument();
+    expect(screen.getByText('Connected')).toBeInTheDocument();
+    expect(screen.getByTestId('metrics-content')).toHaveAttribute('data-connected', 'true');
+    act(() => {
+      mockReadiness = { phase: 'forbidden', message: 'Cluster access denied' };
+      mockReadinessListeners.forEach(listener => listener());
+    });
+    expect(screen.getByText('Access denied')).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Cluster access denied');
+    expect(screen.getByTestId('metrics-content')).toHaveAttribute('data-connected', 'false');
   });
 
   it('uses displayName from overrides when set', () => {
@@ -565,8 +587,9 @@ describe('Edge cases', () => {
     expect(screen.getByText('test-cluster')).toBeInTheDocument();
   });
 
-  it('invalid date in last_refresh shows Disconnected', () => {
+  it('invalid auth refresh metadata does not override canonical disconnected state', () => {
     mockConnectionData = makeConnection({ last_refresh: 'garbage' });
+    mockReadiness = { phase: 'disconnected' };
     renderPage();
     expect(screen.getByText('Disconnected')).toBeInTheDocument();
   });

@@ -122,7 +122,7 @@ func (c *prometheusClient) queryNodeSetPrometheus(qctx *sdkmetric.QueryContext, 
 				continue
 			}
 			if previous, exists := owners[address]; exists && previous != node.Name {
-				fail(resourcev2.NewError("AMBIGUOUS", "Multiple nodes share an exporter address"))
+				fail(nativeAmbiguityError("Multiple nodes share an exporter address"))
 				return
 			}
 			owners[address] = node.Name
@@ -192,7 +192,7 @@ func (c *prometheusClient) queryNodeSetPrometheus(qctx *sdkmetric.QueryContext, 
 			}
 			values := results[identity.name]
 			if len(values) > 1 {
-				update(identity, id, nil, resourcev2.NewError("AMBIGUOUS", "Multiple exporter series match one node"))
+				update(identity, id, nil, nativeAmbiguityError("Multiple exporter series match one node"))
 			} else if len(values) == 1 {
 				update(identity, id, &values[0], nil)
 			}

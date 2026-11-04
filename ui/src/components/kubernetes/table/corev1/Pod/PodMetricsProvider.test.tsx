@@ -4,8 +4,8 @@ import { afterEach, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({ metricsMap: new Map(), error: null as unknown, isLoading: false }));
 vi.mock('@/hooks/usePodMetricsBatch', () => ({ usePodMetricsBatch: () => state }));
 import PodMetricsProvider from './PodMetricsProvider';
-import MetricUsageCell from './cells/MetricUsageCell';
-afterEach(() => { cleanup(); state.metricsMap.clear(); state.error = null; state.isLoading = false; });
+import MetricUsageCell, { PodMetricsContext } from './cells/MetricUsageCell';
+afterEach(() => { cleanup(); state.metricsMap = new Map(); state.error = null; state.isLoading = false; });
 function App({ enabled }: { enabled: boolean }) {
   const [selected, setSelected] = useState(false);
   return <PodMetricsProvider connectionID="cluster" records={[]} columnVisibility={{ cpuUsage: enabled, memUsage: false }}>
@@ -25,16 +25,24 @@ it('keeps selection and focus while metric visibility changes', () => {
   expect(selection).toHaveFocus();
 });
 it('shows unavailable, denied, stale, and error without inventing zero', () => {
-  const app = render(<App enabled />);
+  const cell = () => <PodMetricsContext.Provider value={{ ...state }}>
+    <MetricUsageCell podKey="default/pod" format="cpu" />
+  </PodMetricsContext.Provider>;
+  const app = render(cell());
   expect(screen.getByText('Unavailable')).toBeInTheDocument();
-  state.metricsMap.set('default/pod', { cpu: { status: 'denied', provenance: { native: true } } });
-  app.rerender(<App enabled />);
+  state.metricsMap = new Map([['default/pod', { cpu: { status: 'denied', provenance: { native: true } } }]]);
+  app.rerender(cell());
   expect(screen.getByText('Denied')).toBeInTheDocument();
-  state.metricsMap.set('default/pod', { cpu: { status: 'stale', provenance: { native: true }, value: { current_value: { value: 0 } } } });
-  app.rerender(<App enabled />);
+  state.metricsMap = new Map([['default/pod', { cpu: { status: 'ambiguous', provenance: { native: true },
+    warnings: ['Container series are not a pod total'] } }]]);
+  app.rerender(cell());
+  expect(screen.getByText('Unavailable')).toBeInTheDocument();
+  expect(screen.getByTitle('ambiguous · Native · Container series are not a pod total')).toBeInTheDocument();
+  state.metricsMap = new Map([['default/pod', { cpu: { status: 'stale', provenance: { native: true }, value: { current_value: { value: 0 } } } }]]);
+  app.rerender(cell());
   expect(screen.getByText('0.0m (stale)')).toBeInTheDocument();
   expect(screen.getByTitle('stale · Native')).toBeInTheDocument();
   state.error = new Error('network');
-  app.rerender(<App enabled />);
+  app.rerender(cell());
   expect(screen.getByText('Error')).toBeInTheDocument();
 });

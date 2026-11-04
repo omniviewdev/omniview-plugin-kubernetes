@@ -1,5 +1,5 @@
 import { Avatar, Chip, IconButton, NavList, Stack, Text } from '@omniviewdev/base-ui';
-import { usePluginContext, useConnection } from '@omniviewdev/runtime';
+import { usePluginContext, useConnection, useConnectionReadiness } from '@omniviewdev/runtime';
 import React from 'react';
 import { LuArrowLeft, LuCircle, LuSave, LuX } from 'react-icons/lu';
 import { useParams, useNavigate, useSearchParams } from 'react-router';
@@ -47,6 +47,7 @@ const ClusterEditForm: React.FC<{ connectionId: string }> = ({ connectionId }) =
   const section = (searchParams.get('section') ?? 'identity') as SectionId;
 
   const { connection } = useConnection({ pluginID: meta.id, connectionID: connectionId });
+  const readiness = useConnectionReadiness({ pluginID: meta.id, connectionID: connectionId });
   const { connectionOverrides, availableTags, updateOverride } = useClusterPreferences(meta.id);
 
   const existing = connectionOverrides[connectionId] ?? {};
@@ -98,13 +99,11 @@ const ClusterEditForm: React.FC<{ connectionId: string }> = ({ connectionId }) =
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [handleBack]);
 
-  const connected = React.useMemo(() => {
-    if (!conn) return false;
-    const refreshTime = new Date(conn.last_refresh);
-    if (refreshTime.toString() === 'Invalid Date') return false;
-    // eslint-disable-next-line react-hooks/purity -- Date.now() is intentionally impure here
-    return refreshTime.getTime() + conn.expiry_time > Date.now();
-  }, [conn]);
+  const connected = readiness.phase === 'connected';
+  const connectionLabel = {
+    checking: 'Checking…', disconnected: 'Disconnected', connecting: 'Connecting…', connected: 'Connected',
+    unauthorized: 'Authentication required', forbidden: 'Access denied', 'not-found': 'Connection not found', error: 'Connection error',
+  }[readiness.phase];
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- conn.last_refresh is time.Time (Go wrapper), Date constructor accepts it at runtime
   const formatTime = React.useCallback((timestamp: any): string => {
@@ -192,9 +191,10 @@ const ClusterEditForm: React.FC<{ connectionId: string }> = ({ connectionId }) =
                     color={connected ? 'success' : 'neutral'}
                     startDecorator={<LuCircle size={6} fill="currentColor" />}
                   >
-                    {connected ? 'Connected' : 'Disconnected'}
+                    {connectionLabel}
                   </Chip>
                 </Stack>
+                {readiness.message && !connected && <Text size="xs" role="alert">{readiness.message}</Text>}
               </Stack>
             </div>
           </div>

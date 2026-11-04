@@ -40,36 +40,44 @@ export default function PodMetricsSection(props: MetricSidebarProps) {
   const definitions = useQuery({ queryKey: ['metric', 'definitions'], queryFn: () => MetricClient.GetMetricDefinitions(), enabled });
   const nativeProviders = useMetricProvidersForResource(resourceKey);
   const sources = (bindings.data ?? []).filter(binding => binding.signal === 'metrics');
-  const selectedBinding = sources.find(binding => binding.id === bindingID);
+  const selectedBinding = sources.find(binding => bindingID !== 'native' && (!bindingID || binding.id === bindingID));
   const nativeMetrics = (nativeProviders.data ?? [])
     .filter(provider => provider.plugin_id === PLUGIN_ID)
     .flatMap(provider => (provider.handlers ?? []).filter(handler => handler.resource === resourceKey).flatMap(handler => handler.metrics ?? []));
-  const available = selectedBinding
-    ? (definitions.data ?? []).filter(definition => !definition.native && definition.resource_keys?.includes(resourceKey))
-    : nativeMetrics;
+  const externalMetrics = (definitions.data ?? []).filter(definition => !definition.native && definition.resource_keys?.includes(resourceKey));
+  const needsNative = !selectedBinding || selectedBinding.policy === 'supplement';
+  const available = !selectedBinding ? nativeMetrics : selectedBinding.policy === 'supplement'
+    ? [...externalMetrics, ...nativeMetrics.filter(metric => !externalMetrics.some(definition => definition.id === metric.id))]
+    : externalMetrics;
   const baseIDs = props.nativeMetricIDs ?? ['cpu_usage', 'memory_usage'];
-  const metricIDs = selectedBinding
-    ? available.filter(definition => additional.includes(definition.id) || baseIDs.includes(definition.id)).map(definition => definition.id)
-    : [...baseIDs, ...additional.filter(id => !baseIDs.includes(id) && available.some(definition => definition.id === id))];
+  // Shape admission uses both supplemental lanes before deduplicating IDs.
+  const descriptors = !selectedBinding ? nativeMetrics : selectedBinding.policy === 'supplement'
+    ? [...externalMetrics, ...nativeMetrics] : externalMetrics;
+  const metricIDs = [...new Set(descriptors
+    .filter(definition => (baseIDs.includes(definition.id) || additional.includes(definition.id)) && definition.supported_shapes?.includes(0))
+    .map(definition => definition.id))];
   const token = metricResourceToken(reference, resourceKey, props.resourceNamespace ?? '', resourceID);
   const resources = useMemo(() => enabled ? [{
     token, resource_key: resourceKey, resource_id: resourceID,
     resource_namespace: reference?.address.scope.find(scope => scope.dimension === 'namespace')?.value ?? props.resourceNamespace ?? '',
     reference, route,
   } as MetricResource] : [], [enabled, token, resourceKey, resourceID, props.resourceNamespace, reference, route]);
-  const current = usePodResourceSetMetrics({ connectionID, resources, bindingID: bindingID || 'native', metricIDs, enabled: enabled && metricIDs.length > 0 });
-  const seriesIDs = metricIDs.filter(id => additional.includes(id) && available.some(definition => definition.id === id && definition.supported_shapes?.includes(1)));
+  const current = usePodResourceSetMetrics({ connectionID, resources, bindingID: bindingID || undefined, metricIDs, enabled: enabled && metricIDs.length > 0 });
+  const seriesIDs = [...new Set(descriptors
+    .filter(definition => additional.includes(definition.id) && definition.supported_shapes?.includes(1))
+    .map(definition => definition.id))];
   const history = usePodResourceSetMetrics({
-    connectionID, resources, bindingID: bindingID || 'native', metricIDs: seriesIDs, shape: 1,
+    connectionID, resources, bindingID: bindingID || undefined, metricIDs: seriesIDs, shape: 1,
     startTime: timeRange.from.toISOString(), endTime: timeRange.to.toISOString(), step: 30000000000,
     enabled: enabled && seriesIDs.length > 0,
   });
   const results = (current.data?.results ?? []).filter(result => result.resource_token === token);
-  const error = bindings.error ?? (selectedBinding ? definitions.error : nativeProviders.error) ?? current.error ?? history.error;
+  const error = bindings.error ?? (selectedBinding ? definitions.error : undefined) ?? (needsNative ? nativeProviders.error : undefined) ?? current.error ?? history.error;
   return <Stack direction="column" spacing={2}>
     <Text weight="semibold">Metrics</Text>
     <label>Metric source <select aria-label="Metric source" value={bindingID} onChange={event => { setBindingID(event.target.value); setAdditional([]); }}>
-      <option value="">Native Kubernetes metrics</option>
+      <option value="">Connection default</option>
+      <option value="native">Native Kubernetes metrics</option>
       {sources.map(binding => <option key={binding.id} value={binding.id}>{binding.source.plugin_id} · {binding.source.connection_id} · {binding.source.datasource_uid} ({binding.policy})</option>)}
     </select></label>
     <fieldset><legend>Additional metrics</legend>
@@ -80,20 +88,22 @@ export default function PodMetricsSection(props: MetricSidebarProps) {
     </fieldset>
     {!enabled && <Text size="xs">Canonical resource target unavailable.</Text>}
     {error && <Text role="alert" tone="danger">{error instanceof Error ? error.message : 'Metrics request failed'}</Text>}
-    {(current.isLoading || bindings.isLoading || (selectedBinding ? definitions.isLoading : nativeProviders.isLoading)) && <Spinner size="sm" />}
+    {(current.isLoading || bindings.isLoading || (selectedBinding && definitions.isLoading) || (needsNative && nativeProviders.isLoading)) && <Spinner size="sm" />}
     {enabled && !current.isLoading && !error && !results.length && <Text size="xs">No measurements returned. This does not mean zero usage.</Text>}
     {metricIDs.map(id => {
       const matches = results.filter(result => result.metric_id === id);
-      const definition = available.find(definition => definition.id === id);
       return <div key={id}><Text size="sm">{available.find(definition => definition.id === id)?.name ?? id}</Text>
         {!matches.length && !current.isLoading && <Text size="xs">Not reported</Text>}
-        {matches.map((result, index) => <div key={index}>
+        {matches.map((result, index) => {
+          const definition = (result.provenance.native ? nativeMetrics : externalMetrics).find(definition => definition.id === id);
+          return <div key={index}>
           <Text size="sm">{metricResultDisplay(result)} {definition ? UNIT_LABELS[definition.unit] : ''}</Text>
           <Text size="xs" tone="muted">{result.provenance.native ? 'Native Kubernetes' : `${result.provenance.source.plugin_id} · ${result.provenance.source.connection_id} · ${result.provenance.source.datasource_uid}`} · {result.status}{result.mapping_revision ? ` · revision ${result.mapping_revision}` : ''}</Text>
           {Object.entries(result.dimensions ?? {}).map(([key, value]) => <Text key={key} size="xs">{key}: {value}</Text>)}
           {Object.entries(result.value?.current_value?.labels ?? {}).map(([key, value]) => <Text key={`label-${key}`} size="xs">{key}: {value}</Text>)}
           {result.warnings?.map((warning, index) => <Text key={index} size="xs">{warning}</Text>)}
-        </div>)}
+        </div>;
+        })}
       </div>;
     })}
     {current.data?.warnings?.map((warning, index) => <Text key={index} size="xs">{warning}</Text>)}
