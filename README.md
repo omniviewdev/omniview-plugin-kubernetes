@@ -130,6 +130,7 @@ Node `cordon` and `uncordon` remain finite actions. Node `drain` requires stream
 and publishes typed activity stages and removed, remaining, and skipped pod counts.
 Drain cordons first and completes only after the selected pod incarnations disappear, not when
 evictions are accepted. Mirror pods, completed pods, and optionally DaemonSet pods are skipped.
+The Node drain confirmation warns that evicting pods permanently deletes their emptyDir data.
 Setting `deleteEmptyDirData` to false refuses selected pods with emptyDir volumes.
 Grace defaults to 30 seconds; -1 preserves each pod's native termination grace period.
 Eviction rejection fails the activity unless explicit force deletion succeeds. Drain does not
