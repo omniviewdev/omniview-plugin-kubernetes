@@ -161,7 +161,7 @@ describe('standalone Kubernetes actions', () => {
       onConfirm: () => Promise<void>;
     };
     expect(renderToStaticMarkup(confirmation.body)).toContain(
-      'emptyDir volumes will be permanently deleted',
+      'emptyDir volumes belonging to evicted pods will be permanently deleted',
     );
     await confirmation.onConfirm();
     expect(handlers.startResourceAction).toHaveBeenCalledTimes(1);
