@@ -105,7 +105,7 @@ Kubernetes plugin 0.16.1 requires Omniview 0.30.0 or newer, runtime/Vite 0.30.0,
 Container log requests with an explicit `SinceTime` use that timestamp instead
 of `SinceSeconds`. Kubernetes accepts only one time filter per log request.
 
-Standalone release 0.15.1 used SDK 0.14.6 for completed-source handling with stock grpc-go. The historical live explorer evidence used the independently reviewed source cohort pinned to SDK `6ce85c8b42cab1547396217510196b29e63ffe55`; it does not establish evidence for this candidate or the integrated activity release. Source-cohort approval and standalone release verification remain separate gates.
+Standalone release 0.15.1 used SDK 0.14.6 for completed-source handling with stock grpc-go. Historical live explorer evidence used SDK `6ce85c8b42cab1547396217510196b29e63ffe55`; it does not establish evidence for this candidate or the integrated activity release.
 
 Standalone release 0.16.0 packaging uses published SDK `v0.15.0` and the SDK-compatible grpc-go fork for activity streams and completed-source handling.
 
@@ -242,43 +242,14 @@ A changed name or namespace cannot retarget an edit. Native dialogs own their
 portaled menus, help, and confirmations,
 so these controls remain visible and interactive inside the browser's top layer.
 
-## Candidate frontend CI
+## Frontend CI
 
-PRs explicitly labeled `resource-v2-candidate` use `hack/candidate-ui.mjs`, not
-the last published runtime. Unlabeled PRs retain the frozen published install.
-Repository administrators must set
-`OMNIVIEW_RESOURCE_V2_REVIEWED_HOST_REVISION` to an independently approved full
-host commit and `OMNIVIEW_RESOURCE_V2_REVIEWED_SDK_REVISION` to the independently
-approved SDK commit. The selected host's checked-in `e2e/source-cohort.json`
-owns the exact SDK, UI, and Kubernetes commits. Its Kubernetes gitlink and the
-actual PR head must match that cohort. Missing approval fails closed.
-
-The helper reuses the approved host's admission checks, unchanged isolation
-baseline, real native-pnpm protocol probe, and canonical cohort preparation CLI.
-The CLI creates and links an isolated managed workspace and supplies its package
-launcher and producer graph. Lint, native typechecking, behavior tests, New York
-age-clock tests, and production UI builds run against that selected source
-workspace. No package files or `node_modules` exports are patched. PR execution
-uses read-only permissions without persisted checkout credentials.
-
-Candidate preparation compiles the real native host cohort tool. Linux therefore
-needs the same GTK 4, WebKitGTK 6.0, Wayland, compiler and pkg-config development
-prerequisites as the host CI image; the labeled workflow installs them explicitly.
-The unlabeled published dependency lane does not run this native setup.
-
-Shared producer preparation and the final production build use the canonical
-`build-plugin-ui` operation, which owns dependency order, staged outputs,
-publication, and generated shims. Consumer checks use the supplied supervised
-package launcher; they do not overwrite producer distributions.
-The helper persists the constructed cohort before building producers. An always-run
-cleanup step retires that cohort through the host's canonical unlink/remove
-transaction, including after producer or check failures. Failed preparation before
-cohort construction retains its private failure artifacts without claiming a
-stopped process or deleting unrelated data.
-
-This candidate-only validation does not change published dependency manifests,
-stable-main installs, or release packaging. After publication, ordinary registry
-validation must use the reviewed published cohort and its frozen lockfile.
+Every pull request installs UI dependencies from the frozen lockfile, then runs
+lint, native TypeScript checking, tests, the New York age-clock test, and the
+production UI build. Host application E2E and profiling instead use UI packages
+from the host lockfile and Kubernetes from the host's `plugins/kubernetes`
+gitlink. Their linked SDK checkout matches the commit resolved from the host
+`go.mod`.
 
 ## Resource v2 boundary
 
@@ -992,7 +963,7 @@ The five-minute observation deadline also bounds readiness GET/LIST calls. Deadl
 
 These action semantics require a compatible host/runtime cohort. Coordinate changes with [the host invocation contract](https://github.com/omniviewdev/omniview/issues/83); source integration does not publish a plugin release.
 
-Resource watch streams acknowledge actual SDK listener registration before the host admits connections. Build the plugin and host from the same reviewed SDK cohort; the host rejects streams without that acknowledgement.
+Resource watch streams acknowledge actual SDK listener registration before the host admits connections. Build the plugin and host with compatible declared SDK dependencies; the host rejects streams without that acknowledgement.
 
 ### Settings and shared dependency migration
 
@@ -1034,7 +1005,7 @@ Registry installs retain pnpm's 24-hour release-age protection. Only coordinated
 `@omniviewdev/*` packages are exempted; linked source worktrees resolve locally.
 The current frontend cohort uses `@omniviewdev/base-ui` 0.14.0,
 `@omniviewdev/editors` 6.1.8, and runtime/Vite plugin 0.30.0.
-The published runtime and Vite plugin must match; source builds use the reviewed host runtime.
+The published runtime and Vite plugin must match; host application builds use the host lockfile.
 The backend pins SDK `v0.15.0` (`427ef1da1f1d`) and replaces
 grpc-go with `github.com/omniviewdev/grpc-go` at
 `v1.79.3-0.20261103012409-4c6f1d1c4e10` for source-session receive controls.
