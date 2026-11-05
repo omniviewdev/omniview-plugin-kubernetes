@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://omniview.dev"><img src="https://img.shields.io/badge/omniview-plugin-326CE5?style=flat-square&logo=kubernetes&logoColor=white" alt="Omniview Plugin" /></a>
-  <img src="https://img.shields.io/badge/version-0.16.0-blue?style=flat-square" alt="Version" />
+  <img src="https://img.shields.io/badge/version-0.16.1-blue?style=flat-square" alt="Version" />
   <img src="https://img.shields.io/badge/license-Apache--2.0-green?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/category-cloud-326CE5?style=flat-square" alt="Category" />
 </p>
@@ -100,7 +100,7 @@ These are unmodified captures from the running development IDE, not mockups or p
 
 The [evidence index](docs/images/cluster-explorer/index.json) links all twelve final Cards/Table/Debug captures at 360, 768, 1063, and 1568 pixels, organization and search captures, settled API views, restart snapshots, and the live scenario summary. Nine themes, five text scales, both densities, keyboard actions, direct opening, new-tab handoff, folder assets, lenses, and shared recents were exercised. Native OS window creation was not proved.
 
-Kubernetes plugin 0.16.0 requires Omniview 0.29.0 or newer, runtime/Vite 0.29.0, Base UI 0.14.0, and Editors 6.1.8. This cohort supplies the plugin-data snapshot and compare-and-swap bindings used by the explorer. Upgrade the desktop before installing the plugin; older runtime packages with a Base UI `~0.13.0` peer are incompatible even if workspace source links resolve imports.
+Kubernetes plugin 0.16.1 requires Omniview 0.30.0 or newer, runtime/Vite 0.30.0, Base UI 0.14.0, and Editors 6.1.8. This cohort supplies activity, structured notifications, and the plugin-data snapshot and compare-and-swap bindings used by the explorer. Upgrade the desktop before installing the plugin; older runtime packages with a Base UI `~0.13.0` peer are incompatible even if workspace source links resolve imports. Omniview 0.30.1 adds plugin-route render isolation.
 
 Container log requests with an explicit `SinceTime` use that timestamp instead
 of `SinceSeconds`. Kubernetes accepts only one time filter per log request.
@@ -1173,7 +1173,7 @@ Commit curated notes in `docs/releases/X.Y.Z.md`, starting with
 `# Kubernetes X.Y.Z`, alongside the version bump. Include user-facing changes,
 linked feature PRs and real IDE screenshots. The workflow validates and publishes
 that file as the GitHub release body; it does not append generated notes.
-Kubernetes 0.16.0 requires IDE 0.30.0 or newer. Publish the Omniview 0.30.0
+Kubernetes 0.16.1 requires IDE 0.30.0 or newer. Publish the Omniview 0.30.0
 desktop and matching npm release before publishing the plugin; npm publication alone is not a desktop release.
 
 The release workflow uses the Go version declared in `go.mod`, Node.js 26.13.0,
