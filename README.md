@@ -105,7 +105,13 @@ Kubernetes plugin 0.16.1 requires Omniview 0.30.0 or newer, runtime/Vite 0.30.0,
 Container log requests with an explicit `SinceTime` use that timestamp instead
 of `SinceSeconds`. Kubernetes accepts only one time filter per log request.
 
-Standalone release packaging uses published SDK `v0.15.0` and the SDK-compatible grpc-go fork for activity streams and completed-source handling. Explorer evidence below records an earlier reviewed-source cohort; it does not prove the integrated activity release.
+Standalone release 0.15.1 used SDK 0.14.6 for completed-source handling with stock grpc-go. The historical live explorer evidence used the independently reviewed source cohort pinned to SDK `6ce85c8b42cab1547396217510196b29e63ffe55`; it does not establish evidence for this candidate or the integrated activity release. Source-cohort approval and standalone release verification remain separate gates.
+
+Standalone release 0.16.0 packaging uses published SDK `v0.15.0` and the SDK-compatible grpc-go fork for activity streams and completed-source handling.
+
+This source candidate pins SDK `v0.15.0` (`427ef1da1f1d`),
+including completed-source handling and the C04 source-session wire contract.
+It replaces grpc-go with the scoped Omniview fork required by source sessions.
 
 ## MCP resource actions
 
@@ -283,6 +289,8 @@ Native types use `k8s:<actual-api-group>/<resource>`. The core API group stays e
 Only the host issues authority and row keys. A readable kube-system namespace UID supplies a nonauthoritative `kubernetes.namespace-uid.v1` hint with **connection-local** continuity on native resource Types and cluster-backed Helm releases. Local Helm repositories/charts have no cluster hint and remain isolated and unknown. Hints are Type-qualified, never catalog-wide; endpoints and credentials never establish backing identity.
 
 Finite reads use native client-go operations and source-only continuation tokens. Enumeration keeps unknown totals unknown. The implementation-candidate `omniview.resource-wire-policy.v1` separates 16 MiB resource documents, 32 MiB aggregate frames, and at most 256 records from the host's smaller predicate/projection limits. Resource-only HTTP clients bound decompressed finite responses and each native watch frame before client-go materialization. Their actual SDK connection-generation context also cancels discovery APIs that internally use background contexts. Independent logs, exec, and metrics streams keep their native framing rather than receiving a finite aggregate body cap.
+
+Kubernetes enumeration and label queries request one object per native List, preserving the same limit across Kubernetes continuation tokens. Each public page combines native Lists up to the requested page size and wire budget; when the next object does not fit, its input continuation is retained for the next page. A server that ignores the limit can return a complete unpaginated list only when the entire list fits; otherwise acquisition fails without truncation. Paginated servers cost one List request per object, plus a repeat at wire-budget boundaries. Cursors bind the request and connection generation, expired continuations require a fresh acquisition, and an individually oversized object fails with `RESOURCE_LIMIT`.
 
 Resource tables, namespace selectors, repository chart drawers, and native dashboard adapters request `collection: true`. The runtime follows bounded source pages in the background and exposes the full acquired collection; source cursors are transport details, not UI navigation. Searches, filters, sorting, selections, and dashboard counts operate across that collection. Table selections use host record keys in one collection-wide selection state, reset when the target context changes. Unknown source totals remain unknown, and collection acquisition does not strengthen best-effort consistency.
 
@@ -1027,10 +1035,9 @@ Registry installs retain pnpm's 24-hour release-age protection. Only coordinated
 The current frontend cohort uses `@omniviewdev/base-ui` 0.14.0,
 `@omniviewdev/editors` 6.1.8, and runtime/Vite plugin 0.30.0.
 The published runtime and Vite plugin must match; source builds use the reviewed host runtime.
-The backend pins published Go SDK `v0.15.0` and replaces
-`google.golang.org/grpc` with
-`github.com/omniviewdev/grpc-go v1.79.3-0.20261103012409-4c6f1d1c4e10`.
-This SDK release includes typed activity events and completed-source log handling.
+The backend pins SDK `v0.15.0` (`427ef1da1f1d`) and replaces
+grpc-go with `github.com/omniviewdev/grpc-go` at
+`v1.79.3-0.20261103012409-4c6f1d1c4e10` for source-session receive controls.
 Debug preferences discard unsaved drafts when reopened or switched to another
 connection, but preserve active drafts when saved defaults refresh.
 

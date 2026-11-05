@@ -7,6 +7,7 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -134,6 +135,15 @@ func watchRecord(target resource.ReadTarget, representation resource.Representat
 		return resource.Record{}, err
 	}
 	return record, nil
+}
+
+var errSourceBindingChanged = errors.New("source binding changed")
+
+func compactWatchRecord(record resource.Record, binding resource.Representation) (resource.SourceRecord, error) {
+	if !reflect.DeepEqual(record.Representation, binding) {
+		return resource.SourceRecord{}, errSourceBindingChanged
+	}
+	return resource.CompactSourceRecord(record), nil
 }
 
 const sourceQueueCapacity = 4096
@@ -439,7 +449,11 @@ func (s *KubernetesResourcerBase[T]) Source(ctx context.Context, client *clients
 		if err != nil {
 			return resource.SourceObservation{}, err
 		}
-		result := resource.SourceObservation{Record: resource.CompactSourceRecord(record)}
+		compact, err := compactWatchRecord(record, request.Representation)
+		if err != nil {
+			return resource.SourceObservation{}, err
+		}
+		result := resource.SourceObservation{Record: compact}
 		metadata := extractMetadata(u)
 		if len(metadata.Labels) != 0 || metadata.CreatedAt != nil {
 			result.Metadata = &metadata
@@ -450,6 +464,9 @@ func (s *KubernetesResourcerBase[T]) Source(ctx context.Context, client *clients
 	for _, u := range staging {
 		item, err := observation(u)
 		if err != nil {
+			if errors.Is(err, errSourceBindingChanged) {
+				return emit.Reset(ctx, resource.SourceResetBindingChanged, "Source binding changed.")
+			}
 			return err
 		}
 		batch = append(batch, item)
@@ -497,27 +514,23 @@ func (s *KubernetesResourcerBase[T]) Source(ctx context.Context, client *clients
 		case <-unhealthy:
 			return emit.Reset(ctx, resource.SourceResetContinuityLost, "Kubernetes API is unreachable; informer events are not being delivered")
 		case first := <-events:
-			changes := make([]resource.SourceChange, 0, request.Limits.MaxBatchItems)
-			event := first
-			for {
-				item, err := observation(event.object)
-				if err != nil {
-					return err
-				}
-				if event.kind == "delete" {
-					changes = append(changes, resource.SourceChange{Kind: resource.SourceChangeRemove, Reference: &item.Record.Reference, SourceRevision: item.Record.SourceRevision})
-				} else {
-					changes = append(changes, resource.SourceChange{Kind: resource.SourceChangeUpsert, Observation: &item})
-				}
-				if len(changes) >= int(request.Limits.MaxBatchItems) || len(events) == 0 {
-					break
-				}
-				event = <-events
+			item, err := observation(first.object)
+			if errors.Is(err, errSourceBindingChanged) {
+				return emit.Reset(ctx, resource.SourceResetBindingChanged, "Source binding changed.")
+			}
+			if err != nil {
+				return err
+			}
+			var change resource.SourceChange
+			if first.kind == "delete" {
+				change = resource.SourceChange{Kind: resource.SourceChangeRemove, Reference: &item.Record.Reference, SourceRevision: item.Record.SourceRevision}
+			} else {
+				change = resource.SourceChange{Kind: resource.SourceChangeUpsert, Observation: &item}
 			}
 			if overflow.Load() {
 				return reset()
 			}
-			if err := emit.Changes(ctx, changes, nil); err != nil {
+			if err := emit.Changes(ctx, []resource.SourceChange{change}, nil); err != nil {
 				return err
 			}
 		}
