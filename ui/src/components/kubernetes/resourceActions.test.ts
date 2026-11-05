@@ -1,4 +1,6 @@
 import { jsonToValue, type DrawerContext } from '@omniviewdev/runtime';
+import type { ReactElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('@/pluginId', () => ({ PLUGIN_ID: 'alternate-kube' }));
 
@@ -155,8 +157,12 @@ describe('standalone Kubernetes actions', () => {
     executeKubernetesAction(object, handlers, drain.id);
     expect(handlers.startResourceAction).not.toHaveBeenCalled();
     const confirmation = vi.mocked(handlers.show).mock.calls[0][0] as {
+      body: ReactElement;
       onConfirm: () => Promise<void>;
     };
+    expect(renderToStaticMarkup(confirmation.body)).toContain(
+      'emptyDir volumes will be permanently deleted',
+    );
     await confirmation.onConfirm();
     expect(handlers.startResourceAction).toHaveBeenCalledTimes(1);
     expect(handlers.startResourceAction).toHaveBeenCalledWith({

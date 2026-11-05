@@ -95,7 +95,8 @@ export const drawerActions: Array<DrawerComponentAction<Node>> = [
         body: (
           <span>
             This will evict all pods from the node and cordon it. DaemonSet-managed pods will be
-            ignored. Each pod keeps its own termination grace period.
+            ignored. Each pod keeps its own termination grace period. Data in evicted pods'
+            emptyDir volumes will be permanently deleted.
           </span>
         ),
         confirmLabel: 'Drain',
