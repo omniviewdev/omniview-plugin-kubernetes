@@ -177,6 +177,7 @@ function SelectedMetricPanels({ catalog, sourceControl, ...props }: ResourceMetr
         const chartDomain = rangeObservation.domain?.startMs != null && rangeObservation.domain.endMs != null
           ? { startMs: rangeObservation.domain.startMs, endMs: rangeObservation.domain.endMs } : time.mode === 'absolute' ? time.domain : null;
         return <MetricPanel key={metric.id} title={metric.name} state={state}
+          loadingChart={history && display !== 'stat'}
           actions={<Stack direction="row" spacing={1}>
             {(history || props.capacities?.[metric.id]) && <MetricDisplayPicker value={display} label={`${metric.name} display`}
               options={[...(history ? [

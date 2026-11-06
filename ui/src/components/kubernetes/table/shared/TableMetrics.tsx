@@ -9,12 +9,13 @@ import { PLUGIN_ID } from '@/pluginId';
 
 type Scope = Pick<UseMetricObservationOptions, 'ownerConnectionID' | 'resourceKey' | 'bindingID' | 'source'>;
 type MetricColumn = { id: string; metricID: string };
-const ScopeContext = createContext<(Scope & { columns: MetricColumn[]; ready: boolean }) | null>(null);
+const ScopeContext = createContext<(Scope & { columns: MetricColumn[]; ready: boolean; loading?: boolean; error?: unknown }) | null>(null);
 const ValuesContext = createContext<{
   metrics: ReadonlyMap<string, ReadonlyMap<string, PreparedMetricResult>>;
   register: (body: object) => () => void;
   tokenFor: (body: object) => string | undefined;
   error: unknown;
+  loading: boolean;
 } | null>(null);
 
 /** Resource owners supply scope and default columns; generic tables only compose typed slots. */
@@ -41,13 +42,14 @@ export function useTableMetrics<T extends object>(scope: Scope, defaults: Readon
     accessorFn: row => row,
     enableSorting: false,
     enableColumnFilter: false,
-    size: 110,
+    size: 168,
     meta: { defaultHidden: !defaults[column.metricID] },
     cell: ({ row }) => <TableMetricCell body={row.original} metricID={column.metricID} {...presentation?.bound?.(row.original, column.metricID)} />,
   })), [metricColumns, descriptors, defaults, presentation]);
   const value = useMemo(() => ({ ownerConnectionID: scope.ownerConnectionID, resourceKey: scope.resourceKey,
-    bindingID: scope.bindingID, source, columns: metricColumns, ready: sourceReady && !!catalog.data && !catalog.error && !catalog.isLoading }),
-    [scope.ownerConnectionID, scope.resourceKey, scope.bindingID, source, sourceReady, metricColumns, catalog.data, catalog.error, catalog.isLoading]);
+    bindingID: scope.bindingID, source, columns: metricColumns, ready: sourceReady && !!catalog.data && !catalog.error && !catalog.isLoading,
+    loading: selection.isLoading || catalog.isLoading, error: selection.error ?? catalog.error }),
+    [scope.ownerConnectionID, scope.resourceKey, scope.bindingID, source, sourceReady, metricColumns, catalog.data, catalog.error, catalog.isLoading, selection.isLoading, selection.error]);
   return { columns, scope: value, error: selection.error ?? catalog.error };
 }
 
@@ -91,20 +93,22 @@ export function TableMetricsProvider({ columnVisibility, recordsByBody, children
     return map;
   }, [observation.results]);
   const tokenFor = useCallback((body: object) => recordsByBody.get(body)?.key, [recordsByBody]);
-  const value = useMemo(() => ({ metrics, register, tokenFor, error: observation.error }), [metrics, register, tokenFor, observation.error]);
+  const error = scope.error ?? observation.error;
+  const loading = !!scope.loading || (scope.ready && !error && (targets.length === 0 || observation.isLoading));
+  const value = useMemo(() => ({ metrics, register, tokenFor, error, loading }), [metrics, register, tokenFor, error, loading]);
   return <ValuesContext.Provider value={value}>{children}</ValuesContext.Provider>;
 }
 
 export function TableMetricCell({ body, metricID, bound, request, thresholds }: { body: object; metricID: string; bound?: CapacityBound; request?: number; thresholds?: readonly MetricThreshold[] }) {
   const context = useContext(ValuesContext);
   if (!context) throw new Error('Metric cells require TableMetricsProvider.');
-  const { register, tokenFor, metrics, error } = context;
+  const { register, tokenFor, metrics, error, loading } = context;
   useEffect(() => register(body), [register, body]);
   const token = tokenFor(body);
   const result = token ? metrics.get(token)?.get(metricID) : undefined;
   const title = error ? parseAppError(error).detail : result?.status === 'ok'
     ? (result.observedAt == null ? undefined : `Observed ${new Date(result.observedAt).toLocaleString()}`) : result?.status;
-  return <span title={title}>{result?.unit
+  return <div title={title}>{result?.unit
     ? <MetricCell label={metricID} value={result.status === 'ok' ? result.value : null} unit={result.unit} bound={bound} request={request} thresholds={thresholds} />
-    : '—'}</span>;
+    : loading && !error ? <MetricCell label={metricID} loading /> : '—'}</div>;
 }
