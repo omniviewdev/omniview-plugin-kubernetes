@@ -1,4 +1,4 @@
-import { Avatar, Button, IconButton, Popover, SearchInput, Stack, Text } from '@omniviewdev/base-ui';
+import { Avatar, Button, Chip, IconButton, Popover, SearchInput, Stack, Text } from '@omniviewdev/base-ui';
 import { CapacityBar, MetricDetails, MetricDisplayPicker, MetricPanel, MetricValue, TimeRangeControl, TimeSeriesChart, type MetricDetailsProps, type MetricPanelState, type TimeSelection } from '@omniviewdev/base-ui/metrics';
 import { parseAppError, useMetricBindings, useMetricCatalog, useMetricObservation, useMetricSourcePresentation, useMetricViewPreferences, useMetricViewSourceSelection, type PreparedMetricResult, type UseMetricObservationOptions, type ResourceMetricTarget, type ResourceMetricsCatalog, type ResourceReference, type AccessRoute } from '@omniviewdev/runtime';
 import type { UseQueryResult } from '@tanstack/react-query';
@@ -115,16 +115,17 @@ function SelectedMetricPanels({ catalog, sourceControl, ...props }: ResourceMetr
       </div>
     </div>
       <div className={styles.selection}>
-        {preferences.metric_ids.map(id => <Button key={id} size="xs" variant="outline" className={styles.chip}
+        {preferences.metric_ids.map(id => <Chip key={id} size="lg" variant="outline" clickable
           aria-label={`Remove ${descriptors.find(metric => metric.id === id)?.name ?? id}`}
+          startDecorator={<span aria-hidden className={styles.swatch} style={{ backgroundColor: `var(--ov-color-chart-${colors.get(id)})` }} />}
+          endDecorator={<LuX />}
           onClick={() => { void update(current => ({ metric_ids: current.metric_ids.filter(value => value !== id) })); }}>
-          <span aria-hidden className={styles.swatch} style={{ backgroundColor: `var(--ov-color-chart-${colors.get(id)})` }} />
-          {descriptors.find(metric => metric.id === id)?.name ?? `${id} · unavailable`}<LuX size={11} />
-        </Button>)}
-        <Popover.Root open={browserOpen} onOpenChange={setBrowserOpen}>
-          <Popover.Trigger render={<Button size="xs" variant="outline" className={styles.add}><LuPlus size={12} />Add metric</Button>} />
+          {descriptors.find(metric => metric.id === id)?.name ?? `${id} · unavailable`}
+        </Chip>)}
+        <Popover.Root size="sm" open={browserOpen} onOpenChange={setBrowserOpen}>
+          <Popover.Trigger render={<Button size="sm" variant="outline"><LuPlus />Add metric</Button>} />
           <Popover.Portal><Popover.Positioner side="bottom" align="start" sideOffset={8}>
-            <Popover.Popup className={styles.browser}>
+            <Popover.Popup size="md">
               <SearchInput aria-label="Search metrics" placeholder="Search metrics…" size="sm" value={search} onValueChange={setSearch} />
               <div className={styles.options}>
                 {descriptors.filter(metric => `${metric.name} ${metric.description}`.toLowerCase().includes(search.toLowerCase())).map(metric =>
