@@ -73,7 +73,7 @@ describe('successful connected cluster route history', () => {
     state.connected = true;
     state.migrationReady = false;
     const view = render(fixture());
-    expect(screen.getByRole('status').textContent).toContain('Restoring column preferences');
+    expect(screen.getByText('Restoring column preferences...')).toBeTruthy();
     expect(state.record).not.toHaveBeenCalled();
     state.migrationReady = true;
     view.rerender(fixture());
