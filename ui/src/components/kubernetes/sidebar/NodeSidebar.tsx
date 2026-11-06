@@ -15,9 +15,9 @@ import NodeResourcesSection from './Node/NodeResourcesSection';
 import NodeStatusSection from './Node/NodeStatusSection';
 import NodeSystemSection from './Node/NodeSystemSection';
 import NodeTopologySection from './Node/NodeTopologySection';
-import { parseCpuToMillicores, parseMemoryToBytes } from './Pod/ContainerSlice/helpers';
 
 import { PLUGIN_ID } from '@/pluginId';
+import { parseResourceQuantity } from '@/utils/convert';
 
 interface Props {
   ctx: DrawerContext<Node>;
@@ -27,16 +27,16 @@ export function NodeMetricsView({ ctx }: { ctx: DrawerContext<unknown> }) {
   const connection = useMetricOwnerConnection(PLUGIN_ID, ctx.resource?.route.connection ?? '');
   const cpu = node?.status?.capacity?.cpu;
   const memory = node?.status?.capacity?.memory;
-  const cpuCapacity = cpu ? parseCpuToMillicores(cpu) / 1000 : undefined;
-  const memoryCapacity = memory ? parseMemoryToBytes(memory) : undefined;
+  const cpuCapacity = parseResourceQuantity(cpu);
+  const memoryCapacity = parseResourceQuantity(memory);
   return <ResourceMetricPanels connectionID={ctx.resource?.route.connection ?? ''}
     resourceKey={ctx.resource?.reference.address.type ?? 'k8s:/nodes'}
     resourceID={ctx.resource?.reference.address.id ?? ''}
     reference={ctx.resource?.reference} route={ctx.resource?.route}
     defaultMetricIDs={['kubernetes.node.cpu.usage', 'kubernetes.node.memory.working_set']}
-    capacities={{
-      'kubernetes.node.cpu.usage': { capacity: cpuCapacity != null && Number.isFinite(cpuCapacity) && cpuCapacity > 0 ? cpuCapacity : undefined },
-      'kubernetes.node.memory.working_set': { capacity: memoryCapacity != null && Number.isFinite(memoryCapacity) && memoryCapacity > 0 ? memoryCapacity : undefined },
+    presentation={{
+      'kubernetes.node.cpu.usage': { bound: cpuCapacity != null && Number.isFinite(cpuCapacity) && cpuCapacity > 0 ? { kind: 'capacity', value: cpuCapacity } : undefined },
+      'kubernetes.node.memory.working_set': { bound: memoryCapacity != null && Number.isFinite(memoryCapacity) && memoryCapacity > 0 ? { kind: 'capacity', value: memoryCapacity } : undefined },
     }}
     identityLabels={(result, publicScope) => {
       const cluster = publicScope.cluster || connection?.name;

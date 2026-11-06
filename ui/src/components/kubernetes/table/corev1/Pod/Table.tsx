@@ -16,7 +16,7 @@ import { createStandardViews } from '../../../../shared/sidebar/createDrawerView
 import ResourceTable from '../../../../shared/table/ResourceTable';
 import ColumnPicker from '../../../../tables/ColumnFilter/ColumnPicker';
 import PodSidebar from '../../../sidebar/Pod';
-import { podMetricBound } from '../../../sidebar/Pod/podMetricBound';
+import { podMetricPresentation } from '../../../sidebar/Pod/podMetricBound';
 import { PodMetricsView } from '../../../sidebar/Pod/PodMetricsSection';
 import ConditionsCell from '../../shared/cells/ConditionsCell';
 import { CopyableCell } from '../../shared/cells/CopyableCell';
@@ -45,14 +45,13 @@ const PodTable: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
   const metrics = useTableMetrics<Pod>({ ownerConnectionID: id, resourceKey }, defaultMetrics, {
     headers: { 'kubernetes.pod.cpu.usage': 'CPU', 'kubernetes.pod.memory.working_set': 'Memory' },
-    bound: (pod, metricID) => {
+    cell: (pod, metricID) => {
       const resource = metricID === 'kubernetes.pod.cpu.usage' ? 'cpu' : metricID === 'kubernetes.pod.memory.working_set' ? 'memory' : null;
       if (!resource) return {};
-      const limit = podMetricBound(pod, resource, 'limits');
-      const request = podMetricBound(pod, resource, 'requests');
+      const presentation = podMetricPresentation(pod, resource);
+      const limit = presentation.bound?.kind === 'limit' ? presentation.bound.value : undefined;
       return {
-        request,
-        bound: limit != null ? { kind: 'limit', value: limit } : request != null && request > 0 ? { kind: 'request', value: request } : undefined,
+        ...presentation,
         thresholds: limit != null && limit > 0 ? [
           { value: 0, tone: 'success' }, { value: limit * 0.7, tone: 'warning' }, { value: limit * 0.9, tone: 'danger' },
         ] : undefined,

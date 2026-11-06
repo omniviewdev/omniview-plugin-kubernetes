@@ -1,5 +1,5 @@
 import type { DataTableFeatures } from '@omniviewdev/base-ui';
-import { MetricCell, type CapacityBound, type MetricThreshold } from '@omniviewdev/base-ui/metrics';
+import { MetricCell, type CapacityBound, type MetricReference, type MetricThreshold } from '@omniviewdev/base-ui/metrics';
 import { parseAppError, useMetricCatalog, useMetricObservation, useMetricViewSourceSelection, type HostRecord, type PreparedMetricResult, type ResourceMetricTarget, type UseMetricObservationOptions } from '@omniviewdev/runtime';
 import type { ColumnDef } from '@tanstack/react-table';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
@@ -20,7 +20,7 @@ const ValuesContext = createContext<{
 
 /** Resource owners supply scope and default columns; generic tables only compose typed slots. */
 export function useTableMetrics<T extends object>(scope: Scope, defaults: Readonly<Record<string, string>>, presentation?: {
-  bound?: (body: T, metricID: string) => { bound?: CapacityBound; request?: number; thresholds?: readonly MetricThreshold[] };
+  cell?: (body: T, metricID: string) => { bound?: CapacityBound; references?: readonly MetricReference[]; thresholds?: readonly MetricThreshold[] };
   headers?: Readonly<Record<string, string>>;
 }) {
   const selection = useMetricViewSourceSelection(PLUGIN_ID, scope.ownerConnectionID, scope.resourceKey);
@@ -44,7 +44,7 @@ export function useTableMetrics<T extends object>(scope: Scope, defaults: Readon
     enableColumnFilter: false,
     size: 168,
     meta: { defaultHidden: !defaults[column.metricID] },
-    cell: ({ row }) => <TableMetricCell body={row.original} metricID={column.metricID} {...presentation?.bound?.(row.original, column.metricID)} />,
+    cell: ({ row }) => <TableMetricCell body={row.original} metricID={column.metricID} {...presentation?.cell?.(row.original, column.metricID)} />,
   })), [metricColumns, descriptors, defaults, presentation]);
   const value = useMemo(() => ({ ownerConnectionID: scope.ownerConnectionID, resourceKey: scope.resourceKey,
     bindingID: scope.bindingID, source, columns: metricColumns, ready: sourceReady && !!catalog.data && !catalog.error && !catalog.isLoading,
@@ -99,7 +99,7 @@ export function TableMetricsProvider({ columnVisibility, recordsByBody, children
   return <ValuesContext.Provider value={value}>{children}</ValuesContext.Provider>;
 }
 
-export function TableMetricCell({ body, metricID, bound, request, thresholds }: { body: object; metricID: string; bound?: CapacityBound; request?: number; thresholds?: readonly MetricThreshold[] }) {
+export function TableMetricCell({ body, metricID, bound, references, thresholds }: { body: object; metricID: string; bound?: CapacityBound; references?: readonly MetricReference[]; thresholds?: readonly MetricThreshold[] }) {
   const context = useContext(ValuesContext);
   if (!context) throw new Error('Metric cells require TableMetricsProvider.');
   const { register, tokenFor, metrics, error, loading } = context;
@@ -109,6 +109,6 @@ export function TableMetricCell({ body, metricID, bound, request, thresholds }: 
   const title = error ? parseAppError(error).detail : result?.status === 'ok'
     ? (result.observedAt == null ? undefined : `Observed ${new Date(result.observedAt).toLocaleString()}`) : result?.status;
   return <div title={title} style={{ width: '100%', minWidth: 0 }}>{result?.unit
-    ? <MetricCell label={metricID} value={result.status === 'ok' ? result.value : null} unit={result.unit} bound={bound} request={request} thresholds={thresholds} />
+    ? <MetricCell label={metricID} value={result.status === 'ok' ? result.value : null} unit={result.unit} bound={bound} references={references} thresholds={thresholds} />
     : loading && !error ? <MetricCell label={metricID} loading /> : '—'}</div>;
 }

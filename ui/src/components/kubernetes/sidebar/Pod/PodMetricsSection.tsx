@@ -3,7 +3,7 @@ import type { Pod } from 'kubernetes-types/core/v1';
 
 import ResourceMetricPanels from '../../../shared/ResourceMetricPanels';
 
-import { podMetricBound } from './podMetricBound';
+import { podMetricPresentation } from './podMetricBound';
 
 import { PLUGIN_ID } from '@/pluginId';
 
@@ -29,9 +29,9 @@ export function PodMetricsView({ ctx }: { ctx: DrawerContext<unknown> }) {
         ...(name ? { pod: name } : {}),
       };
     }}
-    capacities={{
-      'kubernetes.pod.cpu.usage': { request: podMetricBound(pod, 'cpu', 'requests'), limit: podMetricBound(pod, 'cpu', 'limits') },
-      'kubernetes.pod.memory.working_set': { request: podMetricBound(pod, 'memory', 'requests'), limit: podMetricBound(pod, 'memory', 'limits') },
+    presentation={{
+      'kubernetes.pod.cpu.usage': podMetricPresentation(pod, 'cpu'),
+      'kubernetes.pod.memory.working_set': podMetricPresentation(pod, 'memory'),
     }}
   />;
 }

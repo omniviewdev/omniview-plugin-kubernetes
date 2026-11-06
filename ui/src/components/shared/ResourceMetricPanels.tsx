@@ -1,5 +1,5 @@
 import { Avatar, Button, Chip, IconButton, Popover, SearchInput, Stack, Text } from '@omniviewdev/base-ui';
-import { CapacityBar, MetricDetails, MetricDisplayPicker, MetricPanel, MetricValue, TimeRangeControl, TimeSeriesChart, type MetricDetailsProps, type MetricPanelState, type TimeSelection } from '@omniviewdev/base-ui/metrics';
+import { CapacityBar, MetricDetails, MetricDisplayPicker, MetricPanel, MetricValue, TimeRangeControl, TimeSeriesChart, type CapacityBound, type MetricReference, type MetricDetailsProps, type MetricPanelState, type TimeSelection } from '@omniviewdev/base-ui/metrics';
 import { parseAppError, useMetricBindings, useMetricCatalog, useMetricObservation, useMetricSourcePresentation, useMetricViewPreferences, useMetricViewSourceSelection, type PreparedMetricResult, type UseMetricObservationOptions, type ResourceMetricTarget, type ResourceMetricsCatalog, type ResourceReference, type AccessRoute } from '@omniviewdev/runtime';
 import type { UseQueryResult } from '@tanstack/react-query';
 import { useMemo, useState, type ReactNode } from 'react';
@@ -21,7 +21,7 @@ export interface ResourceMetricPanelsProps extends Pick<UseMetricObservationOpti
   targets?: ResourceMetricTarget[];
   reference?: ResourceReference;
   route?: AccessRoute;
-  capacities?: Record<string, { request?: number; limit?: number; capacity?: number }>;
+  presentation?: Readonly<Record<string, { bound?: CapacityBound; references?: readonly MetricReference[] }>>;
   identityLabels?: (result: PreparedMetricResult | undefined, publicScope: Readonly<Record<string, string | undefined>>) => Readonly<Record<string, string>>;
 }
 
@@ -162,7 +162,7 @@ function SelectedMetricPanels({ catalog, sourceControl, ...props }: ResourceMetr
           code: failedResult.status.toUpperCase(), detail: failedResult.message || 'Metric query failed.',
         }) : null;
         const savedDisplay = preferences.displays[metric.id];
-        const display = !history && savedDisplay === 'capacity' && props.capacities?.[metric.id] ? 'capacity'
+        const display = !history && savedDisplay === 'capacity' && props.presentation?.[metric.id] ? 'capacity'
           : history && savedDisplay !== 'value'
             ? savedDisplay === 'line' || savedDisplay === 'sample-bars' ? savedDisplay : 'area'
             : 'stat';
@@ -179,11 +179,11 @@ function SelectedMetricPanels({ catalog, sourceControl, ...props }: ResourceMetr
         return <MetricPanel key={metric.id} title={metric.name} state={state}
           loadingChart={history && display !== 'stat' && rangeObservation.isLoading}
           actions={<Stack direction="row" spacing={1}>
-            {(history || props.capacities?.[metric.id]) && <MetricDisplayPicker value={display} label={`${metric.name} display`}
+            {(history || props.presentation?.[metric.id]) && <MetricDisplayPicker value={display} label={`${metric.name} display`}
               options={[...(history ? [
                 { value: 'area' as const, label: 'Area' }, { value: 'line' as const, label: 'Line' },
                 { value: 'sample-bars' as const, label: 'Bars' },
-              ] : props.capacities?.[metric.id] ? [{ value: 'capacity' as const, label: 'Capacity' }] : []),
+              ] : props.presentation?.[metric.id] ? [{ value: 'capacity' as const, label: 'Capacity' }] : []),
               { value: 'stat', label: 'Value' }]}
               onChange={value => { void update({ displays: { [metric.id]: value === 'stat' ? 'value' : value } }); }} />}
           </Stack>}
@@ -199,16 +199,17 @@ function SelectedMetricPanels({ catalog, sourceControl, ...props }: ResourceMetr
           value={<Stack direction="column" spacing={2}>
             {valueResults.map(sample => <div key={sample.id}>
               {props.targets && <Text size="xs">{sample.resourceToken}</Text>}
-              <MetricValue size="lg" color={color} unit={sample.unit ?? unit} value={sample.status === 'ok' ? sample.value ?? sample.points.at(-1)?.value ?? null : null} />
+              <MetricValue size="lg" color={color} unit={sample.unit ?? unit} value={sample.status === 'ok' ? sample.value ?? sample.points.at(-1)?.value ?? null : null}
+                references={display === 'stat' ? props.presentation?.[metric.id]?.references : undefined} />
               {display === 'capacity' && <CapacityBar label={metric.name} color={color} unit={unit} value={sample.status === 'ok' ? sample.value : null}
-                request={props.capacities?.[metric.id]?.request}
-                bound={props.capacities?.[metric.id]?.capacity != null ? { kind: 'capacity', value: props.capacities[metric.id].capacity! }
-                  : props.capacities?.[metric.id]?.limit != null ? { kind: 'limit', value: props.capacities[metric.id].limit! }
-                  : props.capacities?.[metric.id]?.request != null ? { kind: 'request', value: props.capacities[metric.id].request! } : undefined} showValue={false} />}
+                references={props.presentation?.[metric.id]?.references}
+                bound={props.presentation?.[metric.id]?.bound} showValue={false} />}
             </div>)}
-            {!valueResults.length && <MetricValue size="lg" unit={unit} value={null} />}
+            {!valueResults.length && <MetricValue size="lg" unit={unit} value={null}
+              references={display === 'stat' ? props.presentation?.[metric.id]?.references : undefined} />}
           </Stack>}>
             {history && (display === 'area' || display === 'line' || display === 'sample-bars') && chartDomain && <TimeSeriesChart label={`${metric.name} history`} unit={unit} domain={chartDomain} mode={display}
+              references={props.presentation?.[metric.id]?.references}
               series={historyResults.map(series => ({ id: series.id, color: props.targets ? undefined : color, label: props.targets ? series.resourceToken : metric.name, points: series.points }))} />}
         </MetricPanel>;
       })}

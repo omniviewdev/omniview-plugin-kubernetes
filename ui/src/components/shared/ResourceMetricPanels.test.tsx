@@ -139,7 +139,7 @@ it.each([['area', 'Area'], ['line', 'Line'], ['sample-bars', 'Bars']] as const)(
 
 it('preserves native value and capacity presentation preferences', () => {
   state.shapes = ['current'];
-  render(<ResourceMetricPanels connectionID="cluster" resourceKey="k8s:/pods" capacities={{ cpu: { limit: 2 } }} />);
+  render(<ResourceMetricPanels connectionID="cluster" resourceKey="k8s:/pods" presentation={{ cpu: { bound: { kind: 'limit', value: 2 } } }} />);
   fireEvent.click(screen.getByRole('button', { name: 'CPU display: Capacity' }));
   expect(state.update).toHaveBeenCalledWith({ displays: { cpu: 'capacity' } });
   fireEvent.click(screen.getByRole('button', { name: 'CPU display: Value' }));

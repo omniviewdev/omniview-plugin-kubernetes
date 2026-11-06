@@ -5,8 +5,9 @@ import React from 'react';
 
 import Icon from '../../../../shared/Icon';
 
-import { parseCpuToMillicores, parseMemoryToBytes } from './helpers';
 import { fontSize13Style, resourceCardBodyStyle, resourceCardHeaderStyle, resourceCardStyle } from './styles';
+
+import { parseResourceQuantity } from '@/utils/convert';
 
 
 export interface ContainerResourcesSectionProps {
@@ -23,6 +24,10 @@ const ContainerResourcesSection: React.FC<ContainerResourcesSectionProps> = ({
   const memLim = container.resources?.limits?.memory;
   const storReq = container.resources?.requests?.['ephemeral-storage'];
   const storLim = container.resources?.limits?.['ephemeral-storage'];
+  const cpuRequest = parseResourceQuantity(cpuReq);
+  const cpuLimit = parseResourceQuantity(cpuLim);
+  const memoryRequest = parseResourceQuantity(memReq);
+  const memoryLimit = parseResourceQuantity(memLim);
 
 
   return (
@@ -37,12 +42,18 @@ const ContainerResourcesSection: React.FC<ContainerResourcesSectionProps> = ({
           </Stack>
         </div>
         <div style={resourceCardBodyStyle}>
-          <CapacityBar value={null} unit={{ kind: 'cpu', base: 'millicores' }} label="CPU"
-            request={cpuReq ? parseCpuToMillicores(cpuReq) : null}
-            bound={cpuLim ? { value: parseCpuToMillicores(cpuLim), kind: 'limit' } : undefined} />
+          <CapacityBar value={null} unit={{ kind: 'cpu', base: 'cores' }} label="CPU"
+            references={[
+              { id: 'request', kind: 'line', label: 'Request', value: cpuRequest, lineStyle: 'dashed', tone: 'neutral', source: 'Current resource configuration' },
+              { id: 'limit', kind: 'line', label: 'Limit', value: cpuLimit != null && cpuLimit > 0 ? cpuLimit : undefined, lineStyle: 'dotted', tone: 'neutral', source: 'Current resource configuration' },
+            ]}
+            bound={cpuLimit != null && cpuLimit > 0 ? { value: cpuLimit, kind: 'limit' } : undefined} />
           <CapacityBar value={null} unit={{ kind: 'bytes', display: 'binary' }} label="Memory"
-            request={memReq ? parseMemoryToBytes(memReq) : null}
-            bound={memLim ? { value: parseMemoryToBytes(memLim), kind: 'limit' } : undefined} />
+            references={[
+              { id: 'request', kind: 'line', label: 'Request', value: memoryRequest, lineStyle: 'dashed', tone: 'neutral', source: 'Current resource configuration' },
+              { id: 'limit', kind: 'line', label: 'Limit', value: memoryLimit != null && memoryLimit > 0 ? memoryLimit : undefined, lineStyle: 'dotted', tone: 'neutral', source: 'Current resource configuration' },
+            ]}
+            bound={memoryLimit != null && memoryLimit > 0 ? { value: memoryLimit, kind: 'limit' } : undefined} />
           <Text size="xs" tone="muted">Container usage unavailable. Pod totals are not container measurements.</Text>
           {(storReq || storLim) && <Text size="xs" tone="muted">Storage request {storReq ?? 'unknown'} · limit {storLim ?? 'unknown'}</Text>}
         </div>

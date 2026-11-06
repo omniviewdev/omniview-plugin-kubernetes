@@ -1,3 +1,4 @@
+import type { DrawerContext } from '@omniviewdev/runtime';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 
@@ -7,28 +8,36 @@ const state = vi.hoisted(() => ({
   source: { plugin_id: 'grafana', connection_id: 'monitoring', datasource_uid: 'prom', datasource_kind: 'prometheus', native: false },
   display: 'value',
   fetching: false,
+  metricID: 'cpu',
+  shapes: ['current', 'range'] as string[],
+  refresh: vi.fn(),
 }));
 vi.mock('@omniviewdev/runtime', () => ({
   parseAppError: () => ({ code: '', title: '', detail: '' }),
+  useMetricOwnerConnection: () => ({ name: 'Production' }),
   useMetricViewSourceSelection: () => ({ selection: { mode: 'external', source: state.source }, isLoading: false, error: null }),
   useMetricSourcePresentation: () => ({ providerName: 'Grafana', providerIcon: 'SiGrafana', label: 'Observability · Production Prometheus' }),
   useMetricBindings: () => ({ data: [{ id: 'binding', signal: 'metrics', resource_plugin_id: 'kubernetes', resource_connection_id: 'owner', source: state.source, public_scope: { cluster: 'production' } }] }),
-  useMetricCatalog: () => ({ data: { source: state.source, metrics: [{ id: 'cpu', name: 'CPU', unit: 'cores', shapes: ['current', 'range'], description: 'CPU usage' }] }, isLoading: false, error: null }),
-  useMetricViewPreferences: () => ({ preferences: { metric_ids: ['cpu'], displays: { cpu: state.display }, details: { cpu: true }, layout: 'stack', time_mode: 'relative', duration_ms: 3600000 }, update: state.update, isLoading: false, error: null }),
+  useMetricCatalog: () => ({ data: { source: state.source, metrics: [{ id: state.metricID, name: 'CPU', unit: 'cores', shapes: state.shapes, description: 'CPU usage' }] }, isLoading: false, error: null }),
+  useMetricViewPreferences: () => ({ preferences: { metric_ids: [state.metricID], displays: { [state.metricID]: state.display }, details: { [state.metricID]: true }, layout: 'stack', time_mode: 'relative', duration_ms: 3600000 }, update: state.update, isLoading: false, error: null }),
   useMetricObservation: (input: { shape: string }) => {
     state.observe(input);
     const current = input.shape === 'current';
-    return { results: [{ id: current ? 'current' : 'history', metricID: 'cpu', resourceToken: 'api', status: 'ok',
+    return { results: [{ id: current ? 'current' : 'history', metricID: state.metricID, resourceToken: 'api', status: 'ok',
       value: current ? 0 : null, unit: { kind: 'cpu', base: 'cores' }, resourceReference: state.reference,
       points: current ? [] : [{ timeMs: 1000, value: 3 }], observedAt: current ? 2000 : null,
       freshUntilMs: current ? 17000 : null, freshness: 'fresh', identityScope: 'incarnation', dimensions: {}, windowMs: 0,
-    }], domain: { startMs: 1000, endMs: 3000 }, isLoading: false, isFetching: state.fetching, error: null, refresh: vi.fn() };
+    }], domain: { startMs: 1000, endMs: 3000 }, isLoading: false, isFetching: state.fetching, error: null, refresh: state.refresh };
   },
 }));
 vi.mock('./MetricSourcePicker', () => ({ default: () => null }));
 import ResourceMetricPanels from './ResourceMetricPanels';
+import { PodMetricsView } from '../kubernetes/sidebar/Pod/PodMetricsSection';
 
-afterEach(() => { cleanup(); state.observe.mockClear(); state.update.mockClear(); state.display = 'value'; state.fetching = false; });
+afterEach(() => {
+  cleanup(); state.observe.mockClear(); state.update.mockClear(); state.refresh.mockClear();
+  state.display = 'value'; state.fetching = false; state.metricID = 'cpu'; state.shapes = ['current', 'range'];
+});
 
 it('composes real display controls, zero scalar, identity chips, and both sample rows', () => {
   render(<ResourceMetricPanels connectionID="owner" resourceKey="k8s:/pods" resourceID="api"
@@ -64,4 +73,42 @@ it('keeps the real history chart mounted while a shared observation refreshes', 
   expect(screen.getByRole('application', { name: /^CPU history/ })).toBe(chart);
   expect(chart).toHaveFocus();
   expect(screen.getByText('Updating…')).toBeTruthy();
+});
+
+const podContext = (request: string | undefined, limit: string | undefined): DrawerContext<unknown> => ({
+  data: { metadata: { name: 'api', namespace: 'apps' }, spec: { containers: [
+    { name: 'app', resources: { requests: request == null ? undefined : { cpu: request }, limits: limit == null ? undefined : { cpu: limit } } },
+  ] } },
+  resource: { reference: state.reference, route: { connection: 'owner' } },
+} as unknown as DrawerContext<unknown>);
+
+it.each(['area', 'line', 'sample-bars'])('shows current Pod request and limit on real %s history without a metric refetch', mode => {
+  state.metricID = 'kubernetes.pod.cpu.usage';
+  state.display = mode;
+  const app = render(<PodMetricsView ctx={podContext('250m', '2')} />);
+  const chart = screen.getByRole('application', { name: /^CPU history/ });
+  const references = screen.getByLabelText('Current configuration references');
+  expect(references).toHaveTextContent(/Request:.*250m/);
+  expect(references).toHaveTextContent(/Limit:.*2/);
+  expect(within(references).getAllByTitle(/Current resource configuration/).length).toBeGreaterThan(0);
+  const inputs = state.observe.mock.calls.slice(-2).map(([input]) => input);
+  app.rerender(<PodMetricsView ctx={podContext('500m', undefined)} />);
+  expect(screen.getByRole('application', { name: /^CPU history/ })).toBe(chart);
+  expect(screen.getByLabelText('Current configuration references')).toHaveTextContent(/Request:.*500m/);
+  expect(screen.getByLabelText('Current configuration references')).not.toHaveTextContent('Limit:');
+  expect(state.observe.mock.calls.slice(-2).map(([input]) => input)).toEqual(inputs);
+  expect(state.refresh).not.toHaveBeenCalled();
+});
+
+it('shows real zero request with unknown native capacity instead of inventing an unlimited limit', () => {
+  state.metricID = 'kubernetes.pod.cpu.usage';
+  state.shapes = ['current'];
+  state.display = 'capacity';
+  render(<PodMetricsView ctx={podContext('0', '0')} />);
+  expect(screen.getByLabelText('Current configuration references')).toHaveTextContent(/Request:.*0/);
+  expect(within(screen.getByLabelText('Current configuration references')).getAllByTitle(/Current resource configuration/).length).toBeGreaterThan(0);
+  expect(screen.getByText(/No bound supplied/)).toBeTruthy();
+  expect(screen.getByLabelText('Current configuration references')).not.toHaveTextContent('Limit:');
+  expect(screen.queryByRole('progressbar')).toBeNull();
+  expect(screen.queryByRole('application')).toBeNull();
 });
