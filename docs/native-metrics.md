@@ -105,6 +105,14 @@ Targets are grouped by namespace. The provider performs namespace LISTs and stre
 
 Clients reuse the Kubernetes connection's actual authenticated transport, including custom authentication strategies. Finite requests use their caller context, not `context.Background()`. A source lane has its own lifecycle cancellation and opaque generation-specific cache key. Connection retirement cancels its in-flight reads, evicts its clients and fences late publication. Reconnect cannot reuse the retired lane. Legacy Prometheus/Node caches remain independent and retire through the same registered connection callback.
 
+## Metric views
+
+- Tables use base-ui `MetricCell`: a fixed-density bar beside a compact value. Pod limits/requests and Node capacity come from their owning resources, in the catalog's physical units. Unknown bounds remain unknown.
+- Panels use `MetricPanel.value` and the shared segmented Area / Line / Bars / Value controls. Chart spacing and control styling belong to base-ui.
+- One current observation covers all selected current-capable metrics; one range observation covers history. Details show both samples without inventing historical expiry.
+- Identity chips use the admitted reference and owner-approved cluster scope, not series labels or source connection IDs.
+- Provider selection keeps `inherit`, `native`, and `external` routing separate from display preferences. Inherited selections show the resolved provider's icon without changing the saved mode.
+
 ## Real local prerequisite
 
 Use [`hack/kind-lab/README.md`](../hack/kind-lab/README.md) for explicit installation and read-only verification of pinned metrics-server in the dedicated local Kind lab. Setup is opt-in, modifies no ambient kubeconfig, and creates no fake exporter or synthetic metric samples. Backend verification is not proof of SDK/host/UI sharing; integrated proof must additionally record host executions, provider RPCs and actual namespace LISTs.

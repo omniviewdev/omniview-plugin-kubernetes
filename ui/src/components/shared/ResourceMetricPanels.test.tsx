@@ -25,6 +25,8 @@ const state = vi.hoisted(() => ({
 }));
 vi.mock('@omniviewdev/runtime', () => ({
   parseAppError: (error: unknown) => { state.parse(error); return state.normalizedError; },
+  useMetricSourcePresentation: () => null,
+  useMetricBindings: () => ({ data: [] }),
   useMetricViewSourceSelection: () => ({ selection: { mode: 'inherit', source: null }, isLoading: false, error: null }),
   useMetricCatalog: () => ({ data: { source: { datasource_kind: 'prometheus' }, metrics: [
     { id: 'cpu', name: 'CPU', unit: 'cores', shapes: state.shapes, description: 'CPU usage' },
@@ -38,9 +40,9 @@ vi.mock('@omniviewdev/runtime', () => ({
   useMetricObservation: (input: { shape: string }) => { state.observe(input); return input.shape === 'current' ? state.currentObservation : state.observation; },
 }));
 vi.mock('@omniviewdev/base-ui/metrics', () => ({
-  MetricPanel: ({ children, title, actions, details, state: panelState }: { children: ReactNode; title: string; actions: ReactNode; details: { content: ReactNode }; state: unknown }) => {
+  MetricPanel: ({ children, value, title, actions, details, state: panelState }: { children: ReactNode; value: ReactNode; title: string; actions: ReactNode; details: { content: ReactNode }; state: unknown }) => {
     state.panel(panelState);
-    return <section aria-label={title}><h2>{title}</h2>{actions}{children}{details.content}</section>;
+    return <section aria-label={title}><h2>{title}</h2>{actions}{value}{children}{details.content}</section>;
   },
   MetricDetails: (props: unknown) => { state.details(props); return null; },
   MetricDisplayPicker: ({ label, options, onChange }: { label: string; options: { value: 'area' | 'line' | 'sample-bars' | 'stat' | 'capacity'; label: string }[]; onChange: (value: 'area' | 'line' | 'sample-bars' | 'stat' | 'capacity') => void }) =>
@@ -80,34 +82,36 @@ it('never invents native sample history or a range control', () => {
   ]);
 });
 
-it('labels native measurements without an invented datasource kind', () => {
-  state.shapes = ['current'];
-  state.currentObservation.results = [{ id: 'native', metricID: 'cpu', resourceToken: 'pod', status: 'ok', value: 2, points: [],
-    source: { plugin_id: 'kubernetes', connection_id: 'cluster', native: true, datasource_kind: '', datasource_uid: '' } }];
-  render(<ResourceMetricPanels connectionID="cluster" resourceKey="k8s:/pods" resourceID="pod" />);
-  expect(state.details.mock.lastCall?.[0]).toMatchObject({ source: 'Native' });
-});
 
-it('groups mixed native and external selection into disjoint supported shapes', () => {
+it('batches every supported current metric separately from history and prefers genuine current values', () => {
   state.mixed = true;
-  state.currentObservation.results = [{ id: 'native', metricID: 'native-memory', resourceToken: 'pod', status: 'ok', value: 2, points: [] }];
-  state.observation.results = [{ id: 'external', metricID: 'cpu', resourceToken: 'pod', status: 'ok', value: null, points: [{ timestamp: 1000, value: 3 }] }];
+  state.shapes = ['current', 'range'];
+  state.currentObservation.results = [
+    { id: 'native', metricID: 'native-memory', resourceToken: 'pod', status: 'ok', value: 2, points: [] },
+    { id: 'current', metricID: 'cpu', resourceToken: 'pod', status: 'ok', value: 0, points: [], observedAt: 1200, freshUntilMs: 2200 },
+  ];
+  state.observation.results = [{ id: 'external', metricID: 'cpu', resourceToken: 'pod', status: 'ok', value: null, points: [{ timeMs: 1000, value: 3 }] }];
   render(<ResourceMetricPanels connectionID="cluster" resourceKey="k8s:/pods" resourceID="pod" />);
   const active = state.observe.mock.calls.map(([input]) => input).filter(input => input.enabled);
   expect(active).toEqual([
-    expect.objectContaining({ shape: 'current', metricIDs: ['native-memory'] }),
+    expect.objectContaining({ shape: 'current', metricIDs: ['cpu', 'native-memory'] }),
     expect.objectContaining({ shape: 'range', metricIDs: ['cpu'], durationMs: 3600000 }),
   ]);
   expect(active[0]).not.toHaveProperty('durationMs');
   expect(active[1].startTime).toBeUndefined();
   expect(active[1].endTime).toBeUndefined();
   expect(screen.getByText('Value 2')).toBeTruthy();
-  expect(screen.getByText('Value 3').getAttribute('data-size')).toBe('lg');
+  expect(screen.getByText('Value 0').getAttribute('data-size')).toBe('lg');
+  expect(screen.queryByText('Value 3')).toBeNull();
+  expect(state.details.mock.calls[0]?.[0]).toMatchObject({ samples: [
+    { label: 'Current', updatedAtMs: 1200, validUntilMs: 2200 },
+    { label: 'History', updatedAtMs: 1000, validUntilMs: undefined },
+  ] });
   expect(screen.getAllByText('History chart')).toHaveLength(1);
   expect(state.chart.mock.lastCall?.[0]).toMatchObject({
     mode: 'area',
     domain: { startMs: 1000, endMs: 2000 },
-    series: [{ id: 'external', points: [{ timestamp: 1000, value: 3 }] }],
+    series: [{ id: 'external', points: [{ timeMs: 1000, value: 3 }] }],
   });
 });
 

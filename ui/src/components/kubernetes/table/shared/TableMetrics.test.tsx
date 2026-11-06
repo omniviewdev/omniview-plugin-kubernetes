@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { HostRecord } from '@omniviewdev/runtime';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import React, { useState } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, expect, it, vi } from 'vitest';
 
@@ -9,9 +9,10 @@ const state = vi.hoisted(() => ({
   catalog: vi.fn(),
   source: { mode: 'inherit', source: undefined as undefined | { plugin_id: string; connection_id: string; datasource_uid: string; datasource_kind: string } },
   loading: false,
+  results: [] as object[],
 }));
 vi.mock('@omniviewdev/runtime', () => ({
-  useMetricObservation: (input: unknown) => { state.observe(input); return { results: [], error: null }; },
+  useMetricObservation: (input: unknown) => { state.observe(input); return { results: state.results, error: null }; },
   useMetricViewSourceSelection: () => ({ selection: state.source, isLoading: state.loading, error: null }),
   useMetricCatalog: (input: unknown) => {
     state.catalog(input);
@@ -42,6 +43,7 @@ const recordsByBody = new WeakMap([[pod, record]]);
 afterEach(() => {
   cleanup(); vi.restoreAllMocks(); state.observe.mockClear(); state.catalog.mockClear();
   state.source = { mode: 'inherit', source: undefined }; state.loading = false;
+  state.results = [];
 });
 
 function StatefulTable() {
@@ -158,4 +160,22 @@ it('selects the explicit native source for catalog and observation together', ()
   const source = { plugin_id: 'kubernetes', connection_id: 'test', native: true, datasource_uid: '', datasource_kind: '' };
   expect(state.catalog.mock.lastCall?.[0]).toMatchObject({ source, enabled: true });
   expect(state.observe.mock.lastCall?.[0]).toMatchObject({ source, enabled: true });
+});
+
+it('renders a real bounded cell and keeps unknown usage absolute', () => {
+  state.results = [{ id: 'sample', metricID: 'cpu', resourceToken: record.key, status: 'ok', value: 0,
+    unit: { kind: 'cpu', base: 'cores' }, observedAt: null }];
+  function App({ known }: { known: boolean }) {
+    return <TableMetricsScope value={{ ownerConnectionID: 'test', resourceKey: 'k8s:/pods', ready: true, columns: [{ id: 'cpuUsage', metricID: 'cpu' }] }}>
+      <TableMetricsProvider columnVisibility={{ cpuUsage: true }} recordsByBody={recordsByBody}>
+        <TableMetricCell body={pod} metricID="cpu" bound={known ? { kind: 'limit', value: 2 } : undefined} />
+      </TableMetricsProvider>
+    </TableMetricsScope>;
+  }
+  const app = render(<App known />);
+  expect(screen.getByRole('img')).toHaveAccessibleName(/cpu: 0.*limit:/);
+  app.rerender(<App known={false} />);
+  expect(screen.getByRole('img')).toHaveAccessibleName(/bound unknown; absolute usage/);
+  expect(screen.queryByRole('progressbar')).toBeNull();
+  expect(state.observe.mock.lastCall?.[0]).toMatchObject({ targets: [{ token: record.key }], metricIDs: ['cpu'] });
 });

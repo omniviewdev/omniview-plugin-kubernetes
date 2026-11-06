@@ -11,7 +11,8 @@ import { convertByteUnits } from '../../../../../utils/units';
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
 import ColumnPicker from '../../../../tables/ColumnFilter/ColumnPicker';
-import NodeSidebar from '../../../sidebar/NodeSidebar';
+import NodeSidebar, { NodeMetricsView } from '../../../sidebar/NodeSidebar';
+import { parseCpuToMillicores, parseMemoryToBytes } from '../../../sidebar/Pod/ContainerSlice/helpers';
 import ConditionsCell from '../../shared/cells/ConditionsCell';
 import { CopyableCell } from '../../shared/cells/CopyableCell';
 import { withClusterResourceColumns } from '../../shared/columns';
@@ -24,7 +25,19 @@ const defaultMetrics = {};
 
 const NodeTable: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
-  const metrics = useTableMetrics<Node>({ ownerConnectionID: id, resourceKey }, defaultMetrics);
+  const metrics = useTableMetrics<Node>({ ownerConnectionID: id, resourceKey }, defaultMetrics, {
+    headers: { 'kubernetes.node.cpu.usage': 'CPU', 'kubernetes.node.memory.working_set': 'Memory' },
+    bound: (node, metricID) => {
+      const resource = metricID === 'kubernetes.node.cpu.usage' ? 'cpu' : metricID === 'kubernetes.node.memory.working_set' ? 'memory' : null;
+      const quantity = resource ? node.status?.capacity?.[resource] : undefined;
+      if (!quantity) return {};
+      const value = resource === 'cpu' ? parseCpuToMillicores(quantity) / 1000 : parseMemoryToBytes(quantity);
+      return Number.isFinite(value) && value > 0 ? {
+        bound: { kind: 'capacity', value },
+        thresholds: [{ value: 0, tone: 'success' }, { value: value * 0.7, tone: 'warning' }, { value: value * 0.9, tone: 'danger' }],
+      } : {};
+    },
+  });
 
   const columns = React.useMemo<Array<ColumnDef<DataTableFeatures, Node>>>(
     () =>
@@ -132,7 +145,7 @@ const NodeTable: React.FC = () => {
     () => ({
       title: resourceKey, // TODO: change runtime sdk to accept a function
       icon: <LuBox />,
-      views: createStandardViews({ SidebarComponent: NodeSidebar }),
+      views: createStandardViews({ SidebarComponent: NodeSidebar, MetricsComponent: NodeMetricsView }),
       actions: drawerActions,
     }),
     [],

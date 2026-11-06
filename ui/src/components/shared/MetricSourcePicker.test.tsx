@@ -1,46 +1,33 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 
+const state = vi.hoisted(() => ({ update: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('@omniviewdev/runtime', () => ({
-  useMetricViewSourceSelection: () => ({
-    selection: { mode: 'inherit' }, isLoading: false, isSaving: false, error: null,
-    update: vi.fn().mockResolvedValue(undefined),
-  }),
+  useMetricViewSourceSelection: () => ({ selection: { mode: 'inherit' }, isLoading: false, isSaving: false,
+    error: null, update: state.update }),
+  useMetricOwnerConnection: () => ({ name: 'Development cluster' }),
+  useMetricSourceInventory: () => ({ data: { providers: [{ pluginID: 'owner', name: 'Owner provider', icon: 'LuBox' }],
+    options: [{ source: { plugin_id: 'monitor', connection_id: 'tenant', datasource_uid: 'prom', datasource_kind: 'prometheus', native: false },
+      label: 'Kind monitoring · Prometheus', providerName: 'Monitoring', providerIcon: 'LuChartLine' }], failures: [] } }),
+  metricSourceIdentity: (source: Record<string, unknown>) => JSON.stringify([source.plugin_id, source.connection_id,
+    source.native === true, source.datasource_uid, source.datasource_kind]),
+  presentMetricSource: (source: { plugin_id: string } | null | undefined,
+    inventory: { options: { source: { plugin_id: string }; label: string; providerIcon: string; providerName: string }[] }) =>
+    source ? inventory.options.find(option => option.source.plugin_id === source.plugin_id) ?? null : null,
   parseAppError: (error: Error) => ({ title: 'Unavailable', detail: error.message }),
 }));
-vi.mock('@omniviewdev/runtime/api', () => ({
-  MetricClient: {
-    GetProviders: async () => [
-      { plugin_id: 'kubernetes', supports_connections: false },
-      { plugin_id: 'grafana', supports_connections: true },
-    ],
-    GetProviderConnections: async (plugin: string) => {
-      if (plugin === 'kubernetes') throw new Error('Native metrics have no provider configuration.');
-      return [{ id: 'kind-monitoring', name: 'Kind monitoring' }];
-    },
-    GetDataSources: async () => [{ uid: 'prometheus', name: 'Prometheus', kind: 'prometheus' }],
-  },
-}));
+vi.mock('./Icon', () => ({ default: ({ name }: { name: string }) => <svg data-icon={name} aria-hidden /> }));
+import MetricSourcePicker from './MetricSourcePicker';
+afterEach(() => { cleanup(); state.update.mockClear(); });
 
-import MetricSourcePicker, { metricSourceIdentity } from './MetricSourcePicker';
 
-afterEach(cleanup);
-
-it('offers external sources without reporting native-only providers as unavailable', async () => {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(<QueryClientProvider client={client}>
-    <MetricSourcePicker ownerPluginID="kubernetes" ownerConnectionID="kind-kind" resourceKey="k8s:/pods" />
-  </QueryClientProvider>);
-  fireEvent.click(screen.getByRole('combobox', { name: 'Metric source' }));
-  expect(await screen.findByRole('option', { name: 'External · Kind monitoring · Prometheus (grafana)' })).toBeTruthy();
-  expect(screen.queryByText(/provider source catalogs unavailable|Native metrics have no provider configuration/)).toBeNull();
-  expect(screen.getByRole('option', { name: 'Native' })).toBeTruthy();
-  client.clear();
-});
-
-it('distinguishes native source identity without inventing a datasource kind', () => {
-  const owner = { plugin_id: 'kubernetes', connection_id: 'kind-kind', datasource_uid: '', datasource_kind: '' };
-  expect(metricSourceIdentity({ ...owner, native: true })).not.toBe(metricSourceIdentity(owner));
-  expect(metricSourceIdentity({ ...owner, native: false })).toBe(metricSourceIdentity(owner));
+it('shows admitted inherited source metadata without changing inherited selection', () => {
+  render(<MetricSourcePicker ownerPluginID="owner" ownerConnectionID="cluster" resourceKey="pods"
+    resolvedSource={{ plugin_id: 'monitor', connection_id: 'tenant', datasource_uid: 'prom', datasource_kind: 'prometheus', native: false }} />);
+  const trigger = screen.getByRole('combobox', { name: 'Metric source' });
+  expect(trigger.textContent).toContain('Kind monitoring · Prometheus');
+  expect(trigger.querySelector('svg')?.getAttribute('data-icon')).toBe('LuChartLine');
+  fireEvent.click(trigger);
+  expect(screen.getByRole('option', { name: /Inherit defaults/ }).getAttribute('aria-selected')).toBe('true');
+  expect(state.update).not.toHaveBeenCalled();
 });

@@ -1,10 +1,11 @@
-import { Button, IconButton, Popover, SearchInput, Stack, Text } from '@omniviewdev/base-ui';
-import { CapacityBar, MetricDetails, MetricDisplayPicker, MetricPanel, MetricValue, TimeRangeControl, TimeSeriesChart, type MetricPanelState, type TimeSelection } from '@omniviewdev/base-ui/metrics';
-import { parseAppError, useMetricCatalog, useMetricObservation, useMetricViewPreferences, useMetricViewSourceSelection, type UseMetricObservationOptions, type ResourceMetricTarget, type ResourceMetricsCatalog, type ResourceReference, type AccessRoute } from '@omniviewdev/runtime';
+import { Avatar, Button, IconButton, Popover, SearchInput, Stack, Text } from '@omniviewdev/base-ui';
+import { CapacityBar, MetricDetails, MetricDisplayPicker, MetricPanel, MetricValue, TimeRangeControl, TimeSeriesChart, type MetricDetailsProps, type MetricPanelState, type TimeSelection } from '@omniviewdev/base-ui/metrics';
+import { parseAppError, useMetricBindings, useMetricCatalog, useMetricObservation, useMetricSourcePresentation, useMetricViewPreferences, useMetricViewSourceSelection, type PreparedMetricResult, type UseMetricObservationOptions, type ResourceMetricTarget, type ResourceMetricsCatalog, type ResourceReference, type AccessRoute } from '@omniviewdev/runtime';
 import type { UseQueryResult } from '@tanstack/react-query';
 import { useMemo, useState, type ReactNode } from 'react';
-import { LuArrowUp, LuLayoutGrid, LuPlus, LuRefreshCw, LuRows2, LuX } from 'react-icons/lu';
+import { LuLayoutGrid, LuPlus, LuRefreshCw, LuRows2, LuX } from 'react-icons/lu';
 
+import Icon from './Icon';
 import MetricSourcePicker from './MetricSourcePicker';
 import styles from './ResourceMetricPanels.module.css';
 
@@ -20,7 +21,8 @@ export interface ResourceMetricPanelsProps extends Pick<UseMetricObservationOpti
   targets?: ResourceMetricTarget[];
   reference?: ResourceReference;
   route?: AccessRoute;
-  capacities?: Record<string, { request?: number; limit?: number }>;
+  capacities?: Record<string, { request?: number; limit?: number; capacity?: number }>;
+  identityLabels?: (result: PreparedMetricResult | undefined, publicScope: Readonly<Record<string, string | undefined>>) => Readonly<Record<string, string>>;
 }
 
 function metricError(error: unknown) {
@@ -28,6 +30,17 @@ function metricError(error: unknown) {
   const detail = parsed.detail || parsed.title;
   return { code: parsed.code, detail, label: detail.length > 180 ? `${detail.slice(0, 177)}…` : detail };
 }
+function MetricProvenanceDetails({ source, ...props }: Omit<MetricDetailsProps, 'source'> & Pick<ResourceMetricPanelsProps, 'source'>) {
+  const presentation = useMetricSourcePresentation(source);
+  const label = presentation?.label ?? (source?.native ? 'Native' : 'Unknown');
+  const icon = presentation?.providerIcon;
+  return <MetricDetails {...props} source={label} sourceIcon={icon
+    ? /^(https?:|data:|\/)/.test(icon)
+      ? <Avatar size="sm" src={icon} alt="" name={presentation?.providerName ?? ''} />
+      : <Icon name={icon} size={14} aria-hidden />
+    : undefined} />;
+}
+
 
 /** Source routing belongs to owner settings; presentation belongs to the resource kind. */
 export default function ResourceMetricPanels(props: ResourceMetricPanelsProps) {
@@ -37,7 +50,7 @@ export default function ResourceMetricPanels(props: ResourceMetricPanelsProps) {
   const ready = !selection.isLoading && !selection.error;
   const scope = { ownerPluginID: PLUGIN_ID, ownerConnectionID: props.connectionID, resourceKey: props.resourceKey, bindingID: props.bindingID, source, enabled: ready };
   const catalog = useMetricCatalog(scope);
-  const sourceControl = <MetricSourcePicker ownerPluginID={PLUGIN_ID} ownerConnectionID={props.connectionID} resourceKey={props.resourceKey} />;
+  const sourceControl = <MetricSourcePicker ownerPluginID={PLUGIN_ID} ownerConnectionID={props.connectionID} resourceKey={props.resourceKey} resolvedSource={catalog.data?.source} />;
   if (!ready || !catalog.data) return <Stack direction="column" spacing={2}>{sourceControl}
     <Text role={selection.error || catalog.error ? 'alert' : 'status'} tone={selection.error || catalog.error ? 'danger' : 'muted'}>{selection.error || catalog.error ? metricError(selection.error ?? catalog.error).label : 'Loading metrics…'}</Text>
   </Stack>;
@@ -46,6 +59,15 @@ export default function ResourceMetricPanels(props: ResourceMetricPanelsProps) {
 
 function SelectedMetricPanels({ catalog, sourceControl, ...props }: ResourceMetricPanelsProps & { catalog: UseQueryResult<ResourceMetricsCatalog | null, Error>; sourceControl: ReactNode }) {
   const scope = { ownerPluginID: PLUGIN_ID, ownerConnectionID: props.connectionID, resourceKey: props.resourceKey, bindingID: props.bindingID, source: props.source };
+  const bindings = useMetricBindings(PLUGIN_ID, props.connectionID);
+  // Match the host's owner binding admission order; source connection never supplies owner identity.
+  const binding = bindings.data?.find(candidate => candidate.resource_plugin_id === PLUGIN_ID
+    && candidate.resource_connection_id === props.connectionID && (!props.bindingID || candidate.id === props.bindingID));
+  const admittedSource = catalog.data?.source;
+  const publicScope = binding?.signal === 'metrics' && admittedSource && !admittedSource.native
+    && binding.source.plugin_id === admittedSource.plugin_id && binding.source.connection_id === admittedSource.connection_id
+    && binding.source.datasource_uid === admittedSource.datasource_uid && binding.source.datasource_kind === admittedSource.datasource_kind
+    ? binding.public_scope : {};
   const initial = { metric_ids: (props.defaultMetricIDs ?? []).filter(id => catalog.data?.metrics.some(metric => metric.id === id)) };
   const view = useMetricViewPreferences(PLUGIN_ID, props.resourceKey, initial);
   const { preferences } = view;
@@ -59,7 +81,7 @@ function SelectedMetricPanels({ catalog, sourceControl, ...props }: ResourceMetr
   const colors = useMemo(() => new Map(preferences.metric_ids.map((id, index) =>
     [id, METRIC_COLORS[index % METRIC_COLORS.length]] as const)), [preferences.metric_ids]);
   const rangeIDs = ordered.filter(metric => metric.shapes.includes('range')).map(metric => metric.id);
-  const currentIDs = ordered.filter(metric => !metric.shapes.includes('range') && metric.shapes.includes('current')).map(metric => metric.id);
+  const currentIDs = ordered.filter(metric => metric.shapes.includes('current')).map(metric => metric.id);
   const range = rangeIDs.length > 0;
   const time: TimeSelection = preferences.time_mode === 'absolute'
     ? { mode: 'absolute', domain: { startMs: preferences.start_ms, endMs: preferences.end_ms } }
@@ -120,69 +142,72 @@ function SelectedMetricPanels({ catalog, sourceControl, ...props }: ResourceMetr
       </div>
     {(catalog.error || view.error) && <Text role="alert" tone="danger">{metricError(catalog.error ?? view.error).label}</Text>}
     <div style={{ display: 'grid', gap: 8, gridTemplateColumns: preferences.layout === 'stack' ? '1fr' : 'repeat(auto-fit, minmax(280px, 1fr))' }}>
-      {ordered.map((metric, index) => {
+      {ordered.map(metric => {
         const color = colors.get(metric.id);
         const history = metric.shapes.includes('range');
         const observation = history ? rangeObservation : currentObservation;
-        const results = observation.results.filter(result => result.metricID === metric.id && (!props.resourceID || result.resourceToken === props.resourceID));
-        const result = results[0];
+        const historyResults = history ? rangeObservation.results.filter(result => result.metricID === metric.id && (!props.resourceID || result.resourceToken === props.resourceID)) : [];
+        const currentResults = metric.shapes.includes('current') ? currentObservation.results.filter(result => result.metricID === metric.id && (!props.resourceID || result.resourceToken === props.resourceID)) : [];
+        const results = [...currentResults, ...historyResults];
+        const valueResults = [...new Set(results.map(result => result.resourceToken))].map(token =>
+          currentResults.find(result => result.resourceToken === token && result.status === 'ok' && result.value != null)
+          ?? historyResults.find(result => result.resourceToken === token && result.status === 'ok')
+          ?? results.find(result => result.resourceToken === token)!);
+        const result = valueResults[0];
         const failedResult = results.find(sample => sample.status === 'failed' || sample.status === 'ambiguous' ||
           sample.status === 'invalid_context' || sample.status === 'invalid_mapping');
-        const failure = observation.error ? metricError(observation.error) : failedResult ? metricError({
+        const failure = (observation.error || (metric.shapes.includes('current') && currentObservation.error)) ? metricError(observation.error ?? currentObservation.error) : failedResult ? metricError({
           type: 'metrics', title: 'Metric query failed', status: 502,
           code: failedResult.status.toUpperCase(), detail: failedResult.message || 'Metric query failed.',
         }) : null;
         const savedDisplay = preferences.displays[metric.id];
-        const display = savedDisplay === 'capacity' && props.capacities?.[metric.id] ? 'capacity'
+        const display = !history && savedDisplay === 'capacity' && props.capacities?.[metric.id] ? 'capacity'
           : history && savedDisplay !== 'value'
             ? savedDisplay === 'line' || savedDisplay === 'sample-bars' ? savedDisplay : 'area'
             : 'stat';
         const state: MetricPanelState = results.some(result => result.status === 'ok')
-          ? { kind: 'data', updating: observation.isFetching, freshness: results.some(sample => sample.freshness === 'delayed') ? 'delayed' : undefined,
+          ? { kind: 'data', updating: observation.isFetching || (metric.shapes.includes('current') && currentObservation.isFetching), freshness: results.some(sample => sample.freshness === 'delayed') ? 'delayed' : undefined,
             notice: failure ? { tone: 'warning', label: failure.label } : undefined }
           : failure ? { kind: failure.code === 'DENIED' || failure.code === 'FORBIDDEN' || failure.code === 'UNAUTHORIZED' ? 'denied' : failure.code === 'UNSUPPORTED' ? 'unsupported' : 'error', message: failure.label }
           : observation.isLoading ? { kind: 'initial' }
           : result?.status === 'denied' ? { kind: 'denied' }
           : result?.status === 'unsupported' ? { kind: 'unsupported' } : { kind: 'empty', message: 'No sample' };
         const unit = result?.unit ?? { kind: 'number' as const };
-        const chartDomain = observation.domain?.startMs != null && observation.domain.endMs != null
-          ? { startMs: observation.domain.startMs, endMs: observation.domain.endMs } : time.mode === 'absolute' ? time.domain : null;
+        const chartDomain = rangeObservation.domain?.startMs != null && rangeObservation.domain.endMs != null
+          ? { startMs: rangeObservation.domain.startMs, endMs: rangeObservation.domain.endMs } : time.mode === 'absolute' ? time.domain : null;
         return <MetricPanel key={metric.id} title={metric.name} state={state}
           actions={<Stack direction="row" spacing={1}>
-            <IconButton size="xs" aria-label={`Move ${metric.name} earlier`} disabled={index === 0} onClick={() => { void update(current => {
-              const metric_ids = [...current.metric_ids];
-              const position = metric_ids.indexOf(metric.id);
-              if (position > 0) [metric_ids[position - 1], metric_ids[position]] = [metric_ids[position], metric_ids[position - 1]];
-              return { metric_ids };
-            }); }}><LuArrowUp /></IconButton>
-            {(history || props.capacities?.[metric.id]) && <MetricDisplayPicker value={display} label={`${metric.name} display`} presentation="menu"
-              options={[{ value: 'stat', label: 'Value' }, ...(history ? [
+            {(history || props.capacities?.[metric.id]) && <MetricDisplayPicker value={display} label={`${metric.name} display`}
+              options={[...(history ? [
                 { value: 'area' as const, label: 'Area' }, { value: 'line' as const, label: 'Line' },
                 { value: 'sample-bars' as const, label: 'Bars' },
-              ] : []), ...(props.capacities?.[metric.id] ? [{ value: 'capacity' as const, label: 'Capacity' }] : [])]}
+              ] : props.capacities?.[metric.id] ? [{ value: 'capacity' as const, label: 'Capacity' }] : []),
+              { value: 'stat', label: 'Value' }]}
               onChange={value => { void update({ displays: { [metric.id]: value === 'stat' ? 'value' : value } }); }} />}
           </Stack>}
           details={{ color, open: preferences.details[metric.id] ?? false, onOpenChange: open => { void update({ details: { [metric.id]: open } }); },
-            content: <MetricDetails source={(result?.source ?? catalog.data?.source)?.native ? 'Native' : result?.source?.datasource_kind || catalog.data?.source.datasource_kind || 'Unknown'} labels={result?.dimensions ?? {}}
-              samples={results.map(sample => ({ id: sample.id, label: props.targets ? sample.resourceToken : history ? 'History' : 'Current',
-                status: sample.status !== 'ok' ? 'error' : history ? 'ok' : sample.freshness === 'delayed' ? 'delayed' : sample.observedAt === null ? 'unknown' : 'ok',
-                updatedAtMs: sample.observedAt ?? sample.points.at(-1)?.timeMs, validUntilMs: sample.freshUntilMs ?? undefined }))}
+            content: <MetricProvenanceDetails source={result?.source ?? catalog.data?.source} labels={{ ...result?.dimensions, ...props.identityLabels?.(result, publicScope) }}
+              samples={[...currentResults.map(sample => ({ sample, history: false })), ...historyResults.map(sample => ({ sample, history: true }))].map(({ sample, history: historical }) => ({
+                id: `${historical ? 'history' : 'current'}:${sample.id}`, label: `${props.targets ? `${sample.resourceToken} · ` : ''}${historical ? 'History' : 'Current'}`,
+                status: sample.status !== 'ok' ? 'error' : historical ? 'ok' : sample.freshness === 'delayed' ? 'delayed' : sample.observedAt == null ? 'unknown' : 'ok',
+                updatedAtMs: sample.observedAt ?? sample.points.at(-1)?.timeMs, validUntilMs: historical ? undefined : sample.freshUntilMs ?? undefined }))}
               items={[{ id: 'identity', label: 'Attribution', value: result?.identityScope === 'incarnation' ? 'UID verified' : 'Name scoped' },
                 ...(result && result.windowMs > 0 ? [{ id: 'window', label: 'Measurement window', value: `${result.windowMs / 1000} s` }] : []),
-                ...(failure ? [{ id: 'diagnostic', label: failure.code || 'Diagnostic', value: failure.detail }] : [])]} /> }}>
-          <Stack direction="column" spacing={2}>
-            {results.map(sample => <div key={sample.id}>
+                ...(failure ? [{ id: 'diagnostic', label: failure.code || 'Diagnostic', value: failure.detail }] : [])]} /> }}
+          value={<Stack direction="column" spacing={2}>
+            {valueResults.map(sample => <div key={sample.id}>
               {props.targets && <Text size="xs">{sample.resourceToken}</Text>}
-              <MetricValue size="lg" color={color} unit={unit} value={sample.status === 'ok' ? sample.value ?? sample.points.at(-1)?.value ?? null : null} />
+              <MetricValue size="lg" color={color} unit={sample.unit ?? unit} value={sample.status === 'ok' ? sample.value ?? sample.points.at(-1)?.value ?? null : null} />
               {display === 'capacity' && <CapacityBar label={metric.name} color={color} unit={unit} value={sample.status === 'ok' ? sample.value : null}
                 request={props.capacities?.[metric.id]?.request}
-                bound={props.capacities?.[metric.id]?.limit != null ? { kind: 'limit', value: props.capacities[metric.id].limit! }
+                bound={props.capacities?.[metric.id]?.capacity != null ? { kind: 'capacity', value: props.capacities[metric.id].capacity! }
+                  : props.capacities?.[metric.id]?.limit != null ? { kind: 'limit', value: props.capacities[metric.id].limit! }
                   : props.capacities?.[metric.id]?.request != null ? { kind: 'request', value: props.capacities[metric.id].request! } : undefined} showValue={false} />}
             </div>)}
-            {!results.length && <MetricValue size="lg" unit={unit} value={null} />}
+            {!valueResults.length && <MetricValue size="lg" unit={unit} value={null} />}
+          </Stack>}>
             {history && (display === 'area' || display === 'line' || display === 'sample-bars') && chartDomain && <TimeSeriesChart label={`${metric.name} history`} unit={unit} domain={chartDomain} mode={display}
-              series={results.map(series => ({ id: series.id, color: props.targets ? undefined : color, label: props.targets ? series.resourceToken : metric.name, points: series.points }))} />}
-          </Stack>
+              series={historyResults.map(series => ({ id: series.id, color: props.targets ? undefined : color, label: props.targets ? series.resourceToken : metric.name, points: series.points }))} />}
         </MetricPanel>;
       })}
     </div>

@@ -9,26 +9,28 @@ import React from 'react';
 import { LuContainer } from 'react-icons/lu';
 import { useParams } from 'react-router'
 
-import { PLUGIN_ID } from '@/pluginId';
-import { sumIntegerValues } from '@/utils/convert';
 
 
+import ResourceLinkChip from '../../../../shared/ResourceLinkChip';
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
-import ResourceLinkChip from '../../../../shared/ResourceLinkChip';
 import ColumnPicker from '../../../../tables/ColumnFilter/ColumnPicker';
 import PodSidebar from '../../../sidebar/Pod';
+import { podMetricBound } from '../../../sidebar/Pod/podMetricBound';
 import { PodMetricsView } from '../../../sidebar/Pod/PodMetricsSection';
 import ConditionsCell from '../../shared/cells/ConditionsCell';
 import { CopyableCell } from '../../shared/cells/CopyableCell';
 import { withNamespacedResourceColumns } from '../../shared/columns';
 import { inclusionFilter, ownerRefFilter } from '../../shared/filters';
+import { TableMetricsProvider, TableMetricsScope, useTableMetrics } from '../../shared/TableMetrics';
 
 import { drawerActions } from './actions';
 import ContainerPhaseCell from './cells/ContainerPhaseCell';
 import ContainerStatusCell from './cells/ContainerStatusCell';
 import ResourceLinkCell from './cells/ResourceLinkCell';
-import { TableMetricsProvider, TableMetricsScope, useTableMetrics } from '../../shared/TableMetrics';
+
+import { PLUGIN_ID } from '@/pluginId';
+import { sumIntegerValues } from '@/utils/convert';
 
 
 const resourceKey = 'k8s:/pods';
@@ -41,7 +43,22 @@ const defaultMetrics = {
 
 const PodTable: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
-  const metrics = useTableMetrics<Pod>({ ownerConnectionID: id, resourceKey }, defaultMetrics);
+  const metrics = useTableMetrics<Pod>({ ownerConnectionID: id, resourceKey }, defaultMetrics, {
+    headers: { 'kubernetes.pod.cpu.usage': 'CPU', 'kubernetes.pod.memory.working_set': 'Memory' },
+    bound: (pod, metricID) => {
+      const resource = metricID === 'kubernetes.pod.cpu.usage' ? 'cpu' : metricID === 'kubernetes.pod.memory.working_set' ? 'memory' : null;
+      if (!resource) return {};
+      const limit = podMetricBound(pod, resource, 'limits');
+      const request = podMetricBound(pod, resource, 'requests');
+      return {
+        request,
+        bound: limit != null ? { kind: 'limit', value: limit } : request != null && request > 0 ? { kind: 'request', value: request } : undefined,
+        thresholds: limit != null && limit > 0 ? [
+          { value: 0, tone: 'success' }, { value: limit * 0.7, tone: 'warning' }, { value: limit * 0.9, tone: 'danger' },
+        ] : undefined,
+      };
+    },
+  });
 
 
   /**
