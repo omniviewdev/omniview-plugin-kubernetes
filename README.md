@@ -960,9 +960,17 @@ subject to Kubernetes authorization and admission policy.
 
 ### Prometheus Integration
 
-To enable advanced metrics, configure a Prometheus endpoint in the cluster settings. The plugin will query Prometheus for time-series data and display it alongside metrics-server data.
+For finite host-owned Pod metrics, configure a Grafana provider connection in global **Settings → Metrics**, discover its Prometheus datasource, and keep shared Pod mappings there. Then open the owning Kubernetes connection's **Cluster Settings → Metrics**, bind the provider connection and datasource, set its public cluster label, and save the connection metrics binding. Choose **Supplement native metrics** or **Replace mapped metrics** explicitly. A provider health test alone does not prove datasource query access.
+
+Native metrics-server supplies current CPU/memory only; it does not supply range history. Mapped Prometheus observations can supply genuine retained series, while missing counters and unsupported native history remain unavailable. Existing cluster/namespace Prometheus consumers still use their genuine legacy endpoint/query configuration; the owner-connection binding does not migrate those consumers.
+
+For a manual real Kind/Prometheus/Grafana fixture, see [the metrics lab](hack/metrics-lab/README.md). It uses private kubeconfig credentials, loopback-only forwards, and two actual application Pods.
 
 ## Development
+
+### Manual real-cluster metrics development
+
+Use [hack/metrics-lab](hack/metrics-lab/README.md) to install the pinned monitoring stack and two bounded CPU/HTTP/I/O workloads into an existing disposable local Kind cluster. Follow its setup, direct telemetry verification, and IDE connection steps. The fixture never writes ambient kubeconfig or creates/deletes a cluster; it rejects unowned release/object collisions. Do not reset another lab or replace existing port-forwards. This manual fixture adds no CI workflow and does not install metrics-server.
 
 Resource-toolbar Create, search, filter and settings controls should consistently request `size="sm"` and rely on the shared density scale rather than fixed pixel heights. The host supplies shared `@omniviewdev/base-ui`, so shared styling fixes reach the plugin through the host's library release.
 
