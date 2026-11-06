@@ -8,11 +8,16 @@ const state = vi.hoisted(() => ({
   loading: false,
   record: vi.fn(),
   snackbar: vi.fn(),
+  migrationReady: true,
   listeners: new Set<() => void>(),
 }));
 vi.mock('@omniviewdev/runtime', () => ({
   usePluginRouter: () => ({ navigate: vi.fn() }),
   useNotifications: () => ({ notify: state.snackbar }),
+  useConnections: () => ({ connections: { data: state.migrationReady ? [{ id: 'test' }] : undefined } }),
+}));
+vi.mock('../hooks/useLegacyColumnMigration', () => ({
+  useLegacyColumnMigration: (ids: string[] | undefined) => ids !== undefined,
 }));
 vi.mock('../hooks/useClusterPreferences', () => {
   const subscribe = (notify: () => void) => {
@@ -58,11 +63,22 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.connected = false;
   state.loading = false;
+  state.migrationReady = true;
   state.listeners.clear();
   state.record.mockResolvedValue(undefined);
 });
 afterEach(cleanup);
 describe('successful connected cluster route history', () => {
+  it('waits for preference migration before mounting the connected view', () => {
+    state.connected = true;
+    state.migrationReady = false;
+    const view = render(fixture());
+    expect(screen.getByText('Restoring column preferences...')).toBeTruthy();
+    expect(state.record).not.toHaveBeenCalled();
+    state.migrationReady = true;
+    view.rerender(fixture());
+    expect(screen.getByText('Overview')).toBeTruthy();
+  });
   it('does not record failed/unready deep links; records once only after the connected view mounts', async () => {
     const view = render(fixture());
     expect(screen.getByText('Connection not ready')).toBeTruthy();
