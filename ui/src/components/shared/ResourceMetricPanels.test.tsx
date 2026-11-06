@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, expect, it, vi } from 'vitest';
 import { useEffect, type ReactNode } from 'react';
+import { afterEach, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
   observation: { results: [] as object[], domain: { startMs: 1000, endMs: 2000 }, isLoading: false, isFetching: false, error: null as Error | null, refresh: vi.fn() },
@@ -133,7 +133,7 @@ it('preserves native value and capacity presentation preferences', () => {
 });
 
 it('normalizes serialized observation errors into compact meaningful panel status', () => {
-  const error = new Error('RuntimeError: {\"code\":\"UNAVAILABLE\",\"message\":\"private serialized transport\"}');
+  const error = new Error('RuntimeError: {"code":"UNAVAILABLE","message":"private serialized transport"}');
   state.observation.error = error;
   render(<ResourceMetricPanels connectionID="cluster" resourceKey="k8s:/pods" />);
   expect(state.parse).toHaveBeenCalledWith(error);
@@ -171,7 +171,7 @@ it('bounds failed-result status text while retaining the normalized diagnostic',
 });
 
 it('normalizes catalog errors without losing source controls', () => {
-  state.catalogError = new Error('RuntimeError: {\"code\":\"UNAVAILABLE\"}');
+  state.catalogError = new Error('RuntimeError: {"code":"UNAVAILABLE"}');
   render(<ResourceMetricPanels connectionID="cluster" resourceKey="k8s:/pods" />);
   expect(screen.getByRole('alert').textContent).toBe('The datasource rejected this query.');
   expect(screen.getByText('Metric source')).toBeTruthy();

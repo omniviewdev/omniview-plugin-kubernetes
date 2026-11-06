@@ -4,6 +4,7 @@
 .timeControls { margin-left: auto; flex: 0 0 auto; }
 .chip, .add { min-height: 28px; height: 28px; padding-inline: 10px; font-size: 12px; gap: 7px; }
 .chip { background: var(--ov-color-bg-surface); }
+.swatch { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 2px; }
 .add { border-style: dashed; }
 .browser { width: min(400px, calc(100vw - 32px)); padding: 12px; display: flex; flex-direction: column; gap: 12px; background: var(--ov-color-bg-surface); border: 1px solid var(--ov-color-border-default); border-radius: 8px; box-shadow: 0 12px 32px #0005; }
 .options { display: flex; flex-direction: column; max-height: 300px; overflow-y: auto; }

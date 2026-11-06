@@ -35,8 +35,8 @@ dash separators while a display name is being edited. Whitespace-only names use
 
 Pod detail metrics use host-owned observations with canonical resource references
 and access routes. Metrics-server provides current CPU (cores) and memory working
-set (bytes), not historical series. The Metrics view explicitly marks native
-history unsupported while keeping genuine Prometheus history separate. Missing
+set (bytes), not historical series. The Metrics view shows native current values
+without a time-range control and keeps genuine Prometheus history separate. Missing
 samples and unknown capacities are never rendered as zero or inferred limits.
 Pod totals are not attributed to individual containers; container resource cards
 show only configured requests and limits. Source details distinguish UID-verified
@@ -45,6 +45,9 @@ samples from name-scoped measurements.
 Metric selection, display, layout, details, and absolute or relative time choices
 persist in host profile preferences for the plugin and resource type. Revision
 checks protect concurrent writes, and save failures remain visible in the view.
+
+Selection chips, values, charts, and details use the same categorical theme color.
+Colors follow the saved metric order and stay consistent during refreshes and Pod changes.
 
 ## Production notification compatibility
 
