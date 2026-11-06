@@ -26,6 +26,7 @@ import KubernetesHomepageCard from './components/homepage/KubernetesHomepageCard
 import { resourceDrawerActions } from './components/kubernetes/drawerActions';
 import NodeSidebar from './components/kubernetes/sidebar/NodeSidebar';
 import PodSidebar from './components/kubernetes/sidebar/Pod';
+import { PodMetricsView } from './components/kubernetes/sidebar/Pod/PodMetricsSection';
 import SecretSidebar from './components/kubernetes/sidebar/SecretSidebar';
 import MutatingWebhookConfigurationSidebar from './components/kubernetes/table/admissionregistrationv1/MutatingWebhookConfiguration/Sidebar';
 import MutatingWebhookConfigurationTable from './components/kubernetes/table/admissionregistrationv1/MutatingWebhookConfiguration/Table';
@@ -212,6 +213,10 @@ const sidebars: Record<string, React.FC<{ ctx: DrawerContext }>> = {
   'helm:charts': ChartSidebar,
 };
 
+const resourceMetricsViews: Record<string, React.FC<{ ctx: DrawerContext }>> = {
+  'k8s:/pods': PodMetricsView,
+};
+
 /**
  * Creates a DrawerFactory for a resource that has a sidebar component.
  * Produces a DrawerComponent with the standard view set (Overview, Metrics,
@@ -225,7 +230,7 @@ function createResourceDrawerFactory(
   const shared = resourceDrawerActions[resourceKey];
   return (_closeDrawer: () => void): DrawerComponent => ({
     title: resourceKey,
-    views: createStandardViews({ SidebarComponent }),
+    views: createStandardViews({ SidebarComponent, MetricsComponent: resourceMetricsViews[resourceKey] }),
     actions: shared?.actions ?? [],
   });
 }

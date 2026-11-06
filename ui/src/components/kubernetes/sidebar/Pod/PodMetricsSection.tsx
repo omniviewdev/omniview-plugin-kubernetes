@@ -1,63 +1,23 @@
-import { Spinner, Stack, Text } from '@omniviewdev/base-ui';
-import { useResourceMetrics, type Value, type ResourceReference, type AccessRoute } from '@omniviewdev/runtime';
-import { metric } from '@omniviewdev/runtime/models';
-import React, { useState, useMemo, useCallback } from 'react';
+import { Button, IconButton, Stack, Text } from '@omniviewdev/base-ui';
+import { CapacityBar, MetricDetails, MetricDisplayPicker, MetricPanel, MetricValue, TimeRangeControl, type MetricPanelState, type TimeSelection } from '@omniviewdev/base-ui/metrics';
+import { useMetricObservation, useMetricViewPreferences, type DrawerContext, type ResourceReference, type AccessRoute, type Value } from '@omniviewdev/runtime';
+import type { Pod } from 'kubernetes-types/core/v1';
+import { useMemo } from 'react';
+import { LuArrowUp, LuLayoutGrid, LuRows2 } from 'react-icons/lu';
 
-import { MetricsPanel } from '../../../shared/charts';
-import type { TimeSeriesDef, ChartTimeRange } from '../../../shared/charts';
+import { podMetricBound } from './podMetricBound';
+import styles from './PodMetricsSection.module.css';
+import PodPrometheusMetricsSection from './PodPrometheusMetricsSection';
 
 import { PLUGIN_ID } from '@/pluginId';
 
-const metricTileBoxStyle: React.CSSProperties = {
-  paddingBlock: 6,
-  paddingInline: 8,
-  borderRadius: 4,
-  border: '1px solid var(--ov-color-border-default)',
-  background: 'var(--ov-color-bg-surface-raised)',
-};
+const metrics = [
+  { id: 'kubernetes.pod.cpu.usage', label: 'CPU', resource: 'cpu' as const },
+  { id: 'kubernetes.pod.memory.working_set', label: 'Memory working set', resource: 'memory' as const },
+];
 
-const metricTileLabelStyle: React.CSSProperties = { marginBottom: 2, display: 'block' };
-
-const metricTileValueStyle: React.CSSProperties = { fontVariantNumeric: 'tabular-nums' };
-
-const loadingContainerStyle: React.CSSProperties = { display: 'flex', justifyContent: 'center', paddingBlock: 16 };
-
-const sectionBorderStyle: React.CSSProperties = {
-  borderRadius: 4,
-  border: '1px solid var(--ov-color-border-default)',
-};
-
-const sectionHeaderStyle: React.CSSProperties = { paddingBlock: 4, paddingInline: 8 };
-
-const sectionHeaderWithActionsStyle: React.CSSProperties = {
-  paddingBlock: 4,
-  paddingInline: 8,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-};
-
-const errorBoxStyle: React.CSSProperties = { paddingInline: 8, paddingBottom: 4 };
-
-const bodyPaddingStyle: React.CSSProperties = { paddingInline: 4, paddingBottom: 8 };
-
-const noMetricsBodyStyle: React.CSSProperties = { paddingInline: 8, paddingBottom: 8 };
-
-const tileContainerStyle: React.CSSProperties = { paddingInline: 4 };
-
-const tileHeadingStyle: React.CSSProperties = {
-  display: 'block',
-  textTransform: 'uppercase',
-  letterSpacing: '0.04em',
-  fontSize: '0.6rem',
-  marginBottom: 4,
-};
-
-/** Two equal columns with 4px gap (MUI Grid spacing 0.5, size 6). */
-const tileGridStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-  gap: 4,
+const initialPreferences = {
+  metric_ids: metrics.map(metric => metric.id),
 };
 
 interface Props {
@@ -66,336 +26,117 @@ interface Props {
   resourceID: string;
   resourceNamespace: string;
   resourceData?: Value;
+  pod?: Pod;
   reference?: ResourceReference;
   route?: AccessRoute;
 }
 
-function formatValue(value: number, unitCode: number): string {
-  if (unitCode === 1) {
-    if (value >= 1024 * 1024 * 1024) return `${(value / (1024 * 1024 * 1024)).toFixed(1)} GB`;
-    if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`;
-    if (value >= 1024) return `${(value / 1024).toFixed(1)} KB`;
-    return `${value} B`;
-  }
-  if (unitCode === 10) {
-    if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB/s`;
-    if (value >= 1024) return `${(value / 1024).toFixed(1)} KB/s`;
-    return `${value.toFixed(0)} B/s`;
-  }
-  if (unitCode === 11) {
-    if (value >= 1000) return `${(value / 1000).toFixed(2)} cores`;
-    return `${Math.round(value)}m`;
-  }
-  if (unitCode === 12) return `${value.toFixed(3)} cores`;
-  if (unitCode === 5) return `${value.toFixed(1)}%`;
-  if (Number.isInteger(value)) return `${value}`;
-  return `${value.toFixed(2)}`;
-}
-
-/** Compact metric tile for instant values */
-const MetricTile: React.FC<{
-  label: string;
-  value: string;
-}> = ({ label, value }) => (
-  <div style={metricTileBoxStyle}>
-    <Text size="xs" tone="muted" style={metricTileLabelStyle}>
-      {label}
-    </Text>
-    <Text size="sm" weight="semibold" style={metricTileValueStyle}>
-      {value}
-    </Text>
-  </div>
-);
-
-/** Readable display name for known metric IDs */
-const METRIC_NAMES: Record<string, string> = {
-  cpu_usage: 'CPU (metrics-server)',
-  memory_usage: 'Memory (metrics-server)',
-  prom_cpu_usage_rate: 'CPU Usage Rate',
-  prom_cpu_throttle_rate: 'CPU Throttle',
-  prom_memory_working_set: 'Working Set',
-  prom_memory_rss: 'RSS',
-  prom_network_receive_rate: 'Receive',
-  prom_network_transmit_rate: 'Transmit',
-  prom_fs_usage: 'Filesystem Usage',
-  prom_restart_count: 'Restarts',
-};
-
-/** Extract current-value metrics from all providers keyed by metric_id */
-function extractCurrentMetrics(
-  data: Record<string, metric.QueryResponse> | undefined,
-): Map<string, { value: number; unit: number }> {
-  const out = new Map<string, { value: number; unit: number }>();
-  if (!data) return out;
-
-  for (const [, resp] of Object.entries(data)) {
-    if (!resp?.success || !resp.results) continue;
-    for (const result of resp.results) {
-      if (result.current_value) {
-        out.set(result.current_value.metric_id, {
-          value: result.current_value.value,
-          unit: 0,
-        });
-      }
-    }
-  }
-  return out;
-}
-
-/** Extract time-series results keyed by metric_id */
-function extractTimeSeries(
-  data: Record<string, metric.QueryResponse> | undefined,
-): Map<string, metric.TimeSeries> {
-  const out = new Map<string, metric.TimeSeries>();
-  if (!data) return out;
-
-  for (const [, resp] of Object.entries(data)) {
-    if (!resp?.success || !resp.results) continue;
-    for (const result of resp.results) {
-      if (result.time_series) {
-        out.set(result.time_series.metric_id, result.time_series);
-      }
-    }
-  }
-  return out;
-}
-
-/** Convert SDK TimeSeries to chart-compatible TimeSeriesDef */
-function toTimeSeriesDef(ts: metric.TimeSeries, label: string, color?: string): TimeSeriesDef {
-  return {
-    id: ts.metric_id,
-    label,
-    // dp.timestamp is a Wails-serialized time.Time (ISO string at runtime)
-    data: (ts.data_points ?? []).map((dp) => ({
-      timestamp: new Date(dp.timestamp).getTime(),
-      value: dp.value,
-    })),
-    color,
-    area: true,
-  };
-}
-
-/** Metrics that remain as instant-only tiles */
-const TILE_ONLY_METRICS = [
-  'cpu_usage',
-  'memory_usage',
-  'prom_fs_usage',
-  'prom_cpu_throttle_rate',
-  'prom_restart_count',
-];
-
-const PodMetricsSection: React.FC<Props> = ({
-  connectionID,
-  resourceKey,
-  resourceID,
-  resourceNamespace,
-  resourceData,
-  reference,
-  route,
-}) => {
-  const [timeRange, setTimeRange] = useState<ChartTimeRange>(() => ({
-    from: new Date(Date.now() - 60 * 60 * 1000), // 1h ago
-    to: new Date(),
-  }));
-
-  // Instant values (shape=0 CURRENT) for tiles and current value annotations
-  const {
-    data: currentData,
-    isLoading: currentLoading,
-    error,
-  } = useResourceMetrics({
-    pluginID: PLUGIN_ID,
-    connectionID,
-    resourceKey,
-    resourceID,
-    resourceNamespace,
-    resourceData,
-    reference,
-    route,
-    refreshInterval: 30000,
+/** Native current samples remain separate from genuine Prometheus history. */
+export default function PodMetricsSection(props: Props) {
+  const { preferences, update: savePreferences, error: preferenceError } = useMetricViewPreferences(PLUGIN_ID, props.resourceKey, initialPreferences);
+  // The hook publishes save failures below; event handlers must also consume rejection.
+  const update = (patch: Parameters<typeof savePreferences>[0]) => savePreferences(patch).catch(() => undefined);
+  const targets = useMemo(() => props.reference && props.route
+    ? [{ token: props.resourceID, reference: props.reference, route: props.route }] : [],
+  [props.resourceID, props.reference, props.route]);
+  const selected = preferences.metric_ids;
+  const observation = useMetricObservation({
+    ownerPluginID: PLUGIN_ID,
+    ownerConnectionID: props.connectionID,
+    resourceKey: props.resourceKey,
+    targets,
+    metricIDs: selected,
+    shape: 'current',
+    intervalMs: 15_000,
+    enabled: targets.length > 0 && selected.length > 0,
   });
-
-  // Time-series data (shape=1 TIMESERIES) for charts
-  const { data: tsData, isLoading: tsLoading } = useResourceMetrics({
-    pluginID: PLUGIN_ID,
-    connectionID,
-    resourceKey,
-    resourceID,
-    resourceNamespace,
-    resourceData,
-    reference,
-    route,
-    shape: 1,
-    timeRange: {
-      start: timeRange.from,
-      end: timeRange.to,
-      step: '',
-    },
-    metricIDs: [
-      'prom_cpu_usage_rate',
-      'prom_memory_working_set',
-      'prom_memory_rss',
-      'prom_network_receive_rate',
-      'prom_network_transmit_rate',
-    ],
-    refreshInterval: 30000,
+  const time: TimeSelection = preferences.time_mode === 'absolute'
+    ? { mode: 'absolute', domain: { startMs: preferences.start_ms, endMs: preferences.end_ms } }
+    : { mode: 'relative', durationMs: preferences.duration_ms };
+  const ordered = selected.flatMap(id => {
+    const metric = metrics.find(item => item.id === id);
+    return metric ? [metric] : [];
   });
-
-  const currentMetrics = useMemo(() => extractCurrentMetrics(currentData), [currentData]);
-  const tsSeries = useMemo(() => extractTimeSeries(tsData), [tsData]);
-
-  const isLoading = currentLoading && currentMetrics.size === 0;
-  const hasTimeSeries = tsSeries.size > 0;
-
-  // Build chart series
-  const cpuSeries = useMemo<TimeSeriesDef[]>(() => {
-    const s: TimeSeriesDef[] = [];
-    const cpu = tsSeries.get('prom_cpu_usage_rate');
-    if (cpu) s.push(toTimeSeriesDef(cpu, 'CPU Usage', 'var(--ov-color-brand-500)'));
-    return s;
-  }, [tsSeries]);
-
-  const memorySeries = useMemo<TimeSeriesDef[]>(() => {
-    const s: TimeSeriesDef[] = [];
-    const ws = tsSeries.get('prom_memory_working_set');
-    if (ws) s.push(toTimeSeriesDef(ws, 'Working Set', 'var(--ov-color-brand-500)'));
-    const rss = tsSeries.get('prom_memory_rss');
-    if (rss) s.push(toTimeSeriesDef(rss, 'RSS', 'var(--ov-color-secondary)'));
-    return s;
-  }, [tsSeries]);
-
-  const networkSeries = useMemo<TimeSeriesDef[]>(() => {
-    const s: TimeSeriesDef[] = [];
-    const rx = tsSeries.get('prom_network_receive_rate');
-    if (rx) s.push(toTimeSeriesDef(rx, 'Receive', 'var(--ov-color-success)'));
-    const tx = tsSeries.get('prom_network_transmit_rate');
-    if (tx) s.push(toTimeSeriesDef(tx, 'Transmit', 'var(--ov-color-warning)'));
-    return s;
-  }, [tsSeries]);
-
-  const handleTimeRangeChange = useCallback((range: ChartTimeRange) => {
-    setTimeRange(range);
-  }, []);
-
-  // Tile-only metrics
-  const tileMetrics = TILE_ONLY_METRICS.filter((id) => currentMetrics.has(id)).map((id) => ({
-    id,
-    ...currentMetrics.get(id)!,
-  }));
-
-  if (isLoading) {
-    return (
-      <div style={loadingContainerStyle}>
-        <Spinner size="sm" />
-      </div>
-    );
-  }
-
-  if (currentMetrics.size === 0 && !hasTimeSeries && !error) {
-    return (
-      <div style={sectionBorderStyle}>
-        <div style={sectionHeaderStyle}>
-          <Text weight="semibold" size="sm">
-            Metrics
-          </Text>
-        </div>
-        <div style={noMetricsBodyStyle}>
-          <Text size="xs" tone="subtle">
-            No metrics available. Ensure metrics-server or Prometheus is installed.
-          </Text>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div style={sectionBorderStyle}>
-      {/* Header */}
-      <div style={sectionHeaderWithActionsStyle}>
-        <Text weight="semibold" size="sm">
-          Metrics
-        </Text>
-        {(currentLoading || tsLoading) && <Spinner size="xs" />}
-      </div>
-
-      {error && (
-        <div style={errorBoxStyle}>
-          <Text size="xs" tone="danger">
-            {error.message || 'Failed to load metrics'}
-          </Text>
-        </div>
-      )}
-
-      <div style={bodyPaddingStyle}>
-        <Stack direction="column" spacing={0} style={{ gap: 6 }}>
-          {/* Time-series charts */}
-          {hasTimeSeries && (
-            <>
-              {cpuSeries.length > 0 && (
-                <MetricsPanel
-                  title="CPU"
-                  series={cpuSeries}
-                  timeRange={timeRange}
-                  onTimeRangeChange={handleTimeRangeChange}
-                  valueFormat="rate"
-                  unit="cores"
-                  area
-                  variant="compact"
-                  height={140}
-                  loading={tsLoading}
-                />
-              )}
-              {memorySeries.length > 0 && (
-                <MetricsPanel
-                  title="Memory"
-                  series={memorySeries}
-                  timeRange={timeRange}
-                  onTimeRangeChange={handleTimeRangeChange}
-                  valueFormat="bytes"
-                  area
-                  variant="compact"
-                  height={140}
-                  loading={tsLoading}
-                />
-              )}
-              {networkSeries.length > 0 && (
-                <MetricsPanel
-                  title="Network"
-                  series={networkSeries}
-                  timeRange={timeRange}
-                  onTimeRangeChange={handleTimeRangeChange}
-                  valueFormat="bytes"
-                  unit="/s"
-                  area
-                  variant="compact"
-                  height={140}
-                  loading={tsLoading}
-                />
-              )}
-            </>
-          )}
-
-          {/* Instant-only tiles */}
-          {tileMetrics.length > 0 && (
-            <div style={tileContainerStyle}>
-              <Text size="xs" weight="semibold" tone="muted" style={tileHeadingStyle}>
-                Current Values
-              </Text>
-              <div style={tileGridStyle}>
-                {tileMetrics.map((m) => (
-                  <MetricTile
-                    key={m.id}
-                    label={METRIC_NAMES[m.id] || m.id}
-                    value={formatValue(m.value, m.unit)}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-        </Stack>
-      </div>
+  return <Stack direction="column" spacing={2}>
+    <div className={styles.Controls}>
+      <span className={styles.Live} title="Metrics-server provides live samples, not historical queries.">Live</span>
+      <TimeRangeControl value={time} onChange={value => { void update(value.mode === 'relative'
+        ? { time_mode: 'relative', duration_ms: value.durationMs }
+        : { time_mode: 'absolute', start_ms: value.domain.startMs, end_ms: value.domain.endMs }); }}
+        onRefresh={() => { void observation.refresh(); }} refreshing={observation.isFetching} />
+      <IconButton size="sm" variant="ghost" aria-label={preferences.layout === 'stack' ? 'Use grid layout' : 'Use list layout'}
+        onClick={() => { void update(current => ({ layout: current.layout === 'stack' ? 'grid' : 'stack' })); }}>
+        {preferences.layout === 'stack' ? <LuLayoutGrid /> : <LuRows2 />}
+      </IconButton>
+      {metrics.map(metric => <Button key={metric.id} size="sm" variant={selected.includes(metric.id) ? 'soft' : 'ghost'}
+        aria-pressed={selected.includes(metric.id)} onClick={() => { void update(current => ({ metric_ids: current.metric_ids.includes(metric.id)
+          ? current.metric_ids.filter(id => id !== metric.id) : [...current.metric_ids, metric.id] })); }}>{metric.label}</Button>)}
     </div>
-  );
-};
+    {preferenceError && <Text size="xs" tone="danger" role="alert" title={String(preferenceError)}>Metric preferences unavailable</Text>}
+    <div className={styles.Panels} data-layout={preferences.layout}>
+      {ordered.filter(metric => selected.includes(metric.id)).map(metric => {
+        const result = observation.results.find(result => result.resourceToken === props.resourceID && result.metricID === metric.id);
+        const state: MetricPanelState = result?.status === 'ok' ? { kind: 'data', updating: observation.isFetching,
+            freshness: result.freshness === 'delayed' ? 'delayed' : undefined,
+            notice: observation.error ? { tone: 'warning', label: 'Refresh failed' } : undefined }
+          : observation.error ? { kind: 'error', message: String(observation.error) }
+          : observation.isLoading || (!result && observation.isFetching) ? { kind: 'initial' }
+          : result?.status === 'denied' ? { kind: 'denied' }
+          : result?.status === 'unsupported' ? { kind: 'unsupported' }
+          : { kind: 'empty', message: 'No sample' };
+        const display = preferences.displays[metric.id] === 'capacity' ? 'capacity' : 'stat';
+        const limit = podMetricBound(props.pod, metric.resource, 'limits');
+        const request = podMetricBound(props.pod, metric.resource, 'requests');
+        const visibleOrder = ordered.filter(item => selected.includes(item.id));
+        return <MetricPanel key={metric.id} title={metric.label} state={state}
+          actions={<div className={styles.Actions}>
+            <IconButton size="xs" variant="ghost" aria-label={`Move ${metric.label} earlier`}
+              disabled={visibleOrder[0]?.id === metric.id}
+              onClick={() => { void update(current => {
+                const metric_ids = [...current.metric_ids];
+                const index = metric_ids.indexOf(metric.id);
+                if (index > 0) [metric_ids[index - 1], metric_ids[index]] = [metric_ids[index], metric_ids[index - 1]];
+                return { metric_ids };
+              }); }}><LuArrowUp /></IconButton>
+            <MetricDisplayPicker value={display} options={[{ value: 'stat', label: 'Value' }, { value: 'capacity', label: 'Capacity' }]}
+              onChange={value => { void update({ displays: { [metric.id]: value === 'stat' ? 'value' : value } }); }} />
+          </div>}
+          details={{ open: preferences.details[metric.id] ?? false,
+            onOpenChange: open => { void update({ details: { [metric.id]: open } }); },
+            content: <MetricDetails source="Metrics-server"
+              samples={[{ id: 'current', label: 'Current', status: result?.status === 'ok'
+                ? result.observedAt == null ? 'unknown' : result.freshness === 'delayed' ? 'delayed' : 'ok' : 'error',
+                updatedAtMs: result?.observedAt ?? undefined }]}
+              labels={{ namespace: props.resourceNamespace, pod: props.resourceID }}
+              items={[
+                { id: 'window', label: 'Measurement window', value: result ? `${result.windowMs / 1000} s` : '—' },
+                { id: 'identity', label: 'Attribution', value: result?.identityScope === 'incarnation' ? 'UID verified' : 'Name scoped', advanced: true },
+                ...(result?.message ? [{ id: 'status', label: 'Status', value: result.message, advanced: true }] : []),
+              ]} /> }}>
+          {!result?.unit ? <Text size="xs" tone="muted">Metric unit unavailable</Text> : display === 'capacity'
+            ? <CapacityBar value={result.status === 'ok' ? result.value : null} unit={result.unit} label={metric.label}
+                request={request} bound={limit == null ? request == null ? undefined : { value: request, kind: 'request' } : { value: limit, kind: 'limit' }} />
+            : <MetricValue value={result.status === 'ok' ? result.value : null} unit={result.unit} size="sm" />}
+        </MetricPanel>;
+      })}
+    </div>
+  </Stack>;
+}
 
-export default PodMetricsSection;
+export function PodMetricsView({ ctx }: { ctx: DrawerContext<unknown> }) {
+  const pod = ctx.data as Pod | undefined;
+  const props = {
+    connectionID: ctx.resource?.route.connection ?? '',
+    resourceKey: ctx.resource?.reference.address.type ?? 'k8s:/pods',
+    resourceID: ctx.resource?.reference.address.id ?? '',
+    resourceNamespace: pod?.metadata?.namespace ?? '',
+    pod,
+    resourceData: ctx.resource?.record?.record.body,
+    reference: ctx.resource?.reference,
+    route: ctx.resource?.route,
+  };
+  return <Stack direction="column" spacing={3}>
+    <PodMetricsSection {...props} />
+    <PodPrometheusMetricsSection {...props} />
+  </Stack>;
+}

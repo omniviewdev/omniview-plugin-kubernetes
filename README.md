@@ -33,6 +33,19 @@ Cluster avatar initials tolerate leading, trailing, and repeated whitespace or
 dash separators while a display name is being edited. Whitespace-only names use
 `NA`; the display name itself is not normalized or changed.
 
+Pod detail metrics use host-owned observations with canonical resource references
+and access routes. Metrics-server provides current CPU (cores) and memory working
+set (bytes), not historical series. The Metrics view explicitly marks native
+history unsupported while keeping genuine Prometheus history separate. Missing
+samples and unknown capacities are never rendered as zero or inferred limits.
+Pod totals are not attributed to individual containers; container resource cards
+show only configured requests and limits. Source details distinguish UID-verified
+samples from name-scoped measurements.
+
+Metric selection, display, layout, details, and absolute or relative time choices
+persist in host profile preferences for the plugin and resource type. Revision
+checks protect concurrent writes, and save failures remain visible in the view.
+
 ## Production notification compatibility
 
 Plugin notifications use the runtime's `useNotifications` API, not its retired
@@ -383,7 +396,7 @@ Regression checks:
 ```bash
 cd ui
 pnpm exec vitest run src/components/tables/ColumnFilter/useDynamicResourceColumns.test.tsx
-pnpm exec vitest run src/utils/ageClock.test.tsx src/hooks/usePodMetricsBatch.test.tsx src/components/kubernetes/table/corev1/Pod/PodMetricsProvider.test.tsx
+pnpm exec vitest run src/utils/ageClock.test.tsx src/components/kubernetes/table/corev1/Pod/PodMetricsProvider.test.tsx
 AGE_CLOCK_BENCH=1 pnpm exec vitest run src/components/kubernetes/table/shared/cells/AgeCell.benchmark.test.tsx --silent=false --reporter=verbose
 cd ..
 GOWORK=off GOFLAGS= go test ./pkg/plugin/resource/resourcers -count=1
@@ -868,7 +881,7 @@ The plugin supports two metrics backends:
 | **metrics-server** | Pod and node CPU/memory usage                                                                                                                                        |
 | **Prometheus**     | Time-series metrics: CPU throttle rate, memory working set, network I/O, disk throughput, IOPS, filesystem usage, OOM kills, restart counts, probe latency, and more |
 
-Metrics are displayed in the dashboard, node sidebars, and pod sidebars as interactive time-series graphs.
+Native Pod CPU and memory cells use one host-owned current observation for mounted virtual rows, including overscan. Targets retain host-issued references, routes, and row membership; table rows remain unchanged. Hiding metric columns or the document pauses collection without remounting table content. Overlapping Pod detail observations share host collection. Missing samples display as missing, never zero, and cells do not invent capacity limits. Native metrics-server samples are current values, not fabricated time-series history. Genuine Prometheus and Node consumers retain their existing paths. See [native metrics](docs/native-metrics.md) for source provenance and backend limits.
 
 ## Installation
 

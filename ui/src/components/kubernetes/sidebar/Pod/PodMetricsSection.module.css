@@ -1,0 +1,30 @@
+.Controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ov-space-2);
+}
+
+.Live {
+  color: var(--ov-color-fg-muted);
+  font-size: var(--ov-font-size-caption);
+  border: 1px solid var(--ov-color-border-default);
+  border-radius: var(--ov-radius-sm);
+  padding: var(--ov-space-1) var(--ov-space-2);
+}
+
+.Panels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: var(--ov-space-3);
+}
+
+.Panels[data-layout='stack'] {
+  grid-template-columns: 1fr;
+}
+
+.Actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ov-space-1);
+}

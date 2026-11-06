@@ -1,0 +1,398 @@
+import { Spinner, Stack, Text } from '@omniviewdev/base-ui';
+import { useResourceMetrics, type Value, type ResourceReference, type AccessRoute } from '@omniviewdev/runtime';
+import { metric } from '@omniviewdev/runtime/models';
+import React, { useState, useMemo, useCallback } from 'react';
+
+import { MetricsPanel } from '../../../shared/charts';
+import type { TimeSeriesDef, ChartTimeRange } from '../../../shared/charts';
+
+import { PLUGIN_ID } from '@/pluginId';
+
+const metricTileBoxStyle: React.CSSProperties = {
+  paddingBlock: 6,
+  paddingInline: 8,
+  borderRadius: 4,
+  border: '1px solid var(--ov-color-border-default)',
+  background: 'var(--ov-color-bg-surface-raised)',
+};
+
+const metricTileLabelStyle: React.CSSProperties = { marginBottom: 2, display: 'block' };
+
+const metricTileValueStyle: React.CSSProperties = { fontVariantNumeric: 'tabular-nums' };
+
+const loadingContainerStyle: React.CSSProperties = { display: 'flex', justifyContent: 'center', paddingBlock: 16 };
+
+const sectionBorderStyle: React.CSSProperties = {
+  borderRadius: 4,
+  border: '1px solid var(--ov-color-border-default)',
+};
+
+const sectionHeaderStyle: React.CSSProperties = { paddingBlock: 4, paddingInline: 8 };
+
+const sectionHeaderWithActionsStyle: React.CSSProperties = {
+  paddingBlock: 4,
+  paddingInline: 8,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+};
+
+const errorBoxStyle: React.CSSProperties = { paddingInline: 8, paddingBottom: 4 };
+
+const bodyPaddingStyle: React.CSSProperties = { paddingInline: 4, paddingBottom: 8 };
+
+const noMetricsBodyStyle: React.CSSProperties = { paddingInline: 8, paddingBottom: 8 };
+
+const tileContainerStyle: React.CSSProperties = { paddingInline: 4 };
+
+const tileHeadingStyle: React.CSSProperties = {
+  display: 'block',
+  textTransform: 'uppercase',
+  letterSpacing: '0.04em',
+  fontSize: '0.6rem',
+  marginBottom: 4,
+};
+
+/** Two equal columns with 4px gap (MUI Grid spacing 0.5, size 6). */
+const tileGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+  gap: 4,
+};
+
+interface Props {
+  connectionID: string;
+  resourceKey: string;
+  resourceID: string;
+  resourceNamespace: string;
+  resourceData?: Value;
+  reference?: ResourceReference;
+  route?: AccessRoute;
+}
+
+function formatValue(value: number, unitCode: number): string {
+  if (unitCode === 1) {
+    if (value >= 1024 * 1024 * 1024) return `${(value / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+    if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+    if (value >= 1024) return `${(value / 1024).toFixed(1)} KB`;
+    return `${value} B`;
+  }
+  if (unitCode === 10) {
+    if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB/s`;
+    if (value >= 1024) return `${(value / 1024).toFixed(1)} KB/s`;
+    return `${value.toFixed(0)} B/s`;
+  }
+  if (unitCode === 11) {
+    if (value >= 1000) return `${(value / 1000).toFixed(2)} cores`;
+    return `${Math.round(value)}m`;
+  }
+  if (unitCode === 12) return `${value.toFixed(3)} cores`;
+  if (unitCode === 5) return `${value.toFixed(1)}%`;
+  if (Number.isInteger(value)) return `${value}`;
+  return `${value.toFixed(2)}`;
+}
+
+/** Compact metric tile for instant values */
+const MetricTile: React.FC<{
+  label: string;
+  value: string;
+}> = ({ label, value }) => (
+  <div style={metricTileBoxStyle}>
+    <Text size="xs" tone="muted" style={metricTileLabelStyle}>
+      {label}
+    </Text>
+    <Text size="sm" weight="semibold" style={metricTileValueStyle}>
+      {value}
+    </Text>
+  </div>
+);
+
+/** Readable display name for known metric IDs */
+const METRIC_NAMES: Record<string, string> = {
+  prom_cpu_usage_rate: 'CPU Usage Rate',
+  prom_cpu_throttle_rate: 'CPU Throttle',
+  prom_memory_working_set: 'Working Set',
+  prom_memory_rss: 'RSS',
+  prom_network_receive_rate: 'Receive',
+  prom_network_transmit_rate: 'Transmit',
+  prom_fs_usage: 'Filesystem Usage',
+  prom_restart_count: 'Restarts',
+};
+
+/** Extract current-value metrics from all providers keyed by metric_id */
+function extractCurrentMetrics(
+  data: Record<string, metric.QueryResponse> | undefined,
+): Map<string, { value: number; unit: number }> {
+  const out = new Map<string, { value: number; unit: number }>();
+  if (!data) return out;
+
+  for (const [, resp] of Object.entries(data)) {
+    if (!resp?.success || !resp.results) continue;
+    for (const result of resp.results) {
+      if (result.current_value) {
+        out.set(result.current_value.metric_id, {
+          value: result.current_value.value,
+          unit: 0,
+        });
+      }
+    }
+  }
+  return out;
+}
+
+/** Extract time-series results keyed by metric_id */
+function extractTimeSeries(
+  data: Record<string, metric.QueryResponse> | undefined,
+): Map<string, metric.TimeSeries> {
+  const out = new Map<string, metric.TimeSeries>();
+  if (!data) return out;
+
+  for (const [, resp] of Object.entries(data)) {
+    if (!resp?.success || !resp.results) continue;
+    for (const result of resp.results) {
+      if (result.time_series) {
+        out.set(result.time_series.metric_id, result.time_series);
+      }
+    }
+  }
+  return out;
+}
+
+/** Convert SDK TimeSeries to chart-compatible TimeSeriesDef */
+function toTimeSeriesDef(ts: metric.TimeSeries, label: string, color?: string): TimeSeriesDef {
+  return {
+    id: ts.metric_id,
+    label,
+    // dp.timestamp is a Wails-serialized time.Time (ISO string at runtime)
+    data: (ts.data_points ?? []).map((dp) => ({
+      timestamp: new Date(dp.timestamp).getTime(),
+      value: dp.value,
+    })),
+    color,
+    area: true,
+  };
+}
+
+/** Metrics that remain as instant-only tiles */
+const TILE_ONLY_METRICS = [
+  'prom_fs_usage',
+  'prom_cpu_throttle_rate',
+  'prom_restart_count',
+];
+
+const PodMetricsSection: React.FC<Props> = ({
+  connectionID,
+  resourceKey,
+  resourceID,
+  resourceNamespace,
+  resourceData,
+  reference,
+  route,
+}) => {
+  const [timeRange, setTimeRange] = useState<ChartTimeRange>(() => ({
+    from: new Date(Date.now() - 60 * 60 * 1000), // 1h ago
+    to: new Date(),
+  }));
+
+  // Instant values (shape=0 CURRENT) for tiles and current value annotations
+  const {
+    data: currentData,
+    isLoading: currentLoading,
+    error,
+  } = useResourceMetrics({
+    pluginID: PLUGIN_ID,
+    connectionID,
+    resourceKey,
+    resourceID,
+    resourceNamespace,
+    resourceData,
+    reference,
+    route,
+    metricIDs: ['prom_cpu_usage_rate', 'prom_cpu_throttle_rate', 'prom_memory_working_set', 'prom_memory_rss', 'prom_network_receive_rate', 'prom_network_transmit_rate', 'prom_fs_usage', 'prom_restart_count'],
+    refreshInterval: 30000,
+  });
+
+  // Time-series data (shape=1 TIMESERIES) for charts
+  const { data: tsData, isLoading: tsLoading } = useResourceMetrics({
+    pluginID: PLUGIN_ID,
+    connectionID,
+    resourceKey,
+    resourceID,
+    resourceNamespace,
+    resourceData,
+    reference,
+    route,
+    shape: 1,
+    timeRange: {
+      start: timeRange.from,
+      end: timeRange.to,
+      step: '',
+    },
+    metricIDs: [
+      'prom_cpu_usage_rate',
+      'prom_memory_working_set',
+      'prom_memory_rss',
+      'prom_network_receive_rate',
+      'prom_network_transmit_rate',
+    ],
+    refreshInterval: 30000,
+  });
+
+  const currentMetrics = useMemo(() => extractCurrentMetrics(currentData), [currentData]);
+  const tsSeries = useMemo(() => extractTimeSeries(tsData), [tsData]);
+
+  const isLoading = currentLoading && currentMetrics.size === 0;
+  const hasTimeSeries = tsSeries.size > 0;
+
+  // Build chart series
+  const cpuSeries = useMemo<TimeSeriesDef[]>(() => {
+    const s: TimeSeriesDef[] = [];
+    const cpu = tsSeries.get('prom_cpu_usage_rate');
+    if (cpu) s.push(toTimeSeriesDef(cpu, 'CPU Usage', 'var(--ov-color-brand-500)'));
+    return s;
+  }, [tsSeries]);
+
+  const memorySeries = useMemo<TimeSeriesDef[]>(() => {
+    const s: TimeSeriesDef[] = [];
+    const ws = tsSeries.get('prom_memory_working_set');
+    if (ws) s.push(toTimeSeriesDef(ws, 'Working Set', 'var(--ov-color-brand-500)'));
+    const rss = tsSeries.get('prom_memory_rss');
+    if (rss) s.push(toTimeSeriesDef(rss, 'RSS', 'var(--ov-color-secondary)'));
+    return s;
+  }, [tsSeries]);
+
+  const networkSeries = useMemo<TimeSeriesDef[]>(() => {
+    const s: TimeSeriesDef[] = [];
+    const rx = tsSeries.get('prom_network_receive_rate');
+    if (rx) s.push(toTimeSeriesDef(rx, 'Receive', 'var(--ov-color-success)'));
+    const tx = tsSeries.get('prom_network_transmit_rate');
+    if (tx) s.push(toTimeSeriesDef(tx, 'Transmit', 'var(--ov-color-warning)'));
+    return s;
+  }, [tsSeries]);
+
+  const handleTimeRangeChange = useCallback((range: ChartTimeRange) => {
+    setTimeRange(range);
+  }, []);
+
+  // Tile-only metrics
+  const tileMetrics = TILE_ONLY_METRICS.filter((id) => currentMetrics.has(id)).map((id) => ({
+    id,
+    ...currentMetrics.get(id)!,
+  }));
+
+  if (isLoading) {
+    return (
+      <div style={loadingContainerStyle}>
+        <Spinner size="sm" />
+      </div>
+    );
+  }
+
+  if (currentMetrics.size === 0 && !hasTimeSeries && !error) {
+    return (
+      <div style={sectionBorderStyle}>
+        <div style={sectionHeaderStyle}>
+          <Text weight="semibold" size="sm">
+            Metrics
+          </Text>
+        </div>
+        <div style={noMetricsBodyStyle}>
+          <Text size="xs" tone="subtle">
+            No metrics available. Ensure metrics-server or Prometheus is installed.
+          </Text>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={sectionBorderStyle}>
+      {/* Header */}
+      <div style={sectionHeaderWithActionsStyle}>
+        <Text weight="semibold" size="sm">
+          Metrics
+        </Text>
+        {(currentLoading || tsLoading) && <Spinner size="xs" />}
+      </div>
+
+      {error && (
+        <div style={errorBoxStyle}>
+          <Text size="xs" tone="danger">
+            {error.message || 'Failed to load metrics'}
+          </Text>
+        </div>
+      )}
+
+      <div style={bodyPaddingStyle}>
+        <Stack direction="column" spacing={0} style={{ gap: 6 }}>
+          {/* Time-series charts */}
+          {hasTimeSeries && (
+            <>
+              {cpuSeries.length > 0 && (
+                <MetricsPanel
+                  title="CPU"
+                  series={cpuSeries}
+                  timeRange={timeRange}
+                  onTimeRangeChange={handleTimeRangeChange}
+                  valueFormat="rate"
+                  unit="cores"
+                  area
+                  variant="compact"
+                  height={140}
+                  loading={tsLoading}
+                />
+              )}
+              {memorySeries.length > 0 && (
+                <MetricsPanel
+                  title="Memory"
+                  series={memorySeries}
+                  timeRange={timeRange}
+                  onTimeRangeChange={handleTimeRangeChange}
+                  valueFormat="bytes"
+                  area
+                  variant="compact"
+                  height={140}
+                  loading={tsLoading}
+                />
+              )}
+              {networkSeries.length > 0 && (
+                <MetricsPanel
+                  title="Network"
+                  series={networkSeries}
+                  timeRange={timeRange}
+                  onTimeRangeChange={handleTimeRangeChange}
+                  valueFormat="bytes"
+                  unit="/s"
+                  area
+                  variant="compact"
+                  height={140}
+                  loading={tsLoading}
+                />
+              )}
+            </>
+          )}
+
+          {/* Instant-only tiles */}
+          {tileMetrics.length > 0 && (
+            <div style={tileContainerStyle}>
+              <Text size="xs" weight="semibold" tone="muted" style={tileHeadingStyle}>
+                Current Values
+              </Text>
+              <div style={tileGridStyle}>
+                {tileMetrics.map((m) => (
+                  <MetricTile
+                    key={m.id}
+                    label={METRIC_NAMES[m.id] || m.id}
+                    value={formatValue(m.value, m.unit)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </Stack>
+      </div>
+    </div>
+  );
+};
+
+export default PodMetricsSection;

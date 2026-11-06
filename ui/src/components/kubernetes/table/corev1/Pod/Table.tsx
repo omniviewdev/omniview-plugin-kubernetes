@@ -18,6 +18,7 @@ import ResourceTable from '../../../../shared/table/ResourceTable';
 import ResourceLinkChip from '../../../../shared/ResourceLinkChip';
 import ColumnPicker from '../../../../tables/ColumnFilter/ColumnPicker';
 import PodSidebar from '../../../sidebar/Pod';
+import { PodMetricsView } from '../../../sidebar/Pod/PodMetricsSection';
 import ConditionsCell from '../../shared/cells/ConditionsCell';
 import { CopyableCell } from '../../shared/cells/CopyableCell';
 import { withNamespacedResourceColumns } from '../../shared/columns';
@@ -65,17 +66,15 @@ const PodTable: React.FC = () => {
           {
             id: 'cpuUsage',
             header: 'CPU',
-            accessorFn: (row) => `${row.metadata?.namespace}/${row.metadata?.name}`,
-            cell: ({ getValue }) => <MetricUsageCell podKey={getValue() as string} format="cpu" />,
+            accessorFn: (row) => row,
+            cell: ({ row }) => <MetricUsageCell pod={row.original} format="cpu" />,
             size: 80,
           },
           {
             id: 'memUsage',
             header: 'Memory',
-            accessorFn: (row) => `${row.metadata?.namespace}/${row.metadata?.name}`,
-            cell: ({ getValue }) => (
-              <MetricUsageCell podKey={getValue() as string} format="memory" />
-            ),
+            accessorFn: (row) => row,
+            cell: ({ row }) => <MetricUsageCell pod={row.original} format="memory" />,
             size: 80,
           },
           {
@@ -257,7 +256,7 @@ const PodTable: React.FC = () => {
     () => ({
       title: resourceKey, // TODO: change runtime sdk to accept a function
       icon: <LuContainer />,
-      views: createStandardViews({ SidebarComponent: PodSidebar }),
+      views: createStandardViews({ SidebarComponent: PodSidebar, MetricsComponent: PodMetricsView }),
       actions: drawerActions,
     }),
     [],

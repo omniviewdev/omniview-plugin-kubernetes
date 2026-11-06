@@ -27,8 +27,6 @@ const ContainerSlice: React.FC<ContainerSliceProps> = ({
   pod,
   resource,
   volumes,
-  podCpuUsage,
-  podMemoryUsage,
 }) => {
   const label = typeLabel(type);
   const chipColor = typeChipColor(type);
@@ -91,8 +89,6 @@ const ContainerSlice: React.FC<ContainerSliceProps> = ({
         {/* Resources with utilization bars — full width */}
         <ContainerResourcesSection
           container={container}
-          podCpuUsage={podCpuUsage}
-          podMemoryUsage={podMemoryUsage}
         />
 
         {/* Probes — split evenly based on count */}
