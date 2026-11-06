@@ -20,7 +20,9 @@ export default function MetricSourcePicker(props: MetricSourcePickerProps) {
   const view = useMetricViewSourceSelection(props.ownerPluginID, props.ownerConnectionID, props.resourceKey);
   const sources = useQuery({ queryKey: ['metric', 'source-picker'], retry: false,
     queryFn: async () => {
-      const discovered = await Promise.allSettled((await MetricClient.ListPlugins()).map(async plugin => {
+      const providers = (await MetricClient.GetProviders()).filter(provider => provider.supports_connections);
+      const discovered = await Promise.allSettled(providers.map(async provider => {
+        const plugin = provider.plugin_id;
         const connections = await MetricClient.GetProviderConnections(plugin);
         return (await Promise.all(connections.map(async connection =>
           (await MetricClient.GetDataSources(plugin, connection.id)).map(datasource => ({

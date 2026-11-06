@@ -269,6 +269,11 @@ const MetricsForm: React.FC<Props> = ({ pluginID, connectionID, connected }) => 
     <Stack direction="column" spacing={3}>
       <ConnectionSettingsContributions resourcePluginID={pluginID} connectionID={connectionID}
         signal="metrics" catalogRevision="1" publicMetadata={{}} resourceTypes={['k8s:/pods', 'k8s:/nodes']} />
+      <details style={{ border: '1px solid var(--ov-color-border-default)', borderRadius: 6, padding: '10px 12px' }}>
+        <summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--ov-color-fg-muted)' }}>
+          Advanced · Native Prometheus
+        </summary>
+        <Stack direction="column" spacing={2} style={{ marginTop: 10 }}>
       {/* Provider status */}
       <Card style={cardStyle}>
         <div style={cardBodyStyle}>
@@ -393,8 +398,7 @@ const MetricsForm: React.FC<Props> = ({ pluginID, connectionID, connected }) => 
             </Stack>
           </Stack>
           <Text size="xs" style={promSubtitleStyle}>
-            Override Prometheus service details for this cluster. Leave fields empty to use
-            auto-detection.
+            Override native Prometheus discovery. Empty fields use auto-detection; Grafana bindings remain separate.
           </Text>
 
           {/* Test result banner */}
@@ -465,19 +469,18 @@ const MetricsForm: React.FC<Props> = ({ pluginID, connectionID, connected }) => 
               <LuInfo size={12} />
             </div>
             <Text size="xs" tone="subtle" style={infoTextStyle}>
-              When fields are empty, the backend scans for well-known Prometheus service names and
-              namespaces automatically. Set these values if your Prometheus installation uses a
-              non-standard configuration.
+              Set these values only for non-standard service names, namespaces, or ports.
             </Text>
           </Stack>
         </div>
       </Card>
 
       {/* Auto-detection reference */}
-      <Card style={cardStyle}>
+      <details style={{ border: '1px solid var(--ov-color-border-default)', borderRadius: 4 }}>
+        <summary style={{ cursor: 'pointer', padding: '8px 12px', fontSize: 12 }}>Auto-Detection Reference</summary>
         <div style={autoDetectionBodyStyle}>
           <Text size="sm" weight="semibold" style={autoDetectionTitleStyle}>
-            Auto-Detection Reference
+            Discovery candidates
           </Text>
           <Text size="xs" style={autoDetectionSubtitleStyle}>
             Well-known service names and namespaces scanned during auto-detection.
@@ -522,7 +525,9 @@ const MetricsForm: React.FC<Props> = ({ pluginID, connectionID, connected }) => 
             </Grid.Item>
           </Grid>
         </div>
-      </Card>
+      </details>
+        </Stack>
+      </details>
     </Stack>
   );
 };
