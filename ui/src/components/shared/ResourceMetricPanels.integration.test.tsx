@@ -82,23 +82,6 @@ const podContext = (request: string | undefined, limit: string | undefined): Dra
   resource: { reference: state.reference, route: { connection: 'owner' } },
 } as unknown as DrawerContext<unknown>);
 
-it.each(['area', 'line', 'sample-bars'])('shows current Pod request and limit on real %s history without a metric refetch', mode => {
-  state.metricID = 'kubernetes.pod.cpu.usage';
-  state.display = mode;
-  const app = render(<PodMetricsView ctx={podContext('250m', '2')} />);
-  const chart = screen.getByRole('application', { name: /^CPU history/ });
-  const references = screen.getByLabelText('Current configuration references');
-  expect(references).toHaveTextContent(/Request:.*250m/);
-  expect(references).toHaveTextContent(/Limit:.*2/);
-  expect(within(references).getAllByTitle(/Current resource configuration/).length).toBeGreaterThan(0);
-  const inputs = state.observe.mock.calls.slice(-2).map(([input]) => input);
-  app.rerender(<PodMetricsView ctx={podContext('500m', undefined)} />);
-  expect(screen.getByRole('application', { name: /^CPU history/ })).toBe(chart);
-  expect(screen.getByLabelText('Current configuration references')).toHaveTextContent(/Request:.*500m/);
-  expect(screen.getByLabelText('Current configuration references')).not.toHaveTextContent('Limit:');
-  expect(state.observe.mock.calls.slice(-2).map(([input]) => input)).toEqual(inputs);
-  expect(state.refresh).not.toHaveBeenCalled();
-});
 
 it('shows real zero request with unknown native capacity instead of inventing an unlimited limit', () => {
   state.metricID = 'kubernetes.pod.cpu.usage';

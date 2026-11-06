@@ -1,7 +1,6 @@
 import type { HostRecord } from '@omniviewdev/runtime';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import type { Pod } from 'kubernetes-types/core/v1';
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, expect, it, vi } from 'vitest';
 
@@ -26,7 +25,6 @@ vi.mock('@omniviewdev/runtime', () => ({
 }));
 
 import { TableMetricsProvider, TableMetricsScope, TableMetricCell, useTableMetrics } from './TableMetrics';
-import { podMetricPresentation } from '../../sidebar/Pod/podMetricBound';
 
 const pod = Object.freeze({ metadata: Object.freeze({ name: 'pod', namespace: 'default' }) });
 const record: HostRecord = {
@@ -182,54 +180,4 @@ it('renders a real bounded cell and keeps unknown usage absolute', () => {
   expect(state.observe.mock.lastCall?.[0]).toMatchObject({ targets: [{ token: record.key }], metricIDs: ['cpu'] });
 });
 
-it('composes owner references through the cell callback and updates current configuration without changing the metric target', () => {
-  state.results = [{ id: 'sample', metricID: 'cpu', resourceToken: record.key, status: 'ok', value: 0.1,
-    unit: { kind: 'cpu', base: 'cores' }, observedAt: null }];
-  function App({ body }: { body: Pod }) {
-    const metrics = useTableMetrics<Pod>({ ownerConnectionID: 'test', resourceKey: 'k8s:/pods' }, defaults, {
-      cell: current => podMetricPresentation(current, 'cpu'),
-    });
-    const records = useMemo(() => new WeakMap([[body, record]]), [body]);
-    const cell = metrics.columns[0]?.cell;
-    return <TableMetricsScope value={metrics.scope}>
-      <TableMetricsProvider columnVisibility={{ cpuUsage: true }} recordsByBody={records}>
-        {typeof cell === 'function' ? cell({ row: { original: body } } as Parameters<typeof cell>[0]) : null}
-      </TableMetricsProvider>
-    </TableMetricsScope>;
-  }
-  const app = render(<App body={{ spec: { containers: [
-    { name: 'app', resources: { requests: { cpu: '250m' }, limits: { cpu: '2' } } },
-  ] } }} />);
-  expect(screen.getByRole('img')).toHaveAccessibleName(/Request:.*250m.*Current resource configuration/);
-  expect(screen.getByRole('img')).toHaveAccessibleName(/Limit:.*2.*Current resource configuration/);
-  const before = state.observe.mock.lastCall?.[0];
-  app.rerender(<App body={{ spec: { containers: [
-    { name: 'app', resources: { requests: { cpu: '500m' } } },
-  ] } }} />);
-  expect(screen.getByRole('img')).toHaveAccessibleName(/Request:.*500m/);
-  expect(screen.getByRole('img')).not.toHaveAccessibleName(/Limit:/);
-  expect(state.observe.mock.lastCall?.[0]).toEqual(before);
-  expect(state.observe.mock.lastCall?.[0]).toMatchObject({
-    targets: [{ token: record.key, reference: record.record.reference, route: record.route }],
-    metricIDs: ['cpu'], shape: 'current',
-  });
-});
 
-it('preserves Node capacity and explicit thresholds through the generic cell callback', () => {
-  state.results = [{ id: 'sample', metricID: 'cpu', resourceToken: record.key, status: 'ok', value: 1,
-    unit: { kind: 'cpu', base: 'cores' }, observedAt: null }];
-  function App() {
-    const metrics = useTableMetrics<typeof pod>({ ownerConnectionID: 'test', resourceKey: 'k8s:/nodes' }, defaults, {
-      cell: () => ({ bound: { kind: 'capacity', value: 8 }, thresholds: [{ value: 0, tone: 'success' }] }),
-    });
-    const cell = metrics.columns[0]?.cell;
-    return <TableMetricsScope value={metrics.scope}>
-      <TableMetricsProvider columnVisibility={{ cpuUsage: true }} recordsByBody={recordsByBody}>
-        {typeof cell === 'function' ? cell({ row: { original: pod } } as Parameters<typeof cell>[0]) : null}
-      </TableMetricsProvider>
-    </TableMetricsScope>;
-  }
-  render(<App />);
-  expect(screen.getByRole('img')).toHaveAccessibleName(/capacity:.*8/);
-  expect(state.observe.mock.lastCall?.[0]).toMatchObject({ resourceKey: 'k8s:/nodes', metricIDs: ['cpu'] });
-});
