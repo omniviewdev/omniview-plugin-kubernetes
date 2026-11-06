@@ -108,7 +108,7 @@ export function TableMetricCell({ body, metricID, bound, request, thresholds }: 
   const result = token ? metrics.get(token)?.get(metricID) : undefined;
   const title = error ? parseAppError(error).detail : result?.status === 'ok'
     ? (result.observedAt == null ? undefined : `Observed ${new Date(result.observedAt).toLocaleString()}`) : result?.status;
-  return <div title={title}>{result?.unit
+  return <div title={title} style={{ width: '100%', minWidth: 0 }}>{result?.unit
     ? <MetricCell label={metricID} value={result.status === 'ok' ? result.value : null} unit={result.unit} bound={bound} request={request} thresholds={thresholds} />
     : loading && !error ? <MetricCell label={metricID} loading /> : '—'}</div>;
 }
