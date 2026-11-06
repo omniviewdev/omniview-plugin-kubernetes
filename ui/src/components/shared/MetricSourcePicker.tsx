@@ -1,6 +1,7 @@
 import { Avatar, Collapsible, CollapsibleContent, CollapsibleTrigger, Select, Stack, Text } from '@omniviewdev/base-ui';
 import { parseAppError, useMetricViewSourceSelection, useMetricSourceInventory, useMetricOwnerConnection,
   metricSourceIdentity, presentMetricSource, type MetricSourceRef } from '@omniviewdev/runtime';
+import { LuChevronDown } from 'react-icons/lu';
 
 import Icon from './Icon';
 
@@ -61,6 +62,7 @@ export default function MetricSourcePicker(props: MetricSourcePickerProps) {
       }}>
       <Select.Trigger aria-label="Metric source" aria-invalid={!!error} startDecorator={renderIcon(triggerIcon, triggerProviderName)}>
         <Select.Value>{() => triggerLabel}</Select.Value>
+        <Select.Icon><LuChevronDown /></Select.Icon>
       </Select.Trigger>
       <Select.Portal><Select.Positioner sideOffset={4}><Select.Popup><Select.List>
         {items.map(item => <Select.Item key={item.value} value={item.value} startDecorator={renderIcon(item.icon, item.providerName)}>
