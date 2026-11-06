@@ -22,6 +22,8 @@ import (
 const (
 	nativeCPU            = "kubernetes.pod.cpu.usage"
 	nativeMemory         = "kubernetes.pod.memory.working_set"
+	nativeNodeCPU        = "kubernetes.node.cpu.usage"
+	nativeNodeMemory     = "kubernetes.node.memory.working_set"
 	nativeMaxTargets     = sdkmetric.MaxFiniteTargets
 	nativeMaxConnections = 128
 	nativeMaxNamespaces  = 64
@@ -72,11 +74,22 @@ func nativeSource(pc *types.PluginContext) sdkmetric.MetricSourceRef {
 	return sdkmetric.MetricSourceRef{PluginID: "kubernetes", ConnectionID: pc.Connection.ID, DatasourceKind: "metrics-server"}
 }
 
-func (p *nativeProvider) catalog(pc *types.PluginContext, resourceKey string) (*sdkmetric.ResourceMetricsCatalog, error) {
+func (p *nativeProvider) catalog(pc *types.PluginContext, request sdkmetric.ResourceMetricsCatalogRequest) (*sdkmetric.ResourceMetricsCatalog, error) {
+	resourceKey := request.ResourceKey
 	if err := nativeContext(pc); err != nil {
 		return nil, err
 	}
+	if request.Source != nativeSource(pc) {
+		return nil, resourcev2.NewError("INVALID_REQUEST", "Native catalog source does not match the selected connection")
+	}
 	catalog := &sdkmetric.ResourceMetricsCatalog{Source: nativeSource(pc), MaxTargets: nativeMaxTargets, MaxSampleAge: 2 * time.Minute}
+	if resourceKey == "k8s:/nodes" {
+		catalog.Metrics = []sdkmetric.FiniteMetricDescriptor{
+			{ID: nativeNodeCPU, Name: "CPU usage", ResourceKey: resourceKey, Unit: "cores", Shapes: []string{"current"}, Description: "Node CPU usage from metrics-server with actual source timestamp and window."},
+			{ID: nativeNodeMemory, Name: "Memory working set", ResourceKey: resourceKey, Unit: "bytes", Shapes: []string{"current"}, Description: "Node memory working set from metrics-server with actual source timestamp and window."},
+		}
+		return catalog, nil
+	}
 	if resourceKey != "k8s:/pods" {
 		return catalog, nil
 	}
@@ -114,16 +127,25 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 	tokens := make(map[string]bool, len(query.Targets))
 	groups := make(map[string]map[string]int)
 	response := &sdkmetric.ResourceMetricsResponse{Complete: true, Results: make([]sdkmetric.ResourceMetricResult, 0, len(query.Targets)*len(query.MetricIDs))}
+	resourceKey := query.Targets[0].Reference.Address.Type
+	if resourceKey != "k8s:/pods" && resourceKey != "k8s:/nodes" {
+		return nil, resourcev2.NewError("INVALID_REQUEST", "Unsupported native resource type")
+	}
+	isNode := resourceKey == "k8s:/nodes"
+	cpuID, memoryID := nativeCPU, nativeMemory
+	if isNode {
+		cpuID, memoryID = nativeNodeCPU, nativeNodeMemory
+	}
 	for index, target := range query.Targets {
 		if len(target.Token) == 0 || len(target.Token) > 256 || tokens[target.Token] {
 			return nil, resourcev2.NewError("INVALID_REQUEST", "Native target tokens must be unique and contain 1..256 bytes")
 		}
 		tokens[target.Token] = true
-		name, namespace, err := utils.NativeResourceTarget(pc, nil, &target.Reference, &target.Route, "k8s:/pods", true)
+		name, namespace, err := utils.NativeResourceTarget(pc, nil, &target.Reference, &target.Route, resourceKey, !isNode)
 		if err != nil {
 			return nil, err
 		}
-		if len(validation.IsDNS1123Label(namespace)) != 0 || len(validation.IsDNS1123Subdomain(name)) != 0 {
+		if (!isNode && len(validation.IsDNS1123Label(namespace)) != 0) || len(validation.IsDNS1123Subdomain(name)) != 0 {
 			return nil, resourcev2.NewError("INVALID_REQUEST", "Native Pod name or namespace is invalid")
 		}
 		if groups[namespace] == nil {
@@ -135,8 +157,8 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 		groups[namespace][name] = index
 		for _, id := range query.MetricIDs {
 			result := sdkmetric.ResourceMetricResult{ResourceToken: target.Token, MetricID: id, Status: "failed", Message: "Namespace scan did not complete"}
-			if query.Shape != "current" || id != nativeCPU && id != nativeMemory {
-				result.Status, result.Message = "unsupported", "Native Pod metrics support current CPU usage and memory working set only"
+			if query.Shape != "current" || id != cpuID && id != memoryID {
+				result.Status, result.Message = "unsupported", "Native metrics support current CPU usage and memory working set only"
 			}
 			response.Results = append(response.Results, result)
 		}
@@ -144,7 +166,7 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 	if len(groups) > nativeMaxNamespaces {
 		return nil, resourcev2.NewError("RESOURCE_LIMIT", "Native metrics support at most 64 namespaces per execution")
 	}
-	if query.Shape != "current" || !metrics[nativeCPU] && !metrics[nativeMemory] {
+	if query.Shape != "current" || !metrics[cpuID] && !metrics[memoryID] {
 		return response, nil
 	}
 	p.mu.Lock()
@@ -187,7 +209,7 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 		indices := groups[namespace]
 		seen := make(map[string]bool, len(indices))
 		duplicates := make(map[string]bool)
-		err := scanNativeNamespace(ctx, clients.Clientset.CoreV1().RESTClient(), namespace, &budget, func(item *metricsv1beta1.PodMetrics) {
+		visit := func(item *metricsv1beta1.PodMetrics) {
 			index, wanted := indices[item.Name]
 			if !wanted || item.Namespace != namespace {
 				return
@@ -208,7 +230,33 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 				}
 				fillNativeResult(result, item, query.Targets[index].Reference.Incarnation)
 			}
-		})
+		}
+		var err error
+		if isNode {
+			err = scanNativeNodes(ctx, clients.Clientset.CoreV1().RESTClient(), &budget, func(item *metricsv1beta1.NodeMetrics) {
+				index, wanted := indices[item.Name]
+				if !wanted || item.Namespace != "" {
+					return
+				}
+				if seen[item.Name] {
+					duplicates[item.Name] = true
+				}
+				seen[item.Name] = true
+				for offset := range query.MetricIDs {
+					result := &response.Results[index*len(query.MetricIDs)+offset]
+					if result.Status == "unsupported" {
+						continue
+					}
+					if duplicates[item.Name] {
+						*result = sdkmetric.ResourceMetricResult{ResourceToken: result.ResourceToken, MetricID: result.MetricID, Status: "ambiguous", Message: "Metrics source returned duplicate Node identities"}
+						continue
+					}
+					fillNativeNodeResult(result, item, query.Targets[index].Reference.Incarnation)
+				}
+			})
+		} else {
+			err = scanNativeNamespace(ctx, clients.Clientset.CoreV1().RESTClient(), namespace, &budget, visit)
+		}
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil, ctx.Err()
@@ -268,7 +316,7 @@ func fillNativeResult(result *sdkmetric.ResourceMetricResult, item *metricsv1bet
 		return
 	}
 	resourceName := corev1.ResourceCPU
-	if result.MetricID == nativeMemory {
+	if result.MetricID == nativeMemory || result.MetricID == nativeNodeMemory {
 		resourceName = corev1.ResourceMemory
 	}
 	var value float64
@@ -305,3 +353,38 @@ func fillNativeResult(result *sdkmetric.ResourceMetricResult, item *metricsv1bet
 }
 
 var errNativeBudget = fmt.Errorf("native metrics scan budget exceeded")
+
+func fillNativeNodeResult(result *sdkmetric.ResourceMetricResult, item *metricsv1beta1.NodeMetrics, incarnation *string) {
+	result.Value, result.ObservedAt, result.Dimensions = nil, nil, nil
+	result.Window = 0
+	result.IdentityScope = ""
+	if incarnation != nil && item.UID != "" && string(item.UID) != *incarnation {
+		result.Status, result.Message = "invalid_context", "Metrics source Node incarnation does not match the admitted reference"
+		return
+	}
+	if item.Timestamp.IsZero() || item.Window.Duration <= 0 {
+		result.Status, result.Message = "missing", "Metrics source omitted measurement time or window"
+		return
+	}
+	resourceName := corev1.ResourceCPU
+	if result.MetricID == nativeNodeMemory {
+		resourceName = corev1.ResourceMemory
+	}
+	quantity, present := item.Usage[resourceName]
+	if !present {
+		result.Status, result.Message = "missing", "Metrics source omitted Node measurement"
+		return
+	}
+	value := quantity.AsApproximateFloat64()
+	if value < 0 || math.IsNaN(value) || math.IsInf(value, 0) {
+		result.Status, result.Message = "failed", "Metrics source returned an invalid measurement"
+		return
+	}
+	observed := item.Timestamp.Time
+	result.Status, result.Message, result.Value, result.ObservedAt, result.Window = "ok", "", &value, &observed, item.Window.Duration
+	result.Dimensions = map[string]string{"node": item.Name}
+	result.IdentityScope = "name"
+	if incarnation != nil && item.UID != "" && string(item.UID) == *incarnation {
+		result.IdentityScope = "incarnation"
+	}
+}

@@ -134,3 +134,18 @@ it('keeps required visible fields shown without revealing locked hidden fields',
   expect(screen.getByRole('columnheader', { name: /Memory/ })).toBeTruthy();
   expect(screen.queryByRole('columnheader', { name: /CPU/ })).toBeNull();
 });
+
+it('applies defaults to late catalog columns without resetting row selection or stored choices', () => {
+  localStorage.setItem('kubernetes-test-k8s:/pods-column-visibility', JSON.stringify({ cpuUsage: false }));
+  const view = render(<ResourceTable columns={columns} connectionID="test" resourceKey="k8s:/pods" />);
+  const row = screen.getByRole('button', { name: 'host-first' });
+  fireEvent.click(row);
+  const catalogColumns = [...columns, {
+    id: 'metric:custom.requests', accessorKey: 'name', header: 'Requests', meta: { defaultHidden: true },
+  }];
+  view.rerender(<ResourceTable columns={catalogColumns} connectionID="test" resourceKey="k8s:/pods" />);
+  expect(screen.queryByRole('columnheader', { name: 'Requests' })).toBeNull();
+  expect(screen.queryByRole('columnheader', { name: 'CPU' })).toBeNull();
+  expect(screen.getByRole('button', { name: 'host-first' })).toBe(row);
+  expect(row).toHaveAttribute('aria-pressed', 'true');
+});

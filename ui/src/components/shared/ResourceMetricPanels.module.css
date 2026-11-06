@@ -1,0 +1,10 @@
+.toolbar, .selection, .timeControls { display: flex; align-items: center; gap: 8px; }
+.toolbar { flex-wrap: wrap; justify-content: space-between; }
+.selection { flex-wrap: wrap; }
+.timeControls { margin-left: auto; flex: 0 0 auto; }
+.chip, .add { min-height: 28px; height: 28px; padding-inline: 10px; font-size: 12px; gap: 7px; }
+.chip { background: var(--ov-color-bg-surface); }
+.add { border-style: dashed; }
+.browser { width: min(400px, calc(100vw - 32px)); padding: 12px; display: flex; flex-direction: column; gap: 12px; background: var(--ov-color-bg-surface); border: 1px solid var(--ov-color-border-default); border-radius: 8px; box-shadow: 0 12px 32px #0005; }
+.options { display: flex; flex-direction: column; max-height: 300px; overflow-y: auto; }
+.option { justify-content: space-between; text-align: left; width: 100%; min-height: 36px; }

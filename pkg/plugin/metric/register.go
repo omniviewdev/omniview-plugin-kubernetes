@@ -6,8 +6,8 @@ import (
 	"github.com/omniviewdev/plugin-sdk/pkg/v1/metric"
 )
 
-// Register installs finite native Pod metrics and genuine legacy Node/Prometheus
-// operations. The returned callback retires both authenticated client lifetimes.
+// Register installs finite native Pod/Node metrics and genuine legacy operations.
+// The returned callback retires both authenticated client lifetimes.
 func Register(plugin *sdk.Plugin) func(string) {
 	promClient := newPrometheusClient(plugin.SettingsProvider)
 	native := newNativeProvider()

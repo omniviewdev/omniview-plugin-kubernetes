@@ -1,5 +1,5 @@
 import { Button, Card, Chip, FormField, Grid, IconButton, Input, Spinner, Stack, Text } from '@omniviewdev/base-ui';
-import { useMetricProvidersForResource } from '@omniviewdev/runtime';
+import { ConnectionSettingsContributions, useMetricProvidersForResource } from '@omniviewdev/runtime';
 import { MetricClient } from '@omniviewdev/runtime/api';
 import { useQueryClient } from '@tanstack/react-query';
 import React, { useRef, useCallback, useId } from 'react';
@@ -267,6 +267,8 @@ const MetricsForm: React.FC<Props> = ({ pluginID, connectionID, connected }) => 
 
   return (
     <Stack direction="column" spacing={3}>
+      <ConnectionSettingsContributions resourcePluginID={pluginID} connectionID={connectionID}
+        signal="metrics" catalogRevision="1" publicMetadata={{}} resourceTypes={['k8s:/pods', 'k8s:/nodes']} />
       {/* Provider status */}
       <Card style={cardStyle}>
         <div style={cardBodyStyle}>

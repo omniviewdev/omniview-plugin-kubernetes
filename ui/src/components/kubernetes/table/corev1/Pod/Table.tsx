@@ -27,17 +27,21 @@ import { inclusionFilter, ownerRefFilter } from '../../shared/filters';
 import { drawerActions } from './actions';
 import ContainerPhaseCell from './cells/ContainerPhaseCell';
 import ContainerStatusCell from './cells/ContainerStatusCell';
-import MetricUsageCell from './cells/MetricUsageCell';
 import ResourceLinkCell from './cells/ResourceLinkCell';
-import PodMetricsProvider from './PodMetricsProvider';
+import { TableMetricsProvider, TableMetricsScope, useTableMetrics } from '../../shared/TableMetrics';
 
 
 const resourceKey = 'k8s:/pods';
+const defaultMetrics = {
+  'kubernetes.pod.cpu.usage': 'cpuUsage',
+  'kubernetes.pod.memory.working_set': 'memUsage',
+};
 
 
 
 const PodTable: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
+  const metrics = useTableMetrics<Pod>({ ownerConnectionID: id, resourceKey }, defaultMetrics);
 
 
   /**
@@ -63,20 +67,7 @@ const PodTable: React.FC = () => {
               );
             },
           },
-          {
-            id: 'cpuUsage',
-            header: 'CPU',
-            accessorFn: (row) => row,
-            cell: ({ row }) => <MetricUsageCell pod={row.original} format="cpu" />,
-            size: 80,
-          },
-          {
-            id: 'memUsage',
-            header: 'Memory',
-            accessorFn: (row) => row,
-            cell: ({ row }) => <MetricUsageCell pod={row.original} format="memory" />,
-            size: 80,
-          },
+          ...metrics.columns,
           {
             id: 'controlledBy',
             header: 'Controlled By',
@@ -249,7 +240,7 @@ const PodTable: React.FC = () => {
         ],
         { connectionID: id, resourceKey },
       ),
-    [id],
+    [id, metrics.columns],
   );
 
   const drawer: DrawerComponent<Pod> = React.useMemo(
@@ -263,13 +254,14 @@ const PodTable: React.FC = () => {
   );
 
   return (
+    <TableMetricsScope value={metrics.scope}>
       <ResourceTable
         key={id}
         columns={columns}
         connectionID={id}
         resourceKey={resourceKey}
         drawer={drawer}
-        contentWrapper={PodMetricsProvider}
+        contentWrapper={TableMetricsProvider}
         columnPicker={ColumnPicker}
         toolbarFilters={[
           { columnId: 'node', placeholder: 'All Nodes', accessor: (r: Pod) => r?.spec?.nodeName },
@@ -277,6 +269,7 @@ const PodTable: React.FC = () => {
           { columnId: 'namespace', placeholder: 'All Namespaces', accessor: (r: Pod) => r?.metadata?.namespace },
         ]}
       />
+    </TableMetricsScope>
   );
 };
 

@@ -105,6 +105,11 @@ const visibilityWithRequiredColumns = <T extends RowData,>(
 ): VisibilityState => {
   let effective = visibility;
   for (const def of defs) {
+    // Catalog and schema columns can arrive after persisted state initializes.
+    if (def.id && visibility[def.id] === undefined && def.meta && 'defaultHidden' in def.meta) {
+      if (effective === visibility) effective = { ...visibility };
+      effective[def.id] = !def.meta.defaultHidden;
+    }
     if (!def.id || def.enableHiding !== false || visibility[def.id] !== false) continue;
     if (def.meta && 'defaultHidden' in def.meta && def.meta.defaultHidden === true) continue;
     if (effective === visibility) effective = { ...visibility };

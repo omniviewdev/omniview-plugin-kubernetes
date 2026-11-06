@@ -364,6 +364,11 @@ only when CPU or memory columns are visible in a visible document. Persisted col
 visibility applies before the observer mounts; pausing the observer does not
 remount table rows or discard selection, filtering, focus, or scroll. Dashboard
 metric consumers also pause while the document is hidden.
+Pod and Node tables discover current-value metric columns from the admitted source
+catalog. Custom columns start hidden and appear in the column picker without a
+Kubernetes plugin rebuild. Visible metric columns contribute to one shared host
+observation over mounted rows; cells never fetch. Catalog and observation use the
+same durable source choice, including explicit native or external selection.
 The single visible clock also checks wall-clock and time-zone changes once per
 second, refreshing old labels after clock corrections without formatting them
 on ordinary young-cell ticks.
@@ -396,7 +401,7 @@ Regression checks:
 ```bash
 cd ui
 pnpm exec vitest run src/components/tables/ColumnFilter/useDynamicResourceColumns.test.tsx
-pnpm exec vitest run src/utils/ageClock.test.tsx src/components/kubernetes/table/corev1/Pod/PodMetricsProvider.test.tsx
+pnpm exec vitest run src/utils/ageClock.test.tsx src/components/kubernetes/table/shared/TableMetrics.test.tsx src/components/shared/table/ResourceTable/index.test.tsx
 AGE_CLOCK_BENCH=1 pnpm exec vitest run src/components/kubernetes/table/shared/cells/AgeCell.benchmark.test.tsx --silent=false --reporter=verbose
 cd ..
 GOWORK=off GOFLAGS= go test ./pkg/plugin/resource/resourcers -count=1

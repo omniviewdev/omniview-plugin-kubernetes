@@ -15,18 +15,22 @@ import NodeSidebar from '../../../sidebar/NodeSidebar';
 import ConditionsCell from '../../shared/cells/ConditionsCell';
 import { CopyableCell } from '../../shared/cells/CopyableCell';
 import { withClusterResourceColumns } from '../../shared/columns';
+import { TableMetricsProvider, TableMetricsScope, useTableMetrics } from '../../shared/TableMetrics';
 
 import { drawerActions } from './actions';
 
 const resourceKey = 'k8s:/nodes';
+const defaultMetrics = {};
 
 const NodeTable: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
+  const metrics = useTableMetrics<Node>({ ownerConnectionID: id, resourceKey }, defaultMetrics);
 
   const columns = React.useMemo<Array<ColumnDef<DataTableFeatures, Node>>>(
     () =>
       withClusterResourceColumns(
         [
+          ...metrics.columns,
           {
             id: 'os',
             header: 'OS',
@@ -121,7 +125,7 @@ const NodeTable: React.FC = () => {
         ],
         { connectionID: id, resourceKey },
       ),
-    [id],
+    [id, metrics.columns],
   );
 
   const drawer: DrawerComponent<Node> = React.useMemo(
@@ -135,14 +139,17 @@ const NodeTable: React.FC = () => {
   );
 
   return (
-    <ResourceTable
-      columns={columns}
-      columnPicker={ColumnPicker}
-      connectionID={id}
-      resourceKey={resourceKey}
-      drawer={drawer}
-      createEnabled={false}
-    />
+    <TableMetricsScope value={metrics.scope}>
+      <ResourceTable
+        columns={columns}
+        contentWrapper={TableMetricsProvider}
+        columnPicker={ColumnPicker}
+        connectionID={id}
+        resourceKey={resourceKey}
+        drawer={drawer}
+        createEnabled={false}
+      />
+    </TableMetricsScope>
   );
 };
 

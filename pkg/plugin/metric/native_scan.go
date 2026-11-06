@@ -37,6 +37,14 @@ func (r *nativeBudgetReader) Read(data []byte) (int, error) {
 }
 
 func scanNativeNamespace(ctx context.Context, client rest.Interface, namespace string, budget *nativeScanBudget, visit func(*metricsv1beta1.PodMetrics)) error {
+	return scanNativeMetrics(ctx, client, "/apis/metrics.k8s.io/v1beta1/namespaces/"+namespace+"/pods", "PodMetricsList", budget, visit)
+}
+
+func scanNativeNodes(ctx context.Context, client rest.Interface, budget *nativeScanBudget, visit func(*metricsv1beta1.NodeMetrics)) error {
+	return scanNativeMetrics(ctx, client, "/apis/metrics.k8s.io/v1beta1/nodes", "NodeMetricsList", budget, visit)
+}
+
+func scanNativeMetrics[T any](ctx context.Context, client rest.Interface, path, kind string, budget *nativeScanBudget, visit func(*T)) error {
 	continuation := ""
 	seenContinuation := make(map[string]bool)
 	for {
@@ -48,7 +56,7 @@ func scanNativeNamespace(ctx context.Context, client rest.Interface, namespace s
 		}
 		budget.pages--
 		// metrics-server may ignore limit; never assume one page is bounded by it.
-		request := client.Get().AbsPath("/apis/metrics.k8s.io/v1beta1/namespaces/"+namespace+"/pods").
+		request := client.Get().AbsPath(path).
 			SetHeader("Accept", "application/json").SetHeader("Accept-Encoding", "identity").Param("limit", "1000")
 		if continuation != "" {
 			request = request.Param("continue", continuation)
@@ -57,7 +65,7 @@ func scanNativeNamespace(ctx context.Context, client rest.Interface, namespace s
 		if err != nil {
 			return err
 		}
-		next, err := decodeNativePage(ctx, &nativeBudgetReader{source: body, budget: budget}, budget, visit)
+		next, err := decodeNativeMetricsPage(ctx, &nativeBudgetReader{source: body, budget: budget}, kind, budget, visit)
 		body.Close()
 		if err != nil {
 			return err
@@ -76,6 +84,10 @@ func scanNativeNamespace(ctx context.Context, client rest.Interface, namespace s
 // Decode one object at a time; unrequested Pods never accumulate in memory.
 // Decoder read-ahead counts against the same decoded byte budget.
 func decodeNativePage(ctx context.Context, reader io.Reader, budget *nativeScanBudget, visit func(*metricsv1beta1.PodMetrics)) (string, error) {
+	return decodeNativeMetricsPage(ctx, reader, "PodMetricsList", budget, visit)
+}
+
+func decodeNativeMetricsPage[T any](ctx context.Context, reader io.Reader, expectedKind string, budget *nativeScanBudget, visit func(*T)) (string, error) {
 	decoder := json.NewDecoder(reader)
 	open, err := decoder.Token()
 	if err != nil {
@@ -117,7 +129,7 @@ func decodeNativePage(ctx context.Context, reader io.Reader, budget *nativeScanB
 					return "", errNativeBudget
 				}
 				budget.objects--
-				var item metricsv1beta1.PodMetrics
+				var item T
 				if err := decoder.Decode(&item); err != nil {
 					return "", err
 				}
@@ -148,7 +160,7 @@ func decodeNativePage(ctx context.Context, reader io.Reader, budget *nativeScanB
 	if _, err := decoder.Token(); err != nil {
 		return "", err
 	}
-	if !fields["items"] || kind != "PodMetricsList" || version != "metrics.k8s.io/v1beta1" {
+	if !fields["items"] || kind != expectedKind || version != "metrics.k8s.io/v1beta1" {
 		return "", fmt.Errorf("metrics source returned an unexpected list envelope")
 	}
 	var trailing json.RawMessage

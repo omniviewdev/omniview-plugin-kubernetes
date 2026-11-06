@@ -130,3 +130,85 @@ func TestNativeRetirementCancelsInFlightSourceAndFencesPublication(t *testing.T)
 		t.Fatal("retired source kept its clients")
 	}
 }
+
+func TestNativeNodeListPreservesTimeUnitsAndUID(t *testing.T) {
+	calls := 0
+	provider := nativeTestProvider(t, func(request *http.Request) (*http.Response, error) {
+		calls++
+		if request.Method != "GET" || request.URL.Path != "/apis/metrics.k8s.io/v1beta1/nodes" {
+			t.Fatalf("unexpected Node request: %s %s", request.Method, request.URL.Path)
+		}
+		return nativeTestResponse(request, `{"apiVersion":"metrics.k8s.io/v1beta1","kind":"NodeMetricsList","items":[{"metadata":{"name":"node-a","uid":"uid-a"},"timestamp":"2026-11-05T10:00:00Z","window":"20s","usage":{"cpu":"250123456n","memory":"2Mi"}},{"metadata":{"name":"unrequested"},"timestamp":"2026-11-05T10:00:00Z","window":"20s","usage":{"cpu":"999","memory":"999"}}]}`), nil
+	})
+	pc := &types.PluginContext{Context: context.Background(), Connection: &types.Connection{ID: "selected"}}
+	node := func(token, name, uid string) sdkmetric.ResourceMetricTarget {
+		return sdkmetric.ResourceMetricTarget{Token: token, Route: resourcev2.AccessRoute{Connection: "selected"}, Reference: resourcev2.ResourceReference{Address: resourcev2.ResourceAddress{Provider: "kubernetes", Authority: "admitted", Type: "k8s:/nodes", ID: name}, Incarnation: &uid}}
+	}
+	query := sdkmetric.ResourceMetricsQuery{Source: nativeSource(pc), Shape: "current", MetricIDs: []string{nativeNodeCPU, nativeNodeMemory}, Targets: []sdkmetric.ResourceMetricTarget{node("measured", "node-a", "uid-a"), node("absent", "node-b", "uid-b")}}
+	catalog, err := provider.catalog(pc, sdkmetric.ResourceMetricsCatalogRequest{Source: nativeSource(pc), ResourceKey: "k8s:/nodes"})
+	if err != nil || len(catalog.Metrics) != 2 {
+		t.Fatalf("catalog=%+v err=%v", catalog, err)
+	}
+	response, err := provider.query(pc, query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 || !response.Complete || len(response.Results) != 4 {
+		t.Fatalf("calls=%d response=%+v", calls, response)
+	}
+	for _, result := range response.Results {
+		if result.ResourceToken == "absent" {
+			if result.Status != "missing" || result.Value != nil {
+				t.Fatalf("%+v", result)
+			}
+			continue
+		}
+		if result.Status != "ok" || result.Value == nil || result.IdentityScope != "incarnation" || result.ObservedAt == nil || !result.ObservedAt.Equal(time.Date(2026, time.November, 5, 10, 0, 0, 0, time.UTC)) || result.Window != 20*time.Second || result.Dimensions["node"] != "node-a" {
+			t.Fatalf("%+v", result)
+		}
+		expected := float64(2 * 1024 * 1024)
+		if result.MetricID == nativeNodeCPU {
+			expected = 0.250123456
+		}
+		if math.Abs(*result.Value-expected) > 1e-12 {
+			t.Fatalf("wrong physical units: %+v", result)
+		}
+	}
+	query.Targets = query.Targets[:1]
+	wrong := "recreated"
+	query.Targets[0].Reference.Incarnation = &wrong
+	response, err = provider.query(pc, query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, result := range response.Results {
+		if result.Status != "invalid_context" || result.Value != nil {
+			t.Fatalf("wrong UID joined: %+v", result)
+		}
+	}
+}
+
+func TestNativeNodeDuplicateAndMissingMeasurement(t *testing.T) {
+	for _, test := range []struct{ name, items, status string }{
+		{"duplicate", `{"metadata":{"name":"node-a"}},{"metadata":{"name":"node-a"}}`, "ambiguous"},
+		{"missing-time", `{"metadata":{"name":"node-a"},"usage":{"cpu":"1","memory":"2Mi"}}`, "missing"},
+		{"missing-cpu", `{"metadata":{"name":"node-a"},"timestamp":"2026-11-05T10:00:00Z","window":"20s","usage":{"memory":"2Mi"}}`, "missing"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			provider := nativeTestProvider(t, func(request *http.Request) (*http.Response, error) {
+				return nativeTestResponse(request, `{"apiVersion":"metrics.k8s.io/v1beta1","kind":"NodeMetricsList","items":[`+test.items+`]}`), nil
+			})
+			pc := &types.PluginContext{Context: context.Background(), Connection: &types.Connection{ID: "selected"}}
+			target := nativeTestTarget("node", "", "node-a")
+			target.Reference.Address.Type = "k8s:/nodes"
+			target.Reference.Address.Scope = nil
+			response, err := provider.query(pc, sdkmetric.ResourceMetricsQuery{Source: nativeSource(pc), Shape: "current", MetricIDs: []string{nativeNodeCPU}, Targets: []sdkmetric.ResourceMetricTarget{target}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result := response.Results[0]; result.Status != test.status || result.Value != nil || result.ObservedAt != nil {
+				t.Fatalf("%+v", result)
+			}
+		})
+	}
+}
