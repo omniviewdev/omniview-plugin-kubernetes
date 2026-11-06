@@ -27,7 +27,6 @@ export function PodMetricsView({ ctx }: { ctx: DrawerContext<unknown> }) {
         ...(cluster ? { cluster } : {}),
         ...(namespace ? { namespace } : {}),
         ...(name ? { pod: name } : {}),
-        ...(pod?.spec?.nodeName ? { node: pod.spec.nodeName } : {}),
       };
     }}
     capacities={{

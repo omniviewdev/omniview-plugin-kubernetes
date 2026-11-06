@@ -109,7 +109,7 @@ function SelectedMetricPanels({ catalog, sourceControl, ...props }: ResourceMetr
           : { time_mode: 'absolute', start_ms: value.domain.startMs, end_ms: value.domain.endMs }); }}
           onRefresh={() => { void refresh(); }} refreshing={refreshing} />}
         {!range && <IconButton size="sm" aria-label="Refresh metrics" onClick={() => { void refresh(); }}><LuRefreshCw /></IconButton>}
-        <IconButton size="sm" aria-label="Toggle metric layout" onClick={() => { void update({ layout: preferences.layout === 'stack' ? 'grid' : 'stack' }); }}>
+        <IconButton size="sm" aria-label="Toggle metric layout" onClick={() => { void update(current => ({ layout: current.layout === 'stack' ? 'grid' : 'stack' })); }}>
           {preferences.layout === 'stack' ? <LuLayoutGrid /> : <LuRows2 />}
         </IconButton>
       </div>
@@ -141,7 +141,7 @@ function SelectedMetricPanels({ catalog, sourceControl, ...props }: ResourceMetr
         </Popover.Root>
       </div>
     {(catalog.error || view.error) && <Text role="alert" tone="danger">{metricError(catalog.error ?? view.error).label}</Text>}
-    <div style={{ display: 'grid', gap: 8, gridTemplateColumns: preferences.layout === 'stack' ? '1fr' : 'repeat(auto-fit, minmax(280px, 1fr))' }}>
+    <div style={{ display: 'grid', alignItems: 'start', gap: 8, gridTemplateColumns: preferences.layout === 'stack' ? '1fr' : 'repeat(auto-fit, minmax(280px, 1fr))' }}>
       {ordered.map(metric => {
         const color = colors.get(metric.id);
         const history = metric.shapes.includes('range');
@@ -191,9 +191,9 @@ function SelectedMetricPanels({ catalog, sourceControl, ...props }: ResourceMetr
                 id: `${historical ? 'history' : 'current'}:${sample.id}`, label: `${props.targets ? `${sample.resourceToken} · ` : ''}${historical ? 'History' : 'Current'}`,
                 status: sample.status !== 'ok' ? 'error' : historical ? 'ok' : sample.freshness === 'delayed' ? 'delayed' : sample.observedAt == null ? 'unknown' : 'ok',
                 updatedAtMs: sample.observedAt ?? sample.points.at(-1)?.timeMs, validUntilMs: historical ? undefined : sample.freshUntilMs ?? undefined }))}
-              items={[{ id: 'identity', label: 'Attribution', value: result?.identityScope === 'incarnation' ? 'UID verified' : 'Name scoped' },
-                ...(result && result.windowMs > 0 ? [{ id: 'window', label: 'Measurement window', value: `${result.windowMs / 1000} s` }] : []),
-                ...(failure ? [{ id: 'diagnostic', label: failure.code || 'Diagnostic', value: failure.detail }] : [])]} /> }}
+              items={[{ id: 'identity', label: 'Attribution', value: result?.identityScope === 'incarnation' ? 'UID verified' : 'Name scoped', advanced: true },
+                ...(result && result.windowMs > 0 ? [{ id: 'window', label: 'Measurement window', value: `${result.windowMs / 1000} s`, advanced: true }] : []),
+                ...(failure ? [{ id: 'diagnostic', label: failure.code || 'Diagnostic', value: failure.detail, advanced: true }] : [])]} /> }}
           value={<Stack direction="column" spacing={2}>
             {valueResults.map(sample => <div key={sample.id}>
               {props.targets && <Text size="xs">{sample.resourceToken}</Text>}
