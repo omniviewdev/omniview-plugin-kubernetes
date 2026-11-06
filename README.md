@@ -270,6 +270,8 @@ Workload cards open the same canonical resource tables as the sidebar and search
 
 Collection acquisition exposes loading and errors with an explicit retry action. Retry reacquires the failed catalog, target resolution, or collection stage. Changing target, scope, representation, route, plugin, or catalog identity must not mix records or selection from different target contexts.
 
+Resource table errors display the safe detail from structured host errors instead of converting error objects to text.
+
 Repository chart drawers resolve the selected native repository before background pagination through the chart Type's declared `repository` query dimension. Chart identity remains `helm:charts` with native opaque ID and only `domain=helm-client` identity scope; repository is not another identity field. Only configured repository bindings participate, and unrelated indexes are not loaded for a repository-scoped collection.
 
 Valid empty `oneOf` selections for Helm release namespaces, repository domains, or chart repositories return an empty source page before any native or filesystem acquisition. Empty selections never become unscoped queries; pages retain explicit coverage and best-effort consistency without continuation.
