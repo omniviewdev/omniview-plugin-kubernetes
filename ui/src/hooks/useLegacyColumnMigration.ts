@@ -2,6 +2,23 @@ import { useNotifications } from '@omniviewdev/runtime';
 import { useEffect, useRef, useState } from 'react';
 import { migrateColumnPreferences, migrateSidebarOrder } from '../utils/legacyMigration';
 
+const reportedIssuesKey = 'kubernetes-legacy-preference-reported';
+
+function unreportedIssues(issues: string[]): string[] {
+  try {
+    const saved: unknown = JSON.parse(window.localStorage.getItem(reportedIssuesKey) ?? '[]');
+    const reported = new Set(Array.isArray(saved) ? saved.filter((item): item is string => typeof item === 'string') : []);
+    const fresh = issues.filter(issue => !reported.has(issue));
+    if (fresh.length) {
+      fresh.forEach(issue => reported.add(issue));
+      window.localStorage.setItem(reportedIssuesKey, JSON.stringify([...reported]));
+    }
+    return fresh;
+  } catch {
+    return issues;
+  }
+}
+
 export function useLegacyColumnMigration(connectionIDs: readonly string[] | undefined): boolean {
   const { notify } = useNotifications();
   const connectionKey = connectionIDs === undefined ? undefined : JSON.stringify([...new Set(connectionIDs)].sort());
@@ -42,11 +59,12 @@ export function useLegacyColumnMigration(connectionIDs: readonly string[] | unde
     }
 
     reported.current = migration;
-    if (!migration.issues.length) {
+    const fresh = unreportedIssues(migration.issues);
+    if (!fresh.length) {
       return;
     }
 
-    const details = migration.issues.join('\n');
+    const details = fresh.join('\n');
     console.warn('Kubernetes legacy preferences could not be migrated:', details);
     void notify({ title: 'Some Kubernetes preferences could not be migrated', severity: 'warning', details });
   }, [migration, notify]);

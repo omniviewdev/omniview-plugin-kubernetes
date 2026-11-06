@@ -298,6 +298,8 @@ Tables and navigation use canonical references, routes, target membership, and h
 
 Legacy built-in Kubernetes resource page paths and table column preferences migrate using an explicit provider-owned mapping. Preference migration uses configured connection IDs and explicit plugin-wide keys, never a guessed connection/type boundary. Unknown types, missing connections, and ambiguous connection prefixes are reported and retained. Column and toolbar preference originals remain in place and are also copied under the `kubernetes-legacy-preference-backup:` prefix within their existing storage namespace; existing canonical preferences are never overwritten. Both plugin-local preferences and active host-profile table preferences migrate independently. Resource tables wait for connection discovery and migration before reading their initial choices. Reloading does not replace either backup or canonical values.
 
+The provider exposes `PreferenceMigrationGate` for host-owned resource tables. It waits for configured connections and completes the same migration before rendering table children. Unconvertible entries remain intact and are reported once per stored issue; newly encountered issues are reported separately.
+
 Historical `events_v1_Event` routes and `events::v1::Event` preferences use the
 registered `k8s:events.k8s.io/events` binding. Saved `kubernetes-sidebar-order`
 items and nested child IDs migrate before sidebar state initializes. Group IDs

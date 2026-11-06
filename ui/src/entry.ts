@@ -116,6 +116,7 @@ import StorageClassTable from './components/kubernetes/table/storagev1/StorageCl
 import VolumeAttachmentSidebar from './components/kubernetes/table/storagev1/VolumeAttachment/Sidebar';
 import VolumeAttachmentTable from './components/kubernetes/table/storagev1/VolumeAttachment/Table';
 import { createStandardViews } from './components/shared/sidebar/createDrawerViews';
+import { PreferenceMigrationGate } from './components/connections/PreferenceMigrationGate';
 import GenericResourceSidebar from './components/shared/sidebar/GenericResourceSidebar';
 import { kubernetesResourceIconSet } from './icons/resourceIcons';
 import ClusterEditPage from './pages/ClusterEditPage';
@@ -472,4 +473,4 @@ export const plugin = Object.assign(new PluginWindow()
     resourceEditorExtensionPoint as unknown as ExtensionPointSettings,
   ])
   .setRootPage(ClustersPage)
-  .withRoutes(routes), { migratePagePath });
+  .withRoutes(routes), { migratePagePath, PreferenceMigrationGate });

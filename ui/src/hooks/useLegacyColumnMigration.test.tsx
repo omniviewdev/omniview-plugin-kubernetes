@@ -22,6 +22,22 @@ describe('legacy preference reporting', () => {
     expect(localStorage.getItem(legacyBackupPrefix + key)).toBe('{}');
     log.mockRestore();
   });
+  it('reports retained issues only once across remounts, while reporting new issues', async () => {
+    const first = 'kubernetes-prod-example.io::v1::Widget-column-visibility';
+    const second = 'kubernetes-prod-other.io::v1::Widget-column-visibility';
+    localStorage.setItem(first, '{}');
+    const log = vi.spyOn(console, 'warn').mockImplementation(vi.fn());
+    const view = renderHook(() => useLegacyColumnMigration(['prod']));
+    await waitFor(() => expect(showSnackbar).toHaveBeenCalledTimes(1));
+    view.unmount();
+    renderHook(() => useLegacyColumnMigration(['prod']));
+    expect(showSnackbar).toHaveBeenCalledTimes(1);
+    localStorage.setItem(second, '{}');
+    renderHook(() => useLegacyColumnMigration(['prod']));
+    await waitFor(() => expect(showSnackbar).toHaveBeenCalledTimes(2));
+    expect(showSnackbar).toHaveBeenLastCalledWith(expect.objectContaining({ details: second }));
+    log.mockRestore();
+  });
   it('uses the active bootstrap profile for host table preferences', () => {
     const prefix = 'omniview:instance:v1:dev:';
     vi.stubGlobal('__OMNIVIEW_BOOTSTRAP__', { storageKey: (key: string) => prefix + key });
