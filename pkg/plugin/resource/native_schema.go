@@ -1,6 +1,7 @@
 package resource
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -16,7 +17,7 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-// nativeSchemaDocument keeps the exact OpenAPI document and its native root.
+// nativeSchemaDocument keeps the adapter-corrected OpenAPI document and its native root.
 // It does not normalize dialects, rewrite references, or claim validation.
 // All types from one group/version share the same bounded document bytes.
 type nativeSchemaDocument struct {
@@ -29,8 +30,12 @@ const maxNativeSchemaBytes = 16 << 20
 const maxNativeRetainedSchemaBytes = 32 << 20
 
 // nativeSchemaBudget bounds retained document bytes across every connection on
-// one provider. Fetches serialize staging, so only one bounded document is
-// decoded at a time. The zero value uses the production limit.
+// one provider. Its staging gate admits one acquisition, with at most four
+// documents being fetched, buffered, or decoded, rather than the previous one.
+// Each schema read retains its 16 MiB cap. The resource response transport can
+// also buffer up to its separate 32 MiB wire cap and copy those bytes, so this
+// document count does not imply a whole-stack memory cap.
+// The zero value uses the production retained limit.
 type nativeSchemaBudget struct {
 	// Accounting never holds mu during network reads or decoding.
 	mu        sync.Mutex
@@ -154,7 +159,46 @@ func fetchNativeSchemas(ctx context.Context, client rest.Interface, bindings map
 		groups = append(groups, gv)
 	}
 	sort.Slice(groups, func(i, j int) bool { return groups[i].String() < groups[j].String() })
-	for _, gv := range groups {
+	type fetchedSchema struct {
+		data []byte
+		err  error
+	}
+	workerCount := min(nativeCatalogRequestConcurrency, len(groups))
+	jobs := make(chan int, workerCount)
+	prefetched := make([]chan fetchedSchema, workerCount)
+	var workers sync.WaitGroup
+	for i := range prefetched {
+		prefetched[i] = make(chan fetchedSchema, 1)
+	}
+	for range workerCount {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			for index := range jobs {
+				if ctx.Err() != nil {
+					return
+				}
+				gv := groups[index]
+				path := "/openapi/v3/apis/" + gv.Group + "/" + gv.Version
+				if gv.Group == "" {
+					path = "/openapi/v3/api/" + gv.Version
+				}
+				data, err := readNativeSchema(ctx, client, path)
+				// Each slot receives only one job until its prior document has
+				// been decoded. A canceled consumer can leave one result per
+				// slot without blocking workers or retaining further documents.
+				prefetched[index%workerCount] <- fetchedSchema{data: data, err: err}
+			}
+		}()
+	}
+	defer func() {
+		close(jobs)
+		workers.Wait()
+	}()
+	for index := range workerCount {
+		jobs <- index
+	}
+	for index, gv := range groups {
 		tokens := byGroup[gv]
 		if err := ctx.Err(); err != nil {
 			for _, token := range tokens {
@@ -162,11 +206,19 @@ func fetchNativeSchemas(ctx context.Context, client rest.Interface, bindings map
 			}
 			continue
 		}
-		path := "/openapi/v3/apis/" + gv.Group + "/" + gv.Version
-		if gv.Group == "" {
-			path = "/openapi/v3/api/" + gv.Version
+		// Refill only after the previous iteration finishes decoding and
+		// retaining its document. The rolling window includes that document,
+		// not just network requests, and retention stays in sorted GV order.
+		if next := index + workerCount - 1; index > 0 && next < len(groups) {
+			jobs <- next
 		}
-		data, err := readNativeSchema(ctx, client, path)
+		var fetched fetchedSchema
+		select {
+		case fetched = <-prefetched[index%workerCount]:
+		case <-ctx.Done():
+			fetched.err = ctx.Err()
+		}
+		data, err := fetched.data, fetched.err
 		if err != nil {
 			for _, token := range tokens {
 				failures[token] = err
@@ -187,6 +239,13 @@ func fetchNativeSchemas(ctx context.Context, client rest.Interface, bindings map
 		if err := json.Unmarshal(data, &document); err != nil {
 			for _, token := range tokens {
 				failures[token] = fmt.Errorf("invalid native OpenAPI document: %w", err)
+			}
+			continue
+		}
+		data, err = correctNativeTimeSchemas(data)
+		if err != nil {
+			for _, token := range tokens {
+				failures[token] = err
 			}
 			continue
 		}
@@ -241,6 +300,123 @@ func fetchNativeSchemas(ctx context.Context, client rest.Interface, bindings map
 		}
 	}
 	return result, failures, lease
+}
+
+// correctNativeTimeSchemas changes only the two Kubernetes time components.
+// The input remains untouched, and unchanged documents retain their exact bytes.
+func correctNativeTimeSchemas(data []byte) ([]byte, error) {
+	type replacement struct {
+		start, end int
+		body       []byte
+	}
+	var replacements []replacement
+	// The document was validated before this scan. Locate values without
+	// decoding or copying unrelated, potentially large, document sections.
+	skipSpace := func(i int) int {
+		for i < len(data) && (data[i] == ' ' || data[i] == '\n' || data[i] == '\r' || data[i] == '\t') {
+			i++
+		}
+		return i
+	}
+	skipString := func(i int) int {
+		i++
+		for i < len(data) {
+			if data[i] == '\\' {
+				i += 2
+			} else if data[i] == '"' {
+				return i + 1
+			} else {
+				i++
+			}
+		}
+		return i
+	}
+	skipValue := func(i int) int {
+		depth := 0
+		for i < len(data) {
+			switch data[i] {
+			case '"':
+				i = skipString(i)
+				continue
+			case '{', '[':
+				depth++
+			case '}', ']':
+				if depth == 0 {
+					return i
+				}
+				depth--
+				if depth == 0 {
+					return i + 1
+				}
+			case ',', ' ', '\n', '\r', '\t':
+				if depth == 0 {
+					return i
+				}
+			}
+			i++
+		}
+		return i
+	}
+	var walk func(int, int) error
+	walk = func(start, level int) error {
+		if start >= len(data) || data[start] != '{' {
+			return fmt.Errorf("native OpenAPI time component location is invalid")
+		}
+		i := skipSpace(start + 1)
+		for data[i] != '}' {
+			end := skipString(i)
+			var name string
+			_ = json.Unmarshal(data[i:end], &name) // Already validated.
+			i = skipSpace(end)
+			i = skipSpace(i + 1) // Colon.
+			end = skipValue(i)
+			if (level == 0 && name == "components") || (level == 1 && name == "schemas") {
+				if err := walk(i, level+1); err != nil {
+					return err
+				}
+			} else if level == 2 && (name == "io.k8s.apimachinery.pkg.apis.meta.v1.Time" || name == "io.k8s.apimachinery.pkg.apis.meta.v1.MicroTime") {
+				var fields map[string]json.RawMessage
+				if err := json.Unmarshal(data[i:end], &fields); err != nil || fields == nil {
+					return fmt.Errorf("invalid native OpenAPI component %q: expected object", name)
+				}
+				if !bytes.Equal(bytes.TrimSpace(fields["nullable"]), []byte("true")) {
+					fields["nullable"] = json.RawMessage("true")
+					corrected, err := json.Marshal(fields)
+					if err != nil {
+						return fmt.Errorf("invalid native OpenAPI component %q: %w", name, err)
+					}
+					replacements = append(replacements, replacement{start: i, end: end, body: corrected})
+				}
+			}
+			i = skipSpace(end)
+			if data[i] == ',' {
+				i = skipSpace(i + 1)
+			}
+		}
+		return nil
+	}
+	if err := walk(skipSpace(0), 0); err != nil {
+		return nil, err
+	}
+	if len(replacements) == 0 {
+		return data, nil
+	}
+	size := len(data)
+	for _, r := range replacements {
+		size += len(r.body) - (r.end - r.start)
+	}
+	if size > maxNativeSchemaBytes {
+		return nil, fmt.Errorf("native OpenAPI document exceeds %d bytes", maxNativeSchemaBytes)
+	}
+	result := make([]byte, 0, size)
+	last := 0
+	for _, r := range replacements {
+		result = append(result, data[last:r.start]...)
+		result = append(result, r.body...)
+		last = r.end
+	}
+	result = append(result, data[last:]...)
+	return result, nil
 }
 
 func readNativeSchema(ctx context.Context, client rest.Interface, path string) ([]byte, error) {

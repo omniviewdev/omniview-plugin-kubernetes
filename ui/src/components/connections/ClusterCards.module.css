@@ -1,0 +1,109 @@
+/* Grid owners set row height. Identity and facts never wrap or grow with name length.
+ * Interactive surfaces, selection, focus and motion belong to base-ui Card.
+ */
+.card {
+  min-inline-size: 0;
+  gap: var(--ov-space-stack-sm);
+  padding: var(--ov-size-card-padding-block-sm) var(--ov-size-card-padding-inline-sm);
+  font-family: var(--ov-font-sans);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  flex-direction: row;
+  gap: var(--ov-space-stack-sm);
+  padding: 0;
+  min-inline-size: 0;
+}
+
+.avatar {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.customAvatar {
+  background-color: transparent;
+}
+
+.identity {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.title {
+  min-inline-size: 0;
+  font-size: var(--ov-font-size-sm);
+  font-weight: var(--ov-font-weight-label);
+  line-height: 1.35;
+}
+
+.truncate,
+.subtitle,
+.fact,
+.status {
+  display: block;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subtitle,
+.fact,
+.provider,
+.status {
+  font-size: var(--ov-font-size-xs);
+  line-height: 1.5;
+}
+
+.subtitle,
+.fact,
+.provider {
+  color: var(--ov-color-fg-muted);
+}
+
+.actions {
+  position: relative;
+  inset: auto;
+  flex-shrink: 0;
+  gap: 0;
+}
+
+.details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ov-space-stack-sm);
+  margin-block-start: auto;
+}
+
+.factRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--ov-space-stack-sm);
+  min-inline-size: 0;
+}
+
+.provider {
+  display: flex;
+  align-items: center;
+  gap: var(--ov-space-stack-sm);
+  min-inline-size: 0;
+}
+
+.provider > :first-child {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.status {
+  color: var(--ov-color-fg-default);
+}
+
+.compact {
+  flex-shrink: 0;
+  inline-size: min(100%, 14rem);
+  max-inline-size: 100%;
+}

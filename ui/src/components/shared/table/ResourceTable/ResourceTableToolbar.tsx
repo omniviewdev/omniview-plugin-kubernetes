@@ -5,7 +5,7 @@ import React from 'react';
 import { LuColumns3 } from 'react-icons/lu';
 
 import { CreateResourceButton } from '../../../kubernetes/actions/create';
-import ColumnFilter from '../../../tables/ColumnFilter';
+import type { ColumnPickerProps } from '../../../tables/ColumnFilter/types';
 import { DebouncedInput } from '../../../tables/DebouncedInput';
 import NamespaceSelect from '../../../tables/NamespaceSelect';
 import ResourceFilterSelect from '../../../tables/ResourceFilterSelect';
@@ -40,6 +40,9 @@ type ResourceTableToolbarProps<T extends RowData> = {
   filterOpen: boolean;
   setFilterOpen: (open: boolean) => void;
   allFlatColumns: Column<DataTableFeatures, T, unknown>[];
+  columnVisibility: ColumnPickerProps<T>['columnVisibility'];
+  resetColumnVisibility: () => void;
+  columnPicker: React.ComponentType<ColumnPickerProps<T>>;
 };
 
 const ResourceTableToolbar = <T extends RowData,>({
@@ -67,6 +70,9 @@ const ResourceTableToolbar = <T extends RowData,>({
   filterOpen,
   setFilterOpen,
   allFlatColumns,
+  columnVisibility,
+  resetColumnVisibility,
+  columnPicker: ColumnPicker,
 }: ResourceTableToolbarProps<T>) => (
   <div className={styles.toolbar}>
     <DebouncedInput
@@ -134,7 +140,7 @@ const ResourceTableToolbar = <T extends RowData,>({
           </Tooltip.Portal>
         </Tooltip.Root>
       )}
-      <ColumnFilter
+      <ColumnPicker
         labels={labels}
         setLabels={handleLabels}
         annotations={annotations}
@@ -142,6 +148,8 @@ const ResourceTableToolbar = <T extends RowData,>({
         open={filterOpen}
         onOpenChange={setFilterOpen}
         columns={allFlatColumns}
+        columnVisibility={columnVisibility}
+        onReset={resetColumnVisibility}
       />
     </Stack>
   </div>

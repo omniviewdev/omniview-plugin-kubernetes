@@ -1,5 +1,5 @@
 import { Button } from '@omniviewdev/base-ui';
-import { jsonToValue, useResourceMutations, useResourceTypes } from '@omniviewdev/runtime';
+import { jsonToValue, useResourceEditorModelPath, useResourceMutations, useResourceTypes, useExtensionPointSnapshot, RESOURCE_EDITOR_EXTENSION_POINT, type ResourceEditorContribution, type ResourceEditorContext } from '@omniviewdev/runtime';
 import { ResourceClient } from '@omniviewdev/runtime/api';
 import React from 'react';
 import { LuPlus } from 'react-icons/lu';
@@ -8,8 +8,11 @@ import { parse } from 'yaml';
 import { PLUGIN_ID } from '@/pluginId';
 import { resolveKubernetesReference } from '../../../../utils/kubernetesReference';
 import { inspectManifest, patchManifest, type ManifestChange } from '../../manifest/manifestDraft';
+import { catalogEditorContext } from '../../manifest/resourceEditorContext';
+import { useCatalogEditorContext } from '../../manifest/useCatalogEditorContext';
 import CreateResourceModal from './CreateResourceModal';
 import { getTemplate, templateIdentity } from './templates';
+import { validateEditorSource } from '../../manifest/resourceEditorSubmission';
 
 interface Props {
   connectionID: string;
@@ -23,10 +26,17 @@ const CreateResourceButton: React.FC<Props> = ({ connectionID, resourceKey, sele
   const [isPreparing, setIsPreparing] = React.useState(false);
   const [template, setTemplate] = React.useState(getTemplate());
   const route = { connection: connectionID };
+  const editorPath = useResourceEditorModelPath({ pluginID: PLUGIN_ID, route, type: resourceKey, name: 'create' });
   const { resourceTypes } = useResourceTypes({ pluginID: PLUGIN_ID, route });
   const descriptor = resourceTypes.data?.find((entry) => entry.type === resourceKey);
   const label = descriptor?.displayName ?? resourceKey;
   const { mutate } = useResourceMutations({ pluginID: PLUGIN_ID });
+  const editors = useExtensionPointSnapshot<ResourceEditorContribution, ResourceEditorContext>(RESOURCE_EDITOR_EXTENSION_POINT);
+  const matches = editors.contributions.filter((entry) => entry.value.targets.some((target) => `k8s:${target.group}/${target.resource}` === resourceKey));
+  const authorable = !matches.length || matches.some((entry) => entry.value.intents.includes('create') && entry.value.ownershipPolicy !== 'controller' && entry.value.ownershipPolicy !== 'system');
+  const editorContext = useCatalogEditorContext(template, resourceKey, connectionID, 'create', descriptor);
+  const preparation = React.useRef<AbortController | null>(null);
+  React.useEffect(() => () => preparation.current?.abort(), [connectionID, resourceKey]);
 
   const handleOpen = async () => {
     setIsPreparing(true);
@@ -78,11 +88,17 @@ const CreateResourceButton: React.FC<Props> = ({ connectionID, resourceKey, sele
     }
   };
 
-  const handleCreate = async (yaml: string) => {
+  const handleCreate = async (yaml: string, isCurrent: () => boolean) => {
     setIsCreating(true);
+    preparation.current?.abort();
+    const preparing = new AbortController(); preparation.current = preparing;
     try {
       const parsed = parse(yaml, { intAsBigInt: true }) as Record<string, unknown>;
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('YAML must be a Kubernetes resource object');
+      const sourceContext = catalogEditorContext(yaml, resourceKey, connectionID, 'create', descriptor);
+      const admission = inspectManifest(template).document ? { ...sourceContext, group: editorContext.group, version: editorContext.version, kind: editorContext.kind } : sourceContext;
+      const admissionError = validateEditorSource(yaml, admission);
+      if (admissionError) throw new Error(admissionError);
       const metadata = parsed.metadata as Record<string, unknown> | undefined;
       if (typeof metadata?.name !== 'string' || !metadata.name) throw new Error('metadata.name is required');
       if (metadata.namespace !== undefined && typeof metadata.namespace !== 'string') throw new Error('metadata.namespace must be a string');
@@ -90,6 +106,7 @@ const CreateResourceButton: React.FC<Props> = ({ connectionID, resourceKey, sele
         connectionID, resourceType: resourceKey, name: metadata.name,
         namespace: metadata.namespace,
       });
+      if (preparing.signal.aborted || !isCurrent()) throw new Error('Creation cancelled because the editor changed.');
       await mutate({
         route: resolved.route,
         reference: resolved.reference,
@@ -100,17 +117,24 @@ const CreateResourceButton: React.FC<Props> = ({ connectionID, resourceKey, sele
       setIsCreating(false);
     }
   };
+  if (!authorable) return null;
 
   return (
     <>
-      <Button size="sm" variant="outline" color="neutral" startDecorator={<LuPlus size={13} />}
-        disabled={isPreparing} onClick={() => void handleOpen()}>
-        {isPreparing ? 'Preparing...' : `Create ${label}`}
-      </Button>
-      <CreateResourceModal key={JSON.stringify([connectionID, resourceKey])} open={open} onClose={() => setOpen(false)} resourceKey={resourceKey}
-        resourceName={label} template={template} onCreate={handleCreate} isCreating={isCreating} context={connectionID} connectionID={connectionID} />
+      <CreateResourceTrigger label={label} preparing={isPreparing} onOpen={() => void handleOpen()} />
+      <CreateResourceModal key={JSON.stringify([connectionID, resourceKey])} open={open} onClose={() => { preparation.current?.abort(); setOpen(false); }} resourceKey={resourceKey}
+        resourceName={label} template={template} onCreate={handleCreate} isCreating={isCreating} context={connectionID} connectionID={connectionID} editorPath={editorPath}
+        editorContext={inspectManifest(template).document ? editorContext : undefined}
+        resolveContext={(source) => {
+          const actual = catalogEditorContext(source, resourceKey, connectionID, 'create', descriptor);
+          return inspectManifest(template).document ? { ...actual, group: editorContext.group, version: editorContext.version, kind: editorContext.kind } : actual;
+        }} />
     </>
   );
 };
+
+function CreateResourceTrigger({ label, preparing = false, disabled = false, onOpen }: { label: string; preparing?: boolean; disabled?: boolean; onOpen: () => void }) {
+  return <Button size="sm" variant="outline" color="neutral" startDecorator={<LuPlus size={13} />} disabled={disabled || preparing} onClick={onOpen}>{preparing ? 'Preparing...' : `Create ${label}`}</Button>;
+}
 
 export default CreateResourceButton;

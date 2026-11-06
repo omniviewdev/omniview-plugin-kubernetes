@@ -7,6 +7,8 @@ import type {
   HubSectionType,
 } from '../types/clusters';
 import { computeEffectiveMembers } from '../utils/folderRules';
+import type { ClusterIconAsset } from '../types/clusterExplorer';
+import { resolveFolderImage } from '../utils/folderIcons';
 
 export interface HubSectionData {
   config: HubSectionConfig;
@@ -24,6 +26,7 @@ interface UseHubSectionsParams {
   enrichedConnections: EnrichedConnection[];
   hubSectionConfigs: HubSectionConfig[];
   customGroups: ConnectionGroup[];
+  iconAssets?: readonly ClusterIconAsset[];
 }
 
 /**
@@ -34,6 +37,7 @@ export function useHubSections({
   enrichedConnections,
   hubSectionConfigs,
   customGroups,
+  iconAssets = [],
 }: UseHubSectionsParams) {
   // Merge custom group sections that exist but aren't in config
   const mergedConfigs = useMemo(() => {
@@ -122,7 +126,11 @@ export function useHubSections({
                 variant: 'list' as const,
               };
             }
-            const memberSet = computeEffectiveMembers(group.connectionIds, group.ruleSet, enrichedConnections);
+            const memberSet = computeEffectiveMembers(
+              group.connectionIds,
+              group.ruleSet,
+              enrichedConnections,
+            );
             return {
               config,
               title: group.name,
@@ -132,7 +140,7 @@ export function useHubSections({
               groupId: group.id,
               groupColor: group.color,
               groupIcon: group.icon,
-              groupCustomImage: group.customImage,
+              groupCustomImage: resolveFolderImage(group, iconAssets),
             };
           }
           return {
@@ -145,7 +153,7 @@ export function useHubSections({
         }
       }
     });
-  }, [mergedConfigs, enrichedConnections, customGroups]);
+  }, [mergedConfigs, enrichedConnections, customGroups, iconAssets]);
 
   const reorderSections = useCallback(
     (activeId: string, overId: string): HubSectionConfig[] => {

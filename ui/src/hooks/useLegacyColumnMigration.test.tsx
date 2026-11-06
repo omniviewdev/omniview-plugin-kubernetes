@@ -4,7 +4,7 @@ import { useLegacyColumnMigration } from './useLegacyColumnMigration';
 import { legacyBackupPrefix } from '../utils/legacyMigration';
 
 const showSnackbar = vi.hoisted(() => vi.fn());
-vi.mock('@omniviewdev/runtime', () => ({ useSnackbar: () => ({ showSnackbar }) }));
+vi.mock('@omniviewdev/runtime', () => ({ useNotifications: () => ({ notify: showSnackbar }) }));
 
 describe('legacy preference reporting', () => {
   beforeEach(() => { localStorage.clear(); showSnackbar.mockClear(); });
@@ -15,7 +15,7 @@ describe('legacy preference reporting', () => {
     renderHook(() => useLegacyColumnMigration(['prod']));
     await waitFor(() => {
       expect(showSnackbar).toHaveBeenCalledWith(expect.objectContaining({
-        status: 'warning', details: key, showOnce: true,
+        severity: 'warning', details: key,
       }));
     });
     expect(log).toHaveBeenCalledWith('Kubernetes legacy preferences could not be migrated:', key);
@@ -76,7 +76,7 @@ describe('legacy preference reporting', () => {
       renderHook(() => useLegacyColumnMigration(['prod']));
       await waitFor(() => {
         expect(showSnackbar).toHaveBeenCalledWith(expect.objectContaining({
-          status: 'warning', details, showOnce: true,
+          severity: 'warning', details,
         }));
       });
       expect(log).toHaveBeenCalledWith('Kubernetes legacy preferences could not be migrated:', details);

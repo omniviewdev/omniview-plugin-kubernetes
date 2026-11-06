@@ -28,6 +28,8 @@ const ROW_HEIGHT = 30;
 const NON_DRAWER_COLUMNS = new Set(['select', 'menu']);
 
 import type { KubernetesResourceObject } from '../../../../types/resource';
+import ColumnFilter from '../../../tables/ColumnFilter';
+import type { ColumnPickerProps } from '../../../tables/ColumnFilter/types';
 import { useDynamicResourceColumns } from '../../../tables/ColumnFilter/useDynamicResourceColumns';
 import DrawerActionsBridge from '../../drawer/DrawerActionsBridge';
 import { TableDrawerContext } from '../TableDrawerContext';
@@ -73,6 +75,8 @@ export type Props<T extends RowData = any> = {
    * the shared useConnectionNamespaces hook so all tables stay in sync.
    */
   toolbarFilters?: ToolbarFilterDef[];
+  /** Column picker supplied by the resource view; defaults to the standard picker. */
+  columnPicker?: React.ComponentType<ColumnPickerProps<T>>;
   /** Wrap table content with consumers that need persisted visibility before mounting. */
   contentWrapper?: React.ComponentType<React.PropsWithChildren<{ columnVisibility: VisibilityState }>>;
 };
@@ -91,6 +95,20 @@ const visibilityFromColumnDefs = <T extends RowData,>(defs: Array<ColumnDef<Data
   return visibility;
 };
 
+const visibilityWithRequiredColumns = <T extends RowData,>(
+  defs: Array<ColumnDef<DataTableFeatures, T>>,
+  visibility: VisibilityState,
+): VisibilityState => {
+  let effective = visibility;
+  for (const def of defs) {
+    if (!def.id || def.enableHiding !== false || visibility[def.id] !== false) continue;
+    if (def.meta && 'defaultHidden' in def.meta && def.meta.defaultHidden === true) continue;
+    if (effective === visibility) effective = { ...visibility };
+    effective[def.id] = true;
+  }
+  return effective;
+};
+
 
 const ResourceTableContainer = <T extends RowData,>({
   connectionID,
@@ -102,12 +120,14 @@ const ResourceTableContainer = <T extends RowData,>({
   createEnabled = true,
   toolbarFilters,
   contentWrapper: ContentWrapper,
+  columnPicker = ColumnFilter,
 }: Props<T>) => {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'name', desc: false }]);
   const [columnVisibility, setColumnVisibility] = useStoredState<VisibilityState>(
     `kubernetes-${connectionID}-${resourceKey}-column-visibility`,
     visibilityFromColumnDefs(columns),
   );
+  const effectiveColumnVisibility = visibilityWithRequiredColumns(columns, columnVisibility);
   const [columnFilters, setColumnFilters] = useStoredState<ColumnFiltersState>(
     `kubernetes-${connectionID}-${resourceKey}-column-filters`,
     [],
@@ -156,14 +176,14 @@ const ResourceTableContainer = <T extends RowData,>({
     type: resourceKey,
   });
   const collectionContext = JSON.stringify([connectionID, resourceKey, target.data]);
-  const { resources, acquired, isSyncing, watchError } = useResources({
+  const { resources, acquired, isSyncing, sourceError } = useResources({
     pluginID: PLUGIN_ID,
     collection: true,
     request: target.data ? {
       targetId: target.data.targetId,
       request: { target: target.data.target, pageSize: 256 },
     } : undefined,
-    live: resourceType.data?.capabilities.some((capability) => capability.operation === 'update') ?? false,
+    live: resourceType.data?.capabilities.some((capability) => capability.operation === 'sourceUpdates') ?? false,
   });
   const rowSelection = collectionSelection.context === collectionContext ? collectionSelection.selection : {};
   const setRowSelection = React.useCallback<React.Dispatch<React.SetStateAction<RowSelectionState>>>((update) => {
@@ -193,6 +213,12 @@ const ResourceTableContainer = <T extends RowData,>({
 
   const handleAnnotations = (vals: Record<string, boolean>) => {
     setAnnotations((prev: Record<string, boolean>) => ({ ...prev, ...vals }));
+  };
+
+  const resetColumnVisibility = () => {
+    setColumnVisibility(visibilityFromColumnDefs(columns));
+    setLabels((prev) => Object.fromEntries(Object.keys(prev).map((key) => [key, false])));
+    setAnnotations((prev) => Object.fromEntries(Object.keys(prev).map((key) => [key, false])));
   };
 
   const allColumns = useMemo(() => [...columns, ...columnDefs], [columns, columnDefs]);
@@ -263,7 +289,7 @@ const ResourceTableContainer = <T extends RowData,>({
     state: {
       sorting,
       columnFilters: effectiveColumnFilters,
-      columnVisibility,
+      columnVisibility: effectiveColumnVisibility,
       columnSizing,
       rowSelection,
       globalFilter: search,
@@ -329,7 +355,7 @@ const ResourceTableContainer = <T extends RowData,>({
       {/* Row menu actions run outside the drawer, so the table mounts their handlers too */}
       {drawer && <DrawerActionsBridge connectionID={connectionID} resourceKey={resourceKey} />}
       <div className={styles.outer}>
-        {watchError && <div role="status">Live updates unavailable. Showing the last acquired resources.</div>}
+        {sourceError && <div role="status">Live updates unavailable. Showing the last acquired resources.</div>}
         {resources.isError && <div role="alert">Could not update resources. <Button size="sm" variant="outline" onClick={() => { void resources.refetch(); }}>Retry</Button></div>}
         <DataTable.Root
           table={table}
@@ -367,6 +393,9 @@ const ResourceTableContainer = <T extends RowData,>({
             filterOpen={filterOpen}
             setFilterOpen={setFilterOpen}
             allFlatColumns={table.getAllFlatColumns()}
+            columnVisibility={effectiveColumnVisibility}
+            resetColumnVisibility={resetColumnVisibility}
+            columnPicker={columnPicker}
           />
           <DataTable.Container
             className={styles.container}
@@ -400,7 +429,7 @@ const ResourceTableContainer = <T extends RowData,>({
       </div>
     </TableDrawerContext.Provider>
   );
-  return ContentWrapper ? <ContentWrapper columnVisibility={columnVisibility}>{content}</ContentWrapper> : content;
+  return ContentWrapper ? <ContentWrapper columnVisibility={effectiveColumnVisibility}>{content}</ContentWrapper> : content;
 };
 
 ResourceTableContainer.displayName = 'ResourceTableContainer';

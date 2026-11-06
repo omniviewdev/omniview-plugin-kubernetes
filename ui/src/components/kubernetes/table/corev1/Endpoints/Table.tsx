@@ -10,6 +10,7 @@ import { useParams } from 'react-router'
 
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
+import ColumnPicker from '../../../../tables/ColumnFilter/ColumnPicker';
 import ChipList from '../../shared/cells/ChipList';
 import { withNamespacedResourceColumns } from '../../shared/columns';
 
@@ -83,6 +84,7 @@ const EndpointsTable: React.FC = () => {
   return (
     <ResourceTable
       columns={columns}
+      columnPicker={ColumnPicker}
       connectionID={id}
       resourceKey={resourceKey}
       drawer={drawer}

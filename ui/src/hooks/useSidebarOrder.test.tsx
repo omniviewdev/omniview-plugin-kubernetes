@@ -9,7 +9,7 @@ import { useLegacyColumnMigration } from './useLegacyColumnMigration';
 import { applyOrder, extractOrder, useSidebarOrder } from './useSidebarOrder';
 
 const showSnackbar = vi.hoisted(() => vi.fn());
-vi.mock('@omniviewdev/runtime', () => ({ useSnackbar: () => ({ showSnackbar }) }));
+vi.mock('@omniviewdev/runtime', () => ({ useNotifications: () => ({ notify: showSnackbar }) }));
 
 const key = 'kubernetes-sidebar-order';
 const node = encodeURIComponent('k8s:/nodes');
@@ -68,7 +68,7 @@ describe('saved sidebar order through the migration gate', () => {
     const log = vi.spyOn(console, 'warn').mockImplementation(vi.fn());
     const view = renderHook(() => useSidebarOrder(), { wrapper: MigrationGate });
     const details = `${key}: example.io_v1_Widget`;
-    expect(showSnackbar).toHaveBeenCalledWith(expect.objectContaining({ status: 'warning', details }));
+    expect(showSnackbar).toHaveBeenCalledWith(expect.objectContaining({ severity: 'warning', details }));
     expect(log).toHaveBeenCalledWith('Kubernetes legacy preferences could not be migrated:', details);
     expect(view.result.current.order?.items).toEqual(['example.io_v1_Widget', node]);
 

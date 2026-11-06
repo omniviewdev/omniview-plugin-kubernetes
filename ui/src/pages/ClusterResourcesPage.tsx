@@ -1,19 +1,27 @@
 import { Avatar, Button, IconButton, Stack, Text } from '@omniviewdev/base-ui';
-import { Link, useWatchState, openGlobalSearch,
+import {
+  Link,
+  useSourceStates,
+  openGlobalSearch,
   useConnection,
   useResourceTypes,
   useResourceGroups,
-  useSnackbar,
+  useNotifications,
   usePluginRouter,
   parseAppError,
-  useEditorSchemas } from '@omniviewdev/runtime';
+  useEditorSchemas,
+} from '@omniviewdev/runtime';
+import type { EditorSchemaAssociation, EditorSchemaDocument } from '@omniviewdev/runtime';
 import React from 'react';
 import { LuCog, LuLock, LuLockOpen, LuPuzzle, LuRotateCcw, LuSearch } from 'react-icons/lu';
 import { Outlet, useParams } from 'react-router';
 
+import { useStoredState } from '@/hooks/useStoredState';
 import { PLUGIN_ID } from '@/pluginId';
+
+import ResourceRequestLauncher from '../components/kubernetes/manifest/ResourceRequestLauncher';
 import ResourceNavTree from '../components/kubernetes/sidebar/ResourceNavTree';
-import { SidebarWatchStateProvider } from '../components/kubernetes/sidebar/SidebarWatchBadge';
+import { SidebarSourceStateProvider } from '../components/kubernetes/sidebar/SidebarWatchBadge';
 import SimpleTooltip from '../components/shared/SimpleTooltip';
 import SyncProgressDialog from '../components/shared/SyncProgressDialog';
 import { useClusterPreferences } from '../hooks/useClusterPreferences';
@@ -31,8 +39,6 @@ import {
   clusterPagePath,
   useClusterPages,
 } from './extension';
-
-import { useStoredState } from '@/hooks/useStoredState';
 
 
 const rootStyle: React.CSSProperties = { padding: 0, gap: 0 };
@@ -79,16 +85,30 @@ const mainStyle: React.CSSProperties = {
   flexDirection: 'column',
 };
 
-const mainContentStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 };
+const mainContentStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  flex: 1,
+  minHeight: 0,
+};
 
-const clusterNameStyle: React.CSSProperties = { textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' };
+const clusterNameStyle: React.CSSProperties = {
+  textOverflow: 'ellipsis',
+  overflow: 'hidden',
+  whiteSpace: 'nowrap',
+};
 
 function errorMessage(error: unknown): string {
   const parsed = parseAppError(error);
   return parsed.detail || parsed.title;
 }
 
-function RouteState({ title, detail, action, onAction }: {
+function RouteState({
+  title,
+  detail,
+  action,
+  onAction,
+}: {
   title: string;
   detail: string;
   action?: string;
@@ -110,7 +130,10 @@ export default function ClusterResourcesPage(): React.ReactElement {
 
 // ClusterResourcesRoute owns the connection boundary and readiness recovery.
 function ClusterResourcesSession({ id }: { id: string }): React.ReactElement {
-  const { resourceTypes: types } = useResourceTypes({ pluginID: PLUGIN_ID, route: { connection: id } });
+  const { resourceTypes: types } = useResourceTypes({
+    pluginID: PLUGIN_ID,
+    route: { connection: id },
+  });
   const { groups } = useResourceGroups({ pluginID: PLUGIN_ID, route: { connection: id } });
   const { connection } = useConnection({ pluginID: PLUGIN_ID, connectionID: id });
   const { connectionOverrides } = useClusterPreferences(PLUGIN_ID);
@@ -139,7 +162,13 @@ function ClusterResourcesSession({ id }: { id: string }): React.ReactElement {
     });
     const [first, ...rest] = rawLayout;
     const at = first.items.findIndex((item) => item.id === '__dashboard__') + 1;
-    return applyOrder([{ ...first, items: [...first.items.slice(0, at), ...pageItems, ...first.items.slice(at)] }, ...rest], order);
+    return applyOrder(
+      [
+        { ...first, items: [...first.items.slice(0, at), ...pageItems, ...first.items.slice(at)] },
+        ...rest,
+      ],
+      order,
+    );
   }, [rawLayout, order, clusterPages]);
   useKubernetesSearchNavigation(id, layout);
   const { location, navigate } = usePluginRouter();
@@ -154,37 +183,55 @@ function ClusterResourcesSession({ id }: { id: string }): React.ReactElement {
     },
     [setSavedExpandedState],
   );
-  const { isFullySynced, summary } = useWatchState({ pluginID: PLUGIN_ID, route: { connection: id } });
+  const { isFullySynced, summary } = useSourceStates({
+    pluginID: PLUGIN_ID,
+    route: { connection: id },
+  });
+  const sourceStates = React.useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(summary?.types ?? {}).map(([key, status]) => [key, status.state]),
+      ),
+    [summary?.types],
+  );
 
   // Fetch and register OpenAPI schemas with the host's Monaco schema registry
-  const { schemas: editorSchemas, documents: editorSchemaDocuments } = useEditorSchemas({ pluginID: PLUGIN_ID, route: { connection: id } });
+  const { associations, documents } = useEditorSchemas({
+    pluginID: PLUGIN_ID,
+    route: { connection: id },
+  });
   React.useEffect(() => {
     // The Monaco schema registry is attached to window by the host app at runtime.
     // It exposes register/unregister methods for managing JSON schemas.
     const win = window as Window & {
       __monacoSchemaRegistry?: {
-        register: (plugin: string, connId: string, schemas: typeof editorSchemas, documents: typeof editorSchemaDocuments) => void;
+        register: (
+          plugin: string,
+          connId: string,
+          associations: readonly EditorSchemaAssociation[],
+          documents: readonly EditorSchemaDocument[],
+        ) => void;
         unregister: (plugin: string, connId: string) => void;
       };
     };
     const registry = win.__monacoSchemaRegistry;
-    if (!registry || !editorSchemas?.length || !id) return;
+    if (!registry || !id) return;
 
-    registry.register(PLUGIN_ID, id, editorSchemas, editorSchemaDocuments);
+    registry.register(PLUGIN_ID, id, associations, documents);
 
     return () => {
       registry.unregister(PLUGIN_ID, id);
     };
-  }, [editorSchemas, editorSchemaDocuments, id]);
+  }, [associations, documents, id]);
 
-  // eslint-disable-next-line @typescript-eslint/unbound-method
-  const { showSnackbar } = useSnackbar();
+   
+  const { notify } = useNotifications();
 
   // Each connection decides once after its initial summary arrives.
   const [syncModalMode, setSyncModalMode] = React.useState<
     'pending' | 'auto' | 'manual' | 'closed'
   >('pending');
-  if (syncModalMode === 'pending' && summary.data) {
+  if (syncModalMode === 'pending' && summary) {
     setSyncModalMode(isFullySynced ? 'closed' : 'auto');
   }
   const syncModalOpen = syncModalMode === 'auto' || syncModalMode === 'manual';
@@ -237,28 +284,41 @@ function ClusterResourcesSession({ id }: { id: string }): React.ReactElement {
 
   React.useEffect(() => {
     if (!import.meta.env.DEV) return;
-    showSnackbar({
-      message: 'You are currently running in development mode',
+    void notify({
+      title: 'You are currently running in development mode',
       details:
         'Rendering performance will be slightly degraded until this application is built for production.',
-      status: 'info',
-      showOnce: true,
-      autoHideDuration: 15000,
+      severity: 'info',
     });
-  }, [showSnackbar]);
+  }, [notify]);
 
   if (connection.isError || groups.isError || types.isError) {
     const error = connection.error || groups.error || types.error;
-    return <RouteState title="Unable to load cluster resources" detail={errorMessage(error)}
-      action="Retry resources" onAction={() => {
-        if (connection.isError) void connection.refetch();
-        if (groups.isError) void groups.refetch();
-        if (types.isError) void types.refetch();
-      }} />;
+    return (
+      <RouteState
+        title="Unable to load cluster resources"
+        detail={errorMessage(error)}
+        action="Retry resources"
+        onAction={() => {
+          if (connection.isError) void connection.refetch();
+          if (groups.isError) void groups.refetch();
+          if (types.isError) void types.refetch();
+        }}
+      />
+    );
   }
 
-  if (groups.isLoading || types.isLoading || connection.isLoading || !groups.data || !types.data || !connection.data) {
-    return <RouteState title="Loading cluster resources" detail="Waiting for the resource catalog." />;
+  if (
+    groups.isLoading ||
+    types.isLoading ||
+    connection.isLoading ||
+    !groups.data ||
+    !types.data ||
+    !connection.data
+  ) {
+    return (
+      <RouteState title="Loading cluster resources" detail="Waiting for the resource catalog." />
+    );
   }
 
   const clusterName = connectionOverrides[id]?.displayName || connection.data?.name || id;
@@ -273,10 +333,13 @@ function ClusterResourcesSession({ id }: { id: string }): React.ReactElement {
                 const override = connectionOverrides[id];
                 const avatarSrc = override?.avatar || connection.data?.avatar;
                 if (avatarSrc) {
-                  return <Avatar size="sm" shape="rounded" src={avatarSrc} style={clusterAvatarStyle} />;
+                  return (
+                    <Avatar size="sm" shape="rounded" src={avatarSrc} style={clusterAvatarStyle} />
+                  );
                 }
                 const name = override?.displayName || connection.data?.name || '';
-                const background = override?.avatarColor || (name ? stringToColor(name) : '#f44336');
+                const background =
+                  override?.avatarColor || (name ? stringToColor(name) : '#f44336');
                 return (
                   <div style={{ ...initialsAvatarStyle, background }} aria-hidden>
                     {getInitials(name)}
@@ -294,9 +357,16 @@ function ClusterResourcesSession({ id }: { id: string }): React.ReactElement {
                   size="sm"
                   color="neutral"
                   aria-label="Find in this connection"
-                  onClick={() => openGlobalSearch({ scope: {
-                    kind: 'connection', pluginId: PLUGIN_ID, connectionId: id, label: clusterName,
-                  } })}
+                  onClick={() =>
+                    openGlobalSearch({
+                      scope: {
+                        kind: 'connection',
+                        pluginId: PLUGIN_ID,
+                        connectionId: id,
+                        label: clusterName,
+                      },
+                    })
+                  }
                 >
                   <LuSearch size={16} />
                 </IconButton>
@@ -314,7 +384,10 @@ function ClusterResourcesSession({ id }: { id: string }): React.ReactElement {
                   </IconButton>
                 </SimpleTooltip>
               )}
-              <SimpleTooltip content={isEditing ? 'Lock sidebar order' : 'Reorder sidebar'} placement="bottom">
+              <SimpleTooltip
+                content={isEditing ? 'Lock sidebar order' : 'Reorder sidebar'}
+                placement="bottom"
+              >
                 <IconButton
                   variant="soft"
                   size="sm"
@@ -332,7 +405,8 @@ function ClusterResourcesSession({ id }: { id: string }): React.ReactElement {
               </Link>
             </Stack>
           </div>
-          <SidebarWatchStateProvider states={summary.data?.resources}>
+          <ResourceRequestLauncher connectionID={id} />
+          <SidebarSourceStateProvider states={sourceStates}>
             <ResourceNavTree
               sections={layout}
               selected={selected}
@@ -343,7 +417,7 @@ function ClusterResourcesSession({ id }: { id: string }): React.ReactElement {
               initialExpandedState={savedExpandedState}
               onExpandedChange={handleExpandedChange}
             />
-          </SidebarWatchStateProvider>
+          </SidebarSourceStateProvider>
         </Stack>
       </Layout.SideNav>
       <Layout.Main style={mainStyle}>

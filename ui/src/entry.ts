@@ -5,6 +5,8 @@ import {
   type DrawerComponent,
   type DrawerFactory,
   type ExtensionRegistration,
+  type ExtensionPointSettings,
+  type ResourceEditorContribution,
   type HomepageCardMeta,
   type SearchRouteHandleV1,
 } from '@omniviewdev/runtime';
@@ -127,6 +129,8 @@ import ClusterDashboardOverviewPage from './pages/dashboard/overview';
 import ClusterExtensionPage, { CLUSTER_PAGE_EXTENSION_POINT_ID } from './pages/extension';
 import { kubernetesSearchProvider } from './search/provider';
 import { migratePagePath } from './utils/legacyMigration';
+import { builtinResourceEditors, resourceEditorExtensionPoint } from './components/kubernetes/manifest/resourceEditors';
+import { resourceEditors } from './components/kubernetes/manifest/providers';
 
 const connectionSearchHandle: SearchRouteHandleV1 = {
   searchScope: ({ params }) => params.id
@@ -388,7 +392,23 @@ export const routes: Array<RouteObject> = [
   },
 ];
 
+const resourceEditorRegistrations: ExtensionRegistration<ResourceEditorContribution>[] = [
+  ...builtinResourceEditors,
+  ...resourceEditors,
+].map((editor) => {
+  const target = editor.targets[0];
+  return {
+    extensionPointId: resourceEditorExtensionPoint.id,
+    registration: {
+      id: `resource-editor/${encodeURIComponent(target?.group ?? '')}/${target?.version}/${target?.kind}/${encodeURIComponent(target?.resource ?? '')}/${target?.scope}/${[...editor.intents].sort().join('+')}`,
+      label: editor.label,
+      value: editor,
+    },
+  };
+});
+
 export const extensionRegistrations: ExtensionRegistration[] = [
+  ...resourceEditorRegistrations,
   ...Object.entries(sidebars).map(([resourceKey, Component]): ExtensionRegistration => ({
     extensionPointId: 'omniview/resource/sidebar/infopanel',
     registration: {
@@ -446,6 +466,10 @@ export const extensionRegistrations: ExtensionRegistration[] = [
 ];
 
 export const plugin = Object.assign(new PluginWindow()
-  .registerExtensionPoints([{ id: CLUSTER_PAGE_EXTENSION_POINT_ID, mode: 'multiple' }])
+  .registerExtensionPoints([
+    { id: CLUSTER_PAGE_EXTENSION_POINT_ID, mode: 'multiple' },
+    // PluginWindow stores heterogeneous extension-point contexts through an erased collection.
+    resourceEditorExtensionPoint as unknown as ExtensionPointSettings,
+  ])
   .setRootPage(ClustersPage)
   .withRoutes(routes), { migratePagePath });

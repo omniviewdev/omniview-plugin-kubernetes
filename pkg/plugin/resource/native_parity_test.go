@@ -38,7 +38,7 @@ func TestNativeParityLabelQueryBindsSelectorAndUsesAllNamespaces(t *testing.T) {
 	client := nativeTestHTTPClient(t, func(request *http.Request) *unstructured.UnstructuredList {
 		assert.Equal(t, "/apis/sample.example/v1/widgets", request.URL.Path)
 		assert.Equal(t, "app in (api,worker),!disabled", request.URL.Query().Get("labelSelector"))
-		assert.Equal(t, "2", request.URL.Query().Get("limit"))
+		assert.Equal(t, "1", request.URL.Query().Get("limit"))
 		list := nativeTestList(nativeTestObject("native-name", "selected"))
 		if calls.Add(1) == 1 {
 			assert.Empty(t, request.URL.Query().Get("continue"))
@@ -49,6 +49,7 @@ func TestNativeParityLabelQueryBindsSelectorAndUsesAllNamespaces(t *testing.T) {
 		return list
 	})
 	request := parityQuery("app in (api,worker),!disabled")
+	request.PageSize = 1
 	page, err := NativeQuery(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
 	require.NoError(t, err)
 	require.NotNil(t, page.NextCursor)
@@ -71,39 +72,45 @@ func TestNativeParityCollects500WithBoundedNativePages(t *testing.T) {
 	var calls atomic.Int32
 	client := nativeTestHTTPClient(t, func(request *http.Request) *unstructured.UnstructuredList {
 		assert.Equal(t, "/apis/sample.example/v1/widgets", request.URL.Path)
-		list := nativeTestList()
-		start, count := 0, 256
-		if calls.Add(1) == 1 {
-			assert.Equal(t, "256", request.URL.Query().Get("limit"))
-			list.SetContinue("remaining-244")
+		assert.Equal(t, "1", request.URL.Query().Get("limit"))
+		index := int(calls.Add(1)) - 1
+		if index == 0 {
+			assert.Empty(t, request.URL.Query().Get("continue"))
 		} else {
-			start, count = 256, 244
-			assert.Equal(t, "256", request.URL.Query().Get("limit"))
-			assert.Equal(t, "remaining-244", request.URL.Query().Get("continue"))
+			assert.Equal(t, fmt.Sprintf("next-%d", index), request.URL.Query().Get("continue"))
 		}
-		for index := start; index < start+count; index++ {
-			list.Items = append(list.Items, *nativeTestObject(fmt.Sprintf("widget-%03d", index), "selected"))
+		list := nativeTestList(nativeTestObject(fmt.Sprintf("widget-%03d", index), "selected"))
+		if index < 499 {
+			list.SetContinue(fmt.Sprintf("next-%d", index+1))
 		}
 		return list
 	})
 	request := nativeTestEnumerate(nil)
 	request.PageSize = 256
-	first, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
-	require.NoError(t, err)
-	require.Len(t, first.Records, 256)
-	require.NotNil(t, first.NextCursor)
-	request.Cursor = first.NextCursor
-	second, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
-	require.NoError(t, err)
-	require.Len(t, second.Records, 244)
-	assert.Nil(t, second.NextCursor)
-	assert.Equal(t, 500, len(first.Records)+len(second.Records))
-	assert.Equal(t, "widget-256", second.Records[0].Reference.Address.ID)
+	var names []string
+	for {
+		page, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
+		require.NoError(t, err)
+		if len(names) == 0 {
+			require.Len(t, page.Records, 256)
+		} else {
+			require.Len(t, page.Records, 244)
+		}
+		for _, record := range page.Records {
+			names = append(names, record.Reference.Address.ID)
+		}
+		if page.NextCursor == nil {
+			break
+		}
+		request.Cursor = page.NextCursor
+	}
+	require.Len(t, names, 500)
+	assert.Equal(t, "widget-256", names[256])
 	request.Cursor = nil
 	request.PageSize = 500
-	_, err = NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
+	_, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
 	require.Error(t, err)
-	assert.Equal(t, int32(2), calls.Load(), "collection size must not raise the native page ceiling")
+	assert.Equal(t, int32(500), calls.Load())
 }
 
 func TestNativeParityRepresentationProjection(t *testing.T) {
@@ -127,7 +134,7 @@ func TestNativeParityRepresentationProjection(t *testing.T) {
 			assert.Equal(t, "kept", record.Body.Map["spec"].Map["value"].String)
 			if model {
 				assert.Equal(t, "partial", record.Coverage.Kind)
-				assert.Empty(t, record.Coverage.Paths)
+				assert.Equal(t, []string{"/metadata/managedFields"}, record.Coverage.Paths)
 				assert.Equal(t, "Kubernetes model projection omits metadata.managedFields", record.Coverage.Reason)
 			} else {
 				assert.Equal(t, "complete", record.Coverage.Kind)

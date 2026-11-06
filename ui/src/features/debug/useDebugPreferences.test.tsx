@@ -83,12 +83,13 @@ describe('debug preference persistence', () => {
   });
 
   it('rejects save errors and keeps effective settings unchanged', async () => {
-    state.update.mockRejectedValue(new Error('Storage unavailable'));
+    const failure = new Error('Storage unavailable');
+    state.update.mockRejectedValue(failure);
     const { result } = renderHook(() => useDebugPreferences('connection-id'));
     await act(async () => {
       await expect(
         result.current.setDefaultTemplate('plugin', BUILTIN_DEBUG_TEMPLATES[1].id),
-      ).rejects.toThrow('Storage unavailable');
+      ).rejects.toBe(failure);
     });
     expect(result.current.error).toBe('Storage unavailable');
     expect(result.current.resolved.template.id).toBe(BUILTIN_DEBUG_TEMPLATES[0].id);

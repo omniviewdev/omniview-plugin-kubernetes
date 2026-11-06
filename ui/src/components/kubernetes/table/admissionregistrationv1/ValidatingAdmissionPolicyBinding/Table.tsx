@@ -8,6 +8,7 @@ import React from 'react';
 import { LuLink2 } from 'react-icons/lu';
 import { useParams } from 'react-router'
 
+import ColumnPicker from '../../../../tables/ColumnFilter/ColumnPicker';
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
 import { withClusterResourceColumns } from '../../shared/columns';
@@ -74,6 +75,7 @@ const ValidatingAdmissionPolicyBindingTable: React.FC = () => {
   return (
     <ResourceTable
       columns={columns}
+      columnPicker={ColumnPicker}
       connectionID={id}
       resourceKey={resourceKey}
       drawer={drawer}

@@ -1,9 +1,9 @@
-import { useSnackbar } from '@omniviewdev/runtime';
+import { useNotifications } from '@omniviewdev/runtime';
 import { useEffect, useRef, useState } from 'react';
 import { migrateColumnPreferences, migrateSidebarOrder } from '../utils/legacyMigration';
 
 export function useLegacyColumnMigration(connectionIDs: readonly string[] | undefined): boolean {
-  const snackbar = useSnackbar();
+  const { notify } = useNotifications();
   const connectionKey = connectionIDs === undefined ? undefined : JSON.stringify([...new Set(connectionIDs)].sort());
   const migrate = () => {
     if (connectionIDs === undefined) {
@@ -48,8 +48,8 @@ export function useLegacyColumnMigration(connectionIDs: readonly string[] | unde
 
     const details = migration.issues.join('\n');
     console.warn('Kubernetes legacy preferences could not be migrated:', details);
-    snackbar.showSnackbar({ message: 'Some Kubernetes preferences could not be migrated', status: 'warning', details, showOnce: true });
-  }, [migration, snackbar]);
+    void notify({ title: 'Some Kubernetes preferences could not be migrated', severity: 'warning', details });
+  }, [migration, notify]);
 
   return connectionKey !== undefined && migration.key === connectionKey;
 }

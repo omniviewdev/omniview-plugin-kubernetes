@@ -27,6 +27,7 @@ interface MockConnectionData {
 const mockNavigate = vi.fn();
 let mockConnectionData: MockConnectionData | null = null;
 let mockConnectionID = 'test-cluster';
+let mockStatusEntries: { pluginID: string; connectionID: string; readiness: string }[] = [];
 let mockConnectionOverrides: Record<string, ConnectionOverride> = {};
 let mockAvailableTags: string[] = [];
 const mockUpdateOverride = vi.fn().mockResolvedValue(undefined);
@@ -54,6 +55,7 @@ vi.mock('react-router', async () => {
 vi.mock('@omniviewdev/runtime', () => ({
   usePluginContext: () => ({ meta: { id: 'kubernetes' } }),
   useConnection: () => ({ connection: { data: mockConnectionData } }),
+  useConnectionStatus: () => ({ entries: mockStatusEntries }),
   useConnectionMetadata: () => ({
     transportAvailable: true, supported: true, isLoading: false,
     snapshot: { active: true, entries: {
@@ -210,6 +212,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockConnectionID = 'test-cluster';
   mockConnectionData = makeConnection();
+  mockStatusEntries = [{ pluginID: 'kubernetes', connectionID: 'test-cluster', readiness: 'CONNECTED' }];
   mockConnectionOverrides = {};
   mockAvailableTags = [];
 });
@@ -229,24 +232,27 @@ describe('Sidebar cluster card', () => {
     expect(screen.getByText('my-cluster')).toBeInTheDocument();
   });
 
-  it('shows Connected chip when within expiry window', () => {
+  it('shows Connected from runtime readiness despite expired refresh data', () => {
+    mockConnectionData = makeConnection({ last_refresh: '2000-01-01T00:00:00Z', expiry_time: 1 });
     renderPage();
     expect(screen.getByText('Connected')).toBeInTheDocument();
   });
 
-  it('shows Disconnected chip when expired', () => {
-    mockConnectionData = makeConnection({
-      last_refresh: new Date(Date.now() - 600_000).toISOString(), // 10min ago
-      expiry_time: 60_000, // 1 min
-    });
-    renderPage();
+  it('shows Disconnected and disables Metrics readiness despite fresh refresh data', () => {
+    mockStatusEntries = [{ pluginID: 'kubernetes', connectionID: 'test-cluster', readiness: 'DISCONNECTED' }];
+    renderPage('metrics');
     expect(screen.getByText('Disconnected')).toBeInTheDocument();
+    expect(screen.getByTestId('metrics-content')).toHaveAttribute('data-connected', 'false');
   });
 
-  it('shows Disconnected when last_refresh is invalid', () => {
-    mockConnectionData = makeConnection({ last_refresh: 'not-a-date' });
-    renderPage();
+  it('does not borrow another plugin or cluster readiness', () => {
+    mockStatusEntries = [
+      { pluginID: 'other', connectionID: 'test-cluster', readiness: 'CONNECTED' },
+      { pluginID: 'kubernetes', connectionID: 'other-cluster', readiness: 'CONNECTED' },
+    ];
+    renderPage('metrics');
     expect(screen.getByText('Disconnected')).toBeInTheDocument();
+    expect(screen.getByTestId('metrics-content')).toHaveAttribute('data-connected', 'false');
   });
 
   it('uses displayName from overrides when set', () => {
@@ -565,9 +571,9 @@ describe('Edge cases', () => {
     expect(screen.getByText('test-cluster')).toBeInTheDocument();
   });
 
-  it('invalid date in last_refresh shows Disconnected', () => {
+  it('invalid refresh data does not override runtime readiness', () => {
     mockConnectionData = makeConnection({ last_refresh: 'garbage' });
     renderPage();
-    expect(screen.getByText('Disconnected')).toBeInTheDocument();
+    expect(screen.getByText('Connected')).toBeInTheDocument();
   });
 });

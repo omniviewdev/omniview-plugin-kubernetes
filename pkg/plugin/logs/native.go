@@ -7,15 +7,15 @@ import (
 	"log"
 	"sync"
 
-	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	"github.com/omniview/kubernetes/pkg/utils/kubeauth"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
 	sdklogs "github.com/omniviewdev/plugin-sdk/pkg/v1/logs"
+	"k8s.io/client-go/kubernetes"
 )
 
 // ClientBorrower holds the selected native client until its callback returns.
-type ClientBorrower func(context.Context, resourcev2.AccessRoute, func(context.Context, *clients.ClientSet) error) error
+type ClientBorrower func(context.Context, resourcev2.AccessRoute, func(context.Context, *kubernetes.Clientset) error) error
 
 func logRoute(ctx *types.PluginContext, route *resourcev2.AccessRoute) resourcev2.AccessRoute {
 	if route != nil {
@@ -81,10 +81,10 @@ func nativeHandler(borrow ClientBorrower) sdklogs.LogHandlerFunc {
 		go func() {
 			defer close(done)
 			sent := false
-			err := borrow(ctx.Context, logRoute(ctx, req.Route), func(nativeCtx context.Context, client *clients.ClientSet) error {
+			err := borrow(ctx.Context, logRoute(ctx, req.Route), func(nativeCtx context.Context, client *kubernetes.Clientset) error {
 				local := *ctx
 				local.Context = nativeCtx
-				body, err := PodLogHandler(&kubeauth.KubeClientBundle{Clientset: client.Clientset}, &local, req)
+				body, err := PodLogHandler(&kubeauth.KubeClientBundle{Clientset: client}, &local, req)
 				if err != nil {
 					return err
 				}
@@ -125,10 +125,10 @@ func nativeResolver(borrow ClientBorrower, resolve nativeResolverFunc) sdklogs.S
 		ready := make(chan resolved, 1)
 		go func() {
 			sent := false
-			err := borrow(ctx.Context, logRoute(ctx, opts.Route), func(nativeCtx context.Context, client *clients.ClientSet) error {
+			err := borrow(ctx.Context, logRoute(ctx, opts.Route), func(nativeCtx context.Context, client *kubernetes.Clientset) error {
 				local := *ctx
 				local.Context = nativeCtx
-				result, err := resolve(&kubeauth.KubeClientBundle{Clientset: client.Clientset}, &local, data, opts)
+				result, err := resolve(&kubeauth.KubeClientBundle{Clientset: client}, &local, data, opts)
 				if err != nil {
 					return err
 				}

@@ -10,6 +10,7 @@ import { useParams } from 'react-router'
 
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
+import ColumnPicker from '../../../../tables/ColumnFilter/ColumnPicker';
 import ResourceLinkCell from '../../corev1/Pod/cells/ResourceLinkCell';
 import cellStyles from '../../shared/cells/cells.module.css';
 import { withClusterResourceColumns } from '../../shared/columns';
@@ -103,6 +104,7 @@ const ClusterRoleBindingTable: React.FC = () => {
   return (
     <ResourceTable
       columns={columns}
+      columnPicker={ColumnPicker}
       connectionID={id}
       resourceKey={resourceKey}
       drawer={drawer}

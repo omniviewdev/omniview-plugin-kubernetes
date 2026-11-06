@@ -12,22 +12,44 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@omniviewdev/runtime', () => ({
   useRightDrawer: () => ({ showResourceSidebar: mocks.showResourceSidebar }),
-  useSnackbar: () => ({ showSnackbar: mocks.snackbar }),
+  useNotifications: () => ({ notify: mocks.snackbar }),
   parseAppError: (error: Error) => ({ detail: error.message }),
   useResourceTypes: () => ({ resourceTypes: { data: [] } }),
 }));
-vi.mock('@omniviewdev/runtime/api', () => ({ ResourceClient: {
-  Catalog: vi.fn(async () => ({ types: [{
-    type: 'k8s:apps/deployments', identityDimensions: [{ name: 'namespace' }],
-    representations: [{ id: 'native', schema: { document: {
-      'x-kubernetes-group-version-kind': [{ group: 'apps', version: 'v1', kind: 'Deployment' }],
-    } } }],
-  }] })),
-  ResolveReference: mocks.resolve,
-} }));
+vi.mock('@omniviewdev/runtime/api', () => ({
+  ResourceClient: {
+    Catalog: vi.fn(async () => ({
+      types: [
+        {
+          type: 'k8s:apps/deployments',
+          identityDimensions: [{ name: 'namespace' }],
+          representations: [
+            {
+              id: 'native',
+              schema: {
+                document: {
+                  'x-kubernetes-group-version-kind': [
+                    { group: 'apps', version: 'v1', kind: 'Deployment' },
+                  ],
+                },
+              },
+            },
+          ],
+        },
+      ],
+    })),
+    ResolveReference: mocks.resolve,
+  },
+}));
 
 const reference = {
-  address: { provider: 'kubernetes', authority: 'host-authority', type: 'k8s:apps/deployments', scope: [{ dimension: 'namespace', value: 'prod' }], id: 'web' },
+  address: {
+    provider: 'kubernetes',
+    authority: 'host-authority',
+    type: 'k8s:apps/deployments',
+    scope: [{ dimension: 'namespace', value: 'prod' }],
+    id: 'web',
+  },
   incarnation: 'dep-uid',
 };
 
@@ -44,7 +66,14 @@ const rsMeta = {
 describe('ObjectMetaSection owners', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.resolve.mockResolvedValue({ reference, route: { connection: 'conn-1' }, key: 'host-key', addressKey: 'host-address', targetId: 'host-target', representation: 'native' });
+    mocks.resolve.mockResolvedValue({
+      reference,
+      route: { connection: 'conn-1' },
+      key: 'host-key',
+      addressKey: 'host-address',
+      targetId: 'host-target',
+      representation: 'native',
+    });
   });
 
   it('links to the owning Deployment when a connection is known', async () => {
@@ -53,17 +82,22 @@ describe('ObjectMetaSection owners', () => {
     expect(screen.getByText('Owner')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Deployment' }));
 
-    await waitFor(() => expect(mocks.showResourceSidebar).toHaveBeenCalledWith({
-      pluginID: 'kubernetes',
-      reference,
-      route: { connection: 'conn-1' },
-      targetId: 'host-target',
-      representation: 'native',
-      resourceName: 'web',
-    }));
+    await waitFor(() =>
+      expect(mocks.showResourceSidebar).toHaveBeenCalledWith({
+        pluginID: 'kubernetes',
+        reference,
+        route: { connection: 'conn-1' },
+        targetId: 'host-target',
+        representation: 'native',
+        resourceName: 'web',
+      }),
+    );
     expect(mocks.resolve).toHaveBeenCalledWith('kubernetes', {
-      route: { connection: 'conn-1' }, type: 'k8s:apps/deployments',
-      scope: [{ dimension: 'namespace', value: 'prod' }], id: 'web', incarnation: 'dep-uid',
+      route: { connection: 'conn-1' },
+      type: 'k8s:apps/deployments',
+      scope: [{ dimension: 'namespace', value: 'prod' }],
+      id: 'web',
+      incarnation: 'dep-uid',
     });
     expect(screen.getByText('web-7d4b9c')).toBeInTheDocument();
     expect(screen.getByText('prod')).toBeInTheDocument();
@@ -71,12 +105,19 @@ describe('ObjectMetaSection owners', () => {
 
   it('keeps owner name identity when UID is absent and version differs', async () => {
     const owner = { ...rsMeta.ownerReferences[0], apiVersion: 'apps/v1beta1', uid: '' };
-    render(<ObjectMetaSection data={{ ...rsMeta, ownerReferences: [owner] }} connectionID="conn-1" />);
+    render(
+      <ObjectMetaSection data={{ ...rsMeta, ownerReferences: [owner] }} connectionID="conn-1" />,
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Deployment' }));
-    await waitFor(() => expect(mocks.resolve).toHaveBeenCalledWith('kubernetes', {
-      route: { connection: 'conn-1' }, type: 'k8s:apps/deployments',
-      scope: [{ dimension: 'namespace', value: 'prod' }], id: 'web', incarnation: undefined,
-    }));
+    await waitFor(() =>
+      expect(mocks.resolve).toHaveBeenCalledWith('kubernetes', {
+        route: { connection: 'conn-1' },
+        type: 'k8s:apps/deployments',
+        scope: [{ dimension: 'namespace', value: 'prod' }],
+        id: 'web',
+        incarnation: undefined,
+      }),
+    );
   });
 
   it('shows a plain chip without a connection', () => {

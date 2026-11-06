@@ -27,6 +27,11 @@ type eksAuthTransport struct {
 	Base http.RoundTripper
 }
 
+// WrappedRoundTripper exposes the owned transport for connection retirement.
+func (e *eksAuthTransport) WrappedRoundTripper() http.RoundTripper {
+	return e.base()
+}
+
 // builds the sts client for making the call to AWS to get the token
 func (e *eksAuthTransport) getStsClient(ctx context.Context) (*sts.Client, error) {
 	if e.ClusterName == "" {
@@ -65,20 +70,19 @@ func (e *eksAuthTransport) getStsClient(ctx context.Context) (*sts.Client, error
 func (e *eksAuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	ctx := req.Context()
 
-	client, err := e.getStsClient(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	e.mu.Lock()
-	defer e.mu.Unlock()
 
 	// prevent unnecessary calls to sts to get tokens, tokens are set to a known 15 minutes:
 	if time.Now().After(e.expiresAt) {
+		client, err := e.getStsClient(ctx)
+		if err != nil {
+			e.mu.Unlock()
+			return nil, err
+		}
 		log.Printf("token is expired, generating new token")
-
 		token, err := getEKSToken(ctx, client, e.ClusterName)
 		if err != nil {
+			e.mu.Unlock()
 			eksErr := fmt.Errorf("failed to generate EKS token: %w", err)
 			log.Print(eksErr.Error())
 			return nil, eksErr
@@ -89,9 +93,11 @@ func (e *eksAuthTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		e.token = token
 		e.expiresAt = time.Now().Add(time.Minute * 14)
 	}
+	token := e.token
+	e.mu.Unlock()
 
 	req2 := req.Clone(ctx)
-	req2.Header.Set("Authorization", "Bearer "+e.token)
+	req2.Header.Set("Authorization", "Bearer "+token)
 
 	resp, err := e.base().RoundTrip(req2)
 	if err != nil {

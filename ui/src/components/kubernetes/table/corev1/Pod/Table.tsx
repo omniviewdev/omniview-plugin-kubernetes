@@ -16,6 +16,7 @@ import { sumIntegerValues } from '@/utils/convert';
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
 import ResourceLinkChip from '../../../../shared/ResourceLinkChip';
+import ColumnPicker from '../../../../tables/ColumnFilter/ColumnPicker';
 import PodSidebar from '../../../sidebar/Pod';
 import ConditionsCell from '../../shared/cells/ConditionsCell';
 import { CopyableCell } from '../../shared/cells/CopyableCell';
@@ -270,6 +271,7 @@ const PodTable: React.FC = () => {
         resourceKey={resourceKey}
         drawer={drawer}
         contentWrapper={PodMetricsProvider}
+        columnPicker={ColumnPicker}
         toolbarFilters={[
           { columnId: 'node', placeholder: 'All Nodes', accessor: (r: Pod) => r?.spec?.nodeName },
           { columnId: 'controlledBy', placeholder: 'All Controllers', accessor: (r: Pod) => r?.metadata?.ownerReferences?.[0]?.name },

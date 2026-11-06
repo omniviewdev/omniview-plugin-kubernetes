@@ -26,6 +26,9 @@ type ClientSet struct {
 	DynamicClient   dynamic.Interface
 	RESTConfig      *rest.Config
 	HTTPClient      *http.Client
+	// StreamingClientset borrows the same generation without finite resource budgets.
+	StreamingClientset  *kubernetes.Clientset
+	StreamingHTTPClient *http.Client
 
 	informersMu     sync.Mutex
 	informers       map[informerKey]*informerSource

@@ -14,24 +14,28 @@ const mocks = vi.hoisted(() => {
     resources: vi.fn(),
     query: vi.fn(async () => ({})),
     loading: false,
+    sourceError: false,
     firstData: { records: [first, second] },
     targetId: 'host-target',
   };
 });
-vi.mock('@omniviewdev/base-ui', async (importOriginal) => ({
-  ...await importOriginal<typeof BaseUI>(),
-  Button: ({ children, disabled, onClick }: React.PropsWithChildren<{ disabled?: boolean; onClick?: () => void }>) => <button disabled={disabled} onClick={onClick}>{children}</button>,
-  Stack: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
-  Text: ({ children }: React.PropsWithChildren) => <span>{children}</span>,
-  Progress: () => null,
-  Skeleton: () => null,
-  DataTable: {
-    Root: ({ children, table }: React.PropsWithChildren<{ table: { getRowModel: () => { rows: Array<{ id: string; getIsSelected: () => boolean; toggleSelected: () => void }> } } }>) => <div>{table.getRowModel().rows.map((row) => <button key={row.id} aria-pressed={row.getIsSelected()} onClick={() => row.toggleSelected()}>{row.id}</button>)}{children}</div>,
-    Container: ({ children }: React.PropsWithChildren) => <table>{children}</table>,
-    Header: () => null,
-    VirtualBody: () => <tbody />,
-  },
-}));
+vi.mock('@omniviewdev/base-ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof BaseUI>();
+  return {
+    ...actual,
+    Button: ({ children, disabled, onClick }: React.PropsWithChildren<{ disabled?: boolean; onClick?: () => void }>) => <button disabled={disabled} onClick={onClick}>{children}</button>,
+    Stack: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
+    Text: ({ children }: React.PropsWithChildren) => <span>{children}</span>,
+    Progress: () => null,
+    Skeleton: () => null,
+    DataTable: {
+      Root: ({ children, table }: React.PropsWithChildren<{ table: React.ComponentProps<typeof BaseUI.DataTable.Root>['table'] }>) => <actual.DataTable.Root table={table}>{table.getRowModel().rows.map((row) => <button key={row.id} aria-pressed={row.getIsSelected()} onClick={() => row.toggleSelected()}>{row.id}</button>)}{children}</actual.DataTable.Root>,
+      Container: ({ children }: React.PropsWithChildren) => <table>{children}</table>,
+      Header: actual.DataTable.Header,
+      VirtualBody: () => <tbody />,
+    },
+  };
+});
 vi.mock('@omniviewdev/runtime/api', () => ({ MetricClient: { QueryAll: mocks.query } }));
 vi.mock('@omniviewdev/runtime', () => ({
   useResourceType: () => ({ resourceType: { data: { displayName: 'Charts', capabilities: [] } } }),
@@ -66,11 +70,12 @@ function MetricsConsumer({ columnVisibility, children }: PropsWithChildren<{ col
 
 beforeEach(() => {
   mocks.loading = false;
+  mocks.sourceError = false;
   mocks.targetId = 'host-target';
   mocks.resources.mockReset();
   mocks.resources.mockImplementation(({ request }) => {
     const data = mocks.loading ? undefined : mocks.firstData;
-    return { acquired: data ? { request, page: data } : undefined, resources: {
+    return { sourceError: mocks.sourceError, acquired: data ? { request, page: data } : undefined, resources: {
       data,
       isLoading: mocks.loading, isFetching: mocks.loading, isSuccess: !mocks.loading, refetch: vi.fn(),
     } };
@@ -79,6 +84,13 @@ beforeEach(() => {
 afterEach(() => { client.clear(); localStorage.clear(); mocks.query.mockClear(); });
 
 describe('resource collection selections', () => {
+  it('shows retained resources when source updates fail', () => {
+    mocks.sourceError = true;
+    render(<ResourceTable connectionID="connection" resourceKey="helm:charts" columns={columns} />);
+    expect(screen.getByText('Live updates unavailable. Showing the last acquired resources.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'host-first' })).toBeTruthy();
+  });
+
   it('selects host keys across the collection without source-page controls', () => {
     render(<ResourceTable connectionID="connection" resourceKey="helm:charts" columns={columns} />);
     fireEvent.click(screen.getByRole('button', { name: 'host-first' }));
@@ -115,4 +127,19 @@ it('reads persisted hidden metric columns before mounting the query consumer', a
   fireEvent.click(screen.getByRole('button', { name: 'Show CPU' }));
   await waitFor(() => expect(mocks.query).toHaveBeenCalledTimes(1));
   expect(JSON.parse(localStorage.getItem('kubernetes-test-k8s:/pods-column-visibility')!)).toMatchObject({ cpuUsage: true, memUsage: false });
+});
+
+it('keeps required visible fields shown without revealing locked hidden fields', () => {
+  localStorage.setItem('kubernetes-connection-helm:charts-column-visibility', JSON.stringify({
+    name: false, cpuUsage: false, memUsage: true,
+  }));
+  const policyColumns = [
+    { id: 'name', accessorKey: 'name', header: 'Name', enableHiding: false },
+    { id: 'cpuUsage', accessorKey: 'name', header: 'CPU', enableHiding: false, meta: { defaultHidden: true } },
+    { id: 'memUsage', accessorKey: 'name', header: 'Memory', meta: { defaultHidden: true } },
+  ];
+  render(<ResourceTable connectionID="connection" resourceKey="helm:charts" columns={policyColumns} />);
+  expect(screen.getByRole('columnheader', { name: /Name/ })).toBeTruthy();
+  expect(screen.getByRole('columnheader', { name: /Memory/ })).toBeTruthy();
+  expect(screen.queryByRole('columnheader', { name: /CPU/ })).toBeNull();
 });

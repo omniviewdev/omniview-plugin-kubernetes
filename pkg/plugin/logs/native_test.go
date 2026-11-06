@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
 	sdklogs "github.com/omniviewdev/plugin-sdk/pkg/v1/logs"
@@ -23,9 +22,9 @@ func testBorrower(t *testing.T, server *httptest.Server, released chan struct{})
 	t.Helper()
 	client, err := kubernetes.NewForConfig(&rest.Config{Host: server.URL})
 	require.NoError(t, err)
-	return func(ctx context.Context, route resourcev2.AccessRoute, use func(context.Context, *clients.ClientSet) error) error {
+	return func(ctx context.Context, route resourcev2.AccessRoute, use func(context.Context, *kubernetes.Clientset) error) error {
 		defer close(released)
-		return use(ctx, &clients.ClientSet{Clientset: client})
+		return use(ctx, client)
 	}
 }
 
@@ -89,6 +88,35 @@ func TestNativeFiniteBoundsAndOptions(t *testing.T) {
 			require.Equal(t, "30", query.Get("sinceSeconds"))
 		})
 	}
+}
+
+func TestNativeSinceTimeOverridesSinceSeconds(t *testing.T) {
+	queries := make(chan url.Values, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		queries <- r.URL.Query()
+		if r.URL.Query().Has("sinceTime") && r.URL.Query().Has("sinceSeconds") {
+			http.Error(w, "only one of sinceSeconds or sinceTime may be specified", http.StatusBadRequest)
+			return
+		}
+		_, _ = io.WriteString(w, "2026-11-03T00:00:01Z hello\n")
+	}))
+	defer server.Close()
+	released := make(chan struct{})
+	ctx := &types.PluginContext{Context: context.Background(), Connection: &types.Connection{ID: "selected"}}
+	since := time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC)
+	stream, err := nativeHandler(testBorrower(t, server, released))(ctx, sdklogs.LogStreamRequest{
+		Labels:    map[string]string{"pod": "pod", "namespace": "ns"},
+		SinceTime: &since, SinceSeconds: 30,
+	})
+	require.NoError(t, err)
+	defer stream.Close()
+	body, err := io.ReadAll(stream)
+	require.NoError(t, err)
+	require.Contains(t, string(body), "hello")
+	awaitReleased(t, released)
+	query := <-queries
+	require.Equal(t, since.Format(time.RFC3339), query.Get("sinceTime"))
+	require.Empty(t, query.Get("sinceSeconds"))
 }
 
 func TestNativeFollowLeaseCloseAndCancel(t *testing.T) {

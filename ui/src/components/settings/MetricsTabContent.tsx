@@ -131,7 +131,8 @@ const MetricsTabContent: React.FC<Props> = (props) => (
 
 const MetricsForm: React.FC<Props> = ({ pluginID, connectionID, connected }) => {
   const queryClient = useQueryClient();
-  const { connectionOverrides, updateOverride } = useClusterPreferences(pluginID);
+  const preferences = useClusterPreferences(pluginID);
+  const { connectionOverrides } = preferences;
   const existing = React.useMemo(
     () => connectionOverrides[connectionID] ?? {},
     [connectionOverrides, connectionID],
@@ -168,11 +169,11 @@ const MetricsForm: React.FC<Props> = ({ pluginID, connectionID, connected }) => 
     if (namespace) mc.prometheusNamespace = namespace;
     const portNum = parseInt(port, 10);
     if (portNum > 0) mc.prometheusPort = portNum;
-    await updateOverride(connectionID, {
+    await preferences.updateOverride(connectionID, {
       ...existing,
       metricConfig: Object.keys(mc).length > 0 ? mc : undefined,
     });
-  }, [service, namespace, port, connectionID, existing, updateOverride]);
+  }, [service, namespace, port, connectionID, existing, preferences]);
 
   const serviceId = useId();
   const namespaceId = useId();

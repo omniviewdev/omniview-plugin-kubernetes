@@ -9,6 +9,7 @@ import React from 'react';
 import { LuClock } from 'react-icons/lu';
 import { useParams } from 'react-router'
 
+import ColumnPicker from '../../../../tables/ColumnFilter/ColumnPicker';
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
 import ResourceLinkCell from '../../corev1/Pod/cells/ResourceLinkCell';
@@ -215,6 +216,7 @@ This field is beta-level. It can be used when the \`JobPodFailurePolicy\` featur
   return (
     <ResourceTable
       columns={columns}
+      columnPicker={ColumnPicker}
       connectionID={id}
       resourceKey={resourceKey}
       drawer={drawer}
