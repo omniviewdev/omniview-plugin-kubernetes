@@ -1004,8 +1004,8 @@ rather than adding unsupported manifest fields.
 
 Registry installs retain pnpm's 24-hour release-age protection. Only coordinated
 `@omniviewdev/*` packages are exempted; linked source worktrees resolve locally.
-The current frontend cohort uses `@omniviewdev/base-ui` 0.14.0,
-`@omniviewdev/editors` 6.1.8, and runtime/Vite plugin 0.30.0.
+The current frontend cohort uses `@omniviewdev/base-ui` 0.15.0,
+`@omniviewdev/editors` 6.2.0, and runtime/Vite plugin 0.30.2.
 The published runtime and Vite plugin must match; host application builds use the host lockfile.
 The backend pins SDK `v0.15.0` (`427ef1da1f1d`) and replaces
 grpc-go with `github.com/omniviewdev/grpc-go` at
