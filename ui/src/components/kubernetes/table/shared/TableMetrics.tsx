@@ -94,7 +94,7 @@ export function TableMetricsProvider({ columnVisibility, recordsByBody, children
   }, [observation.results]);
   const tokenFor = useCallback((body: object) => recordsByBody.get(body)?.key, [recordsByBody]);
   const error = scope.error ?? observation.error;
-  const loading = !!scope.loading || (scope.ready && !error && (targets.length === 0 || observation.isLoading));
+  const loading = !!scope.loading || (scope.ready && !error && (targets.length === 0 || observation.isFetching));
   const value = useMemo(() => ({ metrics, register, tokenFor, error, loading }), [metrics, register, tokenFor, error, loading]);
   return <ValuesContext.Provider value={value}>{children}</ValuesContext.Provider>;
 }
