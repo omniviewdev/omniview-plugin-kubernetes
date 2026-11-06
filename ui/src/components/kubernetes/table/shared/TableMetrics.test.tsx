@@ -155,7 +155,7 @@ it('does not fall back to native when an explicit external choice lacks its sour
 it('selects the explicit native source for catalog and observation together', () => {
   state.source = { mode: 'native', source: undefined };
   render(<CatalogTable selected resourceKey="k8s:/nodes" />);
-  const source = { plugin_id: 'kubernetes', connection_id: 'test', datasource_uid: '', datasource_kind: 'metrics-server' };
+  const source = { plugin_id: 'kubernetes', connection_id: 'test', native: true, datasource_uid: '', datasource_kind: '' };
   expect(state.catalog.mock.lastCall?.[0]).toMatchObject({ source, enabled: true });
   expect(state.observe.mock.lastCall?.[0]).toMatchObject({ source, enabled: true });
 });

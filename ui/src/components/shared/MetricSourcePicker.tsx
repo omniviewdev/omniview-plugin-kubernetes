@@ -12,7 +12,7 @@ export interface MetricSourcePickerProps {
 }
 
 export function metricSourceIdentity(source: MetricSourceRef): string {
-  return JSON.stringify([source.plugin_id, source.connection_id, source.datasource_uid, source.datasource_kind]);
+  return JSON.stringify([source.plugin_id, source.connection_id, source.native ?? false, source.datasource_uid, source.datasource_kind]);
 }
 
 /** Routing controls stay independent from chart and metric-selection preferences. */

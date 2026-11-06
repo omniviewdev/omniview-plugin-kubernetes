@@ -23,7 +23,7 @@ vi.mock('@omniviewdev/runtime/api', () => ({
   },
 }));
 
-import MetricSourcePicker from './MetricSourcePicker';
+import MetricSourcePicker, { metricSourceIdentity } from './MetricSourcePicker';
 
 afterEach(cleanup);
 
@@ -37,4 +37,10 @@ it('offers external sources without reporting native-only providers as unavailab
   expect(screen.queryByText(/provider source catalogs unavailable|Native metrics have no provider configuration/)).toBeNull();
   expect(screen.getByRole('option', { name: 'Native' })).toBeTruthy();
   client.clear();
+});
+
+it('distinguishes native source identity without inventing a datasource kind', () => {
+  const owner = { plugin_id: 'kubernetes', connection_id: 'kind-kind', datasource_uid: '', datasource_kind: '' };
+  expect(metricSourceIdentity({ ...owner, native: true })).not.toBe(metricSourceIdentity(owner));
+  expect(metricSourceIdentity({ ...owner, native: false })).toBe(metricSourceIdentity(owner));
 });

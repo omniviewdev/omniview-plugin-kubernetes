@@ -1,3 +1,5 @@
+import console from 'node:console';
+import process from 'node:process';
 import { readdir, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import vm from 'node:vm';

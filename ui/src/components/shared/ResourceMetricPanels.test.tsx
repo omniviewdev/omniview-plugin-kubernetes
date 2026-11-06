@@ -18,6 +18,7 @@ const state = vi.hoisted(() => ({
   defaults: vi.fn(),
   displays: {} as Record<string, string>,
   panel: vi.fn(),
+  details: vi.fn(),
   parse: vi.fn(),
   normalizedError: { code: 'UNAVAILABLE', title: 'Metric unavailable', detail: 'The datasource rejected this query.' },
   catalogError: null as Error | null,
@@ -37,11 +38,11 @@ vi.mock('@omniviewdev/runtime', () => ({
   useMetricObservation: (input: { shape: string }) => { state.observe(input); return input.shape === 'current' ? state.currentObservation : state.observation; },
 }));
 vi.mock('@omniviewdev/base-ui/metrics', () => ({
-  MetricPanel: ({ children, title, actions, state: panelState }: { children: ReactNode; title: string; actions: ReactNode; state: unknown }) => {
+  MetricPanel: ({ children, title, actions, details, state: panelState }: { children: ReactNode; title: string; actions: ReactNode; details: { content: ReactNode }; state: unknown }) => {
     state.panel(panelState);
-    return <section aria-label={title}><h2>{title}</h2>{actions}{children}</section>;
+    return <section aria-label={title}><h2>{title}</h2>{actions}{children}{details.content}</section>;
   },
-  MetricDetails: () => null,
+  MetricDetails: (props: unknown) => { state.details(props); return null; },
   MetricDisplayPicker: ({ label, options, onChange }: { label: string; options: { value: 'area' | 'line' | 'sample-bars' | 'stat' | 'capacity'; label: string }[]; onChange: (value: 'area' | 'line' | 'sample-bars' | 'stat' | 'capacity') => void }) =>
     <div>{options.map(option => <button key={option.value} aria-label={`${label}: ${option.label}`} onClick={() => onChange(option.value)}>{option.label}</button>)}</div>,
   MetricValue: ({ value, size }: { value: number; size: string }) => <span data-size={size}>Value {value}</span>, CapacityBar: () => null,
@@ -56,6 +57,7 @@ afterEach(() => {
   state.observation.isFetching = false; state.observation.results = []; state.currentObservation.results = [];
   state.extraMetrics = []; state.selectedIDs = null; state.useDefaults = false; state.update.mockClear(); state.defaults.mockClear();
   state.displays = {}; state.panel.mockClear(); state.parse.mockClear(); state.observation.error = null; state.catalogError = null;
+  state.details.mockClear();
   state.normalizedError.detail = 'The datasource rejected this query.';
 });
 
@@ -76,6 +78,14 @@ it('never invents native sample history or a range control', () => {
   expect(state.observe.mock.calls.map(([input]) => input).filter(input => input.enabled)).toEqual([
     expect.objectContaining({ shape: 'current', metricIDs: ['cpu'] }),
   ]);
+});
+
+it('labels native measurements without an invented datasource kind', () => {
+  state.shapes = ['current'];
+  state.currentObservation.results = [{ id: 'native', metricID: 'cpu', resourceToken: 'pod', status: 'ok', value: 2, points: [],
+    source: { plugin_id: 'kubernetes', connection_id: 'cluster', native: true, datasource_kind: '', datasource_uid: '' } }];
+  render(<ResourceMetricPanels connectionID="cluster" resourceKey="k8s:/pods" resourceID="pod" />);
+  expect(state.details.mock.lastCall?.[0]).toMatchObject({ source: 'Native' });
 });
 
 it('groups mixed native and external selection into disjoint supported shapes', () => {

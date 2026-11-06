@@ -33,7 +33,7 @@ function metricError(error: unknown) {
 export default function ResourceMetricPanels(props: ResourceMetricPanelsProps) {
   const selection = useMetricViewSourceSelection(PLUGIN_ID, props.connectionID, props.resourceKey);
   const source = props.source ?? (selection.selection?.mode === 'external' ? selection.selection.source
-    : selection.selection?.mode === 'native' ? { plugin_id: PLUGIN_ID, connection_id: props.connectionID, datasource_uid: '', datasource_kind: 'metrics-server' } : undefined);
+    : selection.selection?.mode === 'native' ? { plugin_id: PLUGIN_ID, connection_id: props.connectionID, native: true, datasource_uid: '', datasource_kind: '' } : undefined);
   const ready = !selection.isLoading && !selection.error;
   const scope = { ownerPluginID: PLUGIN_ID, ownerConnectionID: props.connectionID, resourceKey: props.resourceKey, bindingID: props.bindingID, source, enabled: ready };
   const catalog = useMetricCatalog(scope);
@@ -163,7 +163,7 @@ function SelectedMetricPanels({ catalog, sourceControl, ...props }: ResourceMetr
               onChange={value => { void update({ displays: { [metric.id]: value === 'stat' ? 'value' : value } }); }} />}
           </Stack>}
           details={{ color, open: preferences.details[metric.id] ?? false, onOpenChange: open => { void update({ details: { [metric.id]: open } }); },
-            content: <MetricDetails source={result?.source?.datasource_kind ?? catalog.data?.source.datasource_kind ?? 'Unknown'} labels={result?.dimensions ?? {}}
+            content: <MetricDetails source={(result?.source ?? catalog.data?.source)?.native ? 'Native' : result?.source?.datasource_kind || catalog.data?.source.datasource_kind || 'Unknown'} labels={result?.dimensions ?? {}}
               samples={results.map(sample => ({ id: sample.id, label: props.targets ? sample.resourceToken : history ? 'History' : 'Current',
                 status: sample.status !== 'ok' ? 'error' : history ? 'ok' : sample.freshness === 'delayed' ? 'delayed' : sample.observedAt === null ? 'unknown' : 'ok',
                 updatedAtMs: sample.observedAt ?? sample.points.at(-1)?.timeMs, validUntilMs: sample.freshUntilMs ?? undefined }))}

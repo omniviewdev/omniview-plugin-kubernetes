@@ -21,7 +21,7 @@ const ValuesContext = createContext<{
 export function useTableMetrics<T extends object>(scope: Scope, defaults: Readonly<Record<string, string>>) {
   const selection = useMetricViewSourceSelection(PLUGIN_ID, scope.ownerConnectionID, scope.resourceKey);
   const source = useMemo(() => scope.source ?? (selection.selection?.mode === 'native'
-    ? { plugin_id: PLUGIN_ID, connection_id: scope.ownerConnectionID, datasource_uid: '', datasource_kind: 'metrics-server' }
+    ? { plugin_id: PLUGIN_ID, connection_id: scope.ownerConnectionID, native: true, datasource_uid: '', datasource_kind: '' }
     : selection.selection?.mode === 'external' ? selection.selection.source : undefined),
   [scope.source, scope.ownerConnectionID, selection.selection]);
   const selectedScope = { ...scope, source };

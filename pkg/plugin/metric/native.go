@@ -71,7 +71,7 @@ func nativeContext(pc *types.PluginContext) error {
 }
 
 func nativeSource(pc *types.PluginContext) sdkmetric.MetricSourceRef {
-	return sdkmetric.MetricSourceRef{PluginID: "kubernetes", ConnectionID: pc.Connection.ID, DatasourceKind: "metrics-server"}
+	return sdkmetric.MetricSourceRef{PluginID: "kubernetes", ConnectionID: pc.Connection.ID, Native: true}
 }
 
 func (p *nativeProvider) catalog(pc *types.PluginContext, request sdkmetric.ResourceMetricsCatalogRequest) (*sdkmetric.ResourceMetricsCatalog, error) {

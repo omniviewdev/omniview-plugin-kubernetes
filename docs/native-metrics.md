@@ -1,21 +1,44 @@
-# Native Pod metrics
+# Kubernetes-owned metrics
 
 The Kubernetes plugin implements the SDK's optional finite resource metrics capability. The host selects the active Kubernetes connection, admits actual resource-v2 references and routes, and owns polling, shared in-flight work, result reuse and observation publication. The provider executes bounded reads only. It never schedules background metric collection or fetches resource bodies to repair missing context.
 
 ## Catalog and units
 
-`GetResourceMetricsCatalog(ctx, "k8s:/pods")` returns these descriptors:
+For the logical native source, `GetResourceMetricsCatalog(ctx, request)` returns these Pod and Node descriptors, filtered by `request.ResourceKey`:
 
 | Metric ID | Unit | Measurement | Shapes |
 | --- | --- | --- | --- |
 | `kubernetes.pod.cpu.usage` | `cores` | Sum of container CPU usage averaged over the source measurement window | `current` |
 | `kubernetes.pod.memory.working_set` | `bytes` | Sum of container working-set memory | `current` |
+| `kubernetes.node.cpu.usage` | `cores` | Node CPU usage averaged over the source measurement window | `current` |
+| `kubernetes.node.memory.working_set` | `bytes` | Node working-set memory | `current` |
 
 CPU quantities retain sub-millicore precision. One core is `1`, not `1000`. Memory is physical bytes, not formatted MiB. Neither descriptor is utilization, a resource request, a limit, capacity, or a per-container series. UI capacity requires real resource requests/limits obtained through the owning resource view.
 
-The selected source is `MetricSourceRef{PluginID: "kubernetes", ConnectionID: <selected configured connection>, DatasourceKind: "metrics-server", DatasourceUID: ""}`. `PluginID` is the plugin's manifest/routing ID, not the legacy metric provider ID `k8s-metrics`. Other resource keys return an empty finite catalog. This does not remove genuine legacy Node, cluster or Prometheus operations.
+The selected source is `MetricSourceRef{PluginID: "kubernetes", ConnectionID: <selected configured connection>, Native: true}`. Native sources have empty `DatasourceKind` and `DatasourceUID`; metrics-server remains an internal Kubernetes implementation detail, not a datasource identity. `PluginID` is the plugin's manifest/routing ID, not the legacy metric provider ID `k8s-metrics`. Native source plugin and connection must match the resource owner. Other resource keys return an empty finite catalog. This does not remove genuine legacy Node, cluster or Prometheus operations.
 
 The catalog advertises `MaxSampleAge: 2 * time.Minute` (120,000,000,000 nanoseconds in JSON). A current sample becomes delayed after its actual `ObservedAt` plus two minutes. This source policy does not expire host cache entries, prescribe polling, or classify historical range points. A zero policy means freshness is unknown; it does not mean immediate expiry.
+
+## Owner catalog and external mappings
+
+`GetMetricOwnerCatalog` is Kubernetes' optional owner-metadata capability. It returns 26 definitions: 24 Pod definitions and two native-only Node definitions. The host discovers definitions from the resource owner, not from Grafana. Grafana remains a generic PromQL executor. Catalog discovery does not open a Kubernetes metrics client or query a datasource.
+
+The Pod CPU and memory IDs above retain their canonical IDs and native capability. Their mapped PromQL recipes support `current` and `range`; the native metrics-server implementation still supports only `current`. The other 22 Pod recipes use these IDs:
+
+| IDs, each prefixed with `kubernetes.pod.` | Unit |
+| --- | --- |
+| `memory_rss`, `memory_cache`, `memory_total_usage`, `filesystem_usage` | `bytes` |
+| `network_receive`, `network_transmit`, `disk_read`, `disk_write` | `bytes_per_second` |
+| `cpu_throttling` | `percent` |
+| `restarts`, `processes`, `threads` | `count` |
+| `cpu_requests`, `cpu_limits` | `cores` |
+| `memory_requests`, `memory_limits` | `bytes` |
+| `network_receive_packets`, `network_transmit_packets`, `network_receive_drops`, `network_transmit_drops`, `network_receive_errors`, `network_transmit_errors` | `count_per_second` |
+
+These recipes preserve the cAdvisor and kube-state-metrics aggregation, exporter units, rate windows, network-interface deduplication, and zero-denominator throttle guard. All mapped Pod results identify `cluster`, `namespace`, and `pod`. There are no unprefixed finite aliases. Genuine legacy `prom_*` consumers keep their separate IDs and execution paths.
+
+The catalog declares public scope key `cluster`, named **Cluster label value**. This is the actual exporter label value, not the connection ID or resource authority. Required scope derives from required scope bindings on the effective mappings. Namespace and Pod bindings explicitly approve `/metadata/namespace` and `/metadata/name`. The host projects those scalars from admitted observed resource bodies through the owning schema's body guard; Grafana reads only host-provided public projections. Neither provider adds per-object GETs or reconstructs authority from row names. The two native-only Node definitions have no PromQL recipe, resource projections, or invented history.
+
 
 ## API migration
 
@@ -46,7 +69,7 @@ response, err := finiteProvider.QueryResources(callerPluginContext, query)
 
 `finiteProvider` is the SDK `FiniteQueryProvider`. In production the host coordinator invokes it through the SDK transport, not from an additional UI scheduler. `callerPluginContext.Context` must be non-nil and cancellable; `Connection` contains the selected source credentials only. The SDK keeps target admission leases and selected connection generation valid throughout dispatch. The provider checks selected source/route equality and native reference shape again; it does not grant authority from the request itself.
 
-The callback is registered through `PluginOpts.ResourceMetricsCatalogFunc` and `PluginOpts.QueryResourcesFunc`. Catalog units and shapes are authoritative. Old processes without finite support fail explicitly; no per-object legacy query adapter exists. Native range queries return unsupported at catalog/SDK admission, or explicit `unsupported` results when invoking the provider callback directly. No local polling history is represented as source history.
+The callbacks are registered through `PluginOpts.GetMetricOwnerCatalogFunc`, `PluginOpts.ResourceMetricsCatalogFunc`, and `PluginOpts.QueryResourcesFunc`. Catalog units and shapes are authoritative. Old processes without finite support fail explicitly; no per-object legacy query adapter exists. Native range queries return unsupported at catalog/SDK admission, or explicit `unsupported` results when invoking the provider callback directly. No local polling history is represented as source history.
 
 ## Result meaning and provenance
 
