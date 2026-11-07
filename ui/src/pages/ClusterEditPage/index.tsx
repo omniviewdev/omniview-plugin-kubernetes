@@ -252,7 +252,7 @@ const ClusterEditForm: React.FC<{ connectionId: string }> = ({ connectionId }) =
         {section === 'metrics' && (
           <SectionWrapper
             title="Metrics"
-            description="Configure Prometheus metrics collection for this cluster."
+            description="Choose this cluster’s metric source and query mappings."
           >
             <MetricsTabContent
               pluginID={meta.id}

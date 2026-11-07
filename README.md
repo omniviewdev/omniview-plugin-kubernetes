@@ -33,6 +33,22 @@ Cluster avatar initials tolerate leading, trailing, and repeated whitespace or
 dash separators while a display name is being edited. Whitespace-only names use
 `NA`; the display name itself is not normalized or changed.
 
+Pod detail metrics use host-owned observations with canonical resource references
+and access routes. Metrics-server provides current CPU (cores) and memory working
+set (bytes), not historical series. The Metrics view shows native current values
+without a time-range control and keeps genuine Prometheus history separate. Missing
+samples and unknown capacities are never rendered as zero or inferred limits.
+Pod totals are not attributed to individual containers; container resource cards
+show only configured requests and limits. Source details distinguish UID-verified
+samples from name-scoped measurements.
+
+Metric selection, display, layout, details, and absolute or relative time choices
+persist in host profile preferences for the plugin and resource type. Revision
+checks protect concurrent writes, and save failures remain visible in the view.
+
+Selection chips, values, charts, and details use the same categorical theme color.
+Colors follow the saved metric order and stay consistent during refreshes and Pod changes.
+
 ## Production notification compatibility
 
 Plugin notifications use the runtime's `useNotifications` API, not its retired
@@ -365,6 +381,11 @@ only when CPU or memory columns are visible in a visible document. Persisted col
 visibility applies before the observer mounts; pausing the observer does not
 remount table rows or discard selection, filtering, focus, or scroll. Dashboard
 metric consumers also pause while the document is hidden.
+Pod and Node tables discover current-value metric columns from the admitted source
+catalog. Custom columns start hidden and appear in the column picker without a
+Kubernetes plugin rebuild. Visible metric columns contribute to one shared host
+observation over mounted rows; cells never fetch. Catalog and observation use the
+same durable source choice, including explicit native or external selection.
 The single visible clock also checks wall-clock and time-zone changes once per
 second, refreshing old labels after clock corrections without formatting them
 on ordinary young-cell ticks.
@@ -397,7 +418,7 @@ Regression checks:
 ```bash
 cd ui
 pnpm exec vitest run src/components/tables/ColumnFilter/useDynamicResourceColumns.test.tsx
-pnpm exec vitest run src/utils/ageClock.test.tsx src/hooks/usePodMetricsBatch.test.tsx src/components/kubernetes/table/corev1/Pod/PodMetricsProvider.test.tsx
+pnpm exec vitest run src/utils/ageClock.test.tsx src/components/kubernetes/table/shared/TableMetrics.test.tsx src/components/shared/table/ResourceTable/index.test.tsx
 AGE_CLOCK_BENCH=1 pnpm exec vitest run src/components/kubernetes/table/shared/cells/AgeCell.benchmark.test.tsx --silent=false --reporter=verbose
 cd ..
 GOWORK=off GOFLAGS= go test ./pkg/plugin/resource/resourcers -count=1
@@ -882,7 +903,7 @@ The plugin supports two metrics backends:
 | **metrics-server** | Pod and node CPU/memory usage                                                                                                                                        |
 | **Prometheus**     | Time-series metrics: CPU throttle rate, memory working set, network I/O, disk throughput, IOPS, filesystem usage, OOM kills, restart counts, probe latency, and more |
 
-Metrics are displayed in the dashboard, node sidebars, and pod sidebars as interactive time-series graphs.
+Native Pod CPU and memory cells use one host-owned current observation for mounted virtual rows, including overscan. Targets retain host-issued references, routes, and row membership; table rows remain unchanged. Hiding metric columns or the document pauses collection without remounting table content. Overlapping Pod detail observations share host collection. Missing samples display as missing, never zero, and cells do not invent capacity limits. Native metrics-server samples are current values, not fabricated time-series history. Genuine Prometheus and Node consumers retain their existing paths. See [native metrics](docs/native-metrics.md) for source provenance and backend limits.
 
 ## Installation
 
@@ -956,9 +977,17 @@ subject to Kubernetes authorization and admission policy.
 
 ### Prometheus Integration
 
-To enable advanced metrics, configure a Prometheus endpoint in the cluster settings. The plugin will query Prometheus for time-series data and display it alongside metrics-server data.
+For finite host-owned Pod metrics, configure a Grafana provider connection in global **Settings → Metrics** and discover its Prometheus datasource. Kubernetes supplies the owner catalog: 24 Pod definitions, including the canonical CPU/memory IDs and 22 `kubernetes.pod.*` recipes, plus two native-only Node definitions. Grafana executes mappings but does not own Kubernetes definitions. Global settings can override shared mappings. Then open the owning Kubernetes connection's **Cluster Settings → Metrics**, bind the provider connection and datasource, set **Cluster label value** to the actual exporter label, and save the connection metrics binding. Choose **Supplement native metrics** or **Replace mapped metrics** explicitly. A provider health test alone does not prove datasource query access.
+
+The logical native source uses the owning plugin and connection with `native: true` and empty datasource kind/UID. Kubernetes keeps metrics-server internal and supplies current Pod/Node CPU/memory only, never range history. Mapped Prometheus observations can supply genuine retained Pod series, while missing counters and unsupported native history remain unavailable. Owner-declared resource projections use only observed `/metadata/name` and `/metadata/namespace` scalars; no per-object GET repairs missing context. Existing cluster/namespace Prometheus consumers still use their genuine legacy endpoint/query configuration; the owner-connection binding does not migrate those consumers. See [Kubernetes-owned metrics](docs/native-metrics.md) for IDs, units, scope, and provenance.
+
+For a manual real Kind/Prometheus/Grafana fixture, see [the metrics lab](hack/metrics-lab/README.md). It uses private kubeconfig credentials, loopback-only forwards, and two actual application Pods.
 
 ## Development
+
+### Manual real-cluster metrics development
+
+Use [hack/metrics-lab](hack/metrics-lab/README.md) to install the pinned monitoring stack and two bounded CPU/HTTP/I/O workloads into an existing disposable local Kind cluster. Follow its setup, direct telemetry verification, and IDE connection steps. The fixture never writes ambient kubeconfig or creates/deletes a cluster; it rejects unowned release/object collisions. Do not reset another lab or replace existing port-forwards. This manual fixture adds no CI workflow and does not install metrics-server.
 
 Resource-toolbar Create, search, filter and settings controls should consistently request `size="sm"` and rely on the shared density scale rather than fixed pixel heights. The host supplies shared `@omniviewdev/base-ui`, so shared styling fixes reach the plugin through the host's library release.
 

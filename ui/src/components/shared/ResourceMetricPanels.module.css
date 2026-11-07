@@ -1,0 +1,7 @@
+.toolbar, .selection, .timeControls { display: flex; align-items: center; gap: var(--ov-space-stack-sm); }
+.toolbar { flex-wrap: wrap; justify-content: space-between; }
+.selection { flex-wrap: wrap; }
+.timeControls { margin-left: auto; flex: 0 0 auto; }
+.swatch { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 2px; }
+.options { display: flex; flex-direction: column; max-height: 300px; overflow-y: auto; }
+.option { justify-content: space-between; text-align: left; width: 100%; }

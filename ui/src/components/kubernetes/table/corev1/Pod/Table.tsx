@@ -9,34 +9,55 @@ import React from 'react';
 import { LuContainer } from 'react-icons/lu';
 import { useParams } from 'react-router'
 
-import { PLUGIN_ID } from '@/pluginId';
-import { sumIntegerValues } from '@/utils/convert';
 
 
+import ResourceLinkChip from '../../../../shared/ResourceLinkChip';
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
-import ResourceLinkChip from '../../../../shared/ResourceLinkChip';
 import ColumnPicker from '../../../../tables/ColumnFilter/ColumnPicker';
 import PodSidebar from '../../../sidebar/Pod';
+import { podMetricPresentation } from '../../../sidebar/Pod/podMetricBound';
+import { PodMetricsView } from '../../../sidebar/Pod/PodMetricsSection';
 import ConditionsCell from '../../shared/cells/ConditionsCell';
 import { CopyableCell } from '../../shared/cells/CopyableCell';
 import { withNamespacedResourceColumns } from '../../shared/columns';
 import { inclusionFilter, ownerRefFilter } from '../../shared/filters';
+import { TableMetricsProvider, TableMetricsScope, useTableMetrics } from '../../shared/TableMetrics';
 
 import { drawerActions } from './actions';
 import ContainerPhaseCell from './cells/ContainerPhaseCell';
 import ContainerStatusCell from './cells/ContainerStatusCell';
-import MetricUsageCell from './cells/MetricUsageCell';
 import ResourceLinkCell from './cells/ResourceLinkCell';
-import PodMetricsProvider from './PodMetricsProvider';
+
+import { PLUGIN_ID } from '@/pluginId';
+import { sumIntegerValues } from '@/utils/convert';
 
 
 const resourceKey = 'k8s:/pods';
+const defaultMetrics = {
+  'kubernetes.pod.cpu.usage': 'cpuUsage',
+  'kubernetes.pod.memory.working_set': 'memUsage',
+};
 
 
 
 const PodTable: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
+  const metrics = useTableMetrics<Pod>({ ownerConnectionID: id, resourceKey }, defaultMetrics, {
+    headers: { 'kubernetes.pod.cpu.usage': 'CPU', 'kubernetes.pod.memory.working_set': 'Memory' },
+    cell: (pod, metricID) => {
+      const resource = metricID === 'kubernetes.pod.cpu.usage' ? 'cpu' : metricID === 'kubernetes.pod.memory.working_set' ? 'memory' : null;
+      if (!resource) return {};
+      const presentation = podMetricPresentation(pod, resource);
+      const limit = presentation.bound?.kind === 'limit' ? presentation.bound.value : undefined;
+      return {
+        ...presentation,
+        thresholds: limit != null && limit > 0 ? [
+          { value: 0, tone: 'success' }, { value: limit * 0.7, tone: 'warning' }, { value: limit * 0.9, tone: 'danger' },
+        ] : undefined,
+      };
+    },
+  });
 
 
   /**
@@ -62,22 +83,7 @@ const PodTable: React.FC = () => {
               );
             },
           },
-          {
-            id: 'cpuUsage',
-            header: 'CPU',
-            accessorFn: (row) => `${row.metadata?.namespace}/${row.metadata?.name}`,
-            cell: ({ getValue }) => <MetricUsageCell podKey={getValue() as string} format="cpu" />,
-            size: 80,
-          },
-          {
-            id: 'memUsage',
-            header: 'Memory',
-            accessorFn: (row) => `${row.metadata?.namespace}/${row.metadata?.name}`,
-            cell: ({ getValue }) => (
-              <MetricUsageCell podKey={getValue() as string} format="memory" />
-            ),
-            size: 80,
-          },
+          ...metrics.columns,
           {
             id: 'controlledBy',
             header: 'Controlled By',
@@ -250,27 +256,28 @@ const PodTable: React.FC = () => {
         ],
         { connectionID: id, resourceKey },
       ),
-    [id],
+    [id, metrics.columns],
   );
 
   const drawer: DrawerComponent<Pod> = React.useMemo(
     () => ({
       title: resourceKey, // TODO: change runtime sdk to accept a function
       icon: <LuContainer />,
-      views: createStandardViews({ SidebarComponent: PodSidebar }),
+      views: createStandardViews({ SidebarComponent: PodSidebar, MetricsComponent: PodMetricsView }),
       actions: drawerActions,
     }),
     [],
   );
 
   return (
+    <TableMetricsScope value={metrics.scope}>
       <ResourceTable
         key={id}
         columns={columns}
         connectionID={id}
         resourceKey={resourceKey}
         drawer={drawer}
-        contentWrapper={PodMetricsProvider}
+        contentWrapper={TableMetricsProvider}
         columnPicker={ColumnPicker}
         toolbarFilters={[
           { columnId: 'node', placeholder: 'All Nodes', accessor: (r: Pod) => r?.spec?.nodeName },
@@ -278,6 +285,7 @@ const PodTable: React.FC = () => {
           { columnId: 'namespace', placeholder: 'All Namespaces', accessor: (r: Pod) => r?.metadata?.namespace },
         ]}
       />
+    </TableMetricsScope>
   );
 };
 

@@ -125,6 +125,28 @@ export default tseslint.config(
     },
   },
 
+  {
+    files: [
+      "src/components/shared/ResourceMetricPanels.tsx",
+      "src/components/shared/MetricSourcePicker.tsx",
+      "src/components/kubernetes/table/shared/TableMetrics.tsx",
+    ],
+    ignores: ["**/*.test.*", "**/*.stories.*"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: 'JSXOpeningElement[name.type="JSXIdentifier"][name.name=/^(button|input|select|textarea|progress|meter|details|summary)$/]',
+          message: "Compose @omniviewdev/base-ui controls. Add missing shared capability there instead of a native metrics-view substitute.",
+        },
+        {
+          selector: 'JSXAttribute[name.name="type"][value.value=/^(datetime-local|date|time)$/]',
+          message: "Use the shared date/time components instead of browser-native temporal inputs.",
+        },
+      ],
+    },
+  },
+
   // Relax type-checked rules for config and test files
   {
     files: ["*.config.{js,mjs,ts}", "vite.config.ts"],

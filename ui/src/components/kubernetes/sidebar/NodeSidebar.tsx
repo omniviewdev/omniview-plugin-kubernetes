@@ -1,13 +1,13 @@
 import { Stack } from '@omniviewdev/base-ui';
-import { DrawerContext, useResourceMetrics } from '@omniviewdev/runtime';
+import { DrawerContext, useMetricOwnerConnection, useResourceMetrics } from '@omniviewdev/runtime';
 import { Node } from 'kubernetes-types/core/v1';
 import React from 'react';
 
 // types
 
 // sections
-import { PLUGIN_ID } from '@/pluginId';
 
+import ResourceMetricPanels from '../../shared/ResourceMetricPanels';
 import MetadataSection from '../../shared/sidebar/pages/overview/sections/MetadataSection';
 
 import NodeImagesSection from './Node/NodeImagesSection';
@@ -16,8 +16,33 @@ import NodeStatusSection from './Node/NodeStatusSection';
 import NodeSystemSection from './Node/NodeSystemSection';
 import NodeTopologySection from './Node/NodeTopologySection';
 
+import { PLUGIN_ID } from '@/pluginId';
+import { parseResourceQuantity } from '@/utils/convert';
+
 interface Props {
   ctx: DrawerContext<Node>;
+}
+export function NodeMetricsView({ ctx }: { ctx: DrawerContext<unknown> }) {
+  const node = ctx.data as Node | undefined;
+  const connection = useMetricOwnerConnection(PLUGIN_ID, ctx.resource?.route.connection ?? '');
+  const cpu = node?.status?.capacity?.cpu;
+  const memory = node?.status?.capacity?.memory;
+  const cpuCapacity = parseResourceQuantity(cpu);
+  const memoryCapacity = parseResourceQuantity(memory);
+  return <ResourceMetricPanels connectionID={ctx.resource?.route.connection ?? ''}
+    resourceKey={ctx.resource?.reference.address.type ?? 'k8s:/nodes'}
+    resourceID={ctx.resource?.reference.address.id ?? ''}
+    reference={ctx.resource?.reference} route={ctx.resource?.route}
+    defaultMetricIDs={['kubernetes.node.cpu.usage', 'kubernetes.node.memory.working_set']}
+    presentation={{
+      'kubernetes.node.cpu.usage': { bound: cpuCapacity != null && Number.isFinite(cpuCapacity) && cpuCapacity > 0 ? { kind: 'capacity', value: cpuCapacity } : undefined },
+      'kubernetes.node.memory.working_set': { bound: memoryCapacity != null && Number.isFinite(memoryCapacity) && memoryCapacity > 0 ? { kind: 'capacity', value: memoryCapacity } : undefined },
+    }}
+    identityLabels={(result, publicScope) => {
+      const cluster = publicScope.cluster || connection?.name;
+      const name = result?.resourceReference.address.id ?? ctx.resource?.reference.address.id ?? node?.metadata?.name;
+      return { ...(cluster ? { cluster } : {}), ...(name ? { node: name } : {}) };
+    }} />;
 }
 
 export const NodeSidebar: React.FC<Props> = ({ ctx }) => {
