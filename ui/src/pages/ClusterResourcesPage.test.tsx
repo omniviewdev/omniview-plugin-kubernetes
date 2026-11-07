@@ -11,7 +11,7 @@ vi.mock('@omniviewdev/runtime', () => ({
   useConnection: () => ({ connection: { data: { name: 'Fixture cluster' } } }),
   useResourceTypes: () => ({ resourceTypes: { data: mocks.empty } }),
   useResourceGroups: () => ({ groups: { data: mocks.empty } }),
-  useSnackbar: () => ({ showSnackbar: mocks.notify }),
+  useNotifications: () => ({ notify: mocks.notify }),
   usePluginRouter: () => ({ location: { pathname: mocks.pathname }, navigate: vi.fn() }),
   openGlobalSearch: vi.fn(), parseAppError: vi.fn(),
 }));
