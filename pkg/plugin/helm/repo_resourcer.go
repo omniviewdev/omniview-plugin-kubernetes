@@ -90,19 +90,19 @@ func (r *RepoResourcerWithActions) GetActions(
 ) ([]resource.ActionDescriptor, error) {
 	return []resource.ActionDescriptor{
 		{
-			ID:          "refresh",
-			Label:       "Refresh Repository",
-			Description: "Re-download the repository index",
-			Icon:        "LuRefreshCw",
-			Scope:       resource.ActionScopeInstance,
+			ID:           "refresh",
+			Label:        "Refresh Repository",
+			Description:  "Re-download the repository index",
+			Icon:         "LuRefreshCw",
+			Scope:        resource.ActionScopeInstance,
 			ParamsSchema: &resource.Schema{},
 		},
 		{
-			ID:          "list-charts",
-			Label:       "List Charts",
-			Description: "List all charts in this repository",
-			Icon:        "LuList",
-			Scope:       resource.ActionScopeInstance,
+			ID:           "list-charts",
+			Label:        "List Charts",
+			Description:  "List all charts in this repository",
+			Icon:         "LuList",
+			Scope:        resource.ActionScopeInstance,
 			ParamsSchema: &resource.Schema{},
 		},
 		{

@@ -397,11 +397,11 @@ func nativeOptionalToken(value string) *string {
 }
 
 type nativeReadCursor struct {
-	Version     int    `json:"version"`
-	Binding     string `json:"binding"`
-	Namespace   int    `json:"namespace"`
-	Continue    string `json:"continue"`
-	Generation  string `json:"generation,omitempty"`
+	Version    int    `json:"version"`
+	Binding    string `json:"binding"`
+	Namespace  int    `json:"namespace"`
+	Continue   string `json:"continue"`
+	Generation string `json:"generation,omitempty"`
 }
 
 func nativeCursorBinding(request resourcev2.EnumerateRequest, gvr schema.GroupVersionResource, namespaced bool, namespaces []string, selector string) (string, error) {

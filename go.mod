@@ -10,7 +10,7 @@ require (
 	github.com/aws/smithy-go v1.22.2
 	github.com/fairwindsops/polaris v0.0.0-20250421200712-d7d30ac6116e
 	github.com/fsnotify/fsnotify v1.9.0
-	github.com/omniviewdev/plugin-sdk v0.16.0
+	github.com/omniviewdev/plugin-sdk v0.16.1-0.20261107233727-b3d1ed4ee23d
 	github.com/stretchr/testify v1.11.1
 	github.com/tidwall/gjson v1.18.0
 	go.uber.org/zap v1.27.0
@@ -182,4 +182,3 @@ require (
 
 // Source-session receive controls require the scoped grpc-go fork.
 replace google.golang.org/grpc => github.com/omniviewdev/grpc-go v1.79.3-0.20261103012409-4c6f1d1c4e10
-
