@@ -14,7 +14,7 @@ require (
 	github.com/stretchr/testify v1.12.1
 	github.com/tidwall/gjson v1.18.0
 	go.uber.org/zap v1.28.0
-	google.golang.org/grpc v1.84.0
+	google.golang.org/grpc v1.85.0
 	google.golang.org/protobuf v1.36.12
 	helm.sh/helm/v3 v3.22.1
 	k8s.io/api v0.37.2
@@ -190,4 +190,4 @@ require (
 )
 
 // Source-session receive controls require the scoped grpc-go fork.
-replace google.golang.org/grpc => github.com/omniviewdev/grpc-go v1.79.3-0.20261103012409-4c6f1d1c4e10
+replace google.golang.org/grpc => github.com/omniviewdev/grpc-go v1.85.1-0.20261107225428-6ba964c95af2
