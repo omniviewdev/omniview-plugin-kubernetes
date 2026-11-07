@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://omniview.dev"><img src="https://img.shields.io/badge/omniview-plugin-326CE5?style=flat-square&logo=kubernetes&logoColor=white" alt="Omniview Plugin" /></a>
-  <img src="https://img.shields.io/badge/version-0.16.1-blue?style=flat-square" alt="Version" />
+  <img src="https://img.shields.io/badge/version-0.16.3-blue?style=flat-square" alt="Version" />
   <img src="https://img.shields.io/badge/license-Apache--2.0-green?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/category-cloud-326CE5?style=flat-square" alt="Category" />
 </p>
@@ -116,7 +116,7 @@ These are unmodified captures from the running development IDE, not mockups or p
 
 The [evidence index](docs/images/cluster-explorer/index.json) links all twelve final Cards/Table/Debug captures at 360, 768, 1063, and 1568 pixels, organization and search captures, settled API views, restart snapshots, and the live scenario summary. Nine themes, five text scales, both densities, keyboard actions, direct opening, new-tab handoff, folder assets, lenses, and shared recents were exercised. Native OS window creation was not proved.
 
-Kubernetes plugin 0.16.1 requires Omniview 0.30.0 or newer, runtime/Vite 0.30.0, Base UI 0.14.0, and Editors 6.1.8. This cohort supplies activity, structured notifications, and the plugin-data snapshot and compare-and-swap bindings used by the explorer. Upgrade the desktop before installing the plugin; older runtime packages with a Base UI `~0.13.0` peer are incompatible even if workspace source links resolve imports. Omniview 0.30.1 adds plugin-route render isolation.
+Kubernetes plugin 0.16.2 requires Omniview 0.30.2 or newer, runtime/Vite 0.30.2, Base UI 0.15.0, and Editors 6.2.0. This matching UI cohort preserves activity, structured notifications, and the plugin-data snapshot and compare-and-swap bindings used by the explorer. Upgrade the desktop before installing the plugin; older runtime packages with a Base UI `~0.14.0` peer are incompatible with Base UI 0.15.0 even if workspace source links resolve imports.
 
 Container log requests with an explicit `SinceTime` use that timestamp instead
 of `SinceSeconds`. Kubernetes accepts only one time filter per log request.
@@ -286,6 +286,8 @@ Workload cards open the same canonical resource tables as the sidebar and search
 
 Collection acquisition exposes loading and errors with an explicit retry action. Retry reacquires the failed catalog, target resolution, or collection stage. Changing target, scope, representation, route, plugin, or catalog identity must not mix records or selection from different target contexts.
 
+Resource table errors display the safe detail from structured host errors instead of converting error objects to text.
+
 Repository chart drawers resolve the selected native repository before background pagination through the chart Type's declared `repository` query dimension. Chart identity remains `helm:charts` with native opaque ID and only `domain=helm-client` identity scope; repository is not another identity field. Only configured repository bindings participate, and unrelated indexes are not loaded for a repository-scoped collection.
 
 Valid empty `oneOf` selections for Helm release namespaces, repository domains, or chart repositories return an empty source page before any native or filesystem acquisition. Empty selections never become unscoped queries; pages retain explicit coverage and best-effort consistency without continuation.
@@ -311,6 +313,18 @@ One provider-wide 32 MiB retained-schema budget covers every connection, with a 
 Helm schema acquisition never grants or requires Helm Secret access for native Pod schemas. A source-specific Helm failure retains native bindings and returns a document-free, generic Helm values role marked unavailable with an optional safe machine-code `unavailableReason`, never backend diagnostics or invented release identities. Request cancellation, deadlines, and retired connection generations remain errors rather than partial success. All Helm metadata, storage, and schema HTTP requests reuse the existing authenticated bounded client.
 
 Tables and navigation use canonical references, routes, target membership, and host keys. Raw tagged integer Values stay exact; display adapters narrow only safe integers to numbers and retain wide integers as `bigint`. Restart counts and image-byte totals preserve exact mixed integer arithmetic. Mutation and action requests retain known UID and revision guards. Native connection discovery, explicit overrides, and disabled routes remain separate; host persistence owns desired profiles, not provider-side kubeconfig edits. Specialized React Router routes retain decoded colons and protect native Type slashes as `%2F`.
+
+Legacy built-in Kubernetes resource page paths and table column preferences migrate using an explicit provider-owned mapping. Preference migration uses configured connection IDs and explicit plugin-wide keys, never a guessed connection/type boundary. Unknown types, missing connections, and ambiguous connection prefixes are reported and retained. Column and toolbar preference originals remain in place and are also copied under the `kubernetes-legacy-preference-backup:` prefix within their existing storage namespace; existing canonical preferences are never overwritten. Both plugin-local preferences and active host-profile table preferences migrate independently. Resource tables wait for connection discovery and migration before reading their initial choices. Reloading does not replace either backup or canonical values.
+
+The provider exposes `PreferenceMigrationGate` for host-owned resource tables. It waits for configured connections and completes the same migration before rendering table children. Unconvertible entries remain intact and are reported once per stored issue; newly encountered issues are reported separately.
+
+Historical `events_v1_Event` routes and `events::v1::Event` preferences use the
+registered `k8s:events.k8s.io/events` binding. Saved `kubernetes-sidebar-order`
+items and nested child IDs migrate before sidebar state initializes. Group IDs
+and current canonical choices stay intact. Unknown resource IDs are reported and
+retained; the first complete order is backed up under
+`kubernetes-legacy-preference-backup:kubernetes-sidebar-order` before any rewrite.
+Later drag saves and reloads do not replace that original backup.
 
 Native and Helm resource sidebars and drawer factories register through `extensionRegistrations` at `omniview/resource/sidebar/infopanel` and `omniview/resource/drawer`. Exact `{pluginId, resourceKey}` metadata selects each opaque logical Type without parsing its spelling. Standard views and shared actions are identical for table and linked-resource drawers; the supported default drawer factory remains available for CRDs and other dynamically discovered resources without a dedicated sidebar.
 
@@ -1033,8 +1047,8 @@ rather than adding unsupported manifest fields.
 
 Registry installs retain pnpm's 24-hour release-age protection. Only coordinated
 `@omniviewdev/*` packages are exempted; linked source worktrees resolve locally.
-The current frontend cohort uses `@omniviewdev/base-ui` 0.14.0,
-`@omniviewdev/editors` 6.1.8, and runtime/Vite plugin 0.30.0.
+The current frontend cohort uses `@omniviewdev/base-ui` 0.15.0,
+`@omniviewdev/editors` 6.2.0, and runtime/Vite plugin 0.30.2.
 The published runtime and Vite plugin must match; host application builds use the host lockfile.
 The backend pins SDK `v0.15.0` (`427ef1da1f1d`) and replaces
 grpc-go with `github.com/omniviewdev/grpc-go` at
@@ -1181,7 +1195,7 @@ Commit curated notes in `docs/releases/X.Y.Z.md`, starting with
 `# Kubernetes X.Y.Z`, alongside the version bump. Include user-facing changes,
 linked feature PRs and real IDE screenshots. The workflow validates and publishes
 that file as the GitHub release body; it does not append generated notes.
-Kubernetes 0.16.1 requires IDE 0.30.0 or newer. Publish the Omniview 0.30.0
+Kubernetes 0.16.2 requires IDE 0.30.2 or newer. Publish the Omniview 0.30.2
 desktop and matching npm release before publishing the plugin; npm publication alone is not a desktop release.
 
 The release workflow uses the Go version declared in `go.mod`, Node.js 26.13.0,

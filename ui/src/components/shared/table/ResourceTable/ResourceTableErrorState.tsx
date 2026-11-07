@@ -1,11 +1,12 @@
 import { Banner, Heading, Stack, Text } from '@omniviewdev/base-ui';
+import { parseAppError } from '@omniviewdev/runtime';
 import React, { useEffect } from 'react';
 import { LuCircleAlert } from 'react-icons/lu';
 
 import styles from './ResourceTable.module.css';
 
 type ResourceTableErrorStateProps = {
-  error: Error | null;
+  error: unknown;
   resourceKey: string;
 };
 
@@ -13,7 +14,7 @@ const ResourceTableErrorState: React.FC<ResourceTableErrorStateProps> = ({
   error,
   resourceKey,
 }) => {
-  const errstring = error?.toString() ?? '';
+  const errstring = error == null ? '' : parseAppError(error).detail;
   const errlower = errstring.toLowerCase();
   useEffect(() => {
     if (errstring) console.error('Failed loading resources', errstring);

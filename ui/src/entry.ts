@@ -117,6 +117,7 @@ import StorageClassTable from './components/kubernetes/table/storagev1/StorageCl
 import VolumeAttachmentSidebar from './components/kubernetes/table/storagev1/VolumeAttachment/Sidebar';
 import VolumeAttachmentTable from './components/kubernetes/table/storagev1/VolumeAttachment/Table';
 import { createStandardViews } from './components/shared/sidebar/createDrawerViews';
+import { PreferenceMigrationGate } from './components/connections/PreferenceMigrationGate';
 import GenericResourceSidebar from './components/shared/sidebar/GenericResourceSidebar';
 import { kubernetesResourceIconSet } from './icons/resourceIcons';
 import ClusterEditPage from './pages/ClusterEditPage';
@@ -129,6 +130,7 @@ import ClusterDashboardMetricsPage from './pages/dashboard/metrics';
 import ClusterDashboardOverviewPage from './pages/dashboard/overview';
 import ClusterExtensionPage, { CLUSTER_PAGE_EXTENSION_POINT_ID } from './pages/extension';
 import { kubernetesSearchProvider } from './search/provider';
+import { migratePagePath } from './utils/legacyMigration';
 import { builtinResourceEditors, resourceEditorExtensionPoint } from './components/kubernetes/manifest/resourceEditors';
 import { resourceEditors } from './components/kubernetes/manifest/providers';
 
@@ -470,11 +472,11 @@ export const extensionRegistrations: ExtensionRegistration[] = [
   },
 ];
 
-export const plugin = new PluginWindow()
+export const plugin = Object.assign(new PluginWindow()
   .registerExtensionPoints([
     { id: CLUSTER_PAGE_EXTENSION_POINT_ID, mode: 'multiple' },
     // PluginWindow stores heterogeneous extension-point contexts through an erased collection.
     resourceEditorExtensionPoint as unknown as ExtensionPointSettings,
   ])
   .setRootPage(ClustersPage)
-  .withRoutes(routes);
+  .withRoutes(routes), { migratePagePath, PreferenceMigrationGate });

@@ -13,6 +13,7 @@ import FilterChips from '../components/connections/FilterChips';
 import FolderDialog, { type FolderDialogValues } from '../components/connections/FolderDialog';
 import { useClusterPreferences } from '../hooks/useClusterPreferences';
 import { useConnectionGrouping } from '../hooks/useConnectionGrouping';
+import { useLegacyColumnMigration } from '../hooks/useLegacyColumnMigration';
 import { ClusterOrganization } from '../components/connections/ClusterOrganization';
 import ExplorerSidebar from '../components/connections/ExplorerSidebar';
 import { computeEffectiveMembers } from '../utils/folderRules';
@@ -41,7 +42,7 @@ const loadingSkeletonStyle: React.CSSProperties = {
 export default function ClustersPage(): React.ReactElement {
   const { meta } = usePluginContext();
   const { connections } = useConnections({ plugin: meta.id });
-   
+  useLegacyColumnMigration(connections.data?.map(connection => connection.id));
   const { notify } = useNotifications();
 
   const [organize, setOrganize] = React.useState(false);
