@@ -26,7 +26,7 @@ func (s *ClusterBenchmarker) Audit(
 		return resource.Value{}, err
 	}
 
-	auditData, err := validator.RunAudit(config, resources)
+	auditData, err := validator.RunAudit(ctx, config, resources)
 	if err != nil {
 		return resource.Value{}, err
 	}

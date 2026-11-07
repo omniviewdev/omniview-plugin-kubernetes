@@ -1041,7 +1041,7 @@ rather than adding unsupported manifest fields.
 
 ### Prerequisites
 
-- Go 1.25+
+- Go 1.27+
 - Node.js 26.13.0
 - pnpm 12.14.0 (pinned by `ui/package.json`)
 
