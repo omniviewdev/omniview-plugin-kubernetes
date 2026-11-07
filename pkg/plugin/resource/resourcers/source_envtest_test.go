@@ -62,13 +62,36 @@ func openEnvtestSource(t *testing.T, config *rest.Config, start chan<- struct{},
 	require.NoError(t, err)
 	clientSet := &clients.ClientSet{DynamicClient: dynamicClient, RESTConfig: config}
 	base := NewKubernetesResourcerBase[*corev1.ConfigMap](zap.NewNop().Sugar(), envtestConfigMaps)
-	scope := resource.QueryScope{{Dimension: "namespace", Match: resource.ScopeAny}}
+	namespaces := []string{envtestNamespace}
+	scope := resource.QueryScope{{Dimension: "namespace", Match: resource.ScopeOneOf, Values: &namespaces}}
 	representation := resource.Representation{ID: "native", Revision: "envtest", Schema: resource.SchemaBinding{State: "absent"}}
 	controller, err := resource.NewController(resource.Config[struct{}]{
 		Catalog: func(context.Context, resource.CatalogRequest) (resource.Catalog, error) {
-			return resource.Catalog{Provider: "kubernetes", Revision: "envtest", Coverage: resource.Coverage{Kind: "complete", Paths: []string{}}, Types: []resource.ResourceType{{Type: "k8s:/configmaps", IdentityDimensions: []resource.Dimension{{Name: "namespace"}}, QueryDimensions: []resource.Dimension{{Name: "namespace"}}, Representations: []resource.Representation{representation}, DefaultRepresentation: "native", Capabilities: []resource.Capability{{Operation: resource.OperationSourceUpdates, Scope: scope, Guarantee: resource.ContinuityBestEffort}}}}}, nil
+			return resource.Catalog{Provider: "kubernetes", Revision: "envtest", Coverage: resource.Coverage{Kind: "complete", Paths: []string{}}, Types: []resource.ResourceType{{Type: "k8s:/configmaps", IdentityDimensions: []resource.Dimension{{Name: "namespace"}}, QueryDimensions: []resource.Dimension{{Name: "namespace"}}, Representations: []resource.Representation{representation}, DefaultRepresentation: "native", Capabilities: []resource.Capability{{Operation: resource.OperationEnumerate, Scope: scope}, {Operation: resource.OperationSourceUpdates, Scope: scope, Guarantee: resource.ContinuityBestEffort}}}}}, nil
 		},
-		Registrations: []resource.Registration[struct{}]{{Type: "k8s:/configmaps", Source: func(ctx context.Context, _ *struct{}, request resource.SourceRequest, emit resource.SourceEmitter) error {
+		Registrations: []resource.Registration[struct{}]{{Type: "k8s:/configmaps", Enumerate: func(ctx context.Context, _ *struct{}, request resource.EnumerateRequest) (resource.SourcePage, error) {
+			options := metav1.ListOptions{Limit: int64(request.PageSize)}
+			if request.Cursor != nil {
+				options.Continue = *request.Cursor
+			}
+			list, err := dynamicClient.Resource(envtestConfigMaps).Namespace(envtestNamespace).List(ctx, options)
+			if err != nil {
+				return resource.SourcePage{}, err
+			}
+			page := resource.SourcePage{Records: make([]resource.Record, 0, len(list.Items)), Coverage: resource.Coverage{Kind: "complete", Paths: []string{}}, Count: resource.Count{Kind: "unknown"}, Consistency: resource.ConsistencyBestEffort}
+			for i := range list.Items {
+				record, err := watchRecord(request.Target, representation, &list.Items[i])
+				if err != nil {
+					return resource.SourcePage{}, err
+				}
+				page.Records = append(page.Records, record)
+			}
+			if list.GetContinue() != "" {
+				next := list.GetContinue()
+				page.NextCursor = &next
+			}
+			return page, nil
+		}, Source: func(ctx context.Context, _ *struct{}, request resource.SourceRequest, emit resource.SourceEmitter) error {
 			if start != nil {
 				close(start)
 				emit = envtestSnapshotBarrier{SourceEmitter: emit, done: done}
@@ -92,9 +115,10 @@ func openEnvtestSource(t *testing.T, config *rest.Config, start chan<- struct{},
 	t.Cleanup(cancel)
 	catalog, err := client.Catalog(ctx, resource.CatalogRequest{Route: resource.AccessRoute{Connection: "envtest"}})
 	require.NoError(t, err)
+	require.Len(t, catalog.Types, 1)
+	require.Len(t, catalog.Types[0].Representations, 1)
 	ctx = resource.WithCatalogRevision(ctx, catalog.Revision)
-	namespaces := []string{envtestNamespace}
-	stream, err := client.OpenSourceStream(ctx, resource.SourceOpenRequest{SessionID: "envtest", Generation: "envtest", Target: resource.ReadTarget{Route: resource.AccessRoute{Connection: "envtest"}, Provider: "kubernetes", Authority: "envtest", Type: "k8s:/configmaps", Representation: "native", Scope: resource.QueryScope{{Dimension: "namespace", Match: resource.ScopeOneOf, Values: &namespaces}}}, Mode: resource.SourceModeSnapshotAndUpdates, Acquisition: resource.SourceAcquisition{Kind: resource.SourceAcquisitionEnumerate}, Limits: resource.SourceLimits{MaxFrameBytes: resource.MaxSourceFrameBytes, MaxBatchItems: resource.MaxSourceBatchItems}})
+	stream, err := client.OpenSourceStream(ctx, resource.SourceOpenRequest{SessionID: "envtest", Generation: "envtest", Target: resource.ReadTarget{Route: resource.AccessRoute{Connection: "envtest"}, Provider: "kubernetes", Authority: "envtest", Type: "k8s:/configmaps", Representation: "native", Scope: resource.QueryScope{{Dimension: "namespace", Match: resource.ScopeOneOf, Values: &namespaces}}}, Mode: resource.SourceModeSnapshotAndUpdates, Acquisition: resource.SourceAcquisition{Kind: resource.SourceAcquisitionEnumerate}, Binding: resource.RepresentationBinding{Representation: catalog.Types[0].Representations[0]}, Limits: resource.SourceLimits{MaxFrameBytes: resource.MaxSourceFrameBytes, MaxBatchItems: resource.MaxSourceBatchItems}})
 	require.NoError(t, err)
 	t.Cleanup(stream.Close)
 	return stream
@@ -216,16 +240,11 @@ func TestSourceForbiddenFailsOpen(t *testing.T) {
 	user, err := env.AddUser(envtest.User{Name: "source-forbidden"}, nil)
 	require.NoError(t, err)
 	stream := openEnvtestSource(t, user.Config(), nil, nil)
-	for {
-		frame, err := stream.Recv()
-		require.NoError(t, err)
-		if frame.Failed != nil {
-			require.Equal(t, "FORBIDDEN", frame.Failed.Code)
-			break
-		}
-		require.Nil(t, frame.SnapshotEnd)
-		require.Nil(t, frame.Reset)
-	}
+	// The authorization probe fails before any source frame begins, so C04
+	// reports the failure as an RPC status rather than a Failed frame.
+	frame, err := stream.Recv()
+	require.Equal(t, "FORBIDDEN", resource.ErrorCode(err))
+	require.Nil(t, frame.SnapshotEnd)
 }
 
 func TestSourceLivenessResetWhenAPIServerStops(t *testing.T) {

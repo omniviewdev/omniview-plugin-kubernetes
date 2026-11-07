@@ -1,19 +1,37 @@
 import { Chip, SearchInput, Spinner, Stack, Text } from '@omniviewdev/base-ui';
-import { useRightDrawer, useSnackbar } from '@omniviewdev/runtime';
+import { useRightDrawer, useNotifications } from '@omniviewdev/runtime';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import React, { useState, useMemo, useDeferredValue, useCallback, useRef, useLayoutEffect } from 'react';
+import React, {
+  useState,
+  useMemo,
+  useDeferredValue,
+  useCallback,
+  useRef,
+  useLayoutEffect,
+} from 'react';
 
 import { PLUGIN_ID } from '@/pluginId';
-import { formatTimeDifference } from '../../../utils/time';
+
 import { resolveKubernetesReference } from '../../../utils/kubernetesReference';
+import { formatTimeDifference } from '../../../utils/time';
 
 import styles from './EventsTable.module.css';
 
-const typeBadgeStyle: React.CSSProperties = { flexShrink: 0, marginTop: 2, minWidth: 56, justifyContent: 'center' };
+const typeBadgeStyle: React.CSSProperties = {
+  flexShrink: 0,
+  marginTop: 2,
+  minWidth: 56,
+  justifyContent: 'center',
+};
 
 const contentStyle: React.CSSProperties = { flex: 1, minWidth: 0 };
 
-const reasonLineStyle: React.CSSProperties = { display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 };
+const reasonLineStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'baseline',
+  gap: 6,
+  minWidth: 0,
+};
 
 const dividerDotStyle: React.CSSProperties = {
   width: 1,
@@ -23,9 +41,19 @@ const dividerDotStyle: React.CSSProperties = {
   alignSelf: 'center',
 };
 
-const countAgeStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 };
+const countAgeStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  flexShrink: 0,
+};
 
-const loadingStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'center', paddingBlock: 32 };
+const loadingStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  paddingBlock: 32,
+};
 
 const toolbarStyle: React.CSSProperties = {
   flexShrink: 0,
@@ -35,9 +63,20 @@ const toolbarStyle: React.CSSProperties = {
 };
 
 // Rows truncate rather than scroll sideways; only the list scrolls vertically.
-const eventListStyle: React.CSSProperties = { flex: 1, minHeight: 0, overflowX: 'hidden', overflowY: 'auto', overflowAnchor: 'none' };
+const eventListStyle: React.CSSProperties = {
+  flex: 1,
+  minHeight: 0,
+  overflowX: 'hidden',
+  overflowY: 'auto',
+  overflowAnchor: 'none',
+};
 
-const emptyStateStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'center', paddingBlock: 32 };
+const emptyStateStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  paddingBlock: 32,
+};
 
 const reasonTextStyle: React.CSSProperties = { flexShrink: 0 };
 
@@ -227,7 +266,11 @@ const EventRow: React.FC<{
         </div>
         {objectLabel &&
           (hasLink && onObjectClick ? (
-            <button type="button" className={styles.objectLink} onClick={() => onObjectClick(event)}>
+            <button
+              type="button"
+              className={styles.objectLink}
+              onClick={() => onObjectClick(event)}
+            >
               {objectLabel}
             </button>
           ) : (
@@ -261,7 +304,7 @@ const EventsTable: React.FC<Props> = ({ events, loading, connectionID, namespace
   const [search, setSearch] = useState('');
   const deferredSearch = useDeferredValue(search);
   const { showResourceSidebar } = useRightDrawer();
-  const snackbar = useSnackbar();
+  const notifications = useNotifications();
 
   const deduped = useMemo(() => deduplicateEvents(events), [events]);
 
@@ -355,17 +398,18 @@ const EventsTable: React.FC<Props> = ({ events, loading, connectionID, namespace
         resourceType,
         name: event.name,
         namespace: event.namespace || undefined,
-      }).then(async (resolved) => {
-        await showResourceSidebar({ ...resolved, pluginID: PLUGIN_ID, resourceName: event.name });
-      }).catch((error: unknown) => {
-        snackbar.showSnackbar({
-          status: 'error',
-          message: error instanceof Error ? error.message : 'Unable to open resource',
-          icon: 'LuCircleAlert',
+      })
+        .then(async (resolved) => {
+          await showResourceSidebar({ ...resolved, pluginID: PLUGIN_ID, resourceName: event.name });
+        })
+        .catch((error: unknown) => {
+          void notifications.notify({
+            severity: 'error',
+            title: error instanceof Error ? error.message : 'Unable to open resource',
+          });
         });
-      });
     },
-    [connectionID, showResourceSidebar, snackbar],
+    [connectionID, showResourceSidebar, notifications],
   );
 
   if (loading) {
@@ -416,8 +460,14 @@ const EventsTable: React.FC<Props> = ({ events, loading, connectionID, namespace
 
       {/* Event list */}
       {/* Native keyboard scrolling needs a focusable region; the list itself is not a widget. */}
-      {/* eslint-disable-next-line jsx-a11y-x/no-noninteractive-tabindex */}
-      <div ref={scrollRef} style={eventListStyle} role="region" aria-label="Scrollable events" tabIndex={0}>
+      <div
+        ref={scrollRef}
+        style={eventListStyle}
+        role="region"
+        aria-label="Scrollable events"
+        // eslint-disable-next-line jsx-a11y-x/no-noninteractive-tabindex
+        tabIndex={0}
+      >
         {filtered.length === 0 ? (
           <div style={emptyStateStyle}>
             <Text size="sm" tone="subtle">
@@ -425,7 +475,13 @@ const EventsTable: React.FC<Props> = ({ events, loading, connectionID, namespace
             </Text>
           </div>
         ) : (
-          <div ref={listRef} role="list" aria-label="Events" className={styles.virtualList} style={{ height: virtualizer.getTotalSize() }}>
+          <div
+            ref={listRef}
+            role="list"
+            aria-label="Events"
+            className={styles.virtualList}
+            style={{ height: virtualizer.getTotalSize() }}
+          >
             {virtualizer.getVirtualItems().map((item) => (
               <div
                 key={item.key}

@@ -1,22 +1,15 @@
 import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
+  useDndMonitor,
   useDroppable,
   DragOverlay,
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Card, Stack, Text } from '@omniviewdev/base-ui';
 import React from 'react';
+import { usePluginContext } from '@omniviewdev/runtime';
+import { useClusterPreferences } from '../../hooks/useClusterPreferences';
 
 import { useHubSections, type HubSectionData } from '../../hooks/useHubSections';
 import type {
@@ -68,10 +61,7 @@ type Props = {
   hubSections: HubSectionConfig[];
   onReorderSections: (sections: HubSectionConfig[]) => void;
   onToggleCollapse: (sectionType: HubSectionType, collapsed: boolean) => void;
-  onRecordAccess: (connectionId: string) => void;
   onToggleFavorite: (connectionId: string) => void;
-  onAssignToGroup?: (groupId: string, connectionId: string) => void;
-  onRemoveFromGroup?: (groupId: string, connectionId: string) => void;
   onCreateFolder?: (connectionId?: string) => void;
   onEditFolder?: (groupId: string) => void;
 };
@@ -97,17 +87,17 @@ const ClusterHub: React.FC<Props> = ({
   hubSections: hubSectionConfigs,
   onReorderSections,
   onToggleCollapse,
-  onRecordAccess,
   onToggleFavorite,
-  onAssignToGroup,
-  onRemoveFromGroup,
   onCreateFolder,
   onEditFolder,
 }) => {
+  const { pluginId } = usePluginContext();
+  const { iconAssets } = useClusterPreferences(pluginId);
   const { sections, reorderSections } = useHubSections({
     enrichedConnections,
     hubSectionConfigs,
     customGroups,
+    iconAssets,
   });
 
   // Track active drag for overlay
@@ -126,11 +116,6 @@ const ClusterHub: React.FC<Props> = ({
         return s.data.length > 0;
       }),
     [sections, availableAttributes],
-  );
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
   const handleDragStart = React.useCallback((event: DragStartEvent) => {
@@ -152,36 +137,8 @@ const ClusterHub: React.FC<Props> = ({
       // dnd-kit types data.current as Record<string, any> | undefined; cast to our known shape
       const activeData = active.data.current as DragData | undefined;
 
-      // Connection drag
-      if (activeData?.type === 'connection') {
-        const connectionId = activeData.connectionId;
-        const sourceSectionId = activeData.sectionId;
-        const sourceGroupId = sourceSectionId?.startsWith('group:')
-          ? sourceSectionId.slice(6)
-          : undefined;
-
-        // Determine target group (if any)
-        let targetGroupId: string | undefined;
-        if (over) {
-          const overData = over.data.current as DragData | undefined;
-          if (overData?.type === 'folder-drop') {
-            targetGroupId = overData.groupId;
-          } else if (String(over.id).startsWith('group:')) {
-            targetGroupId = String(over.id).slice(6);
-          }
-        }
-
-        // Remove from source group if dragged out (to non-folder or different folder)
-        if (sourceGroupId && sourceGroupId !== targetGroupId) {
-          onRemoveFromGroup?.(sourceGroupId, connectionId);
-        }
-
-        // Assign to target group
-        if (targetGroupId && targetGroupId !== sourceGroupId) {
-          onAssignToGroup?.(targetGroupId, connectionId);
-        }
-        return;
-      }
+      // Shared ClusterOrganization handles connection assignments, including sidebar targets.
+      if (activeData?.type === 'connection') return;
 
       // Section reorder
       if (over && activeData?.type === 'section' && active.id !== over.id) {
@@ -189,8 +146,13 @@ const ClusterHub: React.FC<Props> = ({
         onReorderSections(newConfigs);
       }
     },
-    [reorderSections, onReorderSections, onAssignToGroup, onRemoveFromGroup],
+    [reorderSections, onReorderSections],
   );
+  useDndMonitor({
+    onDragStart: handleDragStart,
+    onDragEnd: handleDragEnd,
+    onDragCancel: () => setActiveDrag(null),
+  });
 
   const visibleSectionIds = React.useMemo(
     () => visibleSections.map((s) => s.config.type),
@@ -204,17 +166,11 @@ const ClusterHub: React.FC<Props> = ({
   }, [activeDrag, enrichedConnections]);
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-    >
+    <>
       <Stack direction="column" style={hubStackStyle}>
         {/* Zone 1: Quick-connect grid -- always visible, cards are draggable */}
         <QuickConnectGrid
           connections={enrichedConnections}
-          onRecordAccess={onRecordAccess}
           onToggleFavorite={onToggleFavorite}
           onCreateFolder={onCreateFolder}
         />
@@ -234,7 +190,6 @@ const ClusterHub: React.FC<Props> = ({
                     availableAttributes={availableAttributes}
                     enrichedConnections={enrichedConnections}
                     onToggleCollapse={onToggleCollapse}
-                    onRecordAccess={onRecordAccess}
                     onToggleFavorite={onToggleFavorite}
                     onEditFolder={onEditFolder}
                   />
@@ -254,7 +209,7 @@ const ClusterHub: React.FC<Props> = ({
           </Card>
         )}
       </DragOverlay>
-    </DndContext>
+    </>
   );
 };
 
@@ -311,7 +266,6 @@ const SectionRenderer: React.FC<{
   availableAttributes: ConnectionAttribute[];
   enrichedConnections: EnrichedConnection[];
   onToggleCollapse: (sectionType: HubSectionType, collapsed: boolean) => void;
-  onRecordAccess: (connectionId: string) => void;
   onToggleFavorite: (connectionId: string) => void;
   onEditFolder?: (groupId: string) => void;
 }> = ({
@@ -319,11 +273,11 @@ const SectionRenderer: React.FC<{
   availableAttributes,
   enrichedConnections,
   onToggleCollapse,
-  onRecordAccess,
   onToggleFavorite,
   onEditFolder,
 }) => {
-  const { config, title, data, groupId, groupColor, groupIcon, groupCustomImage, emptyHint } = section;
+  const { config, title, data, groupId, groupColor, groupIcon, groupCustomImage, emptyHint } =
+    section;
   const isRecent = config.type === 'recent';
   const isBrowse = config.type === 'browse';
   const isGroup = config.type.startsWith('group:');
@@ -344,11 +298,7 @@ const SectionRenderer: React.FC<{
       emptyHint={emptyHint}
     >
       {isBrowse ? (
-        <GroupBrowser
-          connections={enrichedConnections}
-          availableAttributes={availableAttributes}
-          onConnectionClick={onRecordAccess}
-        />
+        <GroupBrowser connections={enrichedConnections} availableAttributes={availableAttributes} />
       ) : (
         data.map((enriched) => (
           <RowHandler
@@ -357,7 +307,6 @@ const SectionRenderer: React.FC<{
             sectionId={config.type}
             subtitle={isRecent ? formatRelativeTime(enriched.lastAccessed) : undefined}
             showFavorite={config.type === 'favorites'}
-            onRecordAccess={() => onRecordAccess(enriched.connection.id)}
             onToggleFavorite={() => onToggleFavorite(enriched.connection.id)}
           />
         ))

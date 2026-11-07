@@ -1,5 +1,5 @@
-import type { DrawerContext } from '@omniviewdev/runtime';
 import { Separator, Text, Button } from '@omniviewdev/base-ui';
+import type { DrawerContext } from '@omniviewdev/runtime';
 import { parseAppError } from '@omniviewdev/runtime';
 import { Container, ContainerStatus, Pod, PodSpec } from 'kubernetes-types/core/v1';
 import React from 'react';
@@ -94,10 +94,6 @@ interface ContainersSectionProps {
   connectionID: string;
   obj: Pod;
   resource?: DrawerContext['resource'];
-  /** Pod-level CPU usage in millicores (from metrics-server) */
-  podCpuUsage?: number;
-  /** Pod-level memory usage in bytes (from metrics-server) */
-  podMemoryUsage?: number;
 }
 
 const PodContainersSection: React.FC<ContainersSectionProps> = ({
@@ -105,8 +101,6 @@ const PodContainersSection: React.FC<ContainersSectionProps> = ({
   resource,
   resourceID,
   connectionID,
-  podCpuUsage,
-  podMemoryUsage,
 }) => {
   const execution = useDrawerActionExecution({ connectionID, resourceKey: 'k8s:/pods' });
   const [debugError, setDebugError] = React.useState('');
@@ -134,8 +128,6 @@ const PodContainersSection: React.FC<ContainersSectionProps> = ({
                   pod={obj}
                   resource={resource}
                   volumes={obj.spec?.volumes}
-                  podCpuUsage={podCpuUsage}
-                  podMemoryUsage={podMemoryUsage}
                 />
               </React.Fragment>
             ))}
@@ -150,8 +142,6 @@ const PodContainersSection: React.FC<ContainersSectionProps> = ({
               pod={obj}
               resource={resource}
               volumes={obj.spec?.volumes}
-              podCpuUsage={podCpuUsage}
-              podMemoryUsage={podMemoryUsage}
             />
             {runningDebugTargets(obj).includes(c.container.name) && <Button variant="ghost" onClick={() => {
               setDebugError('');
@@ -174,8 +164,6 @@ const PodContainersSection: React.FC<ContainersSectionProps> = ({
                   pod={obj}
                   resource={resource}
                   volumes={obj.spec?.volumes}
-                  podCpuUsage={podCpuUsage}
-                  podMemoryUsage={podMemoryUsage}
                 />
               </React.Fragment>
             ))}

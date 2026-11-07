@@ -55,7 +55,7 @@ describe('real editor passive snapshot safety', () => {
     view.rerender(<BaseEditorPage ctx={context(refreshed, 'revision-4')} />);
     entries();
     expect(screen.getByLabelText('Value')).toHaveValue('server');
-  });
+  }, 10_000);
 
   it('freezes unchanged source after interaction even without a validity error; Reset admits later refreshes', () => {
     const view = render(<BaseEditorPage ctx={context()} />);

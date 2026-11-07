@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://omniview.dev"><img src="https://img.shields.io/badge/omniview-plugin-326CE5?style=flat-square&logo=kubernetes&logoColor=white" alt="Omniview Plugin" /></a>
-  <img src="https://img.shields.io/badge/version-0.15.1-blue?style=flat-square" alt="Version" />
+  <img src="https://img.shields.io/badge/version-0.16.3-blue?style=flat-square" alt="Version" />
   <img src="https://img.shields.io/badge/license-Apache--2.0-green?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/category-cloud-326CE5?style=flat-square" alt="Category" />
 </p>
@@ -33,20 +33,125 @@ Cluster avatar initials tolerate leading, trailing, and repeated whitespace or
 dash separators while a display name is being edited. Whitespace-only names use
 `NA`; the display name itself is not normalized or changed.
 
+Pod detail metrics use host-owned observations with canonical resource references
+and access routes. Metrics-server provides current CPU (cores) and memory working
+set (bytes), not historical series. The Metrics view shows native current values
+without a time-range control and keeps genuine Prometheus history separate. Missing
+samples and unknown capacities are never rendered as zero or inferred limits.
+Pod totals are not attributed to individual containers; container resource cards
+show only configured requests and limits. Source details distinguish UID-verified
+samples from name-scoped measurements.
+
+Metric selection, display, layout, details, and absolute or relative time choices
+persist in host profile preferences for the plugin and resource type. Revision
+checks protect concurrent writes, and save failures remain visible in the view.
+
+Selection chips, values, charts, and details use the same categorical theme color.
+Colors follow the saved metric order and stay consistent during refreshes and Pod changes.
+
+## Production notification compatibility
+
+Plugin notifications use the runtime's `useNotifications` API, not its retired
+`useSnackbar` export. In the affected production artifact,
+`entry2.js:332:197118` maps to `ClustersPage.tsx:58` calling `useSnackbar`;
+its runtime setter assigns that missing export to the minified name `zs`.
+The desktop host no longer exports it, so opening the cluster list failed
+before any connection request. Current plugin source already uses the supported
+notification API; older packaged plugins must be rebuilt and replaced.
+
+The release workflow builds through `hack/package.sh`. The affected release's
+frozen dependency typecheck accepted the older runtime API, while component
+tests mocked that API. Neither check exercised the actual desktop's shared
+runtime namespace. The UI build now also inspects the emitted `System.register`
+runtime setters and rejects the retired notification import before packaging.
+This targeted artifact check does not prove compatibility with every desktop
+API or replace an installed-host render smoke test.
+
+Run the guard regressions with
+`node --test ui/scripts/check-runtime-imports.test.mjs`. After a UI build, inspect
+its assets with `node ui/scripts/check-runtime-imports.mjs ui/dist/assets`.
+Before publishing, install the packaged plugin in the intended desktop release,
+open the cluster list, create and delete a folder, open cluster resources, and
+trigger a resource-link resolution error. Confirm notifications appear and
+navigation remains usable after a child-route render failure. Host-owned route
+boundaries isolate child pages; the plugin does not duplicate those boundaries.
+
+## Cluster explorer
+
+Cluster explorer search supports free text and `region:`, `provider:`, `env:`,
+`account:`, `status:`, `tag:`, and available attribute keys. Repeat one key to
+match any value; combine different keys to require every field. Quote literal
+identifiers containing colons, for example `"arn:aws:eks:cluster"`. Unknown keys
+and unfinished quotes show diagnostics and do not silently widen results.
+Displayed region, account, project, and environment facts retain their source.
+Explicit user tags take precedence over current metadata, followed by configured
+label/data hints; mutable AWS/GCP configuration metadata remains a labeled hint,
+not verified infrastructure ownership. Cluster names never establish production
+or local facts. Metadata freshness is separate from connection readiness and
+workload health. The ready cluster resource route records each mounted view once
+in the shared backend-backed, 100-entry recent history, covering homepage,
+explorer, launcher, tabs and windows. Nested resource navigation does not add
+accesses; reconnecting or opening another ready view does. Failed connections,
+failed window creation and connect-only actions do not add accesses.
+
+The primary card or row action opens the cluster. Use the independent action menu for Preview, cluster Settings, and opening another tab or window. Search combines keyed completion with result selection: completion owns the arrow keys while its popup is open; otherwise arrows select a cluster and Enter opens it.
+
+Long cluster names remain available in accessible names and full-name tooltips without changing the card height. Opaque context IDs stay literal identifiers, including colons and slashes; quote them when searching. Keyboard users can open results, use action menus, assign folders, and cancel drag operations without relying on pointer-only controls.
+
+Cards, Table, Debug, and Organize share the same scope and filters. Table includes account or project identity without dropping available project facts. Debug separates connection readiness, metadata freshness, and unknown workload health.
+
+Folders retain preset icons, colors, legacy custom images, manual membership, and automatic rules. Effective membership is the deduplicated union of manual assignments and rule matches. Dragging into a folder adds manual membership; explicit menu actions provide keyboard alternatives. Cancelled and no-target drops leave membership unchanged.
+
+The icon-only folder changer opens a searchable picker with reusable named images. Browse and drop share validation for PNG, JPEG, and WebP files up to 5 MiB; accepted images are normalized to PNG within 128×128 before profile-backed storage. SVG is not imported. Removing a library image preserves its appearance on folders already using it.
+
+Saved lenses retain query, facets, scope, grouping, sort, and view. Folders, assets, lens order, and shared recent history persist in backend plugin data rather than depending on one browser window.
+
+### Actual IDE evidence
+
+![Actual development IDE showing the cluster explorer Cards view](docs/images/cluster-explorer/final-cards-1568.png)
+
+![Actual development IDE showing manual and rule-based folder organization](docs/images/cluster-explorer/organize-final.png)
+
+These are unmodified captures from the running development IDE, not mockups or packaged-desktop screenshots. The owned fixture exposes a real Kubernetes API and etcd with four namespaces, zero Nodes, and no scheduler. All 26 context aliases point to that one fixture; cloud-like names and configured provider hints do not prove a cloud fleet, production ownership, workload health, or cloud connectivity.
+
+The [evidence index](docs/images/cluster-explorer/index.json) links all twelve final Cards/Table/Debug captures at 360, 768, 1063, and 1568 pixels, organization and search captures, settled API views, restart snapshots, and the live scenario summary. Nine themes, five text scales, both densities, keyboard actions, direct opening, new-tab handoff, folder assets, lenses, and shared recents were exercised. Native OS window creation was not proved.
+
+Kubernetes plugin 0.16.2 requires Omniview 0.30.2 or newer, runtime/Vite 0.30.2, Base UI 0.15.0, and Editors 6.2.0. This matching UI cohort preserves activity, structured notifications, and the plugin-data snapshot and compare-and-swap bindings used by the explorer. Upgrade the desktop before installing the plugin; older runtime packages with a Base UI `~0.14.0` peer are incompatible with Base UI 0.15.0 even if workspace source links resolve imports.
+
 Container log requests with an explicit `SinceTime` use that timestamp instead
 of `SinceSeconds`. Kubernetes accepts only one time filter per log request.
 
-Kubernetes plugin 0.15.1 requires Omniview 0.27.2 or newer so the host includes
-the matching log lifecycle fixes. Update the desktop application before installing
-this plugin release.
-The plugin pins SDK 0.14.6 for completed-source handling while preserving the
-existing source-session wire contract and stock grpc-go dependency.
+Standalone release 0.15.1 used SDK 0.14.6 for completed-source handling with stock grpc-go. Historical live explorer evidence used SDK `6ce85c8b42cab1547396217510196b29e63ffe55`; it does not establish evidence for this candidate or the integrated activity release.
+
+Standalone release 0.16.0 packaging uses published SDK `v0.15.0` and the SDK-compatible grpc-go fork for activity streams and completed-source handling.
+
+This source candidate pins SDK `v0.15.0` (`427ef1da1f1d`),
+including completed-source handling and the C04 source-session wire contract.
+It replaces grpc-go with the scoped Omniview fork required by source sessions.
 
 ## MCP resource actions
 
 The resource catalog exposes unary `rollout-restart` actions for Deployments, StatefulSets and
 DaemonSets. The existing streaming `restart` action remains available to the UI. CronJobs expose
 `trigger`, `suspend` and `resume`; triggered Jobs use a controller owner reference to the CronJob.
+
+Streaming restarts publish typed activity progress and completion alongside validated business
+output. Notifications show updated, ready, and old replica or node counts against the actual
+desired count; zero desired units remain indeterminate. Completion requires the controller to
+observe the patched generation; StatefulSets also require matching current and update revisions.
+Watch errors, deletion, and closed watches fail observation rather than report success.
+The producer adds no guessed resource-navigation target; host-provided actions remain host-owned.
+
+Node `cordon` and `uncordon` remain finite actions. Node `drain` requires streaming execution
+and publishes typed activity stages and removed, remaining, and skipped pod counts.
+Drain cordons first and completes only after the selected pod incarnations disappear, not when
+evictions are accepted. Mirror pods, completed pods, and optionally DaemonSet pods are skipped.
+The Node drain confirmation warns that evicting pods permanently deletes their emptyDir data.
+Setting `deleteEmptyDirData` to false refuses selected pods with emptyDir volumes.
+Grace defaults to 30 seconds; -1 preserves each pod's native termination grace period.
+Eviction rejection fails the activity unless explicit force deletion succeeds. Drain does not
+retry PDB rejection. Cancellation and observation errors fail without uncordoning or rollback.
+Node replacement stops execution; pod UID preconditions protect replacement pods from mutation.
 
 Pods expose a one-shot, non-TTY `exec` action. Its input contains a command array, an optional
 container and a timeout from 1 to 100 seconds (30 seconds by default). Each output stream keeps
@@ -154,44 +259,14 @@ A changed name or namespace cannot retarget an edit. Native dialogs own their
 portaled menus, help, and confirmations,
 so these controls remain visible and interactive inside the browser's top layer.
 
+## Frontend CI
 
-## Candidate frontend CI
-
-PRs explicitly labeled `resource-v2-candidate` use `hack/candidate-ui.mjs`, not
-the last published runtime. Unlabeled PRs retain the frozen published install.
-Repository administrators must set
-`OMNIVIEW_RESOURCE_V2_REVIEWED_HOST_REVISION` to an independently approved full
-host commit and `OMNIVIEW_RESOURCE_V2_REVIEWED_SDK_REVISION` to the independently
-approved SDK commit. The selected host's checked-in `e2e/source-cohort.json`
-owns the exact SDK, UI, and Kubernetes commits. Its Kubernetes gitlink and the
-actual PR head must match that cohort. Missing approval fails closed.
-
-The helper reuses the approved host's admission checks, unchanged isolation
-baseline, real native-pnpm protocol probe, and canonical cohort preparation CLI.
-The CLI creates and links an isolated managed workspace and supplies its package
-launcher and producer graph. Lint, native typechecking, behavior tests, New York
-age-clock tests, and production UI builds run against that selected source
-workspace. No package files or `node_modules` exports are patched. PR execution
-uses read-only permissions without persisted checkout credentials.
-
-Candidate preparation compiles the real native host cohort tool. Linux therefore
-needs the same GTK 4, WebKitGTK 6.0, Wayland, compiler and pkg-config development
-prerequisites as the host CI image; the labeled workflow installs them explicitly.
-The unlabeled published dependency lane does not run this native setup.
-
-Shared producer preparation and the final production build use the canonical
-`build-plugin-ui` operation, which owns dependency order, staged outputs,
-publication, and generated shims. Consumer checks use the supplied supervised
-package launcher; they do not overwrite producer distributions.
-The helper persists the constructed cohort before building producers. An always-run
-cleanup step retires that cohort through the host's canonical unlink/remove
-transaction, including after producer or check failures. Failed preparation before
-cohort construction retains its private failure artifacts without claiming a
-stopped process or deleting unrelated data.
-
-This candidate-only validation does not change published dependency manifests,
-stable-main installs, or release packaging. After publication, ordinary registry
-validation must use the reviewed published cohort and its frozen lockfile.
+Every pull request installs UI dependencies from the frozen lockfile, then runs
+lint, native TypeScript checking, tests, the New York age-clock test, and the
+production UI build. Host application E2E and profiling instead use UI packages
+from the host lockfile and Kubernetes from the host's `plugins/kubernetes`
+gitlink. Their linked SDK checkout matches the commit resolved from the host
+`go.mod`.
 
 ## Resource v2 boundary
 
@@ -203,11 +278,15 @@ Only the host issues authority and row keys. A readable kube-system namespace UI
 
 Finite reads use native client-go operations and source-only continuation tokens. Enumeration keeps unknown totals unknown. The implementation-candidate `omniview.resource-wire-policy.v1` separates 16 MiB resource documents, 32 MiB aggregate frames, and at most 256 records from the host's smaller predicate/projection limits. Resource-only HTTP clients bound decompressed finite responses and each native watch frame before client-go materialization. Their actual SDK connection-generation context also cancels discovery APIs that internally use background contexts. Independent logs, exec, and metrics streams keep their native framing rather than receiving a finite aggregate body cap.
 
+Kubernetes enumeration and label queries request one object per native List, preserving the same limit across Kubernetes continuation tokens. Each public page combines native Lists up to the requested page size and wire budget; when the next object does not fit, its input continuation is retained for the next page. A server that ignores the limit can return a complete unpaginated list only when the entire list fits; otherwise acquisition fails without truncation. Paginated servers cost one List request per object, plus a repeat at wire-budget boundaries. Cursors bind the request and connection generation, expired continuations require a fresh acquisition, and an individually oversized object fails with `RESOURCE_LIMIT`.
+
 Resource tables, namespace selectors, repository chart drawers, and native dashboard adapters request `collection: true`. The runtime follows bounded source pages in the background and exposes the full acquired collection; source cursors are transport details, not UI navigation. Searches, filters, sorting, selections, and dashboard counts operate across that collection. Table selections use host record keys in one collection-wide selection state, reset when the target context changes. Unknown source totals remain unknown, and collection acquisition does not strengthen best-effort consistency.
 
 Workload cards open the same canonical resource tables as the sidebar and search, preserving the selected connection. Metadata fields and collection health badges wrap independently on narrower views instead of overlapping. Dashboards and namespace selectors show no source-page controls.
 
 Collection acquisition exposes loading and errors with an explicit retry action. Retry reacquires the failed catalog, target resolution, or collection stage. Changing target, scope, representation, route, plugin, or catalog identity must not mix records or selection from different target contexts.
+
+Resource table errors display the safe detail from structured host errors instead of converting error objects to text.
 
 Repository chart drawers resolve the selected native repository before background pagination through the chart Type's declared `repository` query dimension. Chart identity remains `helm:charts` with native opaque ID and only `domain=helm-client` identity scope; repository is not another identity field. Only configured repository bindings participate, and unrelated indexes are not loaded for a repository-scoped collection.
 
@@ -235,6 +314,18 @@ Helm schema acquisition never grants or requires Helm Secret access for native P
 
 Tables and navigation use canonical references, routes, target membership, and host keys. Raw tagged integer Values stay exact; display adapters narrow only safe integers to numbers and retain wide integers as `bigint`. Restart counts and image-byte totals preserve exact mixed integer arithmetic. Mutation and action requests retain known UID and revision guards. Native connection discovery, explicit overrides, and disabled routes remain separate; host persistence owns desired profiles, not provider-side kubeconfig edits. Specialized React Router routes retain decoded colons and protect native Type slashes as `%2F`.
 
+Legacy built-in Kubernetes resource page paths and table column preferences migrate using an explicit provider-owned mapping. Preference migration uses configured connection IDs and explicit plugin-wide keys, never a guessed connection/type boundary. Unknown types, missing connections, and ambiguous connection prefixes are reported and retained. Column and toolbar preference originals remain in place and are also copied under the `kubernetes-legacy-preference-backup:` prefix within their existing storage namespace; existing canonical preferences are never overwritten. Both plugin-local preferences and active host-profile table preferences migrate independently. Resource tables wait for connection discovery and migration before reading their initial choices. Reloading does not replace either backup or canonical values.
+
+The provider exposes `PreferenceMigrationGate` for host-owned resource tables. It waits for configured connections and completes the same migration before rendering table children. Unconvertible entries remain intact and are reported once per stored issue; newly encountered issues are reported separately.
+
+Historical `events_v1_Event` routes and `events::v1::Event` preferences use the
+registered `k8s:events.k8s.io/events` binding. Saved `kubernetes-sidebar-order`
+items and nested child IDs migrate before sidebar state initializes. Group IDs
+and current canonical choices stay intact. Unknown resource IDs are reported and
+retained; the first complete order is backed up under
+`kubernetes-legacy-preference-backup:kubernetes-sidebar-order` before any rewrite.
+Later drag saves and reloads do not replace that original backup.
+
 Native and Helm resource sidebars and drawer factories register through `extensionRegistrations` at `omniview/resource/sidebar/infopanel` and `omniview/resource/drawer`. Exact `{pluginId, resourceKey}` metadata selects each opaque logical Type without parsing its spelling. Standard views and shared actions are identical for table and linked-resource drawers; the supported default drawer factory remains available for CRDs and other dynamically discovered resources without a dedicated sidebar.
 
 Standard resource YAML drawers submit through the resource-v2 mutation hook using the original contextual route, reference, known incarnation, and observed revision. The editor requires catalog-advertised `mutationUpdate` support for the exact scope; the catalog's `update` capability describes advisory watch updates, not writes. Missing identity, unavailable catalog metadata, and non-mutating resources cannot submit. YAML integers retain their exact values through tagged Value conversion. Pending writes reject duplicate submits, parse and native failures retain the draft, and only a successful native mutation replaces the dirty baseline with the returned record. Target/reference changes retire the old editor state, so late results cannot overwrite another resource. Successful writes use the runtime's canonical resource-query invalidation.
@@ -260,6 +351,7 @@ The replacement resource path retains native label selectors, every served API v
 The owned kind/history audit fixture below is unchanged. Helm release enumeration is bounded through native Secret/ConfigMap storage; other Helm storage drivers are not advertised as bounded enumeration sources.
 
 Node drain accepts `gracePeriodSeconds: -1` to leave Kubernetes eviction grace unset, preserving each pod's native termination grace period. The drawer sends that sentinel explicitly. Omitting the parameter retains the 30-second action default; zero requests immediate termination, nonnegative integers override the grace period, and all other negative values fail before cordon or eviction.
+
 ## Resource event and table performance
 
 Informer updates with the same nonempty resource version and the same UID, name,
@@ -289,6 +381,11 @@ only when CPU or memory columns are visible in a visible document. Persisted col
 visibility applies before the observer mounts; pausing the observer does not
 remount table rows or discard selection, filtering, focus, or scroll. Dashboard
 metric consumers also pause while the document is hidden.
+Pod and Node tables discover current-value metric columns from the admitted source
+catalog. Custom columns start hidden and appear in the column picker without a
+Kubernetes plugin rebuild. Visible metric columns contribute to one shared host
+observation over mounted rows; cells never fetch. Catalog and observation use the
+same durable source choice, including explicit native or external selection.
 The single visible clock also checks wall-clock and time-zone changes once per
 second, refreshing old labels after clock corrections without formatting them
 on ordinary young-cell ticks.
@@ -321,7 +418,7 @@ Regression checks:
 ```bash
 cd ui
 pnpm exec vitest run src/components/tables/ColumnFilter/useDynamicResourceColumns.test.tsx
-pnpm exec vitest run src/utils/ageClock.test.tsx src/hooks/usePodMetricsBatch.test.tsx src/components/kubernetes/table/corev1/Pod/PodMetricsProvider.test.tsx
+pnpm exec vitest run src/utils/ageClock.test.tsx src/components/kubernetes/table/shared/TableMetrics.test.tsx src/components/shared/table/ResourceTable/index.test.tsx
 AGE_CLOCK_BENCH=1 pnpm exec vitest run src/components/kubernetes/table/shared/cells/AgeCell.benchmark.test.tsx --silent=false --reporter=verbose
 cd ..
 GOWORK=off GOFLAGS= go test ./pkg/plugin/resource/resourcers -count=1
@@ -368,22 +465,22 @@ The SDK serves profiling on a loopback-only endpoint. Treat profile files as sen
 
 The resource provider publishes core server facts through the optional SDK `connectionMetadata` trait:
 
-| Key | Source |
-| --- | --- |
-| `kubernetes.server_url` | Resolved REST endpoint, without userinfo, query, or fragment |
-| `kubernetes.server_version` | `/version.gitVersion` |
-| `kubernetes.server_platform` | `/version.platform` |
+| Key                          | Source                                                       |
+| ---------------------------- | ------------------------------------------------------------ |
+| `kubernetes.server_url`      | Resolved REST endpoint, without userinfo, query, or fragment |
+| `kubernetes.server_version`  | `/version.gitVersion`                                        |
+| `kubernetes.server_platform` | `/version.platform`                                          |
 
 Optional environment hints reuse connection configuration, the resolved endpoint, and the existing version response:
 
-| Keys | Meaning |
-| --- | --- |
-| `kubernetes.provider`, `kubernetes.provider_source` | Recognized environment and its inference source: `connection_config`, `server_endpoint`, or `server_version` |
-| `kubernetes.distribution`, `kubernetes.distribution_source` | Recognized server build distribution, separate from hosting |
-| `cloud.provider` | AWS, GCP, or Azure hint |
-| `aws.region`, `aws.account_id` | Region and account; account comes only from a valid configured EKS cluster ARN, never an authentication role |
-| `gcp.region`, `gcp.zone`, `gcp.project_id` | Configured or recognizable GKE context details |
-| `azure.subscription_id`, `azure.resource_group` | Configured Azure details |
+| Keys                                                        | Meaning                                                                                                      |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `kubernetes.provider`, `kubernetes.provider_source`         | Recognized environment and its inference source: `connection_config`, `server_endpoint`, or `server_version` |
+| `kubernetes.distribution`, `kubernetes.distribution_source` | Recognized server build distribution, separate from hosting                                                  |
+| `cloud.provider`                                            | AWS, GCP, or Azure hint                                                                                      |
+| `aws.region`, `aws.account_id`                              | Region and account; account comes only from a valid configured EKS cluster ARN, never an authentication role |
+| `gcp.region`, `gcp.zone`, `gcp.project_id`                  | Configured or recognizable GKE context details                                                               |
+| `azure.subscription_id`, `azure.resource_group`             | Configured Azure details                                                                                     |
 
 Unknown optional facts are omitted, and obsolete hints are explicitly removed on refresh. These are display hints, not verified hosting or feature-gating authority. Recognition uses bounded patterns rather than arbitrary display-name substrings. A Docker runtime is not evidence of Docker Desktop, kind, or a cloud provider.
 
@@ -533,14 +630,14 @@ After deletion, archive desired evidence, then remove the private directory your
 
 ## Capabilities
 
-| Capability | Description |
-|---|---|
-| **Resource** | Browse, create, edit, and delete any Kubernetes resource |
-| **Exec** | Open an interactive shell in pod or node containers |
-| **Logs** | Stream and inspect container logs with filtering |
-| **Networking** | Port-forward from pods to localhost |
-| **Metrics** | CPU, memory, network, and disk metrics from metrics-server and Prometheus |
-| **UI** | Custom tables, sidebars, dashboards, and dialogs |
+| Capability     | Description                                                               |
+| -------------- | ------------------------------------------------------------------------- |
+| **Resource**   | Browse, create, edit, and delete any Kubernetes resource                  |
+| **Exec**       | Open an interactive shell in pod or node containers                       |
+| **Logs**       | Stream and inspect container logs with filtering                          |
+| **Networking** | Port-forward from pods to localhost                                       |
+| **Metrics**    | CPU, memory, network, and disk metrics from metrics-server and Prometheus |
+| **UI**         | Custom tables, sidebars, dashboards, and dialogs                          |
 
 ## Supported Resources
 
@@ -653,17 +750,17 @@ Search and resource views share the runtime's `resourceQueryKeys` snapshots. Que
 
 Click any resource row to open a rich sidebar panel with contextual information:
 
-| Resource | Sidebar Highlights |
-|---|---|
-| **Pod** | Container statuses, ports, volumes, environment, probes, resource requests/limits, live metrics graphs |
-| **Deployment / StatefulSet / DaemonSet** | Replica status, rollout progress, selector details |
-| **Service** | Port mappings, endpoint resolution |
-| **Ingress** | Rule table with host, path, and backend mapping |
-| **Job / CronJob** | Completion status, schedule, parallelism |
-| **Node** | System info, capacity, images, topology, conditions, live metrics |
-| **Namespace** | Resource quotas, pod counts, events |
-| **ConfigMap / Secret** | Key-value viewer |
-| **PV / PVC** | Binding status, storage details, access modes |
+| Resource                                 | Sidebar Highlights                                                                                     |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **Pod**                                  | Container statuses, ports, volumes, environment, probes, resource requests/limits, live metrics graphs |
+| **Deployment / StatefulSet / DaemonSet** | Replica status, rollout progress, selector details                                                     |
+| **Service**                              | Port mappings, endpoint resolution                                                                     |
+| **Ingress**                              | Rule table with host, path, and backend mapping                                                        |
+| **Job / CronJob**                        | Completion status, schedule, parallelism                                                               |
+| **Node**                                 | System info, capacity, images, topology, conditions, live metrics                                      |
+| **Namespace**                            | Resource quotas, pod counts, events                                                                    |
+| **ConfigMap / Secret**                   | Key-value viewer                                                                                       |
+| **PV / PVC**                             | Binding status, storage details, access modes                                                          |
 
 All sidebars include a **YAML editor** tab with diff view and schema-validated editing.
 
@@ -857,12 +954,12 @@ A dedicated dashboard view per cluster with:
 
 The plugin supports two metrics backends:
 
-| Source | Data |
-|---|---|
-| **metrics-server** | Pod and node CPU/memory usage |
-| **Prometheus** | Time-series metrics: CPU throttle rate, memory working set, network I/O, disk throughput, IOPS, filesystem usage, OOM kills, restart counts, probe latency, and more |
+| Source             | Data                                                                                                                                                                 |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **metrics-server** | Pod and node CPU/memory usage                                                                                                                                        |
+| **Prometheus**     | Time-series metrics: CPU throttle rate, memory working set, network I/O, disk throughput, IOPS, filesystem usage, OOM kills, restart counts, probe latency, and more |
 
-Metrics are displayed in the dashboard, node sidebars, and pod sidebars as interactive time-series graphs.
+Native Pod CPU and memory cells use one host-owned current observation for mounted virtual rows, including overscan. Targets retain host-issued references, routes, and row membership; table rows remain unchanged. Hiding metric columns or the document pauses collection without remounting table content. Overlapping Pod detail observations share host collection. Missing samples display as missing, never zero, and cells do not invent capacity limits. Native metrics-server samples are current values, not fabricated time-series history. Genuine Prometheus and Node consumers retain their existing paths. See [native metrics](docs/native-metrics.md) for source provenance and backend limits.
 
 ## Installation
 
@@ -936,9 +1033,17 @@ subject to Kubernetes authorization and admission policy.
 
 ### Prometheus Integration
 
-To enable advanced metrics, configure a Prometheus endpoint in the cluster settings. The plugin will query Prometheus for time-series data and display it alongside metrics-server data.
+For finite host-owned Pod metrics, configure a Grafana provider connection in global **Settings → Metrics** and discover its Prometheus datasource. Kubernetes supplies the owner catalog: 24 Pod definitions, including the canonical CPU/memory IDs and 22 `kubernetes.pod.*` recipes, plus two native-only Node definitions. Grafana executes mappings but does not own Kubernetes definitions. Global settings can override shared mappings. Then open the owning Kubernetes connection's **Cluster Settings → Metrics**, bind the provider connection and datasource, set **Cluster label value** to the actual exporter label, and save the connection metrics binding. Choose **Supplement native metrics** or **Replace mapped metrics** explicitly. A provider health test alone does not prove datasource query access.
+
+The logical native source uses the owning plugin and connection with `native: true` and empty datasource kind/UID. Kubernetes keeps metrics-server internal and supplies current Pod/Node CPU/memory only, never range history. Mapped Prometheus observations can supply genuine retained Pod series, while missing counters and unsupported native history remain unavailable. Owner-declared resource projections use only observed `/metadata/name` and `/metadata/namespace` scalars; no per-object GET repairs missing context. Existing cluster/namespace Prometheus consumers still use their genuine legacy endpoint/query configuration; the owner-connection binding does not migrate those consumers. See [Kubernetes-owned metrics](docs/native-metrics.md) for IDs, units, scope, and provenance.
+
+For a manual real Kind/Prometheus/Grafana fixture, see [the metrics lab](hack/metrics-lab/README.md). It uses private kubeconfig credentials, loopback-only forwards, and two actual application Pods.
 
 ## Development
+
+### Manual real-cluster metrics development
+
+Use [hack/metrics-lab](hack/metrics-lab/README.md) to install the pinned monitoring stack and two bounded CPU/HTTP/I/O workloads into an existing disposable local Kind cluster. Follow its setup, direct telemetry verification, and IDE connection steps. The fixture never writes ambient kubeconfig or creates/deletes a cluster; it rejects unowned release/object collisions. Do not reset another lab or replace existing port-forwards. This manual fixture adds no CI workflow and does not install metrics-server.
 
 Resource-toolbar Create, search, filter and settings controls should consistently request `size="sm"` and rely on the shared density scale rather than fixed pixel heights. The host supplies shared `@omniviewdev/base-ui`, so shared styling fixes reach the plugin through the host's library release.
 
@@ -948,9 +1053,17 @@ Resource tables set horizontal cell padding on the table root so header checkbox
 
 The backend consumes the published SDK pinned in `go.mod`. Restart streams emit `ready` only after the native patch succeeds and the rollout watch is established. Native failures return through the SDK classifier; unsupported stream actions return typed `UNSUPPORTED` errors. An open failure does not roll back a Kubernetes mutation already committed before watch establishment.
 
+Restart activity progress counts nonterminating Ready pods carrying the requested restart annotation and owned by the patched workload (through owned ReplicaSets for Deployments). Old Ready pods never advance the percentage. Progress waits for the patched generation to be observed; replacement UIDs or superseding generations fail observation instead of reporting another rollout's success. This requires pod list access and, for Deployments, ReplicaSet list access. Updated, total Ready, and old workload counts remain separate diagnostic metrics; zero desired pods remains indeterminate.
+
+Readiness refreshes on workload watch events and once per second, including when pod changes leave aggregate workload status unchanged. Pod and ReplicaSet lists use the workload namespace and selector; UID ownership and the restart annotation further constrain counted pods. The periodic workload read also detects replacement or supersession without waiting for another watch event.
+
+Streams emit progress only when its counters change. Completion and failure checks remain active on every observation, including unchanged refreshes.
+
+The five-minute observation deadline also bounds readiness GET/LIST calls. Deadline expiry retains the rollout `TIMEOUT` error; caller cancellation remains caller cancellation.
+
 These action semantics require a compatible host/runtime cohort. Coordinate changes with [the host invocation contract](https://github.com/omniviewdev/omniview/issues/83); source integration does not publish a plugin release.
 
-Resource watch streams acknowledge actual SDK listener registration before the host admits connections. Build the plugin and host from the same reviewed SDK cohort; the host rejects streams without that acknowledgement.
+Resource watch streams acknowledge actual SDK listener registration before the host admits connections. Build the plugin and host with compatible declared SDK dependencies; the host rejects streams without that acknowledgement.
 
 ### Settings and shared dependency migration
 
@@ -990,12 +1103,12 @@ rather than adding unsupported manifest fields.
 
 Registry installs retain pnpm's 24-hour release-age protection. Only coordinated
 `@omniviewdev/*` packages are exempted; linked source worktrees resolve locally.
-The current frontend cohort uses `@omniviewdev/base-ui` 0.12.0,
-`@omniviewdev/editors` 6.1.6, and runtime/Vite plugin 0.27.2.
-The published runtime and Vite plugin must match; source builds use the reviewed host runtime.
-The backend pins released Go SDK `v0.14.6`, matching completed-source log
-handling while preserving the deployed source-session wire protocol and stock
-grpc-go dependency.
+The current frontend cohort uses `@omniviewdev/base-ui` 0.15.0,
+`@omniviewdev/editors` 6.2.0, and runtime/Vite plugin 0.30.2.
+The published runtime and Vite plugin must match; host application builds use the host lockfile.
+The backend pins SDK `v0.15.0` (`427ef1da1f1d`) and replaces
+grpc-go with `github.com/omniviewdev/grpc-go` at
+`v1.79.3-0.20261103012409-4c6f1d1c4e10` for source-session receive controls.
 Debug preferences discard unsaved drafts when reopened or switched to another
 connection, but preserve active drafts when saved defaults refresh.
 
@@ -1061,7 +1174,6 @@ Run local rule regressions from the plugin root:
 node --test ui/scripts/eslint/*.test.mjs
 ```
 
-
 ### Isolated workspace development
 
 Select this plugin in an Omniview feature workspace and start its host with the
@@ -1099,7 +1211,6 @@ set it to `podman` or `nerdctl` to use the same provider for kind and port inspe
 Generated configurations are published atomically. Cluster creation/seeding is a
 separate deliberate operation, not a workspace-start prerequisite or permission
 to use a production cluster.
-
 
 ### Project Structure
 
@@ -1140,7 +1251,7 @@ Commit curated notes in `docs/releases/X.Y.Z.md`, starting with
 `# Kubernetes X.Y.Z`, alongside the version bump. Include user-facing changes,
 linked feature PRs and real IDE screenshots. The workflow validates and publishes
 that file as the GitHub release body; it does not append generated notes.
-Kubernetes 0.15.1 requires IDE 0.27.2 or newer. Publish the Omniview 0.27.2
+Kubernetes 0.16.2 requires IDE 0.30.2 or newer. Publish the Omniview 0.30.2
 desktop and matching npm release before publishing the plugin; npm publication alone is not a desktop release.
 
 The release workflow uses the Go version declared in `go.mod`, Node.js 26.13.0,

@@ -14,7 +14,7 @@ type Props = {
   availableAttributes: ConnectionAttribute[];
 };
 
-const selectStyle: React.CSSProperties = { minWidth: 120 };
+const selectStyle: React.CSSProperties = { inlineSize: '12em', maxInlineSize: '100%' };
 
 const SortBySelector: React.FC<Props> = ({
   sortBy,
@@ -41,6 +41,10 @@ const SortBySelector: React.FC<Props> = ({
           { value: 'provider', label: 'Provider' },
           { value: 'status', label: 'Status' },
           { value: 'recency', label: 'Recently Used' },
+          { value: 'fact:region', label: 'Region' },
+          { value: 'fact:account', label: 'Account' },
+          { value: 'fact:environment', label: 'Environment' },
+          { value: 'metadata', label: 'Metadata freshness' },
           ...sortableAttrs.map((attr) => ({
             value: `label:${attr.key}`,
             label: attr.displayName,

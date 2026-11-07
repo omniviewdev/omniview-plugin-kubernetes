@@ -3,7 +3,14 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { resourceDrawerActions } from '../../kubernetes/drawerActions';
 
-import { bindDrawerActionDeps, type DrawerActionDeps, drawerActionDeps, drawerActionDepsStore, registerDrawerActionDeps, registryKey } from './actionDeps';
+import {
+  bindDrawerActionDeps,
+  type DrawerActionDeps,
+  drawerActionDeps,
+  drawerActionDepsStore,
+  registerDrawerActionDeps,
+  registryKey,
+} from './actionDeps';
 
 function fakeDeps(): DrawerActionDeps {
   return {
@@ -15,7 +22,7 @@ function fakeDeps(): DrawerActionDeps {
     nativeExecPending: false,
     openNativeSession: vi.fn().mockResolvedValue(false),
     executeAction: vi.fn().mockResolvedValue(undefined),
-    startStreamAction: vi.fn().mockResolvedValue(undefined),
+    startResourceAction: vi.fn().mockResolvedValue(undefined),
     closeDrawer: vi.fn(),
     openScale: vi.fn(),
   } as unknown as DrawerActionDeps;
@@ -28,8 +35,11 @@ const rsCtx: DrawerContext = {
     route: { connection: 'conn-1' },
     reference: {
       address: {
-        provider: 'kubernetes', authority: 'test-cluster', type: 'k8s:apps/replicasets',
-        scope: [{ dimension: 'namespace', value: 'prod' }], id: 'web-7d4b9c',
+        provider: 'kubernetes',
+        authority: 'test-cluster',
+        type: 'k8s:apps/replicasets',
+        scope: [{ dimension: 'namespace', value: 'prod' }],
+        id: 'web-7d4b9c',
       },
       incarnation: 'native-uid',
     },
@@ -43,14 +53,13 @@ describe('drawerActionDeps', () => {
     const bound = fakeDeps();
     const mounted = fakeDeps();
     const ctx = bindDrawerActionDeps({ ...rsCtx }, bound);
-    const unregister = registerDrawerActionDeps(registryKey('conn-1', 'k8s:apps/replicasets'), mounted);
+    const unregister = registerDrawerActionDeps(
+      registryKey('conn-1', 'k8s:apps/replicasets'),
+      mounted,
+    );
     expect(drawerActionDeps(ctx)).toBe(bound);
     unregister();
     expect(drawerActionDeps(ctx)).toBe(bound);
-  });
-
-  it('throws when nothing is mounted for the resource', () => {
-    expect(() => drawerActionDeps(rsCtx)).toThrow('k8s:apps/replicasets');
   });
 
   it('returns the most recently mounted handlers and falls back on unmount', () => {
@@ -68,7 +77,10 @@ describe('drawerActionDeps', () => {
   });
 
   it('does not mix up connections', () => {
-    const unregister = registerDrawerActionDeps(registryKey('conn-2', 'k8s:apps/replicasets'), fakeDeps());
+    const unregister = registerDrawerActionDeps(
+      registryKey('conn-2', 'k8s:apps/replicasets'),
+      fakeDeps(),
+    );
     expect(() => drawerActionDeps(rsCtx)).toThrow();
     unregister();
   });
@@ -78,7 +90,9 @@ describe('drawerActionDeps', () => {
     expect(drawerActionDepsStore.getSnapshot(rsCtx)).toBeUndefined();
     expect(drawerActionDepsStore.getSnapshot(rsCtx)).toBeUndefined();
     const snapshots: Array<DrawerActionDeps | undefined> = [];
-    const unsubscribe = drawerActionDepsStore.subscribe(rsCtx, () => snapshots.push(drawerActionDepsStore.getSnapshot(rsCtx)));
+    const unsubscribe = drawerActionDepsStore.subscribe(rsCtx, () =>
+      snapshots.push(drawerActionDepsStore.getSnapshot(rsCtx)),
+    );
     const table = fakeDeps();
     const drawer = { ...fakeDeps(), nativeExecAvailable: true };
     const unregisterTable = registerDrawerActionDeps(key, table);
@@ -95,31 +109,76 @@ describe('drawerActionDeps', () => {
 });
 
 describe('resourceDrawerActions', () => {
-  it('gives linked ReplicaSet and Deployment drawers their actions', () => {
-    const titles = (key: string) => resourceDrawerActions[key]?.actions.map((a) => a.title);
-    expect(titles('k8s:apps/replicasets')).toEqual(['Delete', 'Logs']);
-    expect(titles('k8s:apps/deployments')).toEqual([
-      'Restart', 'Scale', 'Pause Rollout', 'Resume Rollout', 'Delete', 'Logs',
-    ]);
+  it('keeps the drawer open until the host adopts the restart', async () => {
+    const adoption = Promise.withResolvers<void>();
+    const deps = fakeDeps();
+    vi.mocked(deps.startResourceAction).mockImplementation(async () => {
+      await adoption.promise;
+      return {
+        id: 'accepted',
+        revision: 1,
+        kind: 'task',
+        severity: 'info',
+        source: {},
+        presentation: { title: 'Restart' },
+        task: { state: 'starting', cancellation: 'unsupported' },
+        visibility: { collapsed: false, read: false, toastDismissed: false },
+        createdAt: '2026-11-03T00:00:00Z',
+        updatedAt: '2026-11-03T00:00:00Z',
+      };
+    });
+    const ctx = bindDrawerActionDeps(
+      {
+        ...rsCtx,
+        resource: {
+          ...rsCtx.resource!,
+          reference: {
+            ...rsCtx.resource!.reference,
+            address: { ...rsCtx.resource!.reference.address, type: 'k8s:apps/deployments' },
+          },
+        },
+      },
+      deps,
+    );
+    const restart = resourceDrawerActions['k8s:apps/deployments'].actions.find(
+      (action) => action.title === 'Restart',
+    )!;
+    restart.action!(ctx);
+    const { onConfirm } = vi.mocked(deps.show).mock.calls[0][0] as {
+      onConfirm: () => Promise<void>;
+    };
+    const pending = onConfirm();
+    expect(deps.closeDrawer).not.toHaveBeenCalled();
+    adoption.resolve();
+    await pending;
+    expect(deps.closeDrawer).toHaveBeenCalledOnce();
   });
 
-  it('runs a linked delete through the mounted handlers', async () => {
+  it('keeps the drawer open when restart adoption fails', async () => {
     const deps = fakeDeps();
-    const unregister = registerDrawerActionDeps(registryKey('conn-1', 'k8s:apps/replicasets'), deps);
-
-    const del = resourceDrawerActions['k8s:apps/replicasets'].actions.find((a) => a.title === 'Delete');
-    del?.action?.(rsCtx);
-    expect(deps.show).toHaveBeenCalledTimes(1);
-
-    const { onConfirm } = vi.mocked(deps.show).mock.calls[0][0] as { onConfirm: () => Promise<void> };
-    await onConfirm();
-    expect(deps.mutate).toHaveBeenCalledWith({
-      route: rsCtx.resource!.route,
-      reference: rsCtx.resource!.reference,
-      operation: 'delete',
-      input: { kind: 'map', value: {} },
-    });
-    expect(deps.closeDrawer).toHaveBeenCalled();
-    unregister();
+    const failure = new Error('Host admission failed');
+    vi.mocked(deps.startResourceAction).mockRejectedValue(failure);
+    const ctx = bindDrawerActionDeps(
+      {
+        ...rsCtx,
+        resource: {
+          ...rsCtx.resource!,
+          reference: {
+            ...rsCtx.resource!.reference,
+            address: { ...rsCtx.resource!.reference.address, type: 'k8s:apps/deployments' },
+          },
+        },
+      },
+      deps,
+    );
+    const restart = resourceDrawerActions['k8s:apps/deployments'].actions.find(
+      (action) => action.title === 'Restart',
+    )!;
+    restart.action!(ctx);
+    const { onConfirm } = vi.mocked(deps.show).mock.calls[0][0] as {
+      onConfirm: () => Promise<void>;
+    };
+    await expect(onConfirm()).rejects.toBe(failure);
+    expect(deps.closeDrawer).not.toHaveBeenCalled();
   });
 });

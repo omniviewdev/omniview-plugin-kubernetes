@@ -3,6 +3,7 @@ package resourcers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -13,8 +14,10 @@ import (
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
 )
@@ -119,6 +122,7 @@ func TestNodeResourcer_GetActions(t *testing.T) {
 		assert.Equal(t, resource.ActionScopeInstance, a.Scope)
 		assert.NotEmpty(t, a.Label)
 		assert.NotEmpty(t, a.Description)
+		assert.Equal(t, a.ID == "drain", a.Streaming)
 	}
 }
 
@@ -192,6 +196,76 @@ func TestNodeResourcer_Uncordon(t *testing.T) {
 
 // ===================== Drain =====================
 
+func TestNodeResourcer_Drain_ReadyBeforeProgressAndMutation(t *testing.T) {
+	cs := newNodeClientSet(testNode("worker"))
+	stream := make(chan resource.ActionEvent, 32)
+	var events []resource.ActionEvent
+	cs.KubeClient.(*fake.Clientset).PrependReactor("patch", "nodes", func(k8stesting.Action) (bool, runtime.Object, error) {
+		// The real handler must establish readiness before it mutates Kubernetes.
+		require.Len(t, stream, 2)
+		events = append(events, <-stream, <-stream)
+		require.Equal(t, "ready", events[0].Type)
+		require.Equal(t, "progress", events[1].Type)
+		require.Equal(t, "cordoning", events[1].Data.Map["stage"].String)
+		return false, nil, nil
+	})
+	require.NoError(t, newTestNodeResourcer().StreamAction(context.Background(), cs, workloadActionRequest("drain", "worker", "", nil), stream))
+	close(stream)
+	for event := range stream {
+		events = append(events, event)
+	}
+	require.NotEmpty(t, events)
+	require.Equal(t, "ready", events[0].Type)
+	readyCount := 0
+	for i, event := range events {
+		switch event.Type {
+		case "ready":
+			readyCount++
+			require.Zero(t, i, "ready must precede every action event")
+		case "progress", "complete":
+			require.Equal(t, 1, readyCount, "SDK requires exactly one ready before action events")
+			require.NotNil(t, event.Activity)
+			require.NoError(t, resource.ValidateActivityPresentation(*event.Activity))
+		default:
+			t.Fatalf("unexpected action event %q", event.Type)
+		}
+	}
+	require.Equal(t, 1, readyCount)
+	require.Equal(t, "complete", events[len(events)-1].Type)
+}
+
+func TestNodeResourcer_Drain_CanceledBeforeReadyNeverMutates(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	stream := make(chan resource.ActionEvent, 16)
+	err := newTestNodeResourcer().StreamAction(ctx, nil, workloadActionRequest("drain", "worker", "", nil), stream)
+	require.ErrorIs(t, err, context.Canceled)
+	require.Empty(t, stream)
+}
+
+func TestNodeResourcer_Drain_CanceledAfterReadyNeverMutates(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stream := make(chan resource.ActionEvent)
+	done := make(chan error, 1)
+	go func() {
+		done <- newTestNodeResourcer().StreamAction(ctx, nil, workloadActionRequest("drain", "worker", "", nil), stream)
+	}()
+	select {
+	case event := <-stream:
+		require.Equal(t, "ready", event.Type)
+	case <-time.After(5 * time.Second):
+		t.Fatal("drain did not become ready")
+	}
+	cancel()
+	select {
+	case err := <-done:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(5 * time.Second):
+		t.Fatal("drain did not stop after cancellation")
+	}
+}
+
 func TestNodeResourcer_Drain_GracePeriodOptions(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
@@ -213,6 +287,7 @@ func TestNodeResourcer_Drain_GracePeriodOptions(t *testing.T) {
 			cs.KubeClient.(*fake.Clientset).PrependReactor("create", "pods", func(action k8stesting.Action) (bool, runtime.Object, error) {
 				require.Equal(t, "eviction", action.GetSubresource())
 				eviction = action.(k8stesting.CreateAction).GetObject().(*policyv1.Eviction)
+				require.NoError(t, cs.KubeClient.(*fake.Clientset).Tracker().Delete(corev1.SchemeGroupVersion.WithResource("pods"), pod.Namespace, pod.Name))
 				return true, eviction, nil
 			})
 			request := workloadActionRequest("drain", "worker", "", nil)
@@ -227,9 +302,9 @@ func TestNodeResourcer_Drain_GracePeriodOptions(t *testing.T) {
 				request.Input.Map["gracePeriodSeconds"] = *tc.value
 			}
 
-			result, err := newTestNodeResourcer().ExecuteAction(context.Background(), cs, request)
+			stream := make(chan resource.ActionEvent, 32)
+			err := newTestNodeResourcer().StreamAction(context.Background(), cs, request, stream)
 			require.NoError(t, err)
-			require.True(t, result.Map["success"].Bool)
 			require.NotNil(t, eviction)
 			require.NotNil(t, eviction.DeleteOptions)
 			assert.Equal(t, tc.want, eviction.DeleteOptions.GracePeriodSeconds)
@@ -250,89 +325,234 @@ func TestNodeResourcer_Drain_InvalidGraceNeverAcquiresNativeClient(t *testing.T)
 	} {
 		request := workloadActionRequest("drain", "worker", "", nil)
 		request.Input = resource.Value{Kind: "map", Map: map[string]resource.Value{"gracePeriodSeconds": value}}
-		_, err := newTestNodeResourcer().ExecuteAction(context.Background(), nil, request)
+		stream := make(chan resource.ActionEvent, 16)
+		err := newTestNodeResourcer().StreamAction(context.Background(), nil, request, stream)
 		require.ErrorContains(t, err, "gracePeriodSeconds")
+		require.Empty(t, stream)
 	}
 }
 
 func ptrInt64(value int64) *int64 { return &value }
 
-func TestNodeResourcer_Drain_EvictsPods(t *testing.T) {
-	node := testNode("drain-node")
-	pod1 := testPodOnNode("app-1", "default", "drain-node")
-	pod2 := testPodOnNode("app-2", "default", "drain-node")
-	cs := newNodeClientSet(node, pod1, pod2)
-	r := newTestNodeResourcer()
-
-	result, err := r.ExecuteAction(context.Background(), cs, workloadActionRequest("drain", "drain-node", "", map[string]interface{}{
-		"gracePeriodSeconds": int64(30),
-		"ignoreDaemonSets":   true,
-	}))
-
-	require.NoError(t, err)
-	require.Equal(t, "map", result.Kind)
-	// Note: fake clientset doesn't support eviction subresource, so evictions will fail.
-	// The drain action should still succeed (with errors reported in data).
-	// The node should be cordoned regardless.
-	updated, err := cs.KubeClient.CoreV1().Nodes().Get(context.Background(), "drain-node", metav1.GetOptions{})
-	require.NoError(t, err)
-	assert.True(t, updated.Spec.Unschedulable, "node should be cordoned after drain")
+func TestNodeResourcer_Drain_WaitsForTermination(t *testing.T) {
+	pod := testPodOnNode("app", "default", "worker")
+	pod.UID = "selected"
+	cs := newNodeClientSet(testNode("worker"), pod)
+	cs.KubeClient.(*fake.Clientset).PrependReactor("create", "pods", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		return true, action.(k8stesting.CreateAction).GetObject(), nil
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stream := make(chan resource.ActionEvent)
+	done := make(chan error, 1)
+	go func() {
+		done <- newTestNodeResourcer().StreamAction(ctx, cs, workloadActionRequest("drain", "worker", "", nil), stream)
+	}()
+	for {
+		event := <-stream
+		if event.Type == "ready" {
+			continue
+		}
+		require.NotEqual(t, "complete", event.Type)
+		if event.Data.Map["stage"].String == "waiting" {
+			require.Equal(t, "0", event.Data.Map["drained"].Int)
+			require.Equal(t, "0", event.Activity.Progress.Current)
+			break
+		}
+	}
+	require.NoError(t, cs.KubeClient.(*fake.Clientset).Tracker().Delete(corev1.SchemeGroupVersion.WithResource("pods"), pod.Namespace, pod.Name))
+	for _, event := range streamUntilDone(t, stream, done) {
+		if event.Type == "complete" {
+			require.Equal(t, "1", event.Data.Map["drained"].Int)
+			return
+		}
+	}
+	t.Fatal("missing completion")
 }
 
-func TestNodeResourcer_Drain_SkipsDaemonSetPods(t *testing.T) {
-	node := testNode("drain-node")
-	dsPod := testPodOnNode("ds-pod", "default", "drain-node", withDaemonSetOwner)
-	cs := newNodeClientSet(node, dsPod)
-	r := newTestNodeResourcer()
-
-	result, err := r.ExecuteAction(context.Background(), cs, workloadActionRequest("drain", "drain-node", "", map[string]interface{}{
-		"ignoreDaemonSets": true,
-	}))
-
-	require.NoError(t, err)
-	require.Equal(t, "map", result.Kind)
-	assert.True(t, result.Map["success"].Bool)
-	assert.Contains(t, result.Map["message"].String, "0 pods evicted")
+func TestNodeResourcer_Drain_DoesNotRepeatUnchangedProgress(t *testing.T) {
+	pod := testPodOnNode("app", "default", "worker")
+	pod.UID = "selected"
+	cs := newNodeClientSet(testNode("worker"), pod)
+	client := cs.KubeClient.(*fake.Clientset)
+	client.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		return true, action.(k8stesting.CreateAction).GetObject(), nil
+	})
+	observations := 0
+	client.PrependReactor("get", "pods", func(k8stesting.Action) (bool, runtime.Object, error) {
+		observations++
+		if observations == 3 {
+			return true, nil, apierrors.NewNotFound(schema.GroupResource{Resource: "pods"}, pod.Name)
+		}
+		return true, pod, nil
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	stream := make(chan resource.ActionEvent, 32)
+	require.NoError(t, newTestNodeResourcer().StreamAction(ctx, cs, workloadActionRequest("drain", "worker", "", nil), stream))
+	close(stream)
+	waiting := 0
+	for event := range stream {
+		if event.Type == "ready" {
+			continue
+		}
+		require.NotNil(t, event.Activity)
+		require.NoError(t, resource.ValidateActivityPresentation(*event.Activity))
+		if event.Data.Map["stage"].String == "waiting" {
+			waiting++
+		}
+	}
+	require.Equal(t, 3, observations)
+	require.Equal(t, 2, waiting, "initial waiting and changed removal count only")
 }
 
-func TestNodeResourcer_Drain_SkipsMirrorPods(t *testing.T) {
-	node := testNode("drain-node")
-	mirrorPod := testPodOnNode("mirror-pod", "kube-system", "drain-node", withMirrorAnnotation)
-	cs := newNodeClientSet(node, mirrorPod)
-	r := newTestNodeResourcer()
-
-	result, err := r.ExecuteAction(context.Background(), cs, workloadActionRequest("drain", "drain-node", "", nil))
-
-	require.NoError(t, err)
-	require.Equal(t, "map", result.Kind)
-	assert.True(t, result.Map["success"].Bool)
-	assert.Contains(t, result.Map["message"].String, "0 pods evicted")
+func streamUntilDone(t *testing.T, stream <-chan resource.ActionEvent, done <-chan error) []resource.ActionEvent {
+	t.Helper()
+	var events []resource.ActionEvent
+	for {
+		select {
+		case event := <-stream:
+			events = append(events, event)
+		case err := <-done:
+			require.NoError(t, err)
+			return events
+		case <-time.After(5 * time.Second):
+			t.Fatal("drain did not finish")
+		}
+	}
 }
 
-func TestNodeResourcer_Drain_SkipsSucceededPods(t *testing.T) {
-	node := testNode("drain-node")
-	donePod := testPodOnNode("done-pod", "default", "drain-node")
-	donePod.Status.Phase = corev1.PodSucceeded
-	cs := newNodeClientSet(node, donePod)
-	r := newTestNodeResourcer()
-
-	result, err := r.ExecuteAction(context.Background(), cs, workloadActionRequest("drain", "drain-node", "", nil))
-
-	require.NoError(t, err)
-	require.Equal(t, "map", result.Kind)
-	assert.True(t, result.Map["success"].Bool)
-	assert.Contains(t, result.Map["message"].String, "0 pods evicted")
+func TestNodeResourcer_Drain_SkipsUnselectedPods(t *testing.T) {
+	for _, pod := range []*corev1.Pod{
+		testPodOnNode("daemon", "default", "worker", withDaemonSetOwner),
+		testPodOnNode("mirror", "default", "worker", withMirrorAnnotation),
+		testPodOnNode("completed", "default", "worker", func(p *corev1.Pod) { p.Status.Phase = corev1.PodSucceeded }),
+		testPodOnNode("failed", "default", "worker", func(p *corev1.Pod) { p.Status.Phase = corev1.PodFailed }),
+	} {
+		t.Run(pod.Name, func(t *testing.T) {
+			cs := newNodeClientSet(testNode("worker"), pod)
+			stream := make(chan resource.ActionEvent, 32)
+			require.NoError(t, newTestNodeResourcer().StreamAction(context.Background(), cs, workloadActionRequest("drain", "worker", "", nil), stream))
+			close(stream)
+			for event := range stream {
+				if event.Type == "ready" {
+					continue
+				}
+				require.NotNil(t, event.Activity)
+				require.NoError(t, resource.ValidateActivityPresentation(*event.Activity))
+				if event.Type == "complete" {
+					assert.Equal(t, "0", event.Data.Map["drained"].Int)
+					assert.Equal(t, "1", event.Data.Map["skipped"].Int)
+				}
+			}
+			for _, action := range cs.KubeClient.(*fake.Clientset).Actions() {
+				require.NotEqual(t, "eviction", action.GetSubresource())
+			}
+		})
+	}
 }
 
-func TestNodeResourcer_Drain_NotFound(t *testing.T) {
-	cs := newNodeClientSet() // no nodes
-	r := newTestNodeResourcer()
+func TestNodeResourcer_Drain_ErrorsNeverComplete(t *testing.T) {
+	for _, stage := range []string{"eviction", "observation", "replacement", "cancellation"} {
+		t.Run(stage, func(t *testing.T) {
+			pod := testPodOnNode("app", "default", "worker")
+			pod.UID = "original"
+			cs := newNodeClientSet(testNode("worker"), pod)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			client := cs.KubeClient.(*fake.Clientset)
+			client.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, runtime.Object, error) {
+				if stage == "eviction" {
+					return true, nil, apierrors.NewTooManyRequests("PDB blocks eviction", 0)
+				}
+				if stage == "cancellation" {
+					cancel()
+				}
+				return true, action.(k8stesting.CreateAction).GetObject(), nil
+			})
+			if stage == "observation" {
+				client.PrependReactor("get", "pods", func(k8stesting.Action) (bool, runtime.Object, error) {
+					return true, nil, apierrors.NewForbidden(schema.GroupResource{Resource: "pods"}, "app", errors.New("denied"))
+				})
+			}
+			if stage == "replacement" {
+				client.PrependReactor("get", "nodes", func(k8stesting.Action) (bool, runtime.Object, error) {
+					node := testNode("worker")
+					node.UID = "replacement"
+					return true, node, nil
+				})
+			}
+			stream := make(chan resource.ActionEvent, 32)
+			require.Error(t, newTestNodeResourcer().StreamAction(ctx, cs, workloadActionRequest("drain", "worker", "", nil), stream))
+			close(stream)
+			for event := range stream {
+				require.NotEqual(t, "complete", event.Type)
+			}
+		})
+	}
+}
 
-	result, err := r.ExecuteAction(context.Background(), cs, workloadActionRequest("drain", "nonexistent", "", nil))
+func TestNodeResourcer_Drain_RejectsUnsafeEmptyDirAndInvalidInput(t *testing.T) {
+	pod := testPodOnNode("app", "default", "worker")
+	pod.Spec.Volumes = []corev1.Volume{{Name: "data", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}}}
+	cs := newNodeClientSet(testNode("worker"), pod)
+	err := newTestNodeResourcer().StreamAction(context.Background(), cs, workloadActionRequest("drain", "worker", "", map[string]interface{}{"deleteEmptyDirData": false}), make(chan resource.ActionEvent, 32))
+	require.ErrorContains(t, err, "emptyDir")
+	for _, action := range cs.KubeClient.(*fake.Clientset).Actions() {
+		require.NotEqual(t, "eviction", action.GetSubresource())
+	}
+	for _, key := range []string{"force", "ignoreDaemonSets", "deleteEmptyDirData", "unknown"} {
+		err := newTestNodeResourcer().StreamAction(context.Background(), nil, workloadActionRequest("drain", "worker", "", map[string]interface{}{key: "invalid"}), make(chan resource.ActionEvent, 32))
+		require.Error(t, err)
+	}
+}
 
-	require.Error(t, err)
-	assert.Equal(t, resource.Value{}, result)
-	assert.Contains(t, err.Error(), "failed to cordon node")
+func TestNodeResourcer_Drain_ObservesOriginalPodAndGuardsForceDelete(t *testing.T) {
+	for _, force := range []bool{false, true} {
+		t.Run(map[bool]string{false: "replacement after admission", true: "force delete UID guard"}[force], func(t *testing.T) {
+			pod := testPodOnNode("app", "default", "worker")
+			pod.UID = "original"
+			cs := newNodeClientSet(testNode("worker"), pod)
+			client := cs.KubeClient.(*fake.Clientset)
+			client.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, runtime.Object, error) {
+				eviction := action.(k8stesting.CreateAction).GetObject().(*policyv1.Eviction)
+				require.Equal(t, pod.UID, *eviction.DeleteOptions.Preconditions.UID)
+				if force {
+					return true, nil, apierrors.NewTooManyRequests("PDB blocks eviction", 0)
+				}
+				replacement := pod.DeepCopy()
+				replacement.UID = "replacement"
+				require.NoError(t, client.Tracker().Update(corev1.SchemeGroupVersion.WithResource("pods"), replacement, pod.Namespace))
+				return true, eviction, nil
+			})
+			deleted := false
+			client.PrependReactor("delete", "pods", func(action k8stesting.Action) (bool, runtime.Object, error) {
+				deleted = true
+				options := action.(k8stesting.DeleteAction).GetDeleteOptions()
+				require.Equal(t, pod.UID, *options.Preconditions.UID)
+				require.Equal(t, int64(0), *options.GracePeriodSeconds)
+				return true, nil, apierrors.NewConflict(schema.GroupResource{Resource: "pods"}, pod.Name, errors.New("UID changed"))
+			})
+			stream := make(chan resource.ActionEvent, 32)
+			err := newTestNodeResourcer().StreamAction(context.Background(), cs, workloadActionRequest("drain", "worker", "", map[string]interface{}{"force": force}), stream)
+			if force {
+				require.ErrorContains(t, err, "force-delete")
+				require.True(t, deleted)
+			} else {
+				require.NoError(t, err)
+				require.False(t, deleted)
+			}
+			close(stream)
+			completed := false
+			for event := range stream {
+				if event.Type == "complete" {
+					completed = true
+					require.Equal(t, "1", event.Data.Map["drained"].Int)
+				}
+			}
+			require.Equal(t, !force, completed)
+		})
+	}
 }
 
 // ===================== Add Taint =====================

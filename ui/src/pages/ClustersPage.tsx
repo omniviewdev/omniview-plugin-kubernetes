@@ -1,6 +1,8 @@
-import { Skeleton, Stack, Tabs } from '@omniviewdev/base-ui';
-import { usePluginContext, useConnections, useConnection, useSnackbar } from '@omniviewdev/runtime';
+import { Button, Skeleton, Stack, Text } from '@omniviewdev/base-ui';
+import { usePluginContext, useConnections, useConnection, useNotifications } from '@omniviewdev/runtime';
 import React from 'react';
+
+import { useStoredState } from '@/hooks/useStoredState';
 
 import ClusterHub from '../components/connections/ClusterHub';
 import ClustersToolbar from '../components/connections/ClustersToolbar';
@@ -11,6 +13,13 @@ import FilterChips from '../components/connections/FilterChips';
 import FolderDialog, { type FolderDialogValues } from '../components/connections/FolderDialog';
 import { useClusterPreferences } from '../hooks/useClusterPreferences';
 import { useConnectionGrouping } from '../hooks/useConnectionGrouping';
+import { useLegacyColumnMigration } from '../hooks/useLegacyColumnMigration';
+import { ClusterOrganization } from '../components/connections/ClusterOrganization';
+import ExplorerSidebar from '../components/connections/ExplorerSidebar';
+import { computeEffectiveMembers } from '../utils/folderRules';
+import styles from './ClustersPage.module.css';
+import { useClusterAction } from '../hooks/useClusterAction';
+import type { ClusterScope } from '../types/clusterExplorer';
 import type {
   ConnectionGroup,
   GroupByMode,
@@ -20,29 +29,8 @@ import type {
   FilterState,
 } from '../types/clusters';
 
-import { useStoredState } from '@/hooks/useStoredState';
 
 const DEFAULT_VISIBLE_COLUMNS = ['cluster', 'kubeconfig', 'user'];
-
-const outerContainerStyle: React.CSSProperties = {
-  width: '100%',
-  flex: 1,
-  minHeight: 0,
-  display: 'flex',
-  flexDirection: 'column',
-};
-
-const tabsListStyle: React.CSSProperties = { paddingInline: 8, paddingTop: 4 };
-
-const fullSizeStyle: React.CSSProperties = { width: '100%', height: '100%' };
-
-const panelBaseStyle: React.CSSProperties = {
-  paddingInline: 8,
-  paddingBlock: 4,
-  flex: 1,
-  minHeight: 0,
-  overflow: 'auto',
-};
 
 const loadingSkeletonStyle: React.CSSProperties = {
   display: 'flex',
@@ -54,14 +42,17 @@ const loadingSkeletonStyle: React.CSSProperties = {
 export default function ClustersPage(): React.ReactElement {
   const { meta } = usePluginContext();
   const { connections } = useConnections({ plugin: meta.id });
-  // eslint-disable-next-line @typescript-eslint/unbound-method
-  const { showSnackbar } = useSnackbar();
+  useLegacyColumnMigration(connections.data?.map(connection => connection.id));
+  const { notify } = useNotifications();
 
-  // Tab state
-  const [activeTab, setActiveTab] = useStoredState<'hub' | 'all'>('kubernetes-clusters-tab', 'hub');
-
-  // Persistent UI state (localStorage) - for All Clusters tab
-  const [viewMode, setViewMode] = useStoredState<ViewMode>('kubernetes-clusters-view', 'list');
+  const [organize, setOrganize] = React.useState(false);
+  const [scope, setScope] = React.useState<ClusterScope>('all');
+  const searchRef = React.useRef<HTMLInputElement>(null);
+  const openAction = React.useRef<(() => void) | undefined>(undefined);
+  const resultsRef = React.useRef<HTMLDivElement>(null);
+  const [visualOrder, setVisualOrder] = React.useState<string[]>();
+  const [selectedId, setSelectedId] = React.useState<string>();
+  const [viewMode, setViewMode] = useStoredState<ViewMode>('kubernetes-clusters-view', 'grid');
   const [groupBy, setGroupBy] = useStoredState<GroupByMode>('kubernetes-clusters-groupby', 'none');
   const [sortBy, setSortBy] = useStoredState<SortByField>('kubernetes-clusters-sortby', 'name');
   const [sortDirection, setSortDirection] = useStoredState<SortDirection>(
@@ -87,22 +78,6 @@ export default function ClustersPage(): React.ReactElement {
 
   // Plugin data store preferences
   const preferences = useClusterPreferences(meta.id);
-
-  // Grouped/filtered/sorted result
-  const grouped = useConnectionGrouping({
-    connections: connections.data ?? [],
-    favorites: preferences.favorites,
-    connectionOverrides: preferences.connectionOverrides,
-    customGroups: preferences.customGroups,
-    recentConnections: preferences.recentConnections,
-    search,
-    groupBy,
-    sortBy,
-    sortDirection,
-    filters,
-  });
-
-  // Compute enriched connections for Hub (unfiltered, unsorted)
   const hubGrouped = useConnectionGrouping({
     connections: connections.data ?? [],
     favorites: preferences.favorites,
@@ -115,11 +90,47 @@ export default function ClustersPage(): React.ReactElement {
     sortDirection: 'asc',
     filters: {},
   });
-
   const hubEnriched = React.useMemo(
-    () => hubGrouped.groups.flatMap((g) => g.connections),
-    [hubGrouped],
+    () => hubGrouped.groups.flatMap((group) => group.connections),
+    [hubGrouped.groups],
   );
+  const hubById = React.useMemo(
+    () => new Map(hubEnriched.map((entry) => [entry.connection.id, entry])),
+    [hubEnriched],
+  );
+  const folderMembers = React.useMemo(() => {
+    if (!scope.startsWith('group:')) return undefined;
+    const folder = preferences.customGroups.find((group) => group.id === scope.slice(6));
+    return folder
+      ? computeEffectiveMembers(folder.connectionIds, folder.ruleSet, hubEnriched)
+      : new Set<string>();
+  }, [scope, preferences.customGroups, hubEnriched]);
+  const scopedConnections = React.useMemo(
+    () =>
+      (connections.data ?? []).filter((connection) => {
+        if (folderMembers) return folderMembers.has(connection.id);
+        const enriched = hubById.get(connection.id);
+        if (scope === 'favorites') return !!enriched?.isFavorite;
+        if (scope === 'recent') return !!enriched?.lastAccessed;
+        if (scope === 'connected') return !!enriched?.isConnected;
+        return true;
+      }),
+    [connections.data, scope, hubById, folderMembers],
+  );
+
+  // Grouped/filtered/sorted result
+  const grouped = useConnectionGrouping({
+    connections: scopedConnections,
+    favorites: preferences.favorites,
+    connectionOverrides: preferences.connectionOverrides,
+    customGroups: preferences.customGroups,
+    recentConnections: preferences.recentConnections,
+    search,
+    groupBy: viewMode === 'debug' ? 'none' : groupBy,
+    sortBy,
+    sortDirection,
+    filters,
+  });
 
   // All label keys across connections
   const allLabelKeys = React.useMemo(() => {
@@ -219,7 +230,14 @@ export default function ClustersPage(): React.ReactElement {
       setFolderDialog({
         mode: 'edit',
         groupId,
-        initial: { name: group.name, color: group.color, icon: group.icon, customImage: group.customImage, ruleSet: group.ruleSet },
+        initial: {
+          name: group.name,
+          color: group.color,
+          icon: group.icon,
+          customImage: group.customImage,
+          iconAssetId: group.iconAssetId,
+          ruleSet: group.ruleSet,
+        },
       });
     },
     [preferences.customGroups],
@@ -229,7 +247,7 @@ export default function ClustersPage(): React.ReactElement {
     async (values: FolderDialogValues) => {
       if (folderDialog?.mode === 'edit' && folderDialog.groupId) {
         await preferences.updateGroup(folderDialog.groupId, { ...values, ruleSet: values.ruleSet });
-        showSnackbar({ status: 'success', message: `Folder '${values.name}' updated` });
+        void notify({ severity: 'success', title: `Folder '${values.name}' updated` });
       } else {
         const newGroup: ConnectionGroup = {
           id: crypto.randomUUID(),
@@ -237,90 +255,152 @@ export default function ClustersPage(): React.ReactElement {
           color: values.color,
           icon: values.icon,
           customImage: values.customImage,
+          iconAssetId: values.iconAssetId,
           connectionIds: folderDialog?.pendingConnectionId
             ? [folderDialog.pendingConnectionId]
             : [],
           ruleSet: values.ruleSet,
         };
         await preferences.addGroup(newGroup);
-        showSnackbar({ status: 'success', message: `Folder '${values.name}' created` });
+        void notify({ severity: 'success', title: `Folder '${values.name}' created` });
       }
       setFolderDialog(null);
     },
-    [folderDialog, preferences, showSnackbar],
+    [folderDialog, preferences, notify],
   );
 
   const handleFolderDelete = React.useCallback(async () => {
     if (folderDialog?.groupId) {
       await preferences.removeGroup(folderDialog.groupId);
-      showSnackbar({ status: 'success', message: 'Folder deleted' });
+      void notify({ severity: 'success', title: 'Folder deleted' });
     }
     setFolderDialog(null);
-  }, [folderDialog, preferences, showSnackbar]);
+  }, [folderDialog, preferences, notify]);
 
   const handleDeleteRequest = React.useCallback((id: string, name: string) => {
     setDeleteTarget({ id, name });
   }, []);
+  const availableResults = grouped.groups.flatMap((group) =>
+    viewMode !== 'debug' && collapsedGroups.has(group.key) ? [] : group.connections,
+  );
+  const byId = new Map(availableResults.map((entry) => [entry.connection.id, entry]));
+  const orderedResults = [
+    ...new Set(visualOrder ?? availableResults.map((entry) => entry.connection.id)),
+  ].flatMap((id) => {
+    const entry = byId.get(id);
+    return entry ? [entry] : [];
+  });
+  const activeId = orderedResults.some((entry) => entry.connection.id === selectedId)
+    ? selectedId
+    : orderedResults[0]?.connection.id;
+  React.useEffect(() => {
+    if (viewMode !== 'grid') return;
+    const selected = Array.from(
+      resultsRef.current?.querySelectorAll<HTMLElement>('[data-cluster-open]') ?? [],
+    ).find((element) => element.dataset.clusterOpen === activeId);
+    selected?.scrollIntoView?.({ block: 'nearest' });
+  }, [activeId, viewMode]);
+  React.useEffect(() => {
+    searchRef.current?.focus();
+    const handleShortcut = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement;
+      if (
+        event.key === '/' &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        !target.closest('input,textarea,[contenteditable="true"]')
+      ) {
+        event.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    document.addEventListener('keydown', handleShortcut);
+    return () => document.removeEventListener('keydown', handleShortcut);
+  }, []);
+  const openSelected = () => {
+    openAction.current?.();
+  };
+  const navigateResults: React.KeyboardEventHandler<HTMLInputElement> = (event) => {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    event.preventDefault();
+    const index = orderedResults.findIndex((entry) => entry.connection.id === activeId);
+    const next = Math.max(
+      0,
+      Math.min(orderedResults.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)),
+    );
+    setSelectedId(orderedResults[next]?.connection.id);
+  };
 
   const isInitialLoading = connections.isLoading && !connections.data;
   const noConnections = !isInitialLoading && (connections.data?.length ?? 0) === 0;
   const noResults = !noConnections && grouped.filteredCount === 0;
 
   return (
-    <Stack direction="column" spacing={0} style={fullSizeStyle}>
-      <Tabs.Root
-        variant="flat"
-        value={activeTab}
-        onValueChange={(val) => setActiveTab(val as 'hub' | 'all')}
-        size="sm"
-        style={outerContainerStyle}
-      >
-        <Tabs.List aria-label="Cluster views" style={tabsListStyle}>
-          <Tabs.Tab value="hub">Hub</Tabs.Tab>
-          <Tabs.Tab value="all">All Clusters</Tabs.Tab>
-          <Tabs.Indicator />
-        </Tabs.List>
-
-        <div
-          role="tabpanel"
-          hidden={activeTab !== 'hub'}
-          style={{ ...panelBaseStyle, display: activeTab === 'hub' ? 'block' : 'none' }}
-        >
-          {isInitialLoading ? (
-            <ConnectionsLoadingSkeleton />
-          ) : noConnections ? (
-            <EmptyState variant="no-connections" />
-          ) : (
-            <ClusterHub
-              enrichedConnections={hubEnriched}
-              availableAttributes={hubGrouped.availableAttributes}
-              customGroups={preferences.customGroups}
-              hubSections={preferences.hubSections}
-              onReorderSections={(sections) => { void preferences.setHubSections(sections); }}
-              onToggleCollapse={(sectionType, collapsed) => { void preferences.updateHubSectionCollapsed(sectionType, collapsed); }}
-              onRecordAccess={(connectionId) => { void preferences.recordAccess(connectionId); }}
-              onToggleFavorite={(connectionId) => { void preferences.toggleFavorite(connectionId); }}
-              onAssignToGroup={(groupId, connectionId) => { void preferences.assignToGroup(groupId, connectionId); }}
-              onRemoveFromGroup={(groupId, connectionId) => { void preferences.removeFromGroup(groupId, connectionId); }}
-              onCreateFolder={handleCreateFolder}
-              onEditFolder={handleEditFolder}
+    <ClusterOrganization
+      onAssignToGroup={(groupId, connectionId) => preferences.assignToGroup(groupId, connectionId)}
+    >
+      <div className={styles.explorer}>
+        <ExplorerSidebar
+          scope={scope}
+          onScopeChange={(value) => {
+            setScope(value);
+            setOrganize(false);
+          }}
+          connections={hubEnriched}
+          preferences={preferences}
+          onCreateFolder={() => handleCreateFolder()}
+          onEditFolder={handleEditFolder}
+          onOrganize={() => setOrganize((value) => !value)}
+          organizing={organize}
+          currentLens={{ query: search, filters, groupBy, sortBy, sortDirection, viewMode, scope }}
+          onApplyLens={(lens) => {
+            setSearch(lens.query);
+            setFilters(lens.filters);
+            setGroupBy(lens.groupBy);
+            setSortBy(lens.sortBy);
+            setSortDirection(lens.sortDirection);
+            setViewMode(lens.viewMode);
+            const lensScope = lens.scope ?? 'all';
+            setScope(
+              lensScope.startsWith('group:') &&
+                !preferences.customGroups.some((group) => group.id === lensScope.slice(6))
+                ? 'all'
+                : lensScope,
+            );
+            setOrganize(false);
+          }}
+          attributes={hubGrouped.availableAttributes}
+          onBrowse={(key, value) => {
+            setScope('all');
+            setFilters((previous) => ({
+              ...previous,
+              labels: { ...previous.labels, [key]: [value] },
+            }));
+            setOrganize(false);
+          }}
+        />
+        <main className={styles.main}>
+          {!organize && activeId && (
+            <SelectedClusterAction
+              key={activeId}
+              connectionId={activeId}
+              isConnected={!!byId.get(activeId)?.isConnected}
+              actionRef={openAction}
             />
           )}
-        </div>
-
-        <div
-          role="tabpanel"
-          hidden={activeTab !== 'all'}
-          style={{
-            ...panelBaseStyle,
-            display: activeTab === 'all' ? 'flex' : 'none',
-            flexDirection: 'column',
-            gap: 6,
-          }}
-        >
           <ClustersToolbar
             search={search}
-            onSearchChange={setSearch}
+            onSearchChange={(value) => {
+              setSearch(value);
+              setSelectedId(undefined);
+            }}
+            searchFields={grouped.searchFields}
+            searchDiagnostics={grouped.searchDiagnostics}
+            searchRef={searchRef}
+            onSearchKeyDown={navigateResults}
+            onSubmit={openSelected}
             groupBy={groupBy}
             onGroupByChange={setGroupBy}
             sortBy={sortBy}
@@ -335,7 +415,6 @@ export default function ClustersPage(): React.ReactElement {
             availableAttributes={grouped.availableAttributes}
             availableTags={grouped.availableTags}
           />
-
           <FilterChips
             filters={filters}
             availableProviders={grouped.availableProviders}
@@ -347,58 +426,136 @@ export default function ClustersPage(): React.ReactElement {
             onToggleLabelFilter={handleToggleLabelFilter}
             onClearAll={handleClearFilters}
           />
-
-          {isInitialLoading && <ConnectionsLoadingSkeleton />}
-          {!isInitialLoading && noConnections && <EmptyState variant="no-connections" />}
-          {!isInitialLoading && noResults && (
-            <EmptyState variant="no-results" onClearFilters={handleClearFilters} />
+          {organize && (
+            <Stack direction="row" align="center" justify="between">
+              <Text weight="semibold">Organize folders and sections</Text>
+              <Button size="sm" onClick={() => setOrganize(false)}>
+                Done
+              </Button>
+            </Stack>
           )}
-
-          {!isInitialLoading && !noConnections && !noResults && (
-            <ConnectionTable
-              grouped={grouped}
-              groupBy={groupBy}
-              viewMode={viewMode}
+          {isInitialLoading ? (
+            <ConnectionsLoadingSkeleton />
+          ) : noConnections ? (
+            <EmptyState variant="no-connections" />
+          ) : organize ? (
+            <ClusterHub
+              enrichedConnections={hubEnriched}
+              availableAttributes={hubGrouped.availableAttributes}
               customGroups={preferences.customGroups}
-              collapsedGroups={collapsedGroups}
-              visibleColumns={visibleColumns}
-              allLabelKeys={allLabelKeys}
-              onToggleColumn={handleToggleColumn}
-              onToggleCollapse={handleToggleCollapse}
-              onToggleFavorite={(connectionId) => { void preferences.toggleFavorite(connectionId); }}
-              onAssignToGroup={(groupId, connectionId) => { void preferences.assignToGroup(groupId, connectionId); }}
-              onRemoveFromGroup={(groupId, connectionId) => { void preferences.removeFromGroup(groupId, connectionId); }}
+              hubSections={preferences.hubSections}
+              onReorderSections={(sections) => {
+                void preferences.setHubSections(sections);
+              }}
+              onToggleCollapse={(sectionType, collapsed) => {
+                void preferences.updateHubSectionCollapsed(sectionType, collapsed);
+              }}
+              onToggleFavorite={(id) => {
+                void preferences.toggleFavorite(id);
+              }}
               onCreateFolder={handleCreateFolder}
-              onDeleteRequest={handleDeleteRequest}
-              onRecordAccess={(connectionId) => { void preferences.recordAccess(connectionId); }}
+              onEditFolder={handleEditFolder}
             />
+          ) : noResults ? (
+            <EmptyState
+              variant="no-results"
+              onClearFilters={() => {
+                handleClearFilters();
+                setScope('all');
+              }}
+            />
+          ) : (
+            <div ref={resultsRef} className={styles.results}>
+              <ConnectionTable
+                grouped={grouped}
+                groupBy={groupBy}
+                viewMode={viewMode}
+                selectedId={activeId}
+                debug={viewMode === 'debug'}
+                onVisualOrderChange={setVisualOrder}
+                sortBy={sortBy}
+                sortDirection={sortDirection}
+                onSortChange={(field, direction) => {
+                  setSortBy(field);
+                  setSortDirection(direction);
+                }}
+                customGroups={preferences.customGroups}
+                collapsedGroups={collapsedGroups}
+                visibleColumns={visibleColumns}
+                allLabelKeys={allLabelKeys}
+                onToggleColumn={handleToggleColumn}
+                onToggleCollapse={handleToggleCollapse}
+                onToggleFavorite={(id) => {
+                  void preferences.toggleFavorite(id);
+                }}
+                onAssignToGroup={(groupId, id) => {
+                  void preferences.assignToGroup(groupId, id);
+                }}
+                onRemoveFromGroup={(groupId, id) => {
+                  void preferences.removeFromGroup(groupId, id);
+                }}
+                onCreateFolder={handleCreateFolder}
+                onDeleteRequest={handleDeleteRequest}
+              />
+            </div>
           )}
-        </div>
-      </Tabs.Root>
+        </main>
 
-      {deleteTarget && (
-        <DeleteConnectionHandler
-          pluginID={meta.id}
-          connectionId={deleteTarget.id}
-          connectionName={deleteTarget.name}
-          onClose={() => setDeleteTarget(null)}
-        />
-      )}
+        {deleteTarget && (
+          <DeleteConnectionHandler
+            pluginID={meta.id}
+            connectionId={deleteTarget.id}
+            connectionName={deleteTarget.name}
+            onClose={() => setDeleteTarget(null)}
+          />
+        )}
 
-      {folderDialog && (
-        <FolderDialog
-          open
-          mode={folderDialog.mode}
-          initial={folderDialog.initial}
-          existingNames={preferences.customGroups.map((g) => g.name)}
-          enrichedConnections={hubEnriched}
-          onSubmit={(values) => { void handleFolderSubmit(values); }}
-          onDelete={folderDialog.mode === 'edit' ? () => { void handleFolderDelete(); } : undefined}
-          onClose={() => setFolderDialog(null)}
-        />
-      )}
-    </Stack>
+        {folderDialog && (
+          <FolderDialog
+            open
+            pluginID={meta.id}
+            mode={folderDialog.mode}
+            initial={folderDialog.initial}
+            existingNames={preferences.customGroups.map((g) => g.name)}
+            enrichedConnections={hubEnriched}
+            onSubmit={(values) => {
+              void handleFolderSubmit(values);
+            }}
+            onDelete={
+              folderDialog.mode === 'edit'
+                ? () => {
+                    void handleFolderDelete();
+                  }
+                : undefined
+            }
+            onClose={() => setFolderDialog(null)}
+          />
+        )}
+      </div>
+    </ClusterOrganization>
   );
+}
+
+function SelectedClusterAction({
+  connectionId,
+  isConnected,
+  actionRef,
+}: {
+  connectionId: string;
+  isConnected: boolean;
+  actionRef: React.MutableRefObject<(() => void) | undefined>;
+}) {
+  const { handleClick } = useClusterAction(connectionId, isConnected);
+  React.useEffect(() => {
+    const action = () => {
+      void handleClick();
+    };
+    actionRef.current = action;
+    return () => {
+      if (actionRef.current === action) actionRef.current = undefined;
+    };
+  }, [actionRef, handleClick]);
+  return null;
 }
 
 function ConnectionsLoadingSkeleton() {

@@ -25,10 +25,6 @@ export interface ContainerSliceProps {
   pod?: Pod;
   resource?: DrawerContext['resource'];
   volumes?: Volume[];
-  /** Pod-level CPU usage in millicores (from metrics-server) */
-  podCpuUsage?: number;
-  /** Pod-level memory usage in bytes (from metrics-server) */
-  podMemoryUsage?: number;
 }
 
 // ────────────────────────────────────────────────────────────────────────────

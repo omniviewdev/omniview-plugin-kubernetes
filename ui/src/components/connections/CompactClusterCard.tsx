@@ -1,31 +1,20 @@
-import { Avatar } from '@omniviewdev/base-ui';
+import { Avatar, Card } from '@omniviewdev/base-ui';
 import React from 'react';
 
 import type { EnrichedConnection } from '../../types/clusters';
+import { getProviderLabel } from '../../utils/providers';
 import NamedAvatar from '../shared/NamedAvatar';
 
-import styles from './Connections.module.css';
+import styles from './ClusterCards.module.css';
 import ConnectionStatusBadge from './ConnectionStatusBadge';
 import FavoriteButton from './FavoriteButton';
 import ProviderIcon from './ProviderIcon';
-
-const avatarStyle: React.CSSProperties = { borderRadius: 6, backgroundColor: 'transparent' };
-
-const contentStyle: React.CSSProperties = { flex: 1, minWidth: 0 };
-
-const nameRowStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 4,
-  minWidth: 0,
-};
-
-const providerIconStyle: React.CSSProperties = { flexShrink: 0, display: 'flex' };
 
 type Props = {
   enriched: EnrichedConnection;
   subtitle?: string;
   showFavorite?: boolean;
+  selected?: boolean;
   onToggleFavorite?: () => void;
   onClick: () => void;
 };
@@ -34,36 +23,76 @@ const CompactClusterCard: React.FC<Props> = ({
   enriched,
   subtitle,
   showFavorite,
+  selected,
   onToggleFavorite,
   onClick,
 }) => {
-  const { provider, isConnected, displayName } = enriched;
+  const { connection, provider, isConnected, displayName } = enriched;
+  const identity = [
+    `Context: ${connection.name || connection.id}`,
+    `Connection ID: ${connection.id}`,
+    enriched.displayDescription,
+    enriched.tags.length ? `Tags: ${enriched.tags.join(', ')}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+  const detail = subtitle || enriched.displayDescription || connection.name || connection.id;
 
   return (
-    // eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/no-static-element-interactions
-    <div onClick={onClick} className={`${styles.tile} ${styles.compactTile}`}>
-      <ConnectionStatusBadge isConnected={isConnected}>
-        {enriched.avatar ? (
-          <Avatar size="xs" shape="rounded" src={enriched.avatar} style={avatarStyle} />
-        ) : (
-          <NamedAvatar value={displayName} color={enriched.avatarColor} />
-        )}
-      </ConnectionStatusBadge>
-
-      <div style={contentStyle}>
-        <div style={nameRowStyle}>
-          <div style={providerIconStyle}>
-            <ProviderIcon provider={provider} size={12} />
-          </div>
-          <span className={styles.tileName}>{displayName}</span>
+    <Card interactive selected={selected} size="sm" className={`${styles.card} ${styles.compact}`}>
+      <Card.Header className={styles.header}>
+        <span className={styles.avatar} aria-hidden="true">
+          <ConnectionStatusBadge isConnected={isConnected}>
+            {enriched.avatar ? (
+              <Avatar
+                size="xs"
+                shape="rounded"
+                src={enriched.avatar}
+                className={styles.customAvatar}
+              />
+            ) : (
+              <NamedAvatar value={displayName} color={enriched.avatarColor} />
+            )}
+          </ConnectionStatusBadge>
+        </span>
+        <div className={styles.identity}>
+          <Card.Title className={styles.title}>
+            <Card.ActionArea
+              as="button"
+              stretched
+              onClick={onClick}
+              data-cluster-open={connection.id}
+              aria-label={`Open ${displayName}`}
+              aria-description={`${identity}\n${isConnected ? 'Connected' : 'Disconnected'}`}
+              aria-current={selected ? 'true' : undefined}
+              title={`${displayName}\n${identity}`}
+            >
+              <span className={styles.truncate}>{displayName}</span>
+            </Card.ActionArea>
+          </Card.Title>
+          <span className={styles.subtitle} title={detail}>
+            {detail}
+          </span>
         </div>
-        {subtitle && <span className={styles.tileSubtitle}>{subtitle}</span>}
+        {showFavorite && onToggleFavorite && (
+          <Card.Action className={styles.actions}>
+            <FavoriteButton isFavorite={enriched.isFavorite} onToggle={onToggleFavorite} />
+          </Card.Action>
+        )}
+      </Card.Header>
+      <div className={styles.factRow}>
+        <span
+          className={styles.provider}
+          title={`Configured provider hint: ${getProviderLabel(provider)}`}
+        >
+          <span aria-hidden="true">
+            <ProviderIcon provider={provider} size={12} />
+          </span>
+          <span className={styles.truncate}>{getProviderLabel(provider)} hint</span>
+        </span>
+        <span className={styles.status}>{isConnected ? 'Connected' : 'Disconnected'}</span>
       </div>
-
-      {showFavorite && onToggleFavorite && (
-        <FavoriteButton isFavorite={enriched.isFavorite} onToggle={onToggleFavorite} />
-      )}
-    </div>
+    </Card>
   );
 };
 

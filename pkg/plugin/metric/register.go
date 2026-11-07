@@ -6,11 +6,11 @@ import (
 	"github.com/omniviewdev/plugin-sdk/pkg/v1/metric"
 )
 
-// Register registers the metric capability with the Kubernetes plugin.
-// It creates a composite QueryFunc that routes to metrics-server for built-in
-// metrics and to Prometheus for prom_* prefixed metrics.
+// Register installs finite native Pod/Node metrics and genuine legacy operations.
+// The returned callback retires both authenticated client lifetimes.
 func Register(plugin *sdk.Plugin) func(string) {
 	promClient := newPrometheusClient(plugin.SettingsProvider)
+	native := newNativeProvider()
 
 	if err := metric.RegisterPlugin(plugin, metric.PluginOpts{
 		ProviderInfo: metric.ProviderInfo{
@@ -20,26 +20,10 @@ func Register(plugin *sdk.Plugin) func(string) {
 			Description: "Kubernetes metrics from metrics-server and Prometheus",
 		},
 		Handlers: map[string]metric.Handler{
-			// --- Pod metrics (metrics-server + Prometheus) ---
+			// Legacy Pod Prometheus operations remain independent of native metrics.
 			"k8s:/pods": {
 				Resource: "k8s:/pods",
 				Metrics: []metric.MetricDescriptor{
-					// ── metrics-server (instant only) ──
-					{
-						ID:              "cpu_usage",
-						Name:            "CPU Usage",
-						Unit:            metric.UnitMillicores,
-						Icon:            "LuCpu",
-						SupportedShapes: []metric.MetricShape{metric.ShapeCurrent},
-					},
-					{
-						ID:              "memory_usage",
-						Name:            "Memory Usage",
-						Unit:            metric.UnitBytes,
-						Icon:            "LuMemoryStick",
-						SupportedShapes: []metric.MetricShape{metric.ShapeCurrent},
-					},
-
 					// ── CPU (Prometheus, time-series) ──
 					{
 						ID:              "prom_cpu_usage_rate",
@@ -674,6 +658,9 @@ func Register(plugin *sdk.Plugin) func(string) {
 				},
 			},
 		},
+		GetMetricOwnerCatalogFunc:  metricOwnerCatalog,
+		ResourceMetricsCatalogFunc: native.catalog,
+		QueryResourcesFunc:         native.query,
 		QueryFunc: func(qctx *metric.QueryContext, req metric.QueryRequest) (*metric.QueryResponse, error) {
 			return compositeQuery(promClient, qctx, req)
 		},
@@ -681,5 +668,8 @@ func Register(plugin *sdk.Plugin) func(string) {
 	}); err != nil {
 		panic(fmt.Sprintf("failed to register native metrics: %v", err))
 	}
-	return promClient.retireConnection
+	return func(connectionID string) {
+		native.retireConnection(connectionID)
+		promClient.retireConnection(connectionID)
+	}
 }

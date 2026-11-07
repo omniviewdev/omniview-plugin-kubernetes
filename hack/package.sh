@@ -40,7 +40,7 @@ for platform in "$@"; do
 
   echo "Building $platform"
   GOOS="$os" GOARCH="$arch" CGO_ENABLED=0 \
-    go build -trimpath \
+    GOWORK=off go build -trimpath \
       -ldflags="-s -w -X github.com/omniview/kubernetes/pkg/pluginid.ID=$PLUGIN_ID" \
       -o "$stage/bin/plugin$ext" ./pkg
 
