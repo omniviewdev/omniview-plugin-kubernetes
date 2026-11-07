@@ -281,3 +281,55 @@ func TestNativeAdmittedNamespacesReturnBoundedPartialResults(t *testing.T) {
 		t.Fatalf("partial namespace coverage lost: missing=%d failed=%d", missing, failed)
 	}
 }
+
+func TestNativeQueryRefreshReachesPreviouslyBudgetStarvedNamespace(t *testing.T) {
+	calls := 0
+	provider := nativeTestProvider(t, func(request *http.Request) (*http.Response, error) {
+		calls++
+		namespace := strings.TrimSuffix(strings.TrimPrefix(request.URL.Path, "/apis/metrics.k8s.io/v1beta1/namespaces/"), "/pods")
+		sample := strings.ReplaceAll(nativeSample, `"namespace":"one"`, `"namespace":"`+namespace+`"`)
+		return nativeTestResponse(request, nativePage(sample)), nil
+	})
+	pc := &types.PluginContext{Context: context.Background(), Connection: &types.Connection{ID: "selected"}}
+	targets := make([]sdkmetric.ResourceMetricTarget, nativeMaxPages+1)
+	for index := range targets {
+		namespace := "ns-" + strings.Repeat("a", index/26+1) + string(rune('a'+index%26))
+		targets[index] = nativeTestTarget(namespace, namespace, "same")
+	}
+	query := sdkmetric.ResourceMetricsQuery{Source: nativeSource(pc), Shape: "current", MetricIDs: []string{nativeCPU}, Targets: targets}
+	first, err := provider.query(pc, query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	starved := ""
+	available := 0
+	for _, result := range first.Results {
+		switch result.Status {
+		case "ok":
+			available++
+		case "failed":
+			starved = result.ResourceToken
+		default:
+			t.Fatalf("unexpected initial sample: %+v", result)
+		}
+	}
+	if first.Complete || available != nativeMaxPages || starved == "" || calls != nativeMaxPages {
+		t.Fatalf("unexpected initial budget coverage: calls=%d response=%+v", calls, first)
+	}
+	second, err := provider.query(pc, query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.Complete || calls != 2*nativeMaxPages {
+		t.Fatalf("refresh escaped shared budget: calls=%d response=%+v", calls, second)
+	}
+	for _, result := range second.Results {
+		if result.ResourceToken == starved {
+			if result.Status != "ok" || result.Value == nil || math.Abs(*result.Value-0.250123456) > 1e-12 {
+				t.Fatalf("refresh starved the same namespace: %+v", result)
+			}
+			return
+		}
+	}
+	t.Fatalf("refresh lost previously starved target %q", starved)
+}

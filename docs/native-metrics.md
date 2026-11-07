@@ -88,7 +88,7 @@ A returned nonempty UID that differs from the admitted incarnation produces `inv
 
 ## Bounds and lifecycle
 
-One execution accepts at most 256 unique Pods, two distinct metric IDs and 64 namespaces. Tokens are unique and contain 1–256 bytes. Duplicate namespace/name targets are rejected. Unknown metric IDs receive `unsupported` within the metric-count bound. Source/route mismatch, malformed references/ranges and invalid native names fail before collection.
+One execution accepts at most 256 unique resource targets and two distinct metric IDs. Pod namespaces share the execution's scan budget; there is no separate namespace admission cap. Tokens are unique and contain 1–256 bytes. Duplicate namespace/name targets are rejected. Unknown metric IDs receive `unsupported` within the metric-count bound. Source/route mismatch, malformed references/ranges and invalid native names fail before collection.
 
 Budgets are shared across all namespaces and continuation pages in one execution:
 
@@ -102,6 +102,8 @@ Budgets are shared across all namespaces and continuation pages in one execution
 | Authenticated client idle TTL | 10 minutes |
 
 Targets are grouped by namespace. The provider performs namespace LISTs and streams one object at a time, filtering exact requested identities. It requests `limit=1000` but **does not assume metrics-server implements pagination**. It follows `continue` only when the server returns it, and rejects repeated/oversized continuation tokens. An unpaginated namespace is still bounded by decoded byte and scanned-object budgets. A namespace can cost a full inventory scan even for one selected Pod; these bounds are not constant-cost or throughput claims. There are no per-Pod GET fallbacks and no target chunker that repeats the same namespace scan inside one execution.
+
+Each Pod query rotates the starting namespace within its source generation. Repeated identical batches therefore do not always exclude the same trailing namespaces when the shared scan budget is exhausted. Retirement resets this cursor. It stores no samples and schedules no polling.
 
 Clients reuse the Kubernetes connection's actual authenticated transport, including custom authentication strategies. Finite requests use their caller context, not `context.Background()`. A source lane has its own lifecycle cancellation and opaque generation-specific cache key. Connection retirement cancels its in-flight reads, evicts its clients and fences late publication. Reconnect cannot reuse the retired lane. Legacy Prometheus/Node caches remain independent and retire through the same registered connection callback.
 

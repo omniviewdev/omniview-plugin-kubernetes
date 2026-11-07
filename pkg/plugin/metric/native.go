@@ -43,9 +43,10 @@ type nativeProvider struct {
 }
 
 type nativeLane struct {
-	key    string
-	ctx    context.Context
-	cancel context.CancelFunc
+	key           string
+	ctx           context.Context
+	cancel        context.CancelFunc
+	namespaceTurn uint64 // Protected by nativeProvider.mu.
 }
 
 func newNativeProvider() *nativeProvider {
@@ -177,6 +178,10 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 		lane = &nativeLane{key: strconv.FormatUint(p.next, 10), ctx: lifetime, cancel: cancel}
 		p.lanes[pc.Connection.ID] = lane
 	}
+	namespaceTurn := lane.namespaceTurn
+	if !isNode {
+		lane.namespaceTurn++
+	}
 	p.mu.Unlock()
 	ctx, cancel := context.WithTimeout(pc.Context, nativeTimeout)
 	defer cancel()
@@ -198,7 +203,9 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 		namespaces = append(namespaces, namespace)
 	}
 	sort.Strings(namespaces)
-	for _, namespace := range namespaces {
+	start := int(namespaceTurn % uint64(len(namespaces)))
+	for offset := range namespaces {
+		namespace := namespaces[(start+offset)%len(namespaces)]
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
