@@ -198,7 +198,7 @@ func (d *DaemonSetResourcer) streamRestart(
 	client *clients.ClientSet,
 	input resource.ActionRequest,
 	stream chan<- resource.ActionEvent,
-) error {
+) (resultErr error) {
 	namespace, scopeErr := nativeRequestNamespace(input.Reference.Address.Scope)
 	if scopeErr != nil {
 		return scopeErr
@@ -206,9 +206,9 @@ func (d *DaemonSetResourcer) streamRestart(
 
 	patch := fmt.Sprintf(
 		`{"spec":{"template":{"metadata":{"annotations":{"kubectl.kubernetes.io/restartedAt":"%s"}}}}}`,
-		time.Now().Format(time.RFC3339),
+		time.Now().Format(time.RFC3339Nano),
 	)
-	_, err := client.KubeClient.AppsV1().DaemonSets(namespace).Patch(
+	patched, err := client.KubeClient.AppsV1().DaemonSets(namespace).Patch(
 		ctx, input.Reference.Address.ID, k8stypes.StrategicMergePatchType,
 		nativeActionPatch(input, patch), metav1.PatchOptions{},
 	)
@@ -218,7 +218,8 @@ func (d *DaemonSetResourcer) streamRestart(
 
 	watcher, err := client.KubeClient.AppsV1().DaemonSets(namespace).Watch(
 		ctx, metav1.ListOptions{
-			FieldSelector: fmt.Sprintf("metadata.name=%s", input.Reference.Address.ID),
+			FieldSelector:   fmt.Sprintf("metadata.name=%s", input.Reference.Address.ID),
+			ResourceVersion: patched.ResourceVersion,
 		},
 	)
 	if err != nil {
@@ -240,18 +241,35 @@ func (d *DaemonSetResourcer) streamRestart(
 		return ctx.Err()
 	}
 
-	timeout := time.After(5 * time.Minute)
+	parentCtx := ctx
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+	defer func() {
+		if resultErr != nil && ctx.Err() == context.DeadlineExceeded && parentCtx.Err() == nil {
+			resultErr = &resource.ResourceOperationError{Code: "TIMEOUT", Title: "Timed out", Message: "The rollout restart exceeded its deadline."}
+		}
+	}()
+	observations, stopObserving := rolloutObservations(ctx, watcher, time.Second, func(ctx context.Context) (*appsv1.DaemonSet, error) {
+		return client.KubeClient.AppsV1().DaemonSets(namespace).Get(ctx, input.Reference.Address.ID, metav1.GetOptions{})
+	})
+	defer stopObserving()
+	var lastProgress [5]int32
+	progressEmitted := false
 	for {
 		select {
-		case <-timeout:
-			return &resource.ResourceOperationError{Code: "TIMEOUT", Title: "Timed out", Message: "The rollout restart exceeded its deadline."}
-
 		case <-ctx.Done():
 			return ctx.Err()
 
-		case event, ok := <-watcher.ResultChan():
+		case observation, ok := <-observations:
 			if !ok {
 				return fmt.Errorf("watch channel closed")
+			}
+			if observation.err != nil {
+				return observation.err
+			}
+			event := observation.event
+			if event.Type == watch.Error || event.Type == watch.Deleted {
+				return fmt.Errorf("daemonset rollout observation lost: %s", event.Type)
 			}
 			if object, ok := event.Object.(metav1.Object); ok {
 				if err := nativeActionObjectMatches(input, object); err != nil {
@@ -265,27 +283,43 @@ func (d *DaemonSetResourcer) streamRestart(
 			if !ok {
 				continue
 			}
+			if ds.UID != patched.UID || ds.Generation > patched.Generation {
+				return fmt.Errorf("requested rollout was replaced or superseded")
+			}
+			if ds.Generation < patched.Generation || ds.Status.ObservedGeneration < patched.Generation || ds.Status.ObservedGeneration < ds.Generation {
+				continue
+			}
 
 			desired := ds.Status.DesiredNumberScheduled
-
-			progress, err := nativeActionEventValue(map[string]interface{}{
-				"ready":   ds.Status.NumberReady,
-				"desired": desired,
-				"updated": ds.Status.UpdatedNumberScheduled,
-				"message": fmt.Sprintf("%d/%d nodes ready", ds.Status.NumberReady, desired),
-			})
+			readyPods, err := rolloutReadyPods(ctx, client.KubeClient, "DaemonSet", patched, patched.Spec.Template.Annotations["kubectl.kubernetes.io/restartedAt"])
 			if err != nil {
 				return err
 			}
-			select {
-			case stream <- resource.ActionEvent{Type: "progress", Data: progress}:
-			case <-ctx.Done():
-				return ctx.Err()
+
+			snapshot := [5]int32{desired, readyPods, ds.Status.UpdatedNumberScheduled, ds.Status.NumberReady, ds.Status.CurrentNumberScheduled}
+			if !progressEmitted || snapshot != lastProgress {
+				progress, err := nativeActionEventValue(map[string]interface{}{
+					"ready":   ds.Status.NumberReady,
+					"desired": desired,
+					"updated": ds.Status.UpdatedNumberScheduled,
+					"message": fmt.Sprintf("%d/%d nodes ready", ds.Status.NumberReady, desired),
+				})
+				if err != nil {
+					return err
+				}
+				select {
+				case stream <- resource.ActionEvent{Type: "progress", Data: progress, Activity: rolloutActivity("DaemonSet", input.Reference.Address.ID, ds.Status.UpdatedNumberScheduled, ds.Status.NumberReady, ds.Status.CurrentNumberScheduled, desired, readyPods, "nodes", false)}:
+					lastProgress, progressEmitted = snapshot, true
+				case <-ctx.Done():
+					return ctx.Err()
+				}
 			}
 
-			if ds.Status.UpdatedNumberScheduled == desired &&
+			if ds.Generation >= patched.Generation && ds.Status.ObservedGeneration >= patched.Generation &&
+				ds.Status.ObservedGeneration >= ds.Generation && ds.Status.UpdatedNumberScheduled == desired &&
+				ds.Status.CurrentNumberScheduled == desired &&
 				ds.Status.NumberReady == desired &&
-				ds.Status.NumberAvailable == desired {
+				ds.Status.NumberAvailable == desired && readyPods == desired {
 				complete, err := nativeActionEventValue(map[string]interface{}{
 					"message": fmt.Sprintf("DaemonSet %s successfully restarted", input.Reference.Address.ID),
 				})
@@ -293,7 +327,7 @@ func (d *DaemonSetResourcer) streamRestart(
 					return err
 				}
 				select {
-				case stream <- resource.ActionEvent{Type: "complete", Data: complete}:
+				case stream <- resource.ActionEvent{Type: "complete", Data: complete, Activity: rolloutActivity("DaemonSet", input.Reference.Address.ID, ds.Status.UpdatedNumberScheduled, ds.Status.NumberReady, ds.Status.CurrentNumberScheduled, desired, readyPods, "nodes", true)}:
 				case <-ctx.Done():
 					return ctx.Err()
 				}

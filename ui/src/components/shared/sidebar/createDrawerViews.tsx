@@ -21,8 +21,9 @@ import { createMetricsView } from './pages/metrics/ResourceMetricsPage';
  */
 export function createStandardViews<T = KubernetesResourceObject>(opts: {
   SidebarComponent: React.FC<{ ctx: DrawerContext<T> }>;
+  MetricsComponent?: React.FC<{ ctx: DrawerContext<T> }>;
 }): Array<DrawerComponentView<T>> {
-  const { SidebarComponent } = opts;
+  const { SidebarComponent, MetricsComponent } = opts;
 
   const views: Array<DrawerComponentView<T>> = [
     {
@@ -40,7 +41,9 @@ export function createStandardViews<T = KubernetesResourceObject>(opts: {
       icon: <LuNetwork />,
       component: (ctx) => <ResourceGraphView ctx={ctx} />,
     },
-    createMetricsView() as unknown as DrawerComponentView<T>,
+    MetricsComponent
+      ? { ...createMetricsView(), component: (ctx) => <MetricsComponent ctx={ctx} /> }
+      : createMetricsView() as unknown as DrawerComponentView<T>,
     {
       title: 'Events',
       icon: <LuZap />,

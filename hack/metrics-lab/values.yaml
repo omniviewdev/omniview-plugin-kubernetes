@@ -1,0 +1,125 @@
+# Pinned kube-prometheus-stack 92.18.0; local single-node Kind only.
+fullnameOverride: omniview-metrics
+commonLabels:
+  app.kubernetes.io/part-of: omniview-metrics-lab
+# Existing shared CRDs are retained, never upgraded or force-adopted.
+crds:
+  upgradeJob:
+    enabled: false
+alertmanager:
+  enabled: false
+# Kind defaults bind these control-plane metrics to node-local loopback.
+# Do not create permanently failing ServiceMonitors for unreachable endpoints.
+kubeEtcd:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+defaultRules:
+  rules:
+    alertmanager: false
+    etcd: false
+    kubeControllerManager: false
+    kubeSchedulerAlerting: false
+    kubeSchedulerRecording: false
+    kubeProxy: false
+kubelet:
+  enabled: true
+  serviceMonitor:
+    cAdvisor: true
+    # Keep upstream metric drops and metrics_path relabeling unchanged.
+prometheus:
+  service:
+    type: ClusterIP
+  prometheusSpec:
+    replicas: 1
+    retention: 6h
+    retentionSize: 1GB
+    scrapeInterval: 15s
+    evaluationInterval: 30s
+    externalLabels:
+      cluster: kind-kind
+    # Unlike externalLabels, target relabeling persists cluster in local TSDB.
+    scrapeClasses:
+      - name: metrics-lab
+        default: true
+        relabelings:
+          - action: replace
+            targetLabel: cluster
+            replacement: kind-kind
+    resources:
+      requests:
+        cpu: 150m
+        memory: 512Mi
+      limits:
+        cpu: '1'
+        memory: 1536Mi
+    storageSpec: {}
+prometheusOperator:
+  # Do not reconcile another installation's instances through shared CRDs.
+  prometheusInstanceSelector: app.kubernetes.io/part-of=omniview-metrics-lab
+  alertmanagerInstanceSelector: app.kubernetes.io/part-of=omniview-metrics-lab
+  thanosRulerInstanceSelector: app.kubernetes.io/part-of=omniview-metrics-lab
+  resources:
+    requests:
+      cpu: 50m
+      memory: 96Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+  prometheusConfigReloader:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
+grafana:
+  adminUser: admin
+  # Chart generates a random admin password in a Kubernetes Secret.
+  persistence:
+    enabled: false
+  service:
+    type: ClusterIP
+  grafana.ini:
+    auth.anonymous:
+      enabled: false
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  sidecar:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 30m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 192Mi
+prometheus-node-exporter:
+  # Kind is a Docker container; host-root mount propagation is not available
+  # on every Docker Desktop setup. /proc and /sys still describe the Linux node.
+  hostRootFsMount:
+    enabled: false
+  resources:
+    requests:
+      cpu: 20m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 96Mi

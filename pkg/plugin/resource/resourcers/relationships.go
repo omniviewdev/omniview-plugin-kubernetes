@@ -86,12 +86,14 @@ func RelationshipTable() map[string][]resource.RelationshipDescriptor {
 					Method: "fieldPath", FieldPath: "spec.volumes.#.secret.secretName",
 				},
 			},
+			// Nested projections produce one array per container; flatten one level
+			// so the graph indexer receives native IDs rather than arrays.
 			{
 				Type: resource.RelUses, TargetType: "k8s:/configmaps",
 				ScopeExtractors: []resource.ScopeExtractor{{Dimension: "namespace", FieldPath: "metadata.namespace"}},
 				Label:           "uses",
 				Extractor: &resource.RelationshipExtractor{
-					Method: "fieldPath", FieldPath: "spec.containers.#.envFrom.#.configMapRef.name",
+					Method: "fieldPath", FieldPath: "spec.containers.#.envFrom.#.configMapRef.name|@flatten",
 				},
 			},
 			{
@@ -99,7 +101,7 @@ func RelationshipTable() map[string][]resource.RelationshipDescriptor {
 				ScopeExtractors: []resource.ScopeExtractor{{Dimension: "namespace", FieldPath: "metadata.namespace"}},
 				Label:           "uses",
 				Extractor: &resource.RelationshipExtractor{
-					Method: "fieldPath", FieldPath: "spec.containers.#.envFrom.#.secretRef.name",
+					Method: "fieldPath", FieldPath: "spec.containers.#.envFrom.#.secretRef.name|@flatten",
 				},
 			},
 		},

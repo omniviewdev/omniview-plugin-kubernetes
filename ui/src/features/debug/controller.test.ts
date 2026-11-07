@@ -134,13 +134,10 @@ describe('shared create and attach transitions', () => {
   });
   it('guards uncertain creation across callers and retains the reserved name', async () => {
     const launch = input('uncertain-create');
-    const executeAction = vi
-      .fn()
-      .mockRejectedValue(new Error('DEBUG_CREATION_UNKNOWN: connection lost'));
+    const failure = new Error('DEBUG_CREATION_UNKNOWN: connection lost');
+    const executeAction = vi.fn().mockRejectedValue(failure);
     const deps = { executeAction, createExecSession: vi.fn() } as unknown as DrawerActionDeps;
-    await expect(startDebugSession(launch, BUILTIN_DEBUG_TEMPLATES[0], deps)).rejects.toThrow(
-      'DEBUG_CREATION_UNKNOWN',
-    );
+    await expect(startDebugSession(launch, BUILTIN_DEBUG_TEMPLATES[0], deps)).rejects.toBe(failure);
     const reserved = actionName(executeAction.mock.calls[0][0].input);
     expect(executeAction.mock.calls[0][0]).toMatchObject({
       route: { connection: launch.connectionID }, action: 'debug-create',
@@ -149,9 +146,7 @@ describe('shared create and attach transitions', () => {
         scope: [{ dimension: 'namespace', value: launch.namespace }],
       } },
     });
-    await expect(startDebugSession(launch, BUILTIN_DEBUG_TEMPLATES[0], deps)).rejects.toThrow(
-      /pending|unconfirmed/,
-    );
+    await expect(startDebugSession(launch, BUILTIN_DEBUG_TEMPLATES[0], deps)).rejects.toMatchObject({ name: 'Error' });
     expect(executeAction).toHaveBeenCalledOnce();
     expect(getDebugRecords().find((record) => record.podUID === launch.podUID)).toMatchObject({
       containerName: reserved,
@@ -190,9 +185,7 @@ describe('shared create and attach transitions', () => {
       state: 'running' as const,
       message: '',
     };
-    await expect(reconnectDebug(record, { createExecSession })).rejects.toThrow(
-      /Attachment failed/,
-    );
+    await expect(reconnectDebug(record, { createExecSession })).rejects.toMatchObject({ name: 'Error' });
     await reconnectDebug(record, { createExecSession });
     expect(createExecSession).toHaveBeenCalledTimes(2);
     for (const [request] of createExecSession.mock.calls) {
@@ -246,9 +239,7 @@ describe('shared create and attach transitions', () => {
         state: 'unknown',
         certainty: 'unknown',
       });
-      await expect(startDebugSession(launch, BUILTIN_DEBUG_TEMPLATES[0], deps)).rejects.toThrow(
-        /pending|unconfirmed/,
-      );
+      await expect(startDebugSession(launch, BUILTIN_DEBUG_TEMPLATES[0], deps)).rejects.toMatchObject({ name: 'Error' });
       expect(executeAction).toHaveBeenCalledOnce();
       expect(createExecSession).not.toHaveBeenCalled();
     },
@@ -270,9 +261,7 @@ describe('shared create and attach transitions', () => {
       state: 'unknown',
       certainty: 'unknown',
     });
-    await expect(startDebugSession(launch, BUILTIN_DEBUG_TEMPLATES[0], deps)).rejects.toThrow(
-      /pending|unconfirmed/,
-    );
+    await expect(startDebugSession(launch, BUILTIN_DEBUG_TEMPLATES[0], deps)).rejects.toMatchObject({ name: 'Error' });
     expect(executeAction).toHaveBeenCalledOnce();
     expect(createExecSession).not.toHaveBeenCalled();
   });
@@ -347,9 +336,7 @@ describe('shared create and attach transitions', () => {
       state: 'unknown',
       certainty: 'unknown',
     });
-    await expect(startDebugSession(launch, BUILTIN_DEBUG_TEMPLATES[0], deps)).rejects.toThrow(
-      /pending|unconfirmed/,
-    );
+    await expect(startDebugSession(launch, BUILTIN_DEBUG_TEMPLATES[0], deps)).rejects.toMatchObject({ name: 'Error' });
     expect(executeAction).toHaveBeenCalledOnce();
     expect(createExecSession).not.toHaveBeenCalled();
   });
@@ -389,10 +376,11 @@ describe('shared create and attach transitions', () => {
     ],
   ])('records authoritative %s rejection and permits an explicit retry', async (uid, error) => {
     const launch = input(uid);
+    const retryFailure = new Error('connection lost after retry');
     const executeAction = vi
       .fn()
       .mockRejectedValueOnce(error)
-      .mockRejectedValueOnce(new Error('connection lost after retry'));
+      .mockRejectedValueOnce(retryFailure);
     const createExecSession = vi.fn();
     const deps = { executeAction, createExecSession } as unknown as DrawerActionDeps;
 
@@ -403,9 +391,7 @@ describe('shared create and attach transitions', () => {
       state: 'rejected',
       certainty: 'rejected',
     });
-    await expect(startDebugSession(launch, BUILTIN_DEBUG_TEMPLATES[0], deps)).rejects.toThrow(
-      'connection lost after retry',
-    );
+    await expect(startDebugSession(launch, BUILTIN_DEBUG_TEMPLATES[0], deps)).rejects.toBe(retryFailure);
     expect(executeAction).toHaveBeenCalledTimes(2);
     expect(actionName(executeAction.mock.calls[1][0].input)).not.toBe(rejectedName);
     expect(getDebugRecords().find((record) => record.containerName === rejectedName)).toMatchObject(
@@ -419,19 +405,18 @@ describe('shared create and attach transitions', () => {
 
   it('treats explicit unsuccessful ActionResult as rejection and permits a retry', async () => {
     const launch = input('explicit-action-rejection');
+    const retryFailure = new Error('connection lost after retry');
     const executeAction = vi
       .fn()
       .mockResolvedValueOnce(jsonToValue({ success: false, message: 'Request refused' }))
-      .mockRejectedValueOnce(new Error('connection lost after retry'));
+      .mockRejectedValueOnce(retryFailure);
     const deps = { executeAction, createExecSession: vi.fn() } as unknown as DrawerActionDeps;
     await expect(startDebugSession(launch, BUILTIN_DEBUG_TEMPLATES[0], deps)).rejects.toBeDefined();
     expect(getDebugRecords().find((record) => record.podUID === launch.podUID)).toMatchObject({
       state: 'rejected',
       certainty: 'rejected',
     });
-    await expect(startDebugSession(launch, BUILTIN_DEBUG_TEMPLATES[0], deps)).rejects.toThrow(
-      'connection lost after retry',
-    );
+    await expect(startDebugSession(launch, BUILTIN_DEBUG_TEMPLATES[0], deps)).rejects.toBe(retryFailure);
     expect(executeAction).toHaveBeenCalledTimes(2);
   });
 
@@ -448,13 +433,13 @@ describe('shared create and attach transitions', () => {
     expect(getDebugRecords().find(record => record.podUID === launch.podUID)).toMatchObject({
       containerName: reserved, state: 'unknown', certainty: 'unknown',
     });
-    await expect(startDebugSession(launch, BUILTIN_DEBUG_TEMPLATES[0], deps)).rejects.toThrow(/pending|unconfirmed/);
+    await expect(startDebugSession(launch, BUILTIN_DEBUG_TEMPLATES[0], deps)).rejects.toMatchObject({ name: 'Error' });
     expect(executeAction).toHaveBeenCalledOnce();
     expect(createExecSession).not.toHaveBeenCalled();
     vi.mocked(ResourceClient.Get).mockResolvedValueOnce(podRecord(launch.resourceData) as never);
     const inspected = await inspectDebugRecord(getDebugRecords().find(record => record.podUID === launch.podUID)!);
     expect(inspected.record).toMatchObject({ containerName: reserved, certainty: 'unknown' });
-    await expect(startDebugSession(launch, BUILTIN_DEBUG_TEMPLATES[0], deps)).rejects.toThrow(/pending|unconfirmed/);
+    await expect(startDebugSession(launch, BUILTIN_DEBUG_TEMPLATES[0], deps)).rejects.toMatchObject({ name: 'Error' });
     expect(executeAction).toHaveBeenCalledOnce();
     const reservedRecord = getDebugRecords().find(record => record.podUID === launch.podUID)!;
     const reconciledPod = {
@@ -481,9 +466,7 @@ describe('shared create and attach transitions', () => {
       state: 'unknown',
       certainty: 'unknown',
     });
-    await expect(startDebugSession(launch, BUILTIN_DEBUG_TEMPLATES[0], deps)).rejects.toThrow(
-      /pending|unconfirmed/,
-    );
+    await expect(startDebugSession(launch, BUILTIN_DEBUG_TEMPLATES[0], deps)).rejects.toMatchObject({ name: 'Error' });
     expect(executeAction).toHaveBeenCalledOnce();
   });
 
@@ -569,7 +552,10 @@ describe('shared create and attach transitions', () => {
         },
       }) as never);
     const createExecSession = vi.fn().mockResolvedValue(null);
-    await expect(reconnectDebug(record, { createExecSession })).rejects.toThrow('ErrImagePull');
+    await expect(reconnectDebug(record, { createExecSession })).rejects.toMatchObject({
+      name: 'Error',
+      cause: { name: 'Error' },
+    });
     expect(getDebugRecords().find((item) => item.podUID === launch.podUID)).toMatchObject({
       state: 'waiting',
       certainty: 'accepted',

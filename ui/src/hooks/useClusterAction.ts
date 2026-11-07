@@ -1,52 +1,61 @@
 import {
   usePluginContext,
   useConnection,
-  useSnackbar,
+  useNotifications,
   usePluginRouter,
 } from '@omniviewdev/runtime';
 import { types } from '@omniviewdev/runtime/models';
-import { useCallback } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
-/**
- * Shared hook that handles connect-and-navigate for a cluster connection.
- * Replaces the HubCardHandler wrapper pattern.
- */
-export function useClusterAction(
-  connectionId: string,
-  isConnected: boolean,
-  onRecordAccess: () => void,
-) {
+/** Connection actions navigate only; the mounted ready route owns recent history. */
+export function useClusterAction(connectionId: string, isConnected: boolean) {
   const { meta } = usePluginContext();
   const { navigate } = usePluginRouter();
-  // eslint-disable-next-line @typescript-eslint/unbound-method
-  const { showSnackbar } = useSnackbar();
-  const { startConnection } = useConnection({
+  const { notify } = useNotifications();
+  const { startConnection, stopConnection } = useConnection({
     pluginID: meta.id,
     connectionID: connectionId,
+    enabled: false,
   });
-
-  const handleClick = useCallback(() => {
-    onRecordAccess();
-    if (isConnected) {
-      navigate(`/cluster/${encodeURIComponent(connectionId)}/resources`);
-      return;
-    }
-    startConnection()
-      .then((status) => {
-        if (status.status === types.ConnectionStatusCode.ConnectionStatusConnected) {
-          navigate(`/cluster/${encodeURIComponent(connectionId)}/resources`);
-        } else {
-          showSnackbar({
-            status: 'warning',
-            message: `Failed to connect to cluster`,
-            details: status.details,
-            icon: 'LuCircleAlert',
-          });
+  const [connecting, setConnecting] = useState(false);
+  const pending = useRef(false);
+  const run = useCallback(
+    async (open: boolean) => {
+      if (pending.current) return;
+      pending.current = true;
+      setConnecting(true);
+      try {
+        if (!isConnected) {
+          const status = await startConnection();
+          if (status.status !== types.ConnectionStatusCode.ConnectionStatusConnected) {
+            void notify({
+              severity: 'warning',
+              title: 'Failed to connect to cluster',
+              details: status.details,
+            });
+            return;
+          }
         }
-      }, () => {
-        // useConnection already reports lifecycle failures with structured details.
-      });
-  }, [connectionId, isConnected, onRecordAccess, navigate, startConnection, showSnackbar]);
-
-  return { handleClick };
+        if (open) {
+          navigate(`/cluster/${encodeURIComponent(connectionId)}/resources`);
+        }
+      } catch {
+        // Lifecycle failures already report structured details through useConnection.
+      } finally {
+        pending.current = false;
+        setConnecting(false);
+      }
+    },
+    [connectionId, isConnected, navigate, notify, startConnection],
+  );
+  const handleClick = useCallback(() => run(true), [run]);
+  const handleConnect = useCallback(() => run(false), [run]);
+  const handleDisconnect = useCallback(async () => {
+    try {
+      await stopConnection();
+    } catch {
+      /* useConnection reports lifecycle failures. */
+    }
+  }, [stopConnection]);
+  return { handleClick, handleConnect, handleDisconnect, connecting };
 }

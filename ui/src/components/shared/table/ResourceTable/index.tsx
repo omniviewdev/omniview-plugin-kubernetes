@@ -1,6 +1,7 @@
 import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import { Button, DataTable, Progress, Skeleton, dataTableFeatures } from '@omniviewdev/base-ui';
 import { useResources, useResourceType, useResolvedResourceTarget, useRightDrawer, usePluginRouter, DrawerComponent } from '@omniviewdev/runtime';
+import type { HostRecord } from '@omniviewdev/runtime';
 import {
   type ColumnDef,
   type ColumnFiltersState,
@@ -78,7 +79,10 @@ export type Props<T extends RowData = any> = {
   /** Column picker supplied by the resource view; defaults to the standard picker. */
   columnPicker?: React.ComponentType<ColumnPickerProps<T>>;
   /** Wrap table content with consumers that need persisted visibility before mounting. */
-  contentWrapper?: React.ComponentType<React.PropsWithChildren<{ columnVisibility: VisibilityState }>>;
+  contentWrapper?: React.ComponentType<React.PropsWithChildren<{
+    columnVisibility: VisibilityState;
+    recordsByBody: WeakMap<object, HostRecord>;
+  }>>;
 };
 
 const visibilityFromColumnDefs = <T extends RowData,>(defs: Array<ColumnDef<DataTableFeatures, T>>): VisibilityState => {
@@ -101,6 +105,11 @@ const visibilityWithRequiredColumns = <T extends RowData,>(
 ): VisibilityState => {
   let effective = visibility;
   for (const def of defs) {
+    // Catalog and schema columns can arrive after persisted state initializes.
+    if (def.id && visibility[def.id] === undefined && def.meta && 'defaultHidden' in def.meta) {
+      if (effective === visibility) effective = { ...visibility };
+      effective[def.id] = !def.meta.defaultHidden;
+    }
     if (!def.id || def.enableHiding !== false || visibility[def.id] !== false) continue;
     if (def.meta && 'defaultHidden' in def.meta && def.meta.defaultHidden === true) continue;
     if (effective === visibility) effective = { ...visibility };
@@ -429,7 +438,7 @@ const ResourceTableContainer = <T extends RowData,>({
       </div>
     </TableDrawerContext.Provider>
   );
-  return ContentWrapper ? <ContentWrapper columnVisibility={effectiveColumnVisibility}>{content}</ContentWrapper> : content;
+  return ContentWrapper ? <ContentWrapper columnVisibility={effectiveColumnVisibility} recordsByBody={recordsByBody}>{content}</ContentWrapper> : content;
 };
 
 ResourceTableContainer.displayName = 'ResourceTableContainer';

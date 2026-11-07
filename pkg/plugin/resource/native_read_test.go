@@ -11,8 +11,11 @@ import (
 	"testing"
 
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
+	resourceplugin "github.com/omniviewdev/plugin-sdk/pkg/resource/v2/plugin"
+	resourcepb "github.com/omniviewdev/plugin-sdk/proto/resource/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -192,10 +195,10 @@ func TestNativeEnumerateUsesBoundedSourcePagination(t *testing.T) {
 	var calls atomic.Int32
 	client := nativeTestHTTPClient(t, func(request *http.Request) *unstructured.UnstructuredList {
 		assert.Equal(t, "/apis/sample.example/v1/widgets", request.URL.Path)
-		assert.Equal(t, "2", request.URL.Query().Get("limit"))
+		assert.Equal(t, "1", request.URL.Query().Get("limit"))
 		if calls.Add(1) == 1 {
 			assert.Empty(t, request.URL.Query().Get("continue"))
-			list := nativeTestList(nativeTestObject("first", "a"), nativeTestObject("second", "b"))
+			list := nativeTestList(nativeTestObject("first", "a"))
 			list.SetContinue("native-server-continuation")
 			remaining := int64(100)
 			list.SetRemainingItemCount(&remaining)
@@ -205,9 +208,10 @@ func TestNativeEnumerateUsesBoundedSourcePagination(t *testing.T) {
 		return nativeTestList(nativeTestObject("third", "b"))
 	})
 	request := nativeTestEnumerate(nativeTestAny())
+	request.PageSize = 1
 	page, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
 	require.NoError(t, err)
-	require.Len(t, page.Records, 2)
+	require.Len(t, page.Records, 1)
 	assert.Equal(t, int32(1), calls.Load())
 	assert.Equal(t, "unknown", page.Count.Kind)
 	assert.Nil(t, page.Count.Value)
@@ -230,7 +234,7 @@ func TestNativeEnumerateUsesBoundedSourcePagination(t *testing.T) {
 func TestNativeEnumerateSelectedNamespaces(t *testing.T) {
 	var calls atomic.Int32
 	client := nativeTestHTTPClient(t, func(request *http.Request) *unstructured.UnstructuredList {
-		assert.Equal(t, "2", request.URL.Query().Get("limit"))
+		assert.Equal(t, "1", request.URL.Query().Get("limit"))
 		switch calls.Add(1) {
 		case 1:
 			assert.Equal(t, "/apis/sample.example/v1/namespaces/a/widgets", request.URL.Path)
@@ -249,21 +253,19 @@ func TestNativeEnumerateSelectedNamespaces(t *testing.T) {
 		}
 	})
 	request := nativeTestEnumerate(nativeTestOneOf("b", "a", "a"))
-	for index := range 3 {
-		page, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
-		require.NoError(t, err)
-		assert.Equal(t, int32(index+1), calls.Load(), "one native request per source page")
-		assert.Nil(t, page.SourceRevision, "independent namespace lists have no common revision")
-		assert.Equal(t, "bestEffort", page.Consistency)
-		assert.Equal(t, "unknown", page.Count.Kind)
-		if index < 2 {
-			require.NotNil(t, page.NextCursor)
-		} else {
-			assert.Nil(t, page.NextCursor)
-		}
-		request.Cursor = page.NextCursor
-		request.Target.Scope = nativeTestOneOf("a", "b")
-	}
+	request.PageSize = 1
+	first, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
+	require.NoError(t, err)
+	require.NotNil(t, first.NextCursor)
+	assert.Nil(t, first.SourceRevision)
+	request.Cursor = first.NextCursor
+	request.Target.Scope = nativeTestOneOf("a", "b")
+	second, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
+	require.NoError(t, err)
+	require.Len(t, second.Records, 1)
+	assert.Nil(t, second.NextCursor)
+	assert.Nil(t, second.SourceRevision)
+	assert.Equal(t, int32(3), calls.Load())
 }
 
 func TestNativeEnumerateEmptySelectionAndClusterScope(t *testing.T) {
@@ -295,7 +297,7 @@ func TestNativeEnumerateAcceptsMaximumSourcePageSize(t *testing.T) {
 	client := nativeTestHTTPClient(t, func(request *http.Request) *unstructured.UnstructuredList {
 		calls.Add(1)
 		assert.Equal(t, "/apis/sample.example/v1/widgets", request.URL.Path)
-		assert.Equal(t, "256", request.URL.Query().Get("limit"))
+		assert.Equal(t, "1", request.URL.Query().Get("limit"))
 		assert.Empty(t, request.URL.Query().Get("continue"))
 		return nativeTestList()
 	})
@@ -341,11 +343,12 @@ func TestNativeEnumerateRejectsInvalidScopeAndPageSize(t *testing.T) {
 func TestNativeEnumerateCursorBindsSource(t *testing.T) {
 	client := nativeTestClient()
 	client.PrependReactor("list", "widgets", func(action clienttesting.Action) (bool, runtime.Object, error) {
-		list := nativeTestList()
+		list := nativeTestList(nativeTestObject("first", "a"))
 		list.SetContinue("native-next")
 		return true, list, nil
 	})
 	original := nativeTestEnumerate(nativeTestOneOf("a", "b"))
+	original.PageSize = 1
 	first, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, original, nativeTestRepresentation())
 	require.NoError(t, err)
 	require.NotNil(t, first.NextCursor)
@@ -366,7 +369,7 @@ func TestNativeEnumerateCursorBindsSource(t *testing.T) {
 		{"scope", func(r *resourcev2.EnumerateRequest, _ *schema.GroupVersionResource, _ *bool) {
 			r.Target.Scope = nativeTestOneOf("b")
 		}},
-		{"page size", func(r *resourcev2.EnumerateRequest, _ *schema.GroupVersionResource, _ *bool) { r.PageSize = 1 }},
+		{"page size", func(r *resourcev2.EnumerateRequest, _ *schema.GroupVersionResource, _ *bool) { r.PageSize = 2 }},
 		{"GVR", func(_ *resourcev2.EnumerateRequest, g *schema.GroupVersionResource, _ *bool) { g.Resource = "other" }},
 		{"namespace mode", func(r *resourcev2.EnumerateRequest, _ *schema.GroupVersionResource, n *bool) {
 			*n = false
@@ -423,16 +426,84 @@ func TestNativeEnumerateRejectsUnboundedAndStalledResponses(t *testing.T) {
 	t.Run("stalled continuation", func(t *testing.T) {
 		client := nativeTestClient()
 		client.PrependReactor("list", "widgets", func(action clienttesting.Action) (bool, runtime.Object, error) {
-			list := nativeTestList()
+			list := nativeTestList(nativeTestObject("first", "ns"))
 			list.SetContinue("same-token")
 			return true, list, nil
 		})
 		request := nativeTestEnumerate(nativeTestAny())
+		request.PageSize = 1
 		page, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
 		require.NoError(t, err)
 		request.Cursor = page.NextCursor
 		_, err = NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
 		assert.Equal(t, "RESET_REQUIRED", resourcev2.ErrorCode(err))
+	})
+}
+
+func TestNativeEnumerateCompleteUnpaginatedLists(t *testing.T) {
+	t.Run("entire list fits", func(t *testing.T) {
+		client := nativeTestClient()
+		client.PrependReactor("list", "widgets", func(action clienttesting.Action) (bool, runtime.Object, error) {
+			first, second := nativeTestObject("a", "ns"), nativeTestObject("b", "ns")
+			first.SetLabels(map[string]string{"app": "test"})
+			second.SetLabels(map[string]string{"app": "test"})
+			return true, nativeTestList(first, second), nil
+		})
+		request := nativeTestEnumerate(nativeTestAny())
+		page, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
+		require.NoError(t, err)
+		require.Len(t, page.Records, 2)
+		assert.Nil(t, page.NextCursor)
+		query := parityQuery("app=test")
+		page, err = NativeQuery(context.Background(), client, nativeTestGVR, true, query, nativeTestRepresentation())
+		require.NoError(t, err)
+		require.Len(t, page.Records, 2)
+		assert.Nil(t, page.NextCursor)
+	})
+	t.Run("defer entire namespace", func(t *testing.T) {
+		var bCalls atomic.Int32
+		client := nativeTestHTTPClient(t, func(request *http.Request) *unstructured.UnstructuredList {
+			assert.Equal(t, "1", request.URL.Query().Get("limit"))
+			if strings.Contains(request.URL.Path, "/namespaces/a/") {
+				return nativeTestList(nativeTestObject("a", "a"))
+			}
+			bCalls.Add(1)
+			return nativeTestList(nativeTestObject("b1", "b"), nativeTestObject("b2", "b"))
+		})
+		request := nativeTestEnumerate(nativeTestOneOf("a", "b"))
+		first, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
+		require.NoError(t, err)
+		require.Len(t, first.Records, 1)
+		require.NotNil(t, first.NextCursor)
+		request.Cursor = first.NextCursor
+		second, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
+		require.NoError(t, err)
+		require.Len(t, second.Records, 2)
+		assert.Equal(t, "b1", second.Records[0].Reference.Address.ID)
+		assert.Equal(t, "b2", second.Records[1].Reference.Address.ID)
+		assert.Nil(t, second.NextCursor)
+		assert.Equal(t, int32(2), bCalls.Load())
+	})
+	t.Run("continued unbounded response fails closed", func(t *testing.T) {
+		client := nativeTestClient()
+		client.PrependReactor("list", "widgets", func(action clienttesting.Action) (bool, runtime.Object, error) {
+			list := nativeTestList(nativeTestObject("a", "ns"), nativeTestObject("b", "ns"))
+			list.SetContinue("next")
+			return true, list, nil
+		})
+		_, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, nativeTestEnumerate(nativeTestAny()), nativeTestRepresentation())
+		require.Equal(t, "RESOURCE_LIMIT", resourcev2.ErrorCode(err))
+	})
+	t.Run("complete list over wire budget fails closed", func(t *testing.T) {
+		first, second := nativeTestObject("a", "ns"), nativeTestObject("b", "ns")
+		first.Object["data"] = make([]any, 70000)
+		second.Object["data"] = make([]any, 70000)
+		client := nativeTestClient()
+		client.PrependReactor("list", "widgets", func(action clienttesting.Action) (bool, runtime.Object, error) {
+			return true, nativeTestList(first, second), nil
+		})
+		_, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, nativeTestEnumerate(nativeTestAny()), nativeTestRepresentation())
+		require.Equal(t, "RESOURCE_LIMIT", resourcev2.ErrorCode(err))
 	})
 }
 
@@ -445,25 +516,92 @@ func TestNativeReadsEnforceResourceWireBudgets(t *testing.T) {
 		assert.Equal(t, "RESOURCE_LIMIT", resourcev2.ErrorCode(err))
 		assert.Empty(t, record.Body.Kind)
 	})
-	t.Run("aggregate page", func(t *testing.T) {
-		payload := strings.Repeat("x", resourcev2.MaxPageBodyBytes/3+1)
-		objects := make([]*unstructured.Unstructured, 0, 3)
-		for _, name := range []string{"a", "b", "c"} {
-			object := nativeTestObject(name, "ns")
-			object.Object["spec"] = map[string]any{"large": payload}
-			objects = append(objects, object)
-		}
+	t.Run("wire budget", func(t *testing.T) {
+		object := nativeTestObject("oversized", "ns")
+		object.Object["data"] = make([]any, resourcev2.MaxValueNodes)
 		client := nativeTestClient()
 		client.PrependReactor("list", "widgets", func(action clienttesting.Action) (bool, runtime.Object, error) {
-			return true, nativeTestList(objects...), nil
+			return true, nativeTestList(object), nil
 		})
-		request := nativeTestEnumerate(nativeTestAny())
-		request.PageSize = 3
-		page, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
-		assert.Equal(t, "RESOURCE_LIMIT", resourcev2.ErrorCode(err))
-		assert.Empty(t, page.Records, "over-budget acquisition must not return partial success")
-		assert.Len(t, client.Actions(), 1)
+		_, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, nativeTestEnumerate(nativeTestAny()), nativeTestRepresentation())
+		require.Equal(t, "RESOURCE_LIMIT", resourcev2.ErrorCode(err))
 	})
+}
+
+func TestNativeEnumerateSingleItemSnapshotContinuation(t *testing.T) {
+	large := make([]any, 70000)
+	var tokens []string
+	client := nativeTestHTTPClient(t, func(request *http.Request) *unstructured.UnstructuredList {
+		assert.Equal(t, "1", request.URL.Query().Get("limit"))
+		tokens = append(tokens, request.URL.Query().Get("continue"))
+		var name string
+		switch request.URL.Query().Get("continue") {
+		case "":
+			name = "a"
+		case "next-a":
+			name = "b"
+		case "next-b":
+			name = "c"
+		default:
+			t.Error("unexpected continuation")
+		}
+		object := nativeTestObject(name, "ns")
+		object.Object["data"] = large
+		list := nativeTestList(object)
+		if name != "c" {
+			list.SetContinue("next-" + name)
+		}
+		return list
+	})
+	request := nativeTestEnumerate(nativeTestAny())
+	request.PageSize = 256
+	var names []string
+	for {
+		page, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
+		require.NoError(t, err)
+		require.Len(t, page.Records, 1)
+		wirePage, err := resourcev2.ToProtoSourcePage(page)
+		require.NoError(t, err)
+		response := &resourcepb.Response{Version: resourcev2.WireVersion, Result: &resourcepb.Response_Page{Page: wirePage}}
+		wire, err := proto.Marshal(response)
+		require.NoError(t, err)
+		require.NoError(t, resourceplugin.ValidateWire(wire, response.ProtoReflect().Descriptor()))
+		names = append(names, page.Records[0].Reference.Address.ID)
+		if page.NextCursor == nil {
+			break
+		}
+		request.Cursor = page.NextCursor
+	}
+	assert.Equal(t, []string{"a", "b", "c"}, names)
+	assert.Equal(t, []string{"", "next-a", "next-a", "next-b", "next-b"}, tokens)
+}
+
+func TestNativeCursorRejectsChangedConnectionGeneration(t *testing.T) {
+	epoch1, err := resourcev2.NewCatalogBindingEpoch()
+	require.NoError(t, err)
+	epoch2, err := resourcev2.NewCatalogBindingEpoch()
+	require.NoError(t, err)
+	revision1, err := resourcev2.BindCatalogRevision(epoch1, "catalog")
+	require.NoError(t, err)
+	revision2, err := resourcev2.BindCatalogRevision(epoch2, "catalog")
+	require.NoError(t, err)
+	client := nativeTestClient()
+	client.PrependReactor("list", "widgets", func(action clienttesting.Action) (bool, runtime.Object, error) {
+		list := nativeTestList(nativeTestObject("a", "ns"))
+		list.SetContinue("next")
+		return true, list, nil
+	})
+	request := nativeTestEnumerate(nativeTestAny())
+	request.PageSize = 1
+	ctx := resourcev2.WithCatalogRevision(context.Background(), revision1)
+	page, err := NativeEnumerate(ctx, client, nativeTestGVR, true, request, nativeTestRepresentation())
+	require.NoError(t, err)
+	require.NotNil(t, page.NextCursor)
+	request.Cursor = page.NextCursor
+	ctx = resourcev2.WithCatalogRevision(context.Background(), revision2)
+	_, err = NativeEnumerate(ctx, client, nativeTestGVR, true, request, nativeTestRepresentation())
+	require.Equal(t, "RESET_REQUIRED", resourcev2.ErrorCode(err))
+	assert.Len(t, client.Actions(), 1)
 }
 
 func TestNativeReadsCancellationAndSourceErrors(t *testing.T) {
@@ -511,7 +649,7 @@ func TestNativeReadsCancellationAndSourceErrors(t *testing.T) {
 			return true, nil, expired
 		})
 		page, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, nativeTestEnumerate(nativeTestAny()), nativeTestRepresentation())
-		assert.Same(t, expired, err)
+		assert.Equal(t, "RESET_REQUIRED", resourcev2.ErrorCode(err))
 		assert.Empty(t, page.Records)
 		assert.Len(t, client.Actions(), 1, "expired acquisition must not restart as a fresh list")
 	})

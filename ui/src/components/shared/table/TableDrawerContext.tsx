@@ -11,7 +11,6 @@ export const TableDrawerContext = createContext<{
   recordsByBody: WeakMap<object, HostRecord>;
 } | undefined>(undefined);
 
-// eslint-disable-next-line react-refresh/only-export-components
 export function useTableDrawer() {
   return useContext(TableDrawerContext);
 }
