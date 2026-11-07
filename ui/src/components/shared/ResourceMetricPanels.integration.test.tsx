@@ -6,6 +6,7 @@ const state = vi.hoisted(() => ({
   observe: vi.fn(), update: vi.fn().mockResolvedValue(undefined),
   reference: { address: { provider: 'kubernetes', authority: 'owner', type: 'k8s:/pods', id: 'api', scope: [{ dimension: 'namespace', value: 'apps' }] }, incarnation: 'uid' },
   source: { plugin_id: 'grafana', connection_id: 'monitoring', datasource_uid: 'prom', datasource_kind: 'prometheus', native: false },
+  bindingSource: { plugin_id: 'grafana', connection_id: 'old-monitoring', datasource_uid: 'old-prom', datasource_kind: 'prometheus', native: false },
   display: 'value',
   fetching: false,
   metricID: 'cpu',
@@ -17,7 +18,7 @@ vi.mock('@omniviewdev/runtime', () => ({
   useMetricOwnerConnection: () => ({ name: 'Production' }),
   useMetricViewSourceSelection: () => ({ selection: { mode: 'external', source: state.source }, isLoading: false, error: null }),
   useMetricSourcePresentation: () => ({ providerName: 'Grafana', providerIcon: 'SiGrafana', label: 'Observability · Production Prometheus' }),
-  useMetricBindings: () => ({ data: [{ id: 'binding', signal: 'metrics', resource_plugin_id: 'kubernetes', resource_connection_id: 'owner', source: state.source, public_scope: { cluster: 'production' } }] }),
+  useMetricBindings: () => ({ data: [{ id: 'binding', signal: 'metrics', resource_plugin_id: 'kubernetes', resource_connection_id: 'owner', source: state.bindingSource, public_scope: { cluster: 'production' } }] }),
   useMetricCatalog: () => ({ data: { source: state.source, metrics: [{ id: state.metricID, name: 'CPU', unit: 'cores', shapes: state.shapes, description: 'CPU usage' }] }, isLoading: false, error: null }),
   useMetricViewPreferences: () => ({ preferences: { metric_ids: [state.metricID], displays: { [state.metricID]: state.display }, details: { [state.metricID]: true }, layout: 'stack', time_mode: 'relative', duration_ms: 3600000 }, update: state.update, isLoading: false, error: null }),
   useMetricObservation: (input: { shape: string }) => {
@@ -88,6 +89,13 @@ it('shows real zero request with unknown native capacity instead of inventing an
   state.shapes = ['current'];
   state.display = 'capacity';
   render(<PodMetricsView ctx={podContext('0', '0')} />);
+  expect(state.observe.mock.calls.map(([input]) => input).filter(input => input.enabled)).toEqual([
+    expect.objectContaining({
+      ownerPluginID: 'kubernetes', ownerConnectionID: 'owner', resourceKey: 'k8s:/pods',
+      targets: [{ token: 'api', reference: state.reference, route: { connection: 'owner' } }],
+      metricIDs: ['kubernetes.pod.cpu.usage'], shape: 'current',
+    }),
+  ]);
   expect(screen.getByLabelText('Current configuration references')).toHaveTextContent(/Request:.*0/);
   expect(within(screen.getByLabelText('Current configuration references')).getAllByTitle(/Current resource configuration/).length).toBeGreaterThan(0);
   expect(screen.getByText(/No bound supplied/)).toBeTruthy();

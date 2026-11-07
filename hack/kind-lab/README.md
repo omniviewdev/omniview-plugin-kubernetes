@@ -132,11 +132,17 @@ After creating and seeding the dedicated lab above:
 
 ```sh
 # Explicit cluster mutation: version-pinned upstream metrics-server v0.8.0.
-python3 hack/kind-lab/native_metrics.py install --confirm-install
+python3 hack/kind-lab/native_metrics.py install --confirm-install --confirm-owner-permission
 
 # Read-only: wait for real measurements from at least two Ready seeded Pods.
 python3 hack/kind-lab/native_metrics.py verify --namespace load-000 --timeout 120
 ```
+Before installation, establish that you created this disposable cluster or obtain
+its creator's permission to install cluster-wide RBAC. Names, Docker labels, and
+loopback ports identify a target; they do not prove ownership on shared Docker.
+`--confirm-owner-permission` explicitly attests to that permission. If uncertain,
+stop without installing anything.
+
 
 Both commands require the private `hack/kind-lab/.state/kubeconfig`, fixed
 `kind-omniview-load-lab` context, actual Kind cluster membership, Docker Kind
@@ -153,6 +159,11 @@ checks real source timestamps/windows and container CPU/memory quantities,
 prints up to four sample summaries without credentials, and rejects missing,
 negative, invalid, stale or duplicate measurements. CPU is cores; memory is
 working-set bytes. Measured zero CPU is valid. A missing quantity is not zero.
+The verifier follows APIService → Service → serving endpoint Pods → ReplicaSet →
+pinned Deployment ownership, and checks the actual serving Pod images. Samples
+must cover every running container, including running init sidecars. One deadline
+covers identity checks and all verification requests; each request uses only the
+remaining time, and expired verification cannot succeed.
 It neither deploys a workload nor changes cluster state. The seeded HTTP
 containers provide real idle workloads; this is not a compute-load benchmark.
 

@@ -30,13 +30,15 @@ func metricOwnerCatalog(*types.PluginContext) (*sdkmetric.MetricOwnerCatalog, er
 	cpu.Unit = "cores"
 	cpu.Semantics = "rate"
 	cpu.Native = true
-	cpu.Query = `sum by (cluster,namespace,pod) (rate(container_cpu_usage_seconds_total{cluster=~"{{cluster}}",namespace=~"{{namespace}}",pod=~"{{pod}}",container!="",container!="POD"}[5m]))`
+	// Prefer deduplicated container series. Aggregate-only exporters may omit
+	// container; the identity join admits their Pod aggregate only as a fallback.
+	cpu.Query = `sum by (cluster,namespace,pod) (max by (cluster,namespace,pod,container) (rate(container_cpu_usage_seconds_total{cluster=~"{{cluster}}",namespace=~"{{namespace}}",pod=~"{{pod}}",container!="",container!="POD"}[5m]))) or on (cluster,namespace,pod) max by (cluster,namespace,pod) (rate(container_cpu_usage_seconds_total{cluster=~"{{cluster}}",namespace=~"{{namespace}}",pod=~"{{pod}}",pod!="",container=""}[5m]))`
 	memory := clone()
 	memory.ID = nativeMemory
 	memory.Name = "Memory working set"
 	memory.Unit = "bytes"
 	memory.Native = true
-	memory.Query = `sum by (cluster,namespace,pod) (container_memory_working_set_bytes{cluster=~"{{cluster}}",namespace=~"{{namespace}}",pod=~"{{pod}}",container!="",container!="POD"})`
+	memory.Query = `sum by (cluster,namespace,pod) (max by (cluster,namespace,pod,container) (container_memory_working_set_bytes{cluster=~"{{cluster}}",namespace=~"{{namespace}}",pod=~"{{pod}}",container!="",container!="POD"})) or on (cluster,namespace,pod) max by (cluster,namespace,pod) (container_memory_working_set_bytes{cluster=~"{{cluster}}",namespace=~"{{namespace}}",pod=~"{{pod}}",pod!="",container=""})`
 	const scope = `cluster=~"{{cluster}}",namespace=~"{{namespace}}",pod=~"{{pod}}"`
 	const containers = scope + `,container!="",container!="POD"`
 	const group = ` by (cluster,namespace,pod) `

@@ -193,6 +193,7 @@ func TestNativeNodeDuplicateAndMissingMeasurement(t *testing.T) {
 		{"duplicate", `{"metadata":{"name":"node-a"}},{"metadata":{"name":"node-a"}}`, "ambiguous"},
 		{"missing-time", `{"metadata":{"name":"node-a"},"usage":{"cpu":"1","memory":"2Mi"}}`, "missing"},
 		{"missing-cpu", `{"metadata":{"name":"node-a"},"timestamp":"2026-11-05T10:00:00Z","window":"20s","usage":{"memory":"2Mi"}}`, "missing"},
+		{"null-cpu", `{"metadata":{"name":"node-a"},"timestamp":"2026-11-05T10:00:00Z","window":"20s","usage":{"cpu":null,"memory":"2Mi"}}`, "failed"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			provider := nativeTestProvider(t, func(request *http.Request) (*http.Response, error) {
@@ -210,5 +211,73 @@ func TestNativeNodeDuplicateAndMissingMeasurement(t *testing.T) {
 				t.Fatalf("%+v", result)
 			}
 		})
+	}
+}
+
+func TestNativeQueryFollowsContinuationBeforeDeclaringMissing(t *testing.T) {
+	calls := 0
+	provider := nativeTestProvider(t, func(request *http.Request) (*http.Response, error) {
+		calls++
+		if request.URL.Path != "/apis/metrics.k8s.io/v1beta1/namespaces/one/pods" || request.URL.Query().Get("limit") != "1000" {
+			t.Fatalf("wrong list request: %s", request.URL)
+		}
+		switch calls {
+		case 1:
+			if request.URL.Query().Get("continue") != "" {
+				t.Fatalf("first page carried continuation: %s", request.URL)
+			}
+			return nativeTestResponse(request, `{"apiVersion":"metrics.k8s.io/v1beta1","kind":"PodMetricsList","metadata":{"continue":"next+/="},"items":[]}`), nil
+		case 2:
+			if request.URL.Query().Get("continue") != "next+/=" {
+				t.Fatalf("continuation token changed: %s", request.URL)
+			}
+			return nativeTestResponse(request, nativePage(nativeSample)), nil
+		default:
+			t.Fatalf("unexpected extra page: %s", request.URL)
+			return nil, nil
+		}
+	})
+	pc := &types.PluginContext{Context: context.Background(), Connection: &types.Connection{ID: "selected"}}
+	response, err := provider.query(pc, sdkmetric.ResourceMetricsQuery{Source: nativeSource(pc), Shape: "current", MetricIDs: []string{nativeCPU}, Targets: []sdkmetric.ResourceMetricTarget{nativeTestTarget("row", "one", "same"), nativeTestTarget("absent", "one", "absent")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 || !response.Complete || response.Results[0].Status != "ok" || response.Results[0].Value == nil || response.Results[1].Status != "missing" {
+		t.Fatalf("continuation lost target or completeness: calls=%d response=%+v", calls, response)
+	}
+}
+
+func TestNativeAdmittedNamespacesReturnBoundedPartialResults(t *testing.T) {
+	calls := 0
+	provider := nativeTestProvider(t, func(request *http.Request) (*http.Response, error) {
+		calls++
+		return nativeTestResponse(request, nativePage("")), nil
+	})
+	pc := &types.PluginContext{Context: context.Background(), Connection: &types.Connection{ID: "selected"}}
+	targets := make([]sdkmetric.ResourceMetricTarget, 65)
+	for index := range targets {
+		namespace := "ns-" + strings.Repeat("a", index/26+1) + string(rune('a'+index%26))
+		targets[index] = nativeTestTarget(namespace, namespace, "same")
+	}
+	response, err := provider.query(pc, sdkmetric.ResourceMetricsQuery{Source: nativeSource(pc), Shape: "current", MetricIDs: []string{nativeCPU}, Targets: targets})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Complete || len(response.Results) != len(targets) || calls != nativeMaxPages {
+		t.Fatalf("admitted batch rejected or escaped page budget: calls=%d response=%+v", calls, response)
+	}
+	missing, failed := 0, 0
+	for _, result := range response.Results {
+		switch result.Status {
+		case "missing":
+			missing++
+		case "failed":
+			failed++
+		default:
+			t.Fatalf("unexpected result: %+v", result)
+		}
+	}
+	if missing != nativeMaxPages || failed != 1 {
+		t.Fatalf("partial namespace coverage lost: missing=%d failed=%d", missing, failed)
 	}
 }

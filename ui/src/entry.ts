@@ -24,7 +24,7 @@ import RepoSidebar from './components/helm/repos/RepoSidebar';
 import HelmRepoTable from './components/helm/repos/Table';
 import KubernetesHomepageCard from './components/homepage/KubernetesHomepageCard';
 import { resourceDrawerActions } from './components/kubernetes/drawerActions';
-import NodeSidebar from './components/kubernetes/sidebar/NodeSidebar';
+import NodeSidebar, { NodeMetricsView } from './components/kubernetes/sidebar/NodeSidebar';
 import PodSidebar from './components/kubernetes/sidebar/Pod';
 import { PodMetricsView } from './components/kubernetes/sidebar/Pod/PodMetricsSection';
 import SecretSidebar from './components/kubernetes/sidebar/SecretSidebar';
@@ -215,6 +215,7 @@ const sidebars: Record<string, React.FC<{ ctx: DrawerContext }>> = {
 
 const resourceMetricsViews: Record<string, React.FC<{ ctx: DrawerContext }>> = {
   'k8s:/pods': PodMetricsView,
+  'k8s:/nodes': NodeMetricsView,
 };
 
 /**

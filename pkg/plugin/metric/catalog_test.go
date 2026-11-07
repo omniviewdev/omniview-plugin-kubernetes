@@ -127,11 +127,17 @@ func TestMetricOwnerCatalogPreservesPodRecipes(t *testing.T) {
 	for _, definition := range catalog.Definitions {
 		definitions[definition.ID] = definition
 	}
+	for _, id := range []string{nativeCPU, nativeMemory} {
+		query := definitions[id].Query
+		if !strings.Contains(query, "max by (cluster,namespace,pod,container)") || !strings.Contains(query, " or on (cluster,namespace,pod) max by (cluster,namespace,pod)") || !strings.Contains(query, `pod!="",container=""`) {
+			t.Fatalf("Pod recipe lost scrape deduplication or aggregate-only fallback: %s", query)
+		}
+	}
 	for _, recipe := range []struct {
 		id, exporter, semantics, fragment string
 	}{
 		{nativeCPU, "container_cpu_usage_seconds_total", "rate", `rate(container_cpu_usage_seconds_total`},
-		{nativeMemory, "container_memory_working_set_bytes", "gauge", `sum by (cluster,namespace,pod) (container_memory_working_set_bytes`},
+		{nativeMemory, "container_memory_working_set_bytes", "gauge", `max by (cluster,namespace,pod,container) (container_memory_working_set_bytes`},
 		{"kubernetes.pod.memory_rss", "container_memory_rss", "gauge", `sum by (cluster,namespace,pod) (container_memory_rss`},
 		{"kubernetes.pod.memory_cache", "container_memory_cache", "gauge", `sum by (cluster,namespace,pod) (container_memory_cache`},
 		{"kubernetes.pod.network_receive", "container_network_receive_bytes_total", "rate", `max by (cluster,namespace,pod,interface)`},

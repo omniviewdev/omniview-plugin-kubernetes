@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Install real telemetry into the existing local kind-kind cluster; never create a cluster."""
 import argparse
+import hashlib
 import json
 import os
 import pathlib
@@ -63,8 +64,19 @@ def write_kubeconfig(config):
         os.close(directory)
 
 
+def local_docker():
+    # Docker context metadata must agree with the workstation loopback assumption.
+    endpoint = os.environ.get('DOCKER_HOST')
+    if os.environ.get('DOCKER_CONTEXT') or not endpoint:
+        context = json.loads(run(['docker', 'context', 'inspect'], capture=True))[0]
+        endpoint = context['Endpoints']['docker']['Host']
+    if urllib.parse.urlparse(endpoint).scheme != 'unix':
+        raise SystemExit('Local Unix-socket Docker daemon required; remote Docker endpoints are forbidden')
+
+
 def local_config():
     # Derive credentials from local Kind, never trust a same-named ambient context.
+    local_docker()
     clusters = run(['kind', 'get', 'clusters'], capture=True).splitlines()
     if 'kind' not in clusters:
         raise SystemExit('Existing local Kind cluster "kind" required; no cluster will be created')
@@ -122,6 +134,75 @@ def workload_objects():
     return items
 
 
+def apply_workloads(items):
+    source = next(item for item in items if item['kind'] == 'ConfigMap')
+    digest = hashlib.sha256(json.dumps(source['data'], sort_keys=True).encode()).hexdigest()
+    for item in items:
+        if item['kind'] == 'Deployment':
+            item['spec']['template']['metadata'].setdefault('annotations', {})[
+                'metrics-lab/source-sha256'] = digest
+    kubectl('apply', '-f', '-', data=json.dumps({
+        'apiVersion': 'v1', 'kind': 'List', 'items': items}))
+
+
+def chart_objects(rendered):
+    try:
+        import yaml
+    except ImportError:
+        raise SystemExit('PyYAML required for chart ownership preflight; install with python3 -m pip install PyYAML') from None
+    class KubernetesLoader(yaml.SafeLoader):
+        pass
+
+    # YAML 1.1 tags a plain '=' scalar as a value, although Kubernetes accepts
+    # it as a string. Keep SafeLoader's other constructors and boolean handling.
+    KubernetesLoader.add_constructor('tag:yaml.org,2002:value', KubernetesLoader.construct_scalar)
+    return yaml.load_all(rendered, Loader=KubernetesLoader)
+
+
+def chart_preflight(release_exists):
+    rendered = helm('template', RELEASE, 'kube-prometheus-stack',
+                    '--repo', 'https://prometheus-community.github.io/helm-charts',
+                    '--version', CHART_VERSION, '--values', str(ROOT / 'values.yaml'), '--include-crds',
+                    capture=True)
+    versions = set(kubectl('api-versions', capture=True).splitlines())
+    discovery = {}
+    for item in chart_objects(rendered):
+        if not item or item['apiVersion'] not in versions:
+            continue  # An absent API cannot contain a colliding custom resource.
+        if item['kind'] == 'CustomResourceDefinition':
+            # Helm skips existing CRDs; never adopt or upgrade shared API schemas.
+            live = existing('customresourcedefinition', item['metadata']['name'])
+            if live:
+                required = {v['name'] for v in item['spec']['versions'] if v.get('served')}
+                served = {v['name'] for v in live['spec']['versions'] if v.get('served')}
+                if not required <= served:
+                    raise SystemExit(f'Refusing incompatible shared CRD {item["metadata"]["name"]}')
+            continue
+        version = item['apiVersion']
+        if version not in discovery:
+            endpoint = '/apis/' + version if '/' in version else '/api/' + version
+            resources = json.loads(kubectl('get', '--raw', endpoint, capture=True))['resources']
+            discovery[version] = {resource['kind']: resource for resource in resources
+                                  if '/' not in resource['name']}
+        resource = discovery[version].get(item['kind'])
+        if not resource:
+            continue
+        meta = item['metadata']
+        namespace = meta.get('namespace', NAMESPACE) if resource['namespaced'] else None
+        group = version.split('/')[0] if '/' in version else ''
+        name = resource['name'] + ('.' + group if group else '')
+        live = existing(name, meta['name'], namespace)
+        if not live:
+            continue
+        metadata = live['metadata']
+        annotations = metadata.get('annotations', {})
+        if (not release_exists
+                or metadata.get('labels', {}).get('app.kubernetes.io/managed-by') != 'Helm'
+                or annotations.get('meta.helm.sh/release-name') != RELEASE
+                or annotations.get('meta.helm.sh/release-namespace') != NAMESPACE):
+            raise SystemExit(f'Refusing chart collision {item["kind"]}/{meta["name"]}')
+
+
 def owned_release():
     releases = json.loads(helm('list', '--all', '--filter', '^' + RELEASE + '$', '-o', 'json', capture=True))
     if not releases:
@@ -149,13 +230,14 @@ def main():
     release_exists = owned_release()
     items = workload_objects()  # Preflight all ownership before any mutation.
     if args.command == 'up':
+        chart_preflight(release_exists)  # Only owned_release() can authorize an existing release.
         if not existing('namespace', NAMESPACE):
             kubectl('create', 'namespace', NAMESPACE)
         helm('upgrade', '--install', RELEASE, 'kube-prometheus-stack',
              '--repo', 'https://prometheus-community.github.io/helm-charts',
              '--version', CHART_VERSION, '--values', str(ROOT / 'values.yaml'),
              '--wait', '--timeout', '10m', '--history-max', '3')
-        kubectl('apply', '-f', str(ROOT / 'workloads.yaml'))
+        apply_workloads(items)
         print(f'Private kubeconfig: {KUBE}; telemetry needs several scrape intervals')
     else:
         # Retain namespaces, including unrelated resources added after setup.

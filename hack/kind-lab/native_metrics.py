@@ -35,26 +35,29 @@ def run(args, data=None, timeout=60):
 
 def kubectl(*args, data=None, timeout=60):
     return run(['kubectl', '--kubeconfig', str(KUBE), '--context', CONTEXT,
-                '--request-timeout=15s', *args], data, timeout)
+                f'--request-timeout={min(15, timeout)}s', *args], data, timeout)
 
 
-def require_owned_kind():
+def require_owned_kind(deadline=None):
+    def budget():
+        return remaining(deadline) if deadline is not None else 60
+
     if not KUBE.is_file():
         raise RuntimeError('Create the dedicated lab first; its private kubeconfig is absent')
-    clusters = run(['kind', 'get', 'clusters']).splitlines()
+    clusters = run(['kind', 'get', 'clusters'], timeout=budget()).splitlines()
     if NAME not in clusters:
         raise RuntimeError('Dedicated Kind cluster is absent')
-    config = json.loads(kubectl('config', 'view', '--minify', '-o', 'json'))
+    config = json.loads(kubectl('config', 'view', '--minify', '-o', 'json', timeout=budget()))
     if config.get('current-context') != CONTEXT or len(config.get('clusters', [])) != 1:
         raise RuntimeError('Private kubeconfig does not select the owned lab')
     endpoint = urllib.parse.urlparse(config['clusters'][0]['cluster']['server'])
     if endpoint.scheme != 'https' or endpoint.hostname != '127.0.0.1' or not endpoint.port:
         raise RuntimeError('Owned lab API must use an explicit loopback TLS endpoint')
-    nodes = run(['kind', 'get', 'nodes', '--name', NAME]).splitlines()
+    nodes = run(['kind', 'get', 'nodes', '--name', NAME], timeout=budget()).splitlines()
     control_plane = NAME + '-control-plane'
     if control_plane not in nodes:
         raise RuntimeError('Owned lab control plane is absent')
-    container = json.loads(run(['docker', 'inspect', control_plane]))[0]
+    container = json.loads(run(['docker', 'inspect', control_plane], timeout=budget()))[0]
     labels = container.get('Config', {}).get('Labels', {})
     ports = container.get('NetworkSettings', {}).get('Ports', {}).get('6443/tcp') or []
     if labels.get('io.x-k8s.kind.cluster') != NAME or labels.get('io.x-k8s.kind.role') != 'control-plane':
@@ -128,22 +131,92 @@ def quantity(text):
     return value
 
 
-def verify(namespace, timeout):
-    deployment = json.loads(kubectl('get', 'deployment', 'metrics-server', '-n', 'kube-system', '-o', 'json'))
+def remaining(deadline):
+    seconds = deadline - time.monotonic()
+    if seconds <= 0:
+        raise RuntimeError('Verification deadline expired')
+    return seconds
+
+
+def verify_route(get):
+    deployment = get('deployment', 'metrics-server', '-n', 'kube-system')
     containers = deployment['spec']['template']['spec']['containers']
     if len(containers) != 1 or containers[0]['image'] != IMAGE:
-        raise RuntimeError('Install the pinned metrics-server version in the owned lab before verification')
+        raise ValueError('Install the pinned metrics-server version before verification')
+    api = get('apiservice', 'v1beta1.metrics.k8s.io')
+    service_ref = api['spec']['service']
+    if service_ref['namespace'] != 'kube-system' or service_ref['name'] != 'metrics-server':
+        raise ValueError('Metrics APIService does not route to the pinned Service')
+    if not any(c.get('type') == 'Available' and c.get('status') == 'True'
+               for c in api.get('status', {}).get('conditions', [])):
+        raise ValueError('Metrics APIService is not Available')
+    service = get('service', service_ref['name'], '-n', service_ref['namespace'])
+    ports = [p for p in service['spec']['ports'] if p['port'] == service_ref.get('port', 443)]
+    if len(ports) != 1 or service['spec'].get('type') == 'ExternalName':
+        raise ValueError('Metrics APIService has no unambiguous local Service port')
+    endpoints = get('endpoints', service_ref['name'], '-n', service_ref['namespace'])
+    serving = []
+    for subset in endpoints.get('subsets', []):
+        if any(p.get('name', '') == ports[0].get('name', '') for p in subset.get('ports', [])):
+            serving.extend(subset.get('addresses', []))
+    if not serving:
+        raise ValueError('Metrics Service has no serving Pods')
+    for address in serving:
+        ref = address.get('targetRef', {})
+        if ref.get('kind') != 'Pod' or ref.get('namespace') != 'kube-system':
+            raise ValueError('Metrics Service endpoint is not a local Pod')
+        pod = get('pod', ref['name'], '-n', 'kube-system')
+        if ref.get('uid') != pod['metadata']['uid'] or address['ip'] not in {
+                p['ip'] for p in pod.get('status', {}).get('podIPs', [])}:
+            raise ValueError('Metrics Service endpoint Pod identity does not match')
+        owners = [o for o in pod['metadata'].get('ownerReferences', [])
+                  if o.get('controller') and o.get('kind') == 'ReplicaSet']
+        if len(owners) != 1:
+            raise ValueError('Metrics serving Pod has no ReplicaSet controller')
+        replica = get('replicaset', owners[0]['name'], '-n', 'kube-system')
+        if replica['metadata']['uid'] != owners[0]['uid'] or not any(
+                o.get('controller') and o.get('kind') == 'Deployment' and
+                o.get('uid') == deployment['metadata']['uid']
+                for o in replica['metadata'].get('ownerReferences', [])):
+            raise ValueError('Metrics serving Pod is not owned by the pinned Deployment')
+        actual = pod['spec']['containers']
+        if len(actual) != 1 or actual[0]['image'] != IMAGE:
+            raise ValueError('Metrics serving Pod does not use the pinned image')
+
+
+def require_container_coverage(pod, containers):
+    running = {c['name'] for c in pod.get('status', {}).get('containerStatuses', [])
+               if 'running' in c.get('state', {})}
+    running.update(c['name'] for c in pod.get('status', {}).get('initContainerStatuses', [])
+                   if 'running' in c.get('state', {}))
+    names = {c['name'] for c in containers}
+    if not running or not running.issubset(names):
+        raise ValueError('Source measurements do not cover all running containers')
+
+
+def verify(namespace, timeout):
     deadline = time.monotonic() + timeout
+    require_owned_kind(deadline)
+
+    def get(*args):
+        value = json.loads(kubectl('get', *args, '-o', 'json', timeout=remaining(deadline)))
+        remaining(deadline)
+        return value
+
     last_error = 'No measurements yet'
     while time.monotonic() < deadline:
         try:
-            pods = json.loads(kubectl('get', 'pods', '-n', namespace, '-l',
-                                     'app.kubernetes.io/part-of=' + NAME, '-o', 'json'))['items']
+            verify_route(get)
+            pods = get('pods', '-n', namespace, '-l',
+                       'app.kubernetes.io/part-of=' + NAME)['items']
             ready = {p['metadata']['name'] for p in pods if not p['metadata'].get('deletionTimestamp') and
                      any(c.get('type') == 'Ready' and c.get('status') == 'True' for c in p.get('status', {}).get('conditions', []))}
+            by_name = {p['metadata']['name']: p for p in pods}
             if len(ready) < 2:
                 raise ValueError('Seed at least two real Ready application Pods in this namespace')
-            data = json.loads(kubectl('get', '--raw', f'/apis/metrics.k8s.io/v1beta1/namespaces/{namespace}/pods'))
+            data = json.loads(kubectl('get', '--raw', f'/apis/metrics.k8s.io/v1beta1/namespaces/{namespace}/pods',
+                                     timeout=remaining(deadline)))
+            remaining(deadline)
             seen = set()
             samples = []
             for item in data['items']:
@@ -162,6 +235,7 @@ def verify(namespace, timeout):
                 containers = item['containers']
                 if not containers or len({c['name'] for c in containers}) != len(containers):
                     raise ValueError('Source container identities are absent or duplicate')
+                require_container_coverage(by_name[metadata['name']], containers)
                 cpu = sum((quantity(c['usage']['cpu']) for c in containers), decimal.Decimal(0))
                 memory = sum((quantity(c['usage']['memory']) for c in containers), decimal.Decimal(0))
                 if memory <= 0:
@@ -171,6 +245,7 @@ def verify(namespace, timeout):
                                 'identity_scope': 'name'})
             if len(samples) < 2:
                 raise ValueError('Metrics-server has not measured two Ready lab Pods yet')
+            remaining(deadline)
             print(json.dumps({'context': CONTEXT, 'namespace': namespace, 'backend': 'metrics.k8s.io/v1beta1',
                               'objects_scanned': len(data['items']), 'measured_ready_pods': len(samples), 'samples': samples[:4]}))
             return
@@ -184,6 +259,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['install', 'verify'])
     parser.add_argument('--confirm-install', action='store_true', help='Explicitly allow installation into the owned lab')
+    parser.add_argument('--confirm-owner-permission', action='store_true',
+                        help='Attest that you created this disposable cluster or its creator permits cluster-wide RBAC installation')
     parser.add_argument('--namespace', default='load-000')
     parser.add_argument('--timeout', type=int, default=120)
     args = parser.parse_args()
@@ -191,7 +268,10 @@ def main():
         parser.error('namespace must be load-NNN; timeout must be 1..300 seconds')
     if args.command == 'install' and not args.confirm_install:
         parser.error('install requires --confirm-install; this changes only the dedicated local Kind cluster')
-    require_owned_kind()
+    if args.command == 'install' and not args.confirm_owner_permission:
+        parser.error('install requires --confirm-owner-permission; names and Docker labels do not prove ownership')
+    if args.command == 'install':
+        require_owned_kind()
     if args.command == 'install':
         install()
     else:

@@ -93,7 +93,7 @@ func TestNativeUnpaginatedScanEnforcesObjectAndByteBudgets(t *testing.T) {
 	objects := nativeScanBudget{bytes: 1 << 20, objects: 1}
 	visited := 0
 	_, err := decodeNativePage(context.Background(), &nativeBudgetReader{source: strings.NewReader(page), budget: &objects}, &objects, func(*metricsv1beta1.PodMetrics) { visited++ })
-	if !errors.Is(err, errNativeBudget) || visited != 1 {
+	if !errors.Is(err, errNativeBudget) || visited != 0 {
 		t.Fatalf("ignored server limit escaped object budget: visits=%d err=%v", visited, err)
 	}
 	bytes := nativeScanBudget{bytes: 64, objects: 100}
@@ -103,14 +103,31 @@ func TestNativeUnpaginatedScanEnforcesObjectAndByteBudgets(t *testing.T) {
 	}
 }
 
+func TestNativeExactByteBudgetAllowsEOF(t *testing.T) {
+	page := nativePage(nativeSample)
+	for _, extra := range []string{"", " "} {
+		budget := nativeScanBudget{bytes: int64(len(page)), objects: 100}
+		visited := 0
+		_, err := decodeNativePage(context.Background(), &nativeBudgetReader{source: strings.NewReader(page + extra), budget: &budget}, &budget, func(*metricsv1beta1.PodMetrics) { visited++ })
+		if extra == "" {
+			if err != nil || visited != 1 {
+				t.Fatalf("exact budget rejected valid page: visits=%d err=%v", visited, err)
+			}
+		} else if !errors.Is(err, errNativeBudget) || visited != 0 {
+			t.Fatalf("over-budget page committed: visits=%d err=%v", visited, err)
+		}
+	}
+}
+
 func TestNativeDecoderRejectsMalformedEnvelopesAndCancellation(t *testing.T) {
 	for _, page := range []string{
-		`{"apiVersion":"metrics.k8s.io/v1beta1","kind":"PodMetricsList","items":[],"items":[]}`,
-		`{"apiVersion":"v1","kind":"PodList","items":[]}`,
-		nativePage("") + `{}`,
+		`{"apiVersion":"metrics.k8s.io/v1beta1","kind":"PodMetricsList","items":[` + nativeSample + `],"items":[]}`,
+		`{"items":[` + nativeSample + `],"apiVersion":"v1","kind":"PodList"}`,
+		nativePage(nativeSample) + `{}`,
+		nativePage(strings.Replace(nativeSample, `"cpu":"123456n"`, `"cpu":null`, 1)),
 	} {
 		budget := nativeScanBudget{bytes: 1 << 20, objects: 100}
-		if _, err := decodeNativePage(context.Background(), strings.NewReader(page), &budget, func(*metricsv1beta1.PodMetrics) {}); err == nil {
+		if _, err := decodeNativePage(context.Background(), strings.NewReader(page), &budget, func(*metricsv1beta1.PodMetrics) { t.Fatal("invalid page committed a sample") }); err == nil {
 			t.Fatalf("invalid page admitted: %s", page)
 		}
 	}

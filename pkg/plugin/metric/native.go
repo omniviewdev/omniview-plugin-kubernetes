@@ -26,7 +26,6 @@ const (
 	nativeNodeMemory     = "kubernetes.node.memory.working_set"
 	nativeMaxTargets     = sdkmetric.MaxFiniteTargets
 	nativeMaxConnections = 128
-	nativeMaxNamespaces  = 64
 	nativeMaxBytes       = 8 << 20
 	nativeMaxObjects     = 20000
 	nativeMaxPages       = 64
@@ -163,9 +162,6 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 			response.Results = append(response.Results, result)
 		}
 	}
-	if len(groups) > nativeMaxNamespaces {
-		return nil, resourcev2.NewError("RESOURCE_LIMIT", "Native metrics support at most 64 namespaces per execution")
-	}
 	if query.Shape != "current" || !metrics[cpuID] && !metrics[memoryID] {
 		return response, nil
 	}
@@ -253,9 +249,15 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 					}
 					fillNativeNodeResult(result, item, query.Targets[index].Reference.Incarnation)
 				}
+			}, func(item *metricsv1beta1.NodeMetrics) bool {
+				_, wanted := indices[item.Name]
+				return wanted && item.Namespace == ""
 			})
 		} else {
-			err = scanNativeNamespace(ctx, clients.Clientset.CoreV1().RESTClient(), namespace, &budget, visit)
+			err = scanNativeNamespace(ctx, clients.Clientset.CoreV1().RESTClient(), namespace, &budget, visit, func(item *metricsv1beta1.PodMetrics) bool {
+				_, wanted := indices[item.Name]
+				return wanted && item.Namespace == namespace
+			})
 		}
 		if err != nil {
 			if ctx.Err() != nil {
@@ -273,8 +275,8 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 			for _, index := range indices {
 				for offset := range query.MetricIDs {
 					result := &response.Results[index*len(query.MetricIDs)+offset]
-					// Invalid/denied pages clear namespace measurements. Budget-only
-					// truncation may retain successfully decoded target samples.
+					// Only fully validated pages commit samples. Budget truncation
+					// may retain target samples from earlier completed pages.
 					if result.Status != "unsupported" && (err != errNativeBudget || result.Status == "failed") {
 						*result = sdkmetric.ResourceMetricResult{ResourceToken: result.ResourceToken, MetricID: result.MetricID, Status: status, Message: message}
 					}

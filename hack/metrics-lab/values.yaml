@@ -2,6 +2,10 @@
 fullnameOverride: omniview-metrics
 commonLabels:
   app.kubernetes.io/part-of: omniview-metrics-lab
+# Existing shared CRDs are retained, never upgraded or force-adopted.
+crds:
+  upgradeJob:
+    enabled: false
 alertmanager:
   enabled: false
 # Kind defaults bind these control-plane metrics to node-local loopback.
@@ -55,6 +59,10 @@ prometheus:
         memory: 1536Mi
     storageSpec: {}
 prometheusOperator:
+  # Do not reconcile another installation's instances through shared CRDs.
+  prometheusInstanceSelector: app.kubernetes.io/part-of=omniview-metrics-lab
+  alertmanagerInstanceSelector: app.kubernetes.io/part-of=omniview-metrics-lab
+  thanosRulerInstanceSelector: app.kubernetes.io/part-of=omniview-metrics-lab
   resources:
     requests:
       cpu: 50m

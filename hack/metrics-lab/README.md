@@ -4,7 +4,7 @@ Manual fixture for an **existing, disposable local Docker Kind cluster** named `
 
 ## Safety and prerequisites
 
-Install Python 3, Docker, Kind, kubectl, and Helm 3. Kubernetes must be >=1.25. Internet access and roughly 4 GiB of free Docker VM memory beyond existing workloads are required; Prometheus alone has a 1536 MiB memory limit. The runner never changes Docker settings, creates/deletes clusters, or stops other labs.
+Install Python 3 with PyYAML (`python3 -m pip install PyYAML`), Docker, Kind, kubectl, and Helm 3. Kubernetes must be >=1.25. Internet access and roughly 4 GiB of free Docker VM memory beyond existing workloads are required; Prometheus alone has a 1536 MiB memory limit. The runner never changes Docker settings, creates/deletes clusters, or stops other labs.
 
 If no cluster named `kind` exists, create a fresh disposable cluster explicitly:
 
@@ -12,7 +12,9 @@ If no cluster named `kind` exists, create a fresh disposable cluster explicitly:
 kind create cluster --name kind --kubeconfig /dev/null
 ```
 
-Do not run this against a shared cluster or reset an existing cluster. Setup verifies local running Docker Kind nodes, a loopback API endpoint, and matching API node identities. It derives credentials directly from Kind, not the ambient kubeconfig. Every Kubernetes/Helm command uses its private config. Existing release and manifest names must carry the fixture ownership label; unowned collisions fail before installation. The chart creates cluster-scoped CRDs/RBAC and discovery resources, so namespace isolation alone is insufficient.
+Do not run this against a shared cluster or reset an existing cluster. Setup requires a Unix-socket Docker endpoint (including Docker Desktop), verifies running Docker Kind nodes, a loopback API endpoint, and matching API node identities. Remote SSH/TCP Docker contexts are rejected before accessing Kind. It derives credentials directly from Kind, not the ambient kubeconfig. Every Kubernetes/Helm command uses its private config. Existing releases and workload manifest names must carry the fixture ownership label.
+
+Setup renders chart resources, including CRDs, before installation. Existing chart resources require an already-confirmed owned release and exact Helm ownership; subcharts need not repeat the fixture label. Existing shared CRDs are checked for the chart's served API versions, not adopted or upgraded; CRD upgrade jobs are disabled. Operator instance selectors restrict reconciliation to fixture-labeled Prometheus, Alertmanager, and ThanosRuler instances, avoiding takeover of unrelated instances using these shared APIs. The chart creates cluster-scoped CRDs/RBAC and discovery resources, so namespace isolation alone is insufficient.
 
 ## Setup
 
@@ -24,7 +26,7 @@ kubectl --kubeconfig "$PWD/hack/metrics-lab/.state/kubeconfig" --context kind-ki
 kubectl --kubeconfig "$PWD/hack/metrics-lab/.state/kubeconfig" --context kind-kind -n metrics-workloads rollout status deployment/metrics-io --timeout=180s
 ```
 
-Setup has bounded process/request deadlines and waits up to ten minutes for Helm. Inspect actual Pod/events or Helm history on failure before retrying. Pending Helm operations require explicit recovery; retries do not clear them.
+Setup has bounded process/request deadlines and waits up to ten minutes for Helm. Source ConfigMap content hashes enter Deployment Pod templates, so source changes trigger rollout while unchanged sources do not restart Pods. Inspect actual Pod/events or Helm history on failure before retrying. Pending Helm operations require explicit recovery; retries do not clear them.
 
 `.state/` is mode 0700 and its kubeconfig is mode 0600. This ignored directory contains cluster-admin credentials: never commit, serve, screenshot, or copy it. To regenerate the private config without deployment:
 
@@ -58,9 +60,9 @@ Wait at least two minutes after rollout for rate samples, then run this read-onl
 python3 hack/metrics-lab/verify.py --context kind-kind --kubeconfig "$PWD/hack/metrics-lab/.state/kubeconfig" --prometheus-url http://127.0.0.1:48572
 ```
 
-It checks Ready Nodes, exactly two Ready application Pods, positive CPU/memory/network samples, configured requests/limits, restart counts, and healthy kubelet cAdvisor/KSM scrape provenance. Each family queries the complete Pod set. Filesystem and throttling samples are optional; absent samples remain unavailable. This verifies Prometheus directly, not the IDE/Grafana route.
+It checks Ready Nodes, exactly two Ready application Pods, positive CPU/memory/network samples, configured requests/limits, restart counts, and healthy kubelet cAdvisor/KSM scrape provenance. KSM freshness checks use source sample timestamps, not instant-query evaluation timestamps. Each family queries the complete Pod set. Filesystem and throttling samples are optional: present Pods still receive value/provenance checks, and missing Pods are reported unavailable without failing required CPU/memory checks. This verifies Prometheus directly, not the IDE/Grafana route.
 
-Offline credential-path tests, when desired:
+Offline setup safety tests, when desired:
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s hack/metrics-lab -p test_setup.py -v

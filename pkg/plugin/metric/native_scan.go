@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	metricsv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
@@ -25,7 +26,15 @@ type nativeBudgetReader struct {
 }
 
 func (r *nativeBudgetReader) Read(data []byte) (int, error) {
+	if len(data) == 0 {
+		return 0, nil
+	}
 	if r.budget.bytes <= 0 {
+		var probe [1]byte
+		n, err := r.source.Read(probe[:])
+		if n == 0 && err == io.EOF {
+			return 0, io.EOF
+		}
 		return 0, errNativeBudget
 	}
 	if int64(len(data)) > r.budget.bytes {
@@ -36,15 +45,15 @@ func (r *nativeBudgetReader) Read(data []byte) (int, error) {
 	return n, err
 }
 
-func scanNativeNamespace(ctx context.Context, client rest.Interface, namespace string, budget *nativeScanBudget, visit func(*metricsv1beta1.PodMetrics)) error {
-	return scanNativeMetrics(ctx, client, "/apis/metrics.k8s.io/v1beta1/namespaces/"+namespace+"/pods", "PodMetricsList", budget, visit)
+func scanNativeNamespace(ctx context.Context, client rest.Interface, namespace string, budget *nativeScanBudget, visit func(*metricsv1beta1.PodMetrics), retain ...func(*metricsv1beta1.PodMetrics) bool) error {
+	return scanNativeMetrics(ctx, client, "/apis/metrics.k8s.io/v1beta1/namespaces/"+namespace+"/pods", "PodMetricsList", budget, visit, retain...)
 }
 
-func scanNativeNodes(ctx context.Context, client rest.Interface, budget *nativeScanBudget, visit func(*metricsv1beta1.NodeMetrics)) error {
-	return scanNativeMetrics(ctx, client, "/apis/metrics.k8s.io/v1beta1/nodes", "NodeMetricsList", budget, visit)
+func scanNativeNodes(ctx context.Context, client rest.Interface, budget *nativeScanBudget, visit func(*metricsv1beta1.NodeMetrics), retain ...func(*metricsv1beta1.NodeMetrics) bool) error {
+	return scanNativeMetrics(ctx, client, "/apis/metrics.k8s.io/v1beta1/nodes", "NodeMetricsList", budget, visit, retain...)
 }
 
-func scanNativeMetrics[T any](ctx context.Context, client rest.Interface, path, kind string, budget *nativeScanBudget, visit func(*T)) error {
+func scanNativeMetrics[T any](ctx context.Context, client rest.Interface, path, kind string, budget *nativeScanBudget, visit func(*T), retain ...func(*T) bool) error {
 	continuation := ""
 	seenContinuation := make(map[string]bool)
 	for {
@@ -65,7 +74,7 @@ func scanNativeMetrics[T any](ctx context.Context, client rest.Interface, path, 
 		if err != nil {
 			return err
 		}
-		next, err := decodeNativeMetricsPage(ctx, &nativeBudgetReader{source: body, budget: budget}, kind, budget, visit)
+		next, err := decodeNativeMetricsPage(ctx, &nativeBudgetReader{source: body, budget: budget}, kind, budget, visit, retain...)
 		body.Close()
 		if err != nil {
 			return err
@@ -81,13 +90,14 @@ func scanNativeMetrics[T any](ctx context.Context, client rest.Interface, path, 
 	}
 }
 
-// Decode one object at a time; unrequested Pods never accumulate in memory.
-// Decoder read-ahead counts against the same decoded byte budget.
+// Decode one object at a time and retain only admitted targets until the page
+// envelope validates. Decoder read-ahead counts against the same byte budget.
 func decodeNativePage(ctx context.Context, reader io.Reader, budget *nativeScanBudget, visit func(*metricsv1beta1.PodMetrics)) (string, error) {
 	return decodeNativeMetricsPage(ctx, reader, "PodMetricsList", budget, visit)
 }
 
-func decodeNativeMetricsPage[T any](ctx context.Context, reader io.Reader, expectedKind string, budget *nativeScanBudget, visit func(*T)) (string, error) {
+func decodeNativeMetricsPage[T any](ctx context.Context, reader io.Reader, expectedKind string, budget *nativeScanBudget, visit func(*T), retain ...func(*T) bool) (string, error) {
+	var pending []*T
 	decoder := json.NewDecoder(reader)
 	open, err := decoder.Token()
 	if err != nil {
@@ -133,7 +143,12 @@ func decodeNativeMetricsPage[T any](ctx context.Context, reader io.Reader, expec
 				if err := decoder.Decode(&item); err != nil {
 					return "", err
 				}
-				visit(&item)
+				if err := validateNativeUsage(&item); err != nil {
+					return "", err
+				}
+				if len(retain) == 0 || retain[0](&item) {
+					pending = append(pending, &item)
+				}
 			}
 			if _, err := decoder.Token(); err != nil {
 				return "", err
@@ -170,5 +185,37 @@ func decodeNativeMetricsPage[T any](ctx context.Context, reader io.Reader, expec
 		}
 		return "", fmt.Errorf("metrics source returned trailing JSON")
 	}
+	if len(metadata.Continue) > 4096 {
+		return "", fmt.Errorf("metrics source returned an invalid continuation")
+	}
+	for _, item := range pending {
+		visit(item)
+	}
 	return metadata.Continue, nil
+}
+
+// Each item decodes into fresh ResourceList values. Quantity.UnmarshalJSON
+// leaves Format empty for null; every successful ParseQuantity sets a format,
+// including DecimalSI for zero. Check that distinction before exposing samples.
+func validateNativeUsage(item any) error {
+	switch item := item.(type) {
+	case *metricsv1beta1.PodMetrics:
+		for _, container := range item.Containers {
+			if err := validateNativeQuantities(container.Usage); err != nil {
+				return err
+			}
+		}
+	case *metricsv1beta1.NodeMetrics:
+		return validateNativeQuantities(item.Usage)
+	}
+	return nil
+}
+
+func validateNativeQuantities(usage corev1.ResourceList) error {
+	for _, quantity := range usage {
+		if quantity.Format == "" {
+			return fmt.Errorf("metrics source returned a null measurement")
+		}
+	}
+	return nil
 }

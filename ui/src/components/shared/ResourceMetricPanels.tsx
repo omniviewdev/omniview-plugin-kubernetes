@@ -65,8 +65,6 @@ function SelectedMetricPanels({ catalog, sourceControl, ...props }: ResourceMetr
     && candidate.resource_connection_id === props.connectionID && (!props.bindingID || candidate.id === props.bindingID));
   const admittedSource = catalog.data?.source;
   const publicScope = binding?.signal === 'metrics' && admittedSource && !admittedSource.native
-    && binding.source.plugin_id === admittedSource.plugin_id && binding.source.connection_id === admittedSource.connection_id
-    && binding.source.datasource_uid === admittedSource.datasource_uid && binding.source.datasource_kind === admittedSource.datasource_kind
     ? binding.public_scope : {};
   const initial = { metric_ids: (props.defaultMetricIDs ?? []).filter(id => catalog.data?.metrics.some(metric => metric.id === id)) };
   const view = useMetricViewPreferences(PLUGIN_ID, props.resourceKey, initial);

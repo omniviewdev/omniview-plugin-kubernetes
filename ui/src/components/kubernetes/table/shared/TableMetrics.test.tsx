@@ -72,6 +72,7 @@ it('retains immutable rows, scroll, focus, and selection while metrics pause', a
     </MemoryRouter>;
   }
   const app = render(<App enabled={false} />);
+  expect(state.observe.mock.lastCall?.[0]).toMatchObject({ enabled: false });
   const scroller = screen.getByRole('region', { name: 'Pod rows' });
   const filter = screen.getByRole('textbox', { name: 'Filter pods' });
   const selection = screen.getByRole('checkbox', { name: 'Select pod' });
@@ -79,16 +80,20 @@ it('retains immutable rows, scroll, focus, and selection while metrics pause', a
   filter.focus();
   scroller.scrollTop = 240;
   app.rerender(<App enabled />);
+  expect(state.observe.mock.lastCall?.[0]).toMatchObject({ enabled: true });
   app.rerender(<App enabled={false} />);
+  expect(state.observe.mock.lastCall?.[0]).toMatchObject({ enabled: false });
   await act(async () => {
     visibility = 'hidden';
     document.dispatchEvent(new Event('visibilitychange', { bubbles: true }));
   });
   app.rerender(<App enabled />);
+  expect(state.observe.mock.lastCall?.[0]).toMatchObject({ enabled: false });
   await act(async () => {
     visibility = 'visible';
     document.dispatchEvent(new Event('visibilitychange', { bubbles: true }));
   });
+  expect(state.observe.mock.lastCall?.[0]).toMatchObject({ enabled: true });
   expect(screen.getByRole('region', { name: 'Pod rows' })).toBe(scroller);
   expect(scroller.scrollTop).toBe(240);
   expect(screen.getByRole('textbox', { name: 'Filter pods' })).toBe(filter);

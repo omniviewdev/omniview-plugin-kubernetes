@@ -104,6 +104,9 @@ def main():
     healthy = [target for target in targets if target.get('health') == 'up']
 
     def samples(expression, provenance):
+        if provenance == 'ksm':
+            # Instant-vector result timestamps are evaluation times, not scrape times.
+            expression = f'({expression}) and (abs(time() - timestamp({expression})) < 180)'
         data = api('query', {'query': expression})
         require(data.get('resultType') == 'vector', 'Expected genuine instant-vector response')
         result = data['result']
@@ -143,10 +146,14 @@ def main():
 
     def check(family, expression, provenance, bound, optional=False):
         values = samples(expression, provenance)
-        if optional and not values:
-            print(f'OPTIONAL UNAVAILABLE {family}')
-            return
-        require(set(values) == set(expected), f'{family}: missing actual samples for some fixture Pods')
+        if optional:
+            missing = sorted(set(expected) - set(values))
+            if missing:
+                print(f'OPTIONAL UNAVAILABLE {family}: ' + ', '.join(missing))
+            if not values:
+                return
+        else:
+            require(set(values) == set(expected), f'{family}: missing actual samples for some fixture Pods')
         for pod, value in values.items():
             require(bound(pod, value), f'{family}: {pod} value {value:g} outside expected rough bounds')
         print(f'PASS {family}: ' + ', '.join(f'{p}={v:.6g}' for p, v in sorted(values.items())))
