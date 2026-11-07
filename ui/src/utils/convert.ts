@@ -1,3 +1,20 @@
+const DECIMAL_POWERS: Readonly<Record<string, number>> = { n: -9, u: -6, m: -3, k: 3, M: 6, G: 9, T: 12, P: 15, E: 18 };
+
+/** Physical cores or bytes. Match the strict quantity grammar used by manifestDraft.quantity. */
+export function parseResourceQuantity(input: unknown): number | undefined {
+  if (typeof input !== 'string') return undefined;
+  const match = /^([+-]?(?:\d+(?:\.\d*)?|\.\d+))([eE][+-]?\d+|[numkMGTPE]|[KMGTPE]i)?$/.exec(input);
+  if (!match) return undefined;
+  const suffix = match[2] ?? '';
+  const scale = suffix.endsWith('i') ? 2 ** (('KMGTPE'.indexOf(suffix[0]) + 1) * 10)
+    : /^[eE][+-]?\d+$/.test(suffix) ? 10 ** Number(suffix.slice(1))
+    : 10 ** (DECIMAL_POWERS[suffix] ?? 0);
+  const coefficient = Number(match[1]);
+  if (coefficient === 0) return 0;
+  const value = coefficient * scale;
+  return Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
 /** Sum integral observation fields without rounding wide native integers. */
 export function sumIntegerValues(values: Iterable<number | bigint | undefined>): number | bigint {
   let total = 0n;

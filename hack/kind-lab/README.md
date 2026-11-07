@@ -121,3 +121,55 @@ Stop churn before reset. Existing unrelated kind clusters are not touched. Large
 ## Initial smoke evidence
 
 Created four real nodes, all Ready. Observed 300/300 ready application pods and 300 each of Deployments, Services, Secrets, and ConfigMaps. Seeded 900 synthetic Events; status reported 910 labeled Events after activity. Exercised ten churn cycles: 32 direct writes and two deployment rollouts. An HTTP request from app-000 through the app-001 Service returned `load-lab`. Large/xl remain unexercised capacity presets.
+
+## Native Pod metrics
+
+Native CPU and memory require real metrics-server; no Prometheus installation,
+fake exporter, or fabricated samples are used by this path. Installation is a
+separate explicit operation and has **not** been run merely by adding these files.
+
+After creating and seeding the dedicated lab above:
+
+```sh
+# Explicit cluster mutation: version-pinned upstream metrics-server v0.8.0.
+python3 hack/kind-lab/native_metrics.py install --confirm-install --confirm-owner-permission
+
+# Read-only: wait for real measurements from at least two Ready seeded Pods.
+python3 hack/kind-lab/native_metrics.py verify --namespace load-000 --timeout 120
+```
+Before installation, establish that you created this disposable cluster or obtain
+its creator's permission to install cluster-wide RBAC. Names, Docker labels, and
+loopback ports identify a target; they do not prove ownership on shared Docker.
+`--confirm-owner-permission` explicitly attests to that permission. If uncertain,
+stop without installing anything.
+
+
+Both commands require the private `hack/kind-lab/.state/kubeconfig`, fixed
+`kind-omniview-load-lab` context, actual Kind cluster membership, Docker Kind
+ownership labels, and a loopback API port matching that control-plane container.
+They refuse arbitrary contexts, ambient kubeconfigs, remote endpoints, or another
+cluster. They never merge kubeconfigs or change an ambient current context.
+The installation adds `--kubelet-insecure-tls` only for this verified local Kind
+cluster's self-signed kubelet serving certificates. Never copy that exception to
+a production installation. The release/image is pinned to v0.8.0; this is a
+version pin, not an image-digest or manifest-checksum claim.
+
+Verification reads actual Pod readiness and the namespaced metrics API. It
+checks real source timestamps/windows and container CPU/memory quantities,
+prints up to four sample summaries without credentials, and rejects missing,
+negative, invalid, stale or duplicate measurements. CPU is cores; memory is
+working-set bytes. Measured zero CPU is valid. A missing quantity is not zero.
+The verifier follows APIService → Service → serving endpoint Pods → ReplicaSet →
+pinned Deployment ownership, and checks the actual serving Pod images. Samples
+must cover every running container, including running init sidecars. One deadline
+covers identity checks and all verification requests; each request uses only the
+remaining time, and expired verification cannot succeed.
+It neither deploys a workload nor changes cluster state. The seeded HTTP
+containers provide real idle workloads; this is not a compute-load benchmark.
+
+Use the same private kubeconfig explicitly when connecting Omniview. Native
+metrics support current only, retain actual metrics-server time/window, and
+report unsupported history rather than drawing local polling history.
+See [native API, bounds and attribution](../../docs/native-metrics.md).
+This backend verification does not prove host/table/sidebar sharing or UI
+integration; those require separate integrated runtime evidence.

@@ -1,0 +1,78 @@
+[
+  {
+    "width": 1568,
+    "geometry": {
+      "scroll": 1568,
+      "viewport": 1568,
+      "selects": [
+        {
+          "text": "No Grouping",
+          "width": 144,
+          "x": 1128
+        },
+        {
+          "text": "Name",
+          "width": 144,
+          "x": 1280
+        }
+      ]
+    }
+  },
+  {
+    "width": 1063,
+    "geometry": {
+      "scroll": 1063,
+      "viewport": 1063,
+      "selects": [
+        {
+          "text": "No Grouping",
+          "width": 144,
+          "x": 623
+        },
+        {
+          "text": "Name",
+          "width": 144,
+          "x": 775
+        }
+      ]
+    }
+  },
+  {
+    "width": 768,
+    "geometry": {
+      "scroll": 768,
+      "viewport": 768,
+      "selects": [
+        {
+          "text": "No Grouping",
+          "width": 144,
+          "x": 236
+        },
+        {
+          "text": "Name",
+          "width": 144,
+          "x": 388
+        }
+      ]
+    }
+  },
+  {
+    "width": 360,
+    "geometry": {
+      "scroll": 360,
+      "viewport": 360,
+      "selects": [
+        {
+          "text": "No Grouping",
+          "width": 144,
+          "x": 16
+        },
+        {
+          "text": "Name",
+          "width": 144,
+          "x": 168
+        }
+      ]
+    }
+  }
+]

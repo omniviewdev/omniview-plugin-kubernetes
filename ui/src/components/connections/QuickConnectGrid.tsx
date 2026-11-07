@@ -27,17 +27,11 @@ const gridStyle: React.CSSProperties = {
 
 type Props = {
   connections: EnrichedConnection[];
-  onRecordAccess: (connectionId: string) => void;
   onToggleFavorite: (connectionId: string) => void;
   onCreateFolder?: () => void;
 };
 
-const QuickConnectGrid: React.FC<Props> = ({
-  connections,
-  onRecordAccess,
-  onToggleFavorite,
-  onCreateFolder,
-}) => {
+const QuickConnectGrid: React.FC<Props> = ({ connections, onToggleFavorite, onCreateFolder }) => {
   const PAGE_SIZE = 40;
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
@@ -142,7 +136,6 @@ const QuickConnectGrid: React.FC<Props> = ({
               enriched={enriched}
               sectionId="all-clusters"
               showFavorite
-              onRecordAccess={() => onRecordAccess(enriched.connection.id)}
               onToggleFavorite={() => onToggleFavorite(enriched.connection.id)}
             />
           ))}

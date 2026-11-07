@@ -24,8 +24,9 @@ import RepoSidebar from './components/helm/repos/RepoSidebar';
 import HelmRepoTable from './components/helm/repos/Table';
 import KubernetesHomepageCard from './components/homepage/KubernetesHomepageCard';
 import { resourceDrawerActions } from './components/kubernetes/drawerActions';
-import NodeSidebar from './components/kubernetes/sidebar/NodeSidebar';
+import NodeSidebar, { NodeMetricsView } from './components/kubernetes/sidebar/NodeSidebar';
 import PodSidebar from './components/kubernetes/sidebar/Pod';
+import { PodMetricsView } from './components/kubernetes/sidebar/Pod/PodMetricsSection';
 import SecretSidebar from './components/kubernetes/sidebar/SecretSidebar';
 import MutatingWebhookConfigurationSidebar from './components/kubernetes/table/admissionregistrationv1/MutatingWebhookConfiguration/Sidebar';
 import MutatingWebhookConfigurationTable from './components/kubernetes/table/admissionregistrationv1/MutatingWebhookConfiguration/Table';
@@ -116,6 +117,7 @@ import StorageClassTable from './components/kubernetes/table/storagev1/StorageCl
 import VolumeAttachmentSidebar from './components/kubernetes/table/storagev1/VolumeAttachment/Sidebar';
 import VolumeAttachmentTable from './components/kubernetes/table/storagev1/VolumeAttachment/Table';
 import { createStandardViews } from './components/shared/sidebar/createDrawerViews';
+import { PreferenceMigrationGate } from './components/connections/PreferenceMigrationGate';
 import GenericResourceSidebar from './components/shared/sidebar/GenericResourceSidebar';
 import { kubernetesResourceIconSet } from './icons/resourceIcons';
 import ClusterEditPage from './pages/ClusterEditPage';
@@ -128,6 +130,7 @@ import ClusterDashboardMetricsPage from './pages/dashboard/metrics';
 import ClusterDashboardOverviewPage from './pages/dashboard/overview';
 import ClusterExtensionPage, { CLUSTER_PAGE_EXTENSION_POINT_ID } from './pages/extension';
 import { kubernetesSearchProvider } from './search/provider';
+import { migratePagePath } from './utils/legacyMigration';
 import { builtinResourceEditors, resourceEditorExtensionPoint } from './components/kubernetes/manifest/resourceEditors';
 import { resourceEditors } from './components/kubernetes/manifest/providers';
 
@@ -212,6 +215,11 @@ const sidebars: Record<string, React.FC<{ ctx: DrawerContext }>> = {
   'helm:charts': ChartSidebar,
 };
 
+const resourceMetricsViews: Record<string, React.FC<{ ctx: DrawerContext }>> = {
+  'k8s:/pods': PodMetricsView,
+  'k8s:/nodes': NodeMetricsView,
+};
+
 /**
  * Creates a DrawerFactory for a resource that has a sidebar component.
  * Produces a DrawerComponent with the standard view set (Overview, Metrics,
@@ -225,7 +233,7 @@ function createResourceDrawerFactory(
   const shared = resourceDrawerActions[resourceKey];
   return (_closeDrawer: () => void): DrawerComponent => ({
     title: resourceKey,
-    views: createStandardViews({ SidebarComponent }),
+    views: createStandardViews({ SidebarComponent, MetricsComponent: resourceMetricsViews[resourceKey] }),
     actions: shared?.actions ?? [],
   });
 }
@@ -464,11 +472,11 @@ export const extensionRegistrations: ExtensionRegistration[] = [
   },
 ];
 
-export const plugin = new PluginWindow()
+export const plugin = Object.assign(new PluginWindow()
   .registerExtensionPoints([
     { id: CLUSTER_PAGE_EXTENSION_POINT_ID, mode: 'multiple' },
     // PluginWindow stores heterogeneous extension-point contexts through an erased collection.
     resourceEditorExtensionPoint as unknown as ExtensionPointSettings,
   ])
   .setRootPage(ClustersPage)
-  .withRoutes(routes);
+  .withRoutes(routes), { migratePagePath, PreferenceMigrationGate });

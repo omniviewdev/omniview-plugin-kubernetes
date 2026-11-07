@@ -6,18 +6,23 @@ import {
   useNativeExec,
   useResourceMutations,
   useRightDrawer,
-  useStreamAction,
+  useActivityActions,
   jsonToValue,
 } from '@omniviewdev/runtime';
 import React from 'react';
+
+import { PLUGIN_ID } from '@/pluginId';
 
 import { useDebugActions } from '../../../features/debug/useDebugActions';
 import { useClusterPreferences } from '../../../hooks/useClusterPreferences';
 import ScaleModal from '../../kubernetes/actions/ScaleModal';
 
-import { type DrawerActionDeps, registerDrawerActionDeps, registryKey, type ScaleTarget } from './actionDeps';
-
-import { PLUGIN_ID } from '@/pluginId';
+import {
+  type DrawerActionDeps,
+  registerDrawerActionDeps,
+  registryKey,
+  type ScaleTarget,
+} from './actionDeps';
 
 
 /** Mounts the hook-backed handlers that drawer actions use; see `actionDeps.ts`. */
@@ -31,13 +36,20 @@ export const useDrawerActionExecution = ({ connectionID, resourceKey }: BridgePr
   const { mutate } = useResourceMutations({ pluginID: PLUGIN_ID });
   const { createLogSession } = useLogs({ pluginID: PLUGIN_ID });
   const { createSession } = useExec({ pluginID: PLUGIN_ID });
-  const { openNativeSession, isSupported: nativeExecAvailable, isPending: nativeExecPending } = useNativeExec({ pluginID: PLUGIN_ID, resourceKey });
+  const {
+    openNativeSession,
+    isSupported: nativeExecAvailable,
+    isPending: nativeExecPending,
+  } = useNativeExec({ pluginID: PLUGIN_ID, resourceKey });
   const { executeAction, isExecuting } = useExecuteAction({ pluginID: PLUGIN_ID });
-  const { startStreamAction } = useStreamAction({ pluginID: PLUGIN_ID });
+  const { startResourceAction } = useActivityActions();
   const { closeDrawer } = useRightDrawer();
   const { connectionOverrides } = useClusterPreferences(PLUGIN_ID);
   const nodeShellConfig = connectionOverrides[connectionID]?.nodeShellConfig;
-  const debugTransport = React.useMemo(() => ({ executeAction, createExecSession: createSession }), [executeAction, createSession]);
+  const debugTransport = React.useMemo(
+    () => ({ executeAction, createExecSession: createSession }),
+    [executeAction, createSession],
+  );
   const debug = useDebugActions(connectionID, debugTransport);
 
   const [scaleTarget, setScaleTarget] = React.useState<ScaleTarget | null>(null);
@@ -52,16 +64,29 @@ export const useDrawerActionExecution = ({ connectionID, resourceKey }: BridgePr
       nativeExecPending,
       openNativeSession,
       executeAction,
-      startStreamAction,
+      startResourceAction,
       closeDrawer,
       openScale: setScaleTarget,
       nodeShellConfig,
       startDebug: debug.startDebug,
       openDebugOptions: debug.openDebugOptions,
     }),
-    [show, mutate, createLogSession, createSession, nativeExecAvailable, nativeExecPending, openNativeSession, executeAction, startStreamAction, closeDrawer, nodeShellConfig, debug.startDebug, debug.openDebugOptions],
+    [
+      show,
+      mutate,
+      createLogSession,
+      createSession,
+      nativeExecAvailable,
+      nativeExecPending,
+      openNativeSession,
+      executeAction,
+      startResourceAction,
+      closeDrawer,
+      nodeShellConfig,
+      debug.startDebug,
+      debug.openDebugOptions,
+    ],
   );
-
 
   const dialogs = scaleTarget ? (
     <ScaleModal
@@ -84,7 +109,17 @@ export const useDrawerActionExecution = ({ connectionID, resourceKey }: BridgePr
       isExecuting={isExecuting}
     />
   ) : null;
-  return { deps, dialogs: <>{dialogs}{debug.dialogs}</>, isReady: debug.isReady, isBusy: scaleTarget !== null || isExecuting || debug.isBusy || nativeExecPending };
+  return {
+    deps,
+    dialogs: (
+      <>
+        {dialogs}
+        {debug.dialogs}
+      </>
+    ),
+    isReady: debug.isReady,
+    isBusy: scaleTarget !== null || isExecuting || debug.isBusy || nativeExecPending,
+  };
 };
 
 const DrawerActionsBridge: React.FC<BridgeProps> = (props) => {

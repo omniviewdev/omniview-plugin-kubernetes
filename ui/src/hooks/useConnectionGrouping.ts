@@ -1,6 +1,11 @@
 import { type types } from '@omniviewdev/runtime/models';
 import { useMemo } from 'react';
-import { useConnectionMetadataConnections, readCurrentConnectionMetadataString } from '@omniviewdev/runtime';
+import {
+  useConnectionMetadataConnections,
+  readCurrentConnectionMetadataString,
+  useConnectionStatus,
+} from '@omniviewdev/runtime';
+import type { KeyedSearchField, KeyedSearchDiagnostic } from '@omniviewdev/base-ui';
 
 import type {
   GroupByMode,
@@ -17,7 +22,13 @@ import type {
 } from '../types/clusters';
 import { LEGACY_GROUP_ALIASES, LEGACY_SORT_ALIASES } from '../types/clusters';
 import { computeEffectiveMembers } from '../utils/folderRules';
-import { isRetiredConnectionDataKey } from '../utils/migrateFolderMetadataRules';
+import {
+  buildClusterSearch,
+  getClusterDisplayFacts,
+  matchesClusterQuery,
+  parseKeyedSearch,
+  type SearchableConnection,
+} from '../utils/clusterSearch';
 import { detectProvider, getProviderLabel } from '../utils/providers';
 
 interface UseConnectionGroupingOpts {
@@ -33,12 +44,6 @@ interface UseConnectionGroupingOpts {
   filters: FilterState;
 }
 
-function isConnected(conn: types.Connection): boolean {
-  const refreshTime = new Date(conn.last_refresh);
-  if (refreshTime.toString() === 'Invalid Date') return false;
-  return refreshTime.getTime() + conn.expiry_time > Date.now();
-}
-
 function enrichConnection(
   conn: types.Connection,
   favorites: string[],
@@ -51,7 +56,7 @@ function enrichConnection(
     connection: conn,
     provider: detectProvider(conn),
     isFavorite: favorites.includes(conn.id),
-    isConnected: isConnected(conn),
+    isConnected: false,
     displayName: override?.displayName || conn.name,
     displayDescription: override?.description || conn.description || '',
     avatar: override?.avatar || conn.avatar || undefined,
@@ -60,42 +65,6 @@ function enrichConnection(
     lastAccessed: recent?.lastAccessed,
     accessCount: recent?.accessCount,
   };
-}
-
-function matchesSearch(enriched: EnrichedConnection, search: string): boolean {
-  if (!search) return true;
-  const s = search.toLowerCase();
-  const conn = enriched.connection;
-
-  if (enriched.displayName.toLowerCase().includes(s)) return true;
-  if (conn.id.toLowerCase().includes(s)) return true;
-  if (enriched.displayDescription.toLowerCase().includes(s)) return true;
-  if (enriched.provider.toLowerCase().includes(s)) return true;
-
-  // Search across tags
-  for (const tag of enriched.tags) {
-    if (tag.toLowerCase().includes(s)) return true;
-  }
-
-  // Search across all label values
-  if (conn.labels) {
-    for (const val of Object.values(conn.labels)) {
-      if (String(val).toLowerCase().includes(s)) return true;
-    }
-  }
-
-  // Search across all data values
-  if (conn.data) {
-    for (const [key, val] of Object.entries(conn.data)) {
-      if (isRetiredConnectionDataKey(key)) continue;
-      if (String(val).toLowerCase().includes(s)) return true;
-    }
-  }
-
-  for (const value of Object.values(enriched.metadata ?? {})) {
-    if (value.toLowerCase().includes(s)) return true;
-  }
-  return false;
 }
 
 function matchesFilters(enriched: EnrichedConnection, filters: FilterState): boolean {
@@ -139,18 +108,42 @@ function sortConnections(
 ): EnrichedConnection[] {
   const sorted = [...connections];
   const dir = sortDirection === 'asc' ? 1 : -1;
+  const labelKey = resolveSortLabelKey(sortBy);
+  const sourcedValues =
+    sortBy.startsWith('fact:') || sortBy === 'metadata'
+      ? new Map(
+          connections.map((connection) => {
+            const facts = getClusterDisplayFacts(connection);
+            const value =
+              sortBy === 'metadata'
+                ? facts.metadataState
+                : sortBy === 'fact:region'
+                  ? facts.region?.value
+                  : sortBy === 'fact:account'
+                    ? (facts.account ?? facts.project)?.value
+                    : facts.environment?.value;
+            return [connection, value?.toLowerCase() ?? ''] as const;
+          }),
+        )
+      : undefined;
 
   sorted.sort((a, b) => {
     let aVal: string;
     let bVal: string;
 
     // Check for label-based sort first
-    const labelKey = resolveSortLabelKey(sortBy);
     if (labelKey) {
       aVal = String(a.connection.labels?.[labelKey] ?? '').toLowerCase();
       bVal = String(b.connection.labels?.[labelKey] ?? '').toLowerCase();
     } else {
       switch (sortBy) {
+        case 'fact:region':
+        case 'fact:account':
+        case 'fact:environment':
+        case 'metadata':
+          aVal = sourcedValues!.get(a)!;
+          bVal = sourcedValues!.get(b)!;
+          break;
         case 'name':
           aVal = a.displayName.toLowerCase();
           bVal = b.displayName.toLowerCase();
@@ -398,44 +391,77 @@ function discoverAttributes(connections: types.Connection[]): ConnectionAttribut
  * Pure computation hook that takes connections + preferences + UI state
  * and returns grouped, filtered, sorted results with dynamic attribute metadata.
  */
-export function useConnectionGrouping(opts: UseConnectionGroupingOpts): GroupedConnectionsResult {
-  const metadata = useConnectionMetadataConnections('kubernetes', opts.connections.map((connection) => connection.id));
-  return useMemo(() => {
-    const {
-      connections,
-      favorites,
-      connectionOverrides,
-      customGroups,
-      recentConnections,
-      search,
-      groupBy,
-      sortBy,
-      sortDirection,
-      filters,
-    } = opts;
-
-    // 1. Enrich connections
-    const enriched = connections.map((c) => {
+export function useConnectionGrouping(opts: UseConnectionGroupingOpts): GroupedConnectionsResult & {
+  searchFields: KeyedSearchField[];
+  searchDiagnostics: readonly KeyedSearchDiagnostic[];
+} {
+  const ids = useMemo(
+    () => opts.connections.map((connection) => connection.id),
+    [opts.connections],
+  );
+  const metadata = useConnectionMetadataConnections('kubernetes', ids);
+  const { entries } = useConnectionStatus();
+  const { connections, favorites, connectionOverrides, recentConnections } = opts;
+  const connectedIdentity = JSON.stringify(
+    entries
+      .filter((entry) => entry.pluginID === 'kubernetes' && entry.readiness === 'CONNECTED')
+      .map((entry) => entry.connectionID)
+      .sort(),
+  );
+  const enriched = useMemo<SearchableConnection[]>(() => {
+    const connected = new Set<string>(JSON.parse(connectedIdentity) as string[]);
+    return connections.map((c) => {
       const state = metadata.get(c.id);
       const facts: Record<string, string> = {};
-      for (const key of ['kubernetes.server_url', 'kubernetes.server_version', 'kubernetes.server_platform']) {
-        const value = readCurrentConnectionMetadataString(state?.snapshot, state?.transportAvailable ?? false, key);
+      for (const key of Object.keys(state?.snapshot?.entries ?? {})) {
+        const value = readCurrentConnectionMetadataString(
+          state?.snapshot,
+          state?.transportAvailable ?? false,
+          key,
+        );
         if (value !== undefined) facts[key] = value;
       }
-      return { ...enrichConnection(c, favorites, connectionOverrides, recentConnections), metadata: facts };
+      const snapshot = state?.snapshot;
+      const metadataState = !snapshot
+        ? 'unknown'
+        : !state?.transportAvailable
+          ? 'unavailable'
+          : !snapshot.active ||
+              Object.values(snapshot.entries).some((entry) => entry.state !== 'current')
+            ? 'stale'
+            : Object.keys(facts).length
+              ? 'current'
+              : 'unknown';
+      return {
+        ...enrichConnection(c, favorites, connectionOverrides, recentConnections),
+        isConnected: connected.has(c.id),
+        metadata: facts,
+        metadataState,
+      };
     });
+  }, [connections, favorites, connectionOverrides, recentConnections, metadata, connectedIdentity]);
+  const searchIndex = useMemo(() => buildClusterSearch(enriched), [enriched]);
+  const query = useMemo(
+    () => parseKeyedSearch(opts.search, searchIndex.index),
+    [opts.search, searchIndex],
+  );
+  const availableAttributes = useMemo(() => discoverAttributes(connections), [connections]);
+  return useMemo(() => {
+    const { customGroups, groupBy, sortBy, sortDirection, filters } = opts;
 
     // 2. Collect available providers (before filtering)
     const availableProviders = [...new Set(enriched.map((c) => c.provider))].sort();
 
-    // 3. Discover attributes from raw connections
-    const availableAttributes = discoverAttributes(connections);
-
+    // Dynamic grouping attributes preserve the existing discovery thresholds.
     // 4. Collect all tags
     const availableTags = [...new Set(enriched.flatMap((c) => c.tags))].sort();
 
     // 5. Filter by search + filter chips
-    const filtered = enriched.filter((c) => matchesSearch(c, search) && matchesFilters(c, filters));
+    const filtered = enriched.filter(
+      (c) =>
+        matchesClusterQuery(searchIndex.documents.get(c.connection.id), query) &&
+        matchesFilters(c, filters),
+    );
 
     // 6. Group
     const groups = groupConnections(filtered, groupBy, customGroups);
@@ -460,6 +486,19 @@ export function useConnectionGrouping(opts: UseConnectionGroupingOpts): GroupedC
       availableProviders,
       availableAttributes,
       availableTags,
+      searchFields: searchIndex.fields,
+      searchDiagnostics: query.diagnostics,
     };
-  }, [opts, metadata]);
+  }, [
+    opts.customGroups,
+    opts.groupBy,
+    opts.sortBy,
+    opts.sortDirection,
+    opts.filters,
+    enriched,
+    searchIndex,
+    query,
+    availableAttributes,
+    connections.length,
+  ]);
 }

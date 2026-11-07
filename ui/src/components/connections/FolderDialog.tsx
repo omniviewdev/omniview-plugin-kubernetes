@@ -1,12 +1,16 @@
-import { Button, Dialog, FormField, IconButton, Input, Stack, Text } from '@omniviewdev/base-ui';
-import React, { useState, useRef, useMemo, useCallback } from 'react';
-import { LuUpload, LuX, LuImage, LuChevronDown, LuChevronRight } from 'react-icons/lu';
+import { Button, Dialog, FormField, IconPicker, Input, Stack, Text } from '@omniviewdev/base-ui';
+import React, { useState, useMemo, useCallback } from 'react';
+import { LuChevronDown, LuChevronRight } from 'react-icons/lu';
 
 import type { EnrichedConnection, FolderRuleSet } from '../../types/clusters';
-import { processImageFile } from '../../utils/avatarUtils';
+import { decodeClusterIcon } from '../../utils/clusterIconAssets';
+import { useClusterPreferences } from '../../hooks/useClusterPreferences';
 import { FOLDER_ICON_MAP, PRESET_COLORS } from '../../utils/folderIcons';
 import { compileRuleSet, matchConnections } from '../../utils/folderRules';
-import { isRetiredConnectionDataKey, isRetiredInventoryDataKey } from '../../utils/migrateFolderMetadataRules';
+import {
+  isRetiredConnectionDataKey,
+  isRetiredInventoryDataKey,
+} from '../../utils/migrateFolderMetadataRules';
 
 import styles from './FolderDialog.module.css';
 import RuleBuilder from './RuleBuilder';
@@ -16,11 +20,13 @@ export interface FolderDialogValues {
   color: string;
   icon: string;
   customImage?: string;
+  iconAssetId?: string;
   ruleSet?: FolderRuleSet;
 }
 
 type Props = {
   open: boolean;
+  pluginID?: string;
   mode: 'create' | 'edit';
   initial?: Partial<FolderDialogValues>;
   existingNames?: string[];
@@ -30,30 +36,12 @@ type Props = {
   onClose: () => void;
 };
 
-type IconTab = 'icons' | 'custom';
-
 const iconKeys = Object.keys(FOLDER_ICON_MAP);
 
 // ── Static styles ────────────────────────────────────────────────────────────
 
 const formStyle: React.CSSProperties = { display: 'contents' };
-const iconGridStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(9, 1fr)',
-  gap: 4,
-};
-const iconBtnSquareStyle: React.CSSProperties = { aspectRatio: 1, width: '100%' };
-const dropPreviewImgStyle: React.CSSProperties = {
-  width: 48,
-  height: 48,
-  objectFit: 'contain',
-  borderRadius: 4,
-};
-const dropHintPrimaryStyle: React.CSSProperties = { opacity: 0.6 };
-const dropHintSecondaryStyle: React.CSSProperties = { opacity: 0.4 };
 const deleteBtnStyle: React.CSSProperties = { marginRight: 'auto' };
-const imageIconStyle: React.CSSProperties = { opacity: 0.4 };
-const hiddenInputStyle: React.CSSProperties = { display: 'none' };
 const rulesToggleStyle: React.CSSProperties = {
   cursor: 'pointer',
   userSelect: 'none',
@@ -95,37 +83,13 @@ const ColorSwatch: React.FC<{
   );
 };
 
-const PresetIconButton: React.FC<{
-  iconKey: string;
-  selected: boolean;
-  onIconSelect: (key: string) => void;
-}> = ({ iconKey, selected, onIconSelect }) => {
-  const handleClick = () => onIconSelect(iconKey);
-  // Render icon via createElement to avoid "component created during render" error.
-  const icon = React.createElement(FOLDER_ICON_MAP[iconKey] ?? FOLDER_ICON_MAP.LuFolder, {
-    size: 16,
-  });
-  return (
-    <IconButton
-      size="sm"
-      variant={selected ? 'soft' : 'ghost'}
-      color={selected ? 'brand' : 'neutral'}
-      onClick={handleClick}
-      aria-label={iconKey}
-      aria-pressed={selected}
-      style={iconBtnSquareStyle}
-    >
-      {icon}
-    </IconButton>
-  );
-};
-
 // ── Main component ───────────────────────────────────────────────────────────
 
 const EMPTY_RULE_SET: FolderRuleSet = { logic: 'and', rules: [] };
 
 const FolderDialog: React.FC<Props> = ({
   open,
+  pluginID = 'kubernetes',
   mode,
   initial,
   existingNames = [],
@@ -140,12 +104,16 @@ const FolderDialog: React.FC<Props> = ({
   const [color, setColor] = useState(initial?.color ?? PRESET_COLORS[0]);
   const [icon, setIcon] = useState(initial?.icon ?? 'LuFolder');
   const [customImage, setCustomImage] = useState<string | undefined>(initial?.customImage);
-  const [iconTab, setIconTab] = useState<IconTab>(initial?.customImage ? 'custom' : 'icons');
-  const [dragOver, setDragOver] = useState(false);
+  const [iconAssetId, setIconAssetId] = useState(initial?.iconAssetId);
   const [imageError, setImageError] = useState('');
+  const [uploadPending, setUploadPending] = useState(false);
+  const [removePending, setRemovePending] = useState(false);
+  const [removeError, setRemoveError] = useState('');
+  const [assetName, setAssetName] = useState('');
+  const preferences = useClusterPreferences(pluginID);
+  const { iconAssets } = preferences;
   const [ruleSet, setRuleSet] = useState<FolderRuleSet>(initial?.ruleSet ?? EMPTY_RULE_SET);
   const [rulesExpanded, setRulesExpanded] = useState((initial?.ruleSet?.rules.length ?? 0) > 0);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Rules helpers ───────────────────────────────────────────────────────
 
@@ -175,7 +143,11 @@ const FolderDialog: React.FC<Props> = ({
     for (const key of [...dataKeys].sort()) {
       fields.push({ value: `data:${key}`, label: `Data: ${key}` });
     }
-    for (const key of ['kubernetes.server_url', 'kubernetes.server_version', 'kubernetes.server_platform']) {
+    for (const key of [
+      'kubernetes.server_url',
+      'kubernetes.server_version',
+      'kubernetes.server_platform',
+    ]) {
       fields.push({ value: `metadata:${key}`, label: `Metadata: ${key}` });
     }
     return fields;
@@ -199,56 +171,43 @@ const FolderDialog: React.FC<Props> = ({
 
   const handleImageFile = async (file: File) => {
     setImageError('');
+    setUploadPending(true);
     try {
-      const dataUrl = await processImageFile(file, 64, 0.85, 100_000);
-      setCustomImage(dataUrl);
+      const dataUrl = await decodeClusterIcon(file);
+      const asset = await preferences.addIconAsset({
+        id: crypto.randomUUID(),
+        name: assetName.trim() || file.name.replace(/\.[^.]+$/, ''),
+        dataUrl,
+        createdAt: Date.now(),
+      });
+      setIconAssetId(asset.id);
+      setCustomImage(asset.dataUrl);
     } catch (err) {
       setImageError(err instanceof Error ? err.message : 'Failed to process image');
+    } finally {
+      setUploadPending(false);
     }
   };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) void handleImageFile(file);
-    e.target.value = '';
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(true);
-  };
-
-  const handleDragLeave = () => {
-    setDragOver(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(false);
-    const file = e.dataTransfer.files[0];
-    if (file?.type.startsWith('image/')) void handleImageFile(file);
-  };
-
-  const handleReplaceClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    fileInputRef.current?.click();
-  };
-
-  const handleRemoveImage = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setCustomImage(undefined);
-  };
-
-  const handleDropZoneClick = () => {
-    if (!customImage) fileInputRef.current?.click();
+  const handleRemoveAsset = async (id: string) => {
+    setRemovePending(true);
+    setRemoveError('');
+    try {
+      await preferences.removeIconAsset(id);
+      if (iconAssetId === id) {
+        const removedAsset = iconAssets.find((asset) => asset.id === id);
+        if (removedAsset) setCustomImage(removedAsset.dataUrl);
+        setIconAssetId(undefined);
+      }
+    } catch (error) {
+      setRemoveError(error instanceof Error ? error.message : 'Failed to remove icon');
+    } finally {
+      setRemovePending(false);
+    }
   };
 
   const handleColorInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setColor(e.target.value);
   };
-
-  const handleSetIconsTab = () => setIconTab('icons');
-  const handleSetCustomTab = () => setIconTab('custom');
 
   // ── Derived state ────────────────────────────────────────────────────────
 
@@ -257,7 +216,10 @@ const FolderDialog: React.FC<Props> = ({
     trimmed.length > 0 &&
     existingNames.some((n) => n.toLowerCase() === trimmed.toLowerCase()) &&
     trimmed.toLowerCase() !== (initial?.name ?? '').toLowerCase();
-  const canSubmit = trimmed.length > 0 && !isDuplicate;
+  const canSubmit = trimmed.length > 0 && !isDuplicate && !uploadPending && !removePending;
+  const selectedAssetId = iconAssets.some((asset) => asset.id === iconAssetId)
+    ? iconAssetId
+    : undefined;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -266,7 +228,8 @@ const FolderDialog: React.FC<Props> = ({
       name: trimmed,
       color,
       icon,
-      customImage: iconTab === 'custom' ? customImage : undefined,
+      customImage,
+      iconAssetId: selectedAssetId,
       ruleSet: ruleSet.rules.length > 0 ? ruleSet : undefined,
     });
   };
@@ -277,19 +240,11 @@ const FolderDialog: React.FC<Props> = ({
 
   const colorPickerLabelStyle = useMemo<React.CSSProperties>(
     () => ({
-      backgroundColor: isCustomColor ? color : '#888',
+      backgroundColor: isCustomColor ? color : 'var(--ov-color-bg-surface)',
       outline: isCustomColor ? `2px solid ${color}` : '2px solid transparent',
     }),
     [color, isCustomColor],
   );
-
-  const dropZoneClassName = [
-    styles.dropZone,
-    customImage ? styles.dropZoneFilled : styles.dropZoneEmpty,
-    dragOver ? styles.dropZoneActive : '',
-  ]
-    .filter(Boolean)
-    .join(' ');
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -343,117 +298,78 @@ const FolderDialog: React.FC<Props> = ({
               </Stack>
             </Stack>
 
-            {/* Icon section with tabs */}
             <Stack direction="column" style={{ gap: 6 }}>
-              <Stack direction="row" align="center" spacing={2}>
-                <Text weight="semibold" size="sm" tone="default">
-                  Icon
-                </Text>
-                <Stack direction="row" style={{ gap: 2 }}>
-                  <Button
-                    size="xs"
-                    variant={iconTab === 'icons' ? 'soft' : 'ghost'}
-                    color={iconTab === 'icons' ? 'brand' : 'neutral'}
-                    onClick={handleSetIconsTab}
-                  >
-                    Presets
-                  </Button>
-                  <Button
-                    size="xs"
-                    variant={iconTab === 'custom' ? 'soft' : 'ghost'}
-                    color={iconTab === 'custom' ? 'brand' : 'neutral'}
-                    onClick={handleSetCustomTab}
-                  >
-                    Custom Image
-                  </Button>
-                </Stack>
-              </Stack>
-
-              {iconTab === 'icons' ? (
-                <div style={iconGridStyle}>
-                  {iconKeys.map((key) => (
-                    <PresetIconButton
-                      key={key}
-                      iconKey={key}
-                      selected={icon === key}
-                      onIconSelect={setIcon}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <Stack direction="column" align="stretch" spacing={2}>
-                  {/* Drag-and-drop zone */}
-                  {/* eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/no-static-element-interactions */}
-                  <div
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop}
-                    onClick={handleDropZoneClick}
-                    className={dropZoneClassName}
-                  >
-                    {customImage ? (
-                      <Stack
-                        direction="column"
-                        align="center"
-                        style={{ gap: 6, padding: '8px 0' }}
-                      >
-                        <img
-                          src={customImage}
-                          alt="Custom icon preview"
-                          style={dropPreviewImgStyle}
-                        />
-                        <Stack direction="row" spacing={1}>
-                          <Button
-                            size="xs"
-                            variant="soft"
-                            color="neutral"
-                            startDecorator={<LuUpload size={12} />}
-                            onClick={handleReplaceClick}
-                          >
-                            Replace
-                          </Button>
-                          <IconButton
-                            size="xs"
-                            variant="soft"
-                            color="danger"
-                            onClick={handleRemoveImage}
-                            aria-label="Remove image"
-                          >
-                            <LuX size={12} />
-                          </IconButton>
-                        </Stack>
-                      </Stack>
-                    ) : (
-                      <Stack
-                        direction="column"
-                        align="center"
-                        spacing={1}
-                        style={{ padding: '12px 0' }}
-                      >
-                        <LuImage size={24} style={imageIconStyle} />
-                        <Text size="xs" style={dropHintPrimaryStyle}>
-                          Drag &amp; drop an image here
-                        </Text>
-                        <Text size="xs" style={dropHintSecondaryStyle}>
-                          or click to browse (PNG, JPG, SVG)
-                        </Text>
-                      </Stack>
-                    )}
-                  </div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".png,.jpg,.jpeg,.svg,image/*"
-                    onChange={handleFileChange}
-                    style={hiddenInputStyle}
-                  />
-                  {imageError && (
-                    <Text size="xs" tone="danger">
-                      {imageError}
-                    </Text>
-                  )}
-                </Stack>
-              )}
+              <FormField label="Custom icon name" htmlFor="folder-icon-name">
+                <Input.Control
+                  id="folder-icon-name"
+                  size="sm"
+                  value={assetName}
+                  placeholder="Defaults to uploaded filename"
+                  onChange={(event) => setAssetName(event.target.value)}
+                />
+              </FormField>
+              <IconPicker
+                accept={['image/png', 'image/jpeg', 'image/webp']}
+                label="Folder icon"
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = uploadPending || removePending ? 'none' : 'copy';
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  if (uploadPending || removePending) return;
+                  const file = event.dataTransfer.files[0];
+                  if (file) void handleImageFile(file);
+                }}
+                value={selectedAssetId ?? (customImage ? 'legacy-image' : icon)}
+                items={[
+                  ...iconKeys.map((key) => ({
+                    id: key,
+                    label: key.replace(/^Lu/, ''),
+                    kind: 'preset' as const,
+                    icon: React.createElement(FOLDER_ICON_MAP[key], { size: 16 }),
+                  })),
+                  ...iconAssets.map((asset) => ({
+                    id: asset.id,
+                    label: asset.name,
+                    kind: 'image' as const,
+                    src: asset.dataUrl,
+                    removable: true,
+                  })),
+                  ...(customImage && !selectedAssetId
+                    ? [
+                        {
+                          id: 'legacy-image',
+                          label: 'Current custom image',
+                          kind: 'image' as const,
+                          src: customImage,
+                        },
+                      ]
+                    : []),
+                ]}
+                onValueChange={(id) => {
+                  const asset = iconAssets.find((entry) => entry.id === id);
+                  setIconAssetId(asset?.id);
+                  if (asset) setCustomImage(asset.dataUrl);
+                  else if (id !== 'legacy-image') {
+                    setCustomImage(undefined);
+                    setIcon(id ?? 'LuFolder');
+                  }
+                }}
+                onUpload={(file) => {
+                  void handleImageFile(file);
+                }}
+                uploadPending={uploadPending}
+                uploadError={imageError}
+                onRemove={(id) => {
+                  void handleRemoveAsset(id);
+                }}
+                removePending={removePending}
+                removeError={removeError}
+              />
+              <Text size="xs" tone="muted">
+                Removing a library icon keeps its image on folders already using it.
+              </Text>
             </Stack>
 
             {/* Auto-match Rules (collapsible) */}
@@ -474,9 +390,13 @@ const FolderDialog: React.FC<Props> = ({
                   </Text>
                 )}
               </button>
-              {ruleSet.rules.some((rule) => rule.field.startsWith('data:') && isRetiredInventoryDataKey(rule.field.slice(5))) && (
+              {ruleSet.rules.some(
+                (rule) =>
+                  rule.field.startsWith('data:') && isRetiredInventoryDataKey(rule.field.slice(5)),
+              ) && (
                 <Text size="sm" role="alert">
-                  Review required: saved inventory and last-checked rules are unsupported. These rules never match, including negative rules. Edit or remove them explicitly.
+                  Review required: saved inventory and last-checked rules are unsupported. These
+                  rules never match, including negative rules. Edit or remove them explicitly.
                 </Text>
               )}
               {rulesExpanded && (

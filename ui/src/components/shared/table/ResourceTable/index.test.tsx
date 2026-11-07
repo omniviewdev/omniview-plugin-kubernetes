@@ -1,18 +1,15 @@
-import React, { type PropsWithChildren } from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import React from 'react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as BaseUI from '@omniviewdev/base-ui';
 import type { ColumnDef } from '@tanstack/react-table';
 import ResourceTable from './index';
-import { usePodMetricsBatch } from '@/hooks/usePodMetricsBatch';
 
 const mocks = vi.hoisted(() => {
   const first = { key: 'host-first', record: { body: { name: 'First row' } } };
   const second = { key: 'host-second', record: { body: { name: 'Second row' } } };
   return {
     resources: vi.fn(),
-    query: vi.fn(async () => ({})),
     loading: false,
     sourceError: false,
     firstData: { records: [first, second] },
@@ -36,7 +33,6 @@ vi.mock('@omniviewdev/base-ui', async (importOriginal) => {
     },
   };
 });
-vi.mock('@omniviewdev/runtime/api', () => ({ MetricClient: { QueryAll: mocks.query } }));
 vi.mock('@omniviewdev/runtime', () => ({
   useResourceType: () => ({ resourceType: { data: { displayName: 'Charts', capabilities: [] } } }),
   useResolvedResourceTarget: () => ({ data: { targetId: mocks.targetId, target: { type: 'helm:charts' } } }),
@@ -57,16 +53,11 @@ vi.mock('./rows', () => ({ decodeResourceTableRows: (records: Array<{ key: strin
   rowKeys: records.map(({ key }) => key),
 }) }));
 
-const client = new QueryClient({ defaultOptions: { queries: { gcTime: Infinity } } });
 const columns: Array<ColumnDef<BaseUI.DataTableFeatures, { name: string }>> = [
   { id: 'name', accessorKey: 'name', header: 'Name' },
   { id: 'cpuUsage', accessorKey: 'name', header: 'CPU' },
   { id: 'memUsage', accessorKey: 'name', header: 'Memory' },
 ];
-function MetricsConsumer({ columnVisibility, children }: PropsWithChildren<{ columnVisibility: Record<string, boolean> }>) {
-  usePodMetricsBatch({ connectionID: 'test', enabled: columnVisibility.cpuUsage !== false || columnVisibility.memUsage !== false });
-  return <>{children}</>;
-}
 
 beforeEach(() => {
   mocks.loading = false;
@@ -81,7 +72,7 @@ beforeEach(() => {
     } };
   });
 });
-afterEach(() => { client.clear(); localStorage.clear(); mocks.query.mockClear(); });
+afterEach(() => { localStorage.clear(); });
 
 describe('resource collection selections', () => {
   it('shows retained resources when source updates fail', () => {
@@ -118,14 +109,14 @@ describe('resource collection selections', () => {
   });
 });
 
-it('reads persisted hidden metric columns before mounting the query consumer', async () => {
+it('restores hidden columns and persists visibility changes', () => {
   localStorage.setItem('kubernetes-test-k8s:/pods-column-visibility', JSON.stringify({ cpuUsage: false, memUsage: false }));
-  render(<QueryClientProvider client={client}>
-    <ResourceTable columns={columns} connectionID="test" resourceKey="k8s:/pods" contentWrapper={MetricsConsumer} />
-  </QueryClientProvider>);
-  expect(mocks.query).not.toHaveBeenCalled();
+  render(<ResourceTable columns={columns} connectionID="test" resourceKey="k8s:/pods" />);
+  expect(screen.queryByRole('columnheader', { name: 'CPU' })).toBeNull();
+  expect(screen.queryByRole('columnheader', { name: 'Memory' })).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Show CPU' }));
-  await waitFor(() => expect(mocks.query).toHaveBeenCalledTimes(1));
+  expect(screen.getByRole('columnheader', { name: 'CPU' })).toBeTruthy();
+  expect(screen.queryByRole('columnheader', { name: 'Memory' })).toBeNull();
   expect(JSON.parse(localStorage.getItem('kubernetes-test-k8s:/pods-column-visibility')!)).toMatchObject({ cpuUsage: true, memUsage: false });
 });
 
@@ -142,4 +133,19 @@ it('keeps required visible fields shown without revealing locked hidden fields',
   expect(screen.getByRole('columnheader', { name: /Name/ })).toBeTruthy();
   expect(screen.getByRole('columnheader', { name: /Memory/ })).toBeTruthy();
   expect(screen.queryByRole('columnheader', { name: /CPU/ })).toBeNull();
+});
+
+it('applies defaults to late catalog columns without resetting row selection or stored choices', () => {
+  localStorage.setItem('kubernetes-test-k8s:/pods-column-visibility', JSON.stringify({ cpuUsage: false }));
+  const view = render(<ResourceTable columns={columns} connectionID="test" resourceKey="k8s:/pods" />);
+  const row = screen.getByRole('button', { name: 'host-first' });
+  fireEvent.click(row);
+  const catalogColumns = [...columns, {
+    id: 'metric:custom.requests', accessorKey: 'name', header: 'Requests', meta: { defaultHidden: true },
+  }];
+  view.rerender(<ResourceTable columns={catalogColumns} connectionID="test" resourceKey="k8s:/pods" />);
+  expect(screen.queryByRole('columnheader', { name: 'Requests' })).toBeNull();
+  expect(screen.queryByRole('columnheader', { name: 'CPU' })).toBeNull();
+  expect(screen.getByRole('button', { name: 'host-first' })).toBe(row);
+  expect(row).toHaveAttribute('aria-pressed', 'true');
 });

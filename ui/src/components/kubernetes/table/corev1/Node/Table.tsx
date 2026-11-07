@@ -11,22 +11,40 @@ import { convertByteUnits } from '../../../../../utils/units';
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
 import ResourceTable from '../../../../shared/table/ResourceTable';
 import ColumnPicker from '../../../../tables/ColumnFilter/ColumnPicker';
-import NodeSidebar from '../../../sidebar/NodeSidebar';
+import NodeSidebar, { NodeMetricsView } from '../../../sidebar/NodeSidebar';
 import ConditionsCell from '../../shared/cells/ConditionsCell';
 import { CopyableCell } from '../../shared/cells/CopyableCell';
 import { withClusterResourceColumns } from '../../shared/columns';
+import { TableMetricsProvider, TableMetricsScope, useTableMetrics } from '../../shared/TableMetrics';
 
 import { drawerActions } from './actions';
 
+import { parseResourceQuantity } from '@/utils/convert';
+
 const resourceKey = 'k8s:/nodes';
+const defaultMetrics = {};
 
 const NodeTable: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
+  const metrics = useTableMetrics<Node>({ ownerConnectionID: id, resourceKey }, defaultMetrics, {
+    headers: { 'kubernetes.node.cpu.usage': 'CPU', 'kubernetes.node.memory.working_set': 'Memory' },
+    cell: (node, metricID) => {
+      const resource = metricID === 'kubernetes.node.cpu.usage' ? 'cpu' : metricID === 'kubernetes.node.memory.working_set' ? 'memory' : null;
+      const quantity = resource ? node.status?.capacity?.[resource] : undefined;
+      if (!quantity) return {};
+      const value = parseResourceQuantity(quantity);
+      return value != null && value > 0 ? {
+        bound: { kind: 'capacity', value },
+        thresholds: [{ value: 0, tone: 'success' }, { value: value * 0.7, tone: 'warning' }, { value: value * 0.9, tone: 'danger' }],
+      } : {};
+    },
+  });
 
   const columns = React.useMemo<Array<ColumnDef<DataTableFeatures, Node>>>(
     () =>
       withClusterResourceColumns(
         [
+          ...metrics.columns,
           {
             id: 'os',
             header: 'OS',
@@ -121,28 +139,31 @@ const NodeTable: React.FC = () => {
         ],
         { connectionID: id, resourceKey },
       ),
-    [id],
+    [id, metrics.columns],
   );
 
   const drawer: DrawerComponent<Node> = React.useMemo(
     () => ({
       title: resourceKey, // TODO: change runtime sdk to accept a function
       icon: <LuBox />,
-      views: createStandardViews({ SidebarComponent: NodeSidebar }),
+      views: createStandardViews({ SidebarComponent: NodeSidebar, MetricsComponent: NodeMetricsView }),
       actions: drawerActions,
     }),
     [],
   );
 
   return (
-    <ResourceTable
-      columns={columns}
-      columnPicker={ColumnPicker}
-      connectionID={id}
-      resourceKey={resourceKey}
-      drawer={drawer}
-      createEnabled={false}
-    />
+    <TableMetricsScope value={metrics.scope}>
+      <ResourceTable
+        columns={columns}
+        contentWrapper={TableMetricsProvider}
+        columnPicker={ColumnPicker}
+        connectionID={id}
+        resourceKey={resourceKey}
+        drawer={drawer}
+        createEnabled={false}
+      />
+    </TableMetricsScope>
   );
 };
 

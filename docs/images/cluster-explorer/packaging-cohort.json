@@ -1,0 +1,42 @@
+{
+  "recordedOn": "2026-11-04",
+  "pluginVersion": "0.16.0",
+  "minimumHostVersion": "0.29.0",
+  "frontendDependencies": {
+    "@omniviewdev/base-ui": "0.14.0",
+    "@omniviewdev/editors": "6.1.8",
+    "@omniviewdev/runtime": "0.29.0",
+    "@omniviewdev/vite-plugin": "0.29.0"
+  },
+  "standaloneSDK": "v0.14.6",
+  "sourceCohortSDK": "6ce85c8b42cab1547396217510196b29e63ffe55",
+  "npmProducer": {
+    "commit": "72b906d1474e6b2bd2701ce13afe1f6169f5b68f",
+    "tag": "npm-v0.29.0",
+    "pullRequest": "https://github.com/omniviewdev/omniview/pull/396",
+    "successfulWorkflow": "https://github.com/omniviewdev/omniview/actions/runs/41839949260",
+    "registryHandoff": "Integration owner confirmed public install-v1 packument records with integrity fields for runtime, providers, and vite-plugin 0.29.0 before plugin pinning or installation."
+  },
+  "installation": {
+    "repositoryState": "Standalone workspace down and unlinked from managed source linking.",
+    "directory": "kubernetes/ui",
+    "packageManager": "pnpm 12.14.0",
+    "lockfileGeneration": {
+      "command": "pnpm install --lockfile-only --no-frozen-lockfile",
+      "result": "success"
+    },
+    "frozenInstall": {
+      "command": "pnpm install --frozen-lockfile",
+      "result": "success",
+      "packagesAdded": 566
+    },
+    "notices": [
+      "Deprecated lodash.get 4.4.2 and classifier 0.1.0 notices were retained, not suppressed.",
+      "Agent skills for @tanstack/react-table remained awaiting approval; no approval was granted."
+    ]
+  },
+  "limits": [
+    "Installation success is not build, test, lint, package, or live-desktop verification.",
+    "The source-cohort screenshots and restart proof remain distinct from this standalone registry installation."
+  ]
+}

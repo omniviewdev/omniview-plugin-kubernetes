@@ -5,7 +5,7 @@ import {
   type HostRecord,
   useConfirmationModal,
   parseAppError,
-  useSnackbar,
+  useNotifications,
 } from '@omniviewdev/runtime';
 import { ResourceClient } from '@omniviewdev/runtime/api';
 import { ObjectMeta } from 'kubernetes-types/meta/v1';
@@ -46,7 +46,9 @@ function renderMenuItems(
           </Menu.SubmenuTrigger>
           <Menu.Portal>
             <Menu.Positioner sideOffset={4}>
-              <Menu.Popup onClick={stopPropagation}>{renderMenuItems(item.children, invoke)}</Menu.Popup>
+              <Menu.Popup onClick={stopPropagation}>
+                {renderMenuItems(item.children, invoke)}
+              </Menu.Popup>
             </Menu.Positioner>
           </Menu.Portal>
         </Menu.SubmenuRoot>
@@ -55,7 +57,13 @@ function renderMenuItems(
           startDecorator={item.icon}
           color={item.color}
           disabled={item.disabled}
-          onClick={item.onClick ? () => { invoke(item.onClick!); } : undefined}
+          onClick={
+            item.onClick
+              ? () => {
+                  invoke(item.onClick!);
+                }
+              : undefined
+          }
         >
           {item.label}
         </Menu.Item>
@@ -139,7 +147,8 @@ function actionsToMenuItems(
     };
 
     if (!disabled && action.list) {
-      const listItems = typeof action.list === 'function' ? action.list(ctx, snapshot) : action.list;
+      const listItems =
+        typeof action.list === 'function' ? action.list(ctx, snapshot) : action.list;
 
       item.children = listItems.map((listItem, j) => ({
         key: `${label}-${j}`,
@@ -171,19 +180,29 @@ function actionsToMenuItems(
   return items;
 }
 
-const ActionsCell: React.FC<Props> = ({ connectionID, resourceKey, resourceID, data, namespace }) => {
+const ActionsCell: React.FC<Props> = ({
+  connectionID,
+  resourceKey,
+  resourceID,
+  data,
+  namespace,
+}) => {
   const tableContext = useTableDrawer();
   const drawer = tableContext?.drawer;
   const record = tableContext?.recordsByBody.get(data as object);
   const { show } = useConfirmationModal();
-  const snackbar = useSnackbar();
+  const notifications = useNotifications();
   const invoke = (callback: NonNullable<ContextMenuItem['onClick']>) => {
     void (async () => {
       try {
         await callback();
       } catch (cause) {
         const error = parseAppError(cause);
-        snackbar.showSnackbar({ message: error.title || 'Action failed', status: 'error', details: error.detail });
+        void notifications.notify({
+          title: error.title || 'Action failed',
+          severity: 'error',
+          details: error.detail,
+        });
       }
     })();
   };
@@ -194,14 +213,17 @@ const ActionsCell: React.FC<Props> = ({ connectionID, resourceKey, resourceID, d
   );
 
   const ctx = React.useMemo(
-    () => record ? buildDrawerContext(propsObj, record) : undefined,
+    () => (record ? buildDrawerContext(propsObj, record) : undefined),
     [propsObj, record],
   );
   const subscribeDeps = React.useCallback(
-    (onChange: () => void) => ctx ? drawerActionDepsStore.subscribe(ctx, onChange) : () => {},
+    (onChange: () => void) => (ctx ? drawerActionDepsStore.subscribe(ctx, onChange) : () => {}),
     [ctx],
   );
-  const getDepsSnapshot = React.useCallback(() => ctx ? drawerActionDepsStore.getSnapshot(ctx) : undefined, [ctx]);
+  const getDepsSnapshot = React.useCallback(
+    () => (ctx ? drawerActionDepsStore.getSnapshot(ctx) : undefined),
+    [ctx],
+  );
   const depsSnapshot = React.useSyncExternalStore(subscribeDeps, getDepsSnapshot, getDepsSnapshot);
 
   const items = React.useMemo<ContextMenuItem[]>(() => {

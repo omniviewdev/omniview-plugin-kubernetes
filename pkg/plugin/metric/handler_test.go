@@ -3,7 +3,6 @@ package metric
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -368,118 +367,6 @@ func TestExtractNodeCapacity(t *testing.T) {
 		}
 		assert.Equal(t, 0.0, extractNodeCapacity(metricValue(t, data), "cpu"))
 	})
-}
-
-// --- buildPodMetricResponse ---
-
-func TestBuildPodMetricResponse_AllMetrics(t *testing.T) {
-	pm := &metricsv1beta1.PodMetrics{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "my-pod",
-			Namespace: "default",
-		},
-		Containers: []metricsv1beta1.ContainerMetrics{
-			{
-				Name: "app",
-				Usage: corev1.ResourceList{
-					corev1.ResourceCPU:    resource.MustParse("100m"),
-					corev1.ResourceMemory: resource.MustParse("256Mi"),
-				},
-			},
-			{
-				Name: "sidecar",
-				Usage: corev1.ResourceList{
-					corev1.ResourceCPU:    resource.MustParse("50m"),
-					corev1.ResourceMemory: resource.MustParse("64Mi"),
-				},
-			},
-		},
-	}
-
-	resp := buildPodMetricResponse(pm, nil) // nil = want all
-	require.True(t, resp.Success)
-	require.Len(t, resp.Results, 2)
-
-	// Find CPU and memory results.
-	var cpuResult, memResult *sdkmetric.MetricResult
-	for i := range resp.Results {
-		switch resp.Results[i].CurrentValue.MetricID {
-		case "cpu_usage":
-			cpuResult = &resp.Results[i]
-		case "memory_usage":
-			memResult = &resp.Results[i]
-		}
-	}
-
-	require.NotNil(t, cpuResult)
-	require.NotNil(t, memResult)
-
-	// 100m + 50m = 150 millicores
-	assert.InDelta(t, 150.0, cpuResult.CurrentValue.Value, 0.001)
-	// 256Mi + 64Mi = 320Mi
-	assert.InDelta(t, float64(320*1024*1024), memResult.CurrentValue.Value, 0.001)
-
-	// Labels should identify the pod.
-	assert.Equal(t, "my-pod", cpuResult.CurrentValue.Labels["pod"])
-	assert.Equal(t, "default", cpuResult.CurrentValue.Labels["namespace"])
-}
-
-func TestBuildPodMetricResponse_FilteredMetricIDs(t *testing.T) {
-	pm := &metricsv1beta1.PodMetrics{
-		ObjectMeta: metav1.ObjectMeta{Name: "pod-1", Namespace: "ns"},
-		Containers: []metricsv1beta1.ContainerMetrics{
-			{
-				Name: "c",
-				Usage: corev1.ResourceList{
-					corev1.ResourceCPU:    resource.MustParse("100m"),
-					corev1.ResourceMemory: resource.MustParse("256Mi"),
-				},
-			},
-		},
-	}
-
-	// Only request CPU.
-	resp := buildPodMetricResponse(pm, []string{"cpu_usage"})
-	require.True(t, resp.Success)
-	require.Len(t, resp.Results, 1)
-	assert.Equal(t, "cpu_usage", resp.Results[0].CurrentValue.MetricID)
-}
-
-func TestBuildPodMetricResponse_NoContainers(t *testing.T) {
-	pm := &metricsv1beta1.PodMetrics{
-		ObjectMeta: metav1.ObjectMeta{Name: "empty-pod"},
-		Containers: nil,
-	}
-
-	resp := buildPodMetricResponse(pm, nil)
-	assert.True(t, resp.Success)
-	// CPU and memory should be 0.
-	for _, r := range resp.Results {
-		assert.Equal(t, 0.0, r.CurrentValue.Value)
-	}
-}
-
-func TestBuildPodMetricResponse_TimestampIsRecent(t *testing.T) {
-	pm := &metricsv1beta1.PodMetrics{
-		ObjectMeta: metav1.ObjectMeta{Name: "pod"},
-		Containers: []metricsv1beta1.ContainerMetrics{
-			{
-				Name: "c",
-				Usage: corev1.ResourceList{
-					corev1.ResourceCPU: resource.MustParse("100m"),
-				},
-			},
-		},
-	}
-
-	before := time.Now()
-	resp := buildPodMetricResponse(pm, []string{"cpu_usage"})
-	after := time.Now()
-
-	require.Len(t, resp.Results, 1)
-	ts := resp.Results[0].CurrentValue.Timestamp
-	assert.True(t, !ts.Before(before) && !ts.After(after),
-		"timestamp should be between before and after call")
 }
 
 // --- buildNodeMetricResponse ---

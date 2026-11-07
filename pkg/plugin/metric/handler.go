@@ -54,15 +54,18 @@ func compositeQuery(
 			hasMS = true
 		}
 	}
+	if req.ResourceKey == "k8s:/pods" && hasMS {
+		return nil, resourcev2.NewError("UNSUPPORTED", "Native Pod metrics require finite QueryResources with namespaced metric IDs")
+	}
 
-	// If no IDs are specified, fetch all available metrics from both sources.
+	// Empty IDs retain genuine legacy Node and Prometheus query-all behavior.
 	wantAll := len(req.MetricIDs) == 0
 
 	var msResp, promResp *sdkmetric.QueryResponse
 	var msErr, promErr error
 
-	// Metrics-server query.
-	if wantAll || hasMS {
+	// Native Pod collection has moved entirely to finite QueryResources.
+	if req.ResourceKey == "k8s:/nodes" && (wantAll || hasMS) {
 		msResp, msErr = queryMetricsServer(qctx, req)
 	}
 
@@ -183,8 +186,6 @@ func mergeResponses(
 // queryMetricsServer handles metric queries using the Kubernetes metrics-server API.
 func queryMetricsServer(qctx *sdkmetric.QueryContext, req sdkmetric.QueryRequest) (*sdkmetric.QueryResponse, error) {
 	switch req.ResourceKey {
-	case "k8s:/pods":
-		return queryPodMetrics(qctx, req)
 	case "k8s:/nodes":
 		return queryNodeMetrics(qctx, req)
 	default:
@@ -218,71 +219,6 @@ func getMetricsClient(qctx *sdkmetric.QueryContext) (metricsclientset.Interface,
 	return metricsClient, nil
 }
 
-func queryPodMetrics(qctx *sdkmetric.QueryContext, req sdkmetric.QueryRequest) (*sdkmetric.QueryResponse, error) {
-	// Empty resourceID = batch mode: list metrics for all pods in the namespace.
-	if req.ResourceID == "" {
-		return queryAllPodMetrics(qctx, req)
-	}
-
-	metricsClient, err := getMetricsClient(qctx)
-	if err != nil {
-		return &sdkmetric.QueryResponse{
-			Success: false,
-			Error:   err.Error(),
-		}, nil
-	}
-
-	namespace := req.ResourceNamespace
-	name := req.ResourceID
-
-	podMetrics, err := metricsClient.MetricsV1beta1().PodMetricses(namespace).Get(
-		metricQueryContext(qctx), name, metav1.GetOptions{},
-	)
-	if err != nil {
-		return &sdkmetric.QueryResponse{
-			Success: false,
-			Error:   fmt.Sprintf("failed to get pod metrics: %v", err),
-		}, nil
-	}
-
-	return buildPodMetricResponse(podMetrics, req.MetricIDs), nil
-}
-
-// queryAllPodMetrics fetches metrics for all pods in a namespace via a single List call.
-// Returns one MetricResult per metric per pod, with pod/namespace in Labels.
-func queryAllPodMetrics(qctx *sdkmetric.QueryContext, req sdkmetric.QueryRequest) (*sdkmetric.QueryResponse, error) {
-	metricsClient, err := getMetricsClient(qctx)
-	if err != nil {
-		return &sdkmetric.QueryResponse{
-			Success: false,
-			Error:   err.Error(),
-		}, nil
-	}
-
-	podMetricsList, err := metricsClient.MetricsV1beta1().PodMetricses(req.ResourceNamespace).List(
-		metricQueryContext(qctx), metav1.ListOptions{},
-	)
-	if err != nil {
-		return &sdkmetric.QueryResponse{
-			Success: false,
-			Error:   fmt.Sprintf("failed to list pod metrics: %v", err),
-		}, nil
-	}
-
-	results := make([]sdkmetric.MetricResult, 0, len(podMetricsList.Items)*2)
-	for i := range podMetricsList.Items {
-		resp := buildPodMetricResponse(&podMetricsList.Items[i], req.MetricIDs)
-		if resp.Success {
-			results = append(results, resp.Results...)
-		}
-	}
-
-	return &sdkmetric.QueryResponse{
-		Success: true,
-		Results: results,
-	}, nil
-}
-
 func queryNodeMetrics(qctx *sdkmetric.QueryContext, req sdkmetric.QueryRequest) (*sdkmetric.QueryResponse, error) {
 	metricsClient, err := getMetricsClient(qctx)
 	if err != nil {
@@ -305,69 +241,6 @@ func queryNodeMetrics(qctx *sdkmetric.QueryContext, req sdkmetric.QueryRequest) 
 	}
 
 	return buildNodeMetricResponse(nodeMetrics, req.MetricIDs, req.ResourceData), nil
-}
-
-func buildPodMetricResponse(podMetrics *metricsv1beta1.PodMetrics, metricIDs []string) *sdkmetric.QueryResponse {
-	now := time.Now()
-	results := make([]sdkmetric.MetricResult, 0)
-
-	wantAll := len(metricIDs) == 0
-	wantMetric := func(id string) bool {
-		if wantAll {
-			return true
-		}
-		for _, mid := range metricIDs {
-			if mid == id {
-				return true
-			}
-		}
-		return false
-	}
-
-	// Aggregate CPU and memory across all containers
-	var totalCPUMillicores int64
-	var totalMemoryBytes int64
-
-	for _, container := range podMetrics.Containers {
-		cpuQuantity := container.Usage.Cpu()
-		memQuantity := container.Usage.Memory()
-
-		totalCPUMillicores += cpuQuantity.MilliValue()
-		totalMemoryBytes += memQuantity.Value()
-	}
-
-	if wantMetric("cpu_usage") {
-		results = append(results, sdkmetric.MetricResult{
-			CurrentValue: &sdkmetric.CurrentValue{
-				MetricID:  "cpu_usage",
-				Value:     float64(totalCPUMillicores),
-				Timestamp: now,
-				Labels: map[string]string{
-					"pod":       podMetrics.Name,
-					"namespace": podMetrics.Namespace,
-				},
-			},
-		})
-	}
-
-	if wantMetric("memory_usage") {
-		results = append(results, sdkmetric.MetricResult{
-			CurrentValue: &sdkmetric.CurrentValue{
-				MetricID:  "memory_usage",
-				Value:     float64(totalMemoryBytes),
-				Timestamp: now,
-				Labels: map[string]string{
-					"pod":       podMetrics.Name,
-					"namespace": podMetrics.Namespace,
-				},
-			},
-		})
-	}
-
-	return &sdkmetric.QueryResponse{
-		Success: true,
-		Results: results,
-	}
 }
 
 func buildNodeMetricResponse(

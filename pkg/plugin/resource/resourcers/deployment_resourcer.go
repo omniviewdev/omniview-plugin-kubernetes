@@ -164,19 +164,19 @@ func (d *DeploymentResourcer) GetActions(
 			},
 		},
 		{
-			ID:          "pause",
-			Label:       "Pause Rollout",
-			Description: "Pause the current rollout",
-			Icon:        "LuPause",
-			Scope:       resource.ActionScopeInstance,
+			ID:           "pause",
+			Label:        "Pause Rollout",
+			Description:  "Pause the current rollout",
+			Icon:         "LuPause",
+			Scope:        resource.ActionScopeInstance,
 			ParamsSchema: &resource.Schema{},
 		},
 		{
-			ID:          "resume",
-			Label:       "Resume Rollout",
-			Description: "Resume a paused rollout",
-			Icon:        "LuPlay",
-			Scope:       resource.ActionScopeInstance,
+			ID:           "resume",
+			Label:        "Resume Rollout",
+			Description:  "Resume a paused rollout",
+			Icon:         "LuPlay",
+			Scope:        resource.ActionScopeInstance,
 			ParamsSchema: &resource.Schema{},
 		},
 	}, nil
@@ -251,7 +251,7 @@ func (d *DeploymentResourcer) streamRestart(
 	client *clients.ClientSet,
 	input resource.ActionRequest,
 	stream chan<- resource.ActionEvent,
-) error {
+) (resultErr error) {
 	namespace, scopeErr := nativeRequestNamespace(input.Reference.Address.Scope)
 	if scopeErr != nil {
 		return scopeErr
@@ -260,9 +260,9 @@ func (d *DeploymentResourcer) streamRestart(
 	// Patch to trigger restart.
 	patch := fmt.Sprintf(
 		`{"spec":{"template":{"metadata":{"annotations":{"kubectl.kubernetes.io/restartedAt":"%s"}}}}}`,
-		time.Now().Format(time.RFC3339),
+		time.Now().Format(time.RFC3339Nano),
 	)
-	_, err := client.KubeClient.AppsV1().Deployments(namespace).Patch(
+	patched, err := client.KubeClient.AppsV1().Deployments(namespace).Patch(
 		ctx, input.Reference.Address.ID, k8stypes.StrategicMergePatchType,
 		nativeActionPatch(input, patch), metav1.PatchOptions{},
 	)
@@ -273,7 +273,8 @@ func (d *DeploymentResourcer) streamRestart(
 	// Watch the deployment for rollout completion.
 	watcher, err := client.KubeClient.AppsV1().Deployments(namespace).Watch(
 		ctx, metav1.ListOptions{
-			FieldSelector: fmt.Sprintf("metadata.name=%s", input.Reference.Address.ID),
+			FieldSelector:   fmt.Sprintf("metadata.name=%s", input.Reference.Address.ID),
+			ResourceVersion: patched.ResourceVersion,
 		},
 	)
 	if err != nil {
@@ -295,18 +296,35 @@ func (d *DeploymentResourcer) streamRestart(
 		return ctx.Err()
 	}
 
-	timeout := time.After(5 * time.Minute)
+	parentCtx := ctx
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+	defer func() {
+		if resultErr != nil && ctx.Err() == context.DeadlineExceeded && parentCtx.Err() == nil {
+			resultErr = &resource.ResourceOperationError{Code: "TIMEOUT", Title: "Timed out", Message: "The rollout restart exceeded its deadline."}
+		}
+	}()
+	observations, stopObserving := rolloutObservations(ctx, watcher, time.Second, func(ctx context.Context) (*appsv1.Deployment, error) {
+		return client.KubeClient.AppsV1().Deployments(namespace).Get(ctx, input.Reference.Address.ID, metav1.GetOptions{})
+	})
+	defer stopObserving()
+	var lastProgress [6]int32
+	progressEmitted := false
 	for {
 		select {
-		case <-timeout:
-			return &resource.ResourceOperationError{Code: "TIMEOUT", Title: "Timed out", Message: "The rollout restart exceeded its deadline."}
-
 		case <-ctx.Done():
 			return ctx.Err()
 
-		case event, ok := <-watcher.ResultChan():
+		case observation, ok := <-observations:
 			if !ok {
 				return fmt.Errorf("watch channel closed")
+			}
+			if observation.err != nil {
+				return observation.err
+			}
+			event := observation.event
+			if event.Type == watch.Error || event.Type == watch.Deleted {
+				return fmt.Errorf("deployment rollout observation lost: %s", event.Type)
 			}
 			if object, ok := event.Object.(metav1.Object); ok {
 				if err := nativeActionObjectMatches(input, object); err != nil {
@@ -320,30 +338,45 @@ func (d *DeploymentResourcer) streamRestart(
 			if !ok {
 				continue
 			}
+			if dep.UID != patched.UID || dep.Generation > patched.Generation {
+				return fmt.Errorf("requested rollout was replaced or superseded")
+			}
+			if dep.Generation < patched.Generation || dep.Status.ObservedGeneration < patched.Generation || dep.Status.ObservedGeneration < dep.Generation {
+				continue
+			}
 
 			desired := int32(1)
 			if dep.Spec.Replicas != nil {
 				desired = *dep.Spec.Replicas
 			}
-
-			progress, err := nativeActionEventValue(map[string]interface{}{
-				"ready":   dep.Status.AvailableReplicas,
-				"desired": desired,
-				"updated": dep.Status.UpdatedReplicas,
-				"message": fmt.Sprintf("%d/%d replicas ready", dep.Status.AvailableReplicas, desired),
-			})
+			readyPods, err := rolloutReadyPods(ctx, client.KubeClient, "Deployment", patched, patched.Spec.Template.Annotations["kubectl.kubernetes.io/restartedAt"])
 			if err != nil {
 				return err
 			}
-			select {
-			case stream <- resource.ActionEvent{Type: "progress", Data: progress}:
-			case <-ctx.Done():
-				return ctx.Err()
+
+			snapshot := [6]int32{desired, readyPods, dep.Status.UpdatedReplicas, dep.Status.ReadyReplicas, dep.Status.Replicas, dep.Status.AvailableReplicas}
+			if !progressEmitted || snapshot != lastProgress {
+				progress, err := nativeActionEventValue(map[string]interface{}{
+					"ready":   dep.Status.AvailableReplicas,
+					"desired": desired,
+					"updated": dep.Status.UpdatedReplicas,
+					"message": fmt.Sprintf("%d/%d replicas ready", dep.Status.AvailableReplicas, desired),
+				})
+				if err != nil {
+					return err
+				}
+				select {
+				case stream <- resource.ActionEvent{Type: "progress", Data: progress, Activity: rolloutActivity("Deployment", input.Reference.Address.ID, dep.Status.UpdatedReplicas, dep.Status.ReadyReplicas, dep.Status.Replicas, desired, readyPods, "replicas", false)}:
+					lastProgress, progressEmitted = snapshot, true
+				case <-ctx.Done():
+					return ctx.Err()
+				}
 			}
 
-			if dep.Status.UpdatedReplicas == desired &&
+			if dep.Generation >= patched.Generation && dep.Status.ObservedGeneration >= patched.Generation &&
+				dep.Status.ObservedGeneration >= dep.Generation && dep.Status.UpdatedReplicas == desired &&
 				dep.Status.AvailableReplicas == desired &&
-				dep.Status.Replicas == desired {
+				dep.Status.Replicas == desired && readyPods == desired {
 				complete, err := nativeActionEventValue(map[string]interface{}{
 					"message": fmt.Sprintf("Deployment %s successfully restarted", input.Reference.Address.ID),
 				})
@@ -351,7 +384,7 @@ func (d *DeploymentResourcer) streamRestart(
 					return err
 				}
 				select {
-				case stream <- resource.ActionEvent{Type: "complete", Data: complete}:
+				case stream <- resource.ActionEvent{Type: "complete", Data: complete, Activity: rolloutActivity("Deployment", input.Reference.Address.ID, dep.Status.UpdatedReplicas, dep.Status.ReadyReplicas, dep.Status.Replicas, desired, readyPods, "replicas", true)}:
 				case <-ctx.Done():
 					return ctx.Err()
 				}
