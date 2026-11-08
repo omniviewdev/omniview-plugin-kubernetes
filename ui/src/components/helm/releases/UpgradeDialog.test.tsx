@@ -57,4 +57,26 @@ describe('UpgradeDialog values lifecycle', () => {
     expect((screen.getByRole('button', { name: 'Dry Run' }) as HTMLButtonElement).disabled).toBe(true);
     expect(mocks.execute).not.toHaveBeenCalledWith(expect.objectContaining({ action: 'upgrade' }));
   });
+
+  it('retries a failed values load in place without keeping a stale draft', async () => {
+    mocks.resolve.mockResolvedValue({ route: { connection: 'cluster' }, reference: { address: { id: 'release' } } });
+    mocks.execute.mockRejectedValueOnce(new Error('cluster unreachable'));
+    render(<Harness />);
+    await act(async () => {});
+    expect(screen.getByRole('alert').textContent).toContain('cluster unreachable');
+    expect(valuesEditor().value).toBe('');
+    expect((screen.getByRole('button', { name: 'Upgrade' }) as HTMLButtonElement).disabled).toBe(true);
+
+    const values = Promise.withResolvers<unknown>();
+    mocks.execute.mockReturnValueOnce(values.promise);
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Retry' })); });
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(valuesEditor().value).toBe('');
+    expect((screen.getByRole('button', { name: 'Upgrade' }) as HTMLButtonElement).disabled).toBe(true);
+
+    await act(async () => { values.resolve({ data: { values: { replicas: 3 } } }); });
+    expect(valuesEditor().value).toBe('replicas: 3\n');
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
+    expect((screen.getByRole('button', { name: 'Upgrade' }) as HTMLButtonElement).disabled).toBe(false);
+  });
 });

@@ -1,4 +1,5 @@
 import Editor, { DiffEditor, useMonaco } from '@monaco-editor/react';
+import { Banner, Text } from '@omniviewdev/base-ui';
 import type { editor, IDisposable } from 'monaco-editor';
 import { type ComponentType, type FC, type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
@@ -19,20 +20,24 @@ type Props = {
 };
 
 type SchemaScope = { pluginID: string; connectionID: string; resourceType?: string };
-type SchemaBoundaryProps = SchemaScope & { modelPath?: string; children: ReactNode };
-type SchemaEditorProps = Props & { schemaScope?: SchemaScope };
+type SchemaBoundaryProps = SchemaScope & { modelPath?: string; statusClassName?: string; children: ReactNode };
+type SchemaEditorProps = Props & { schemaScope?: SchemaScope; schemaStatusClassName?: string };
 
 /** The host owns schema registration and its lifetime across all editor bundles. */
-const CodeEditor: FC<SchemaEditorProps> = ({ schemaScope, ...props }) => {
+const CodeEditor: FC<SchemaEditorProps> = ({ schemaScope, schemaStatusClassName, ...props }) => {
   if (!schemaScope) return <CodeEditorSurface key={props.path} {...props} />;
   const Boundary = (window as Window & {
     __omniviewEditorSchemaBoundary?: ComponentType<SchemaBoundaryProps>;
   }).__omniviewEditorSchemaBoundary;
   if (!Boundary) return <div style={{ height: '100%' }}>
-    <div role="alert">Editor schemas unavailable: this host does not support editor-demand schema registration. Completion and schema validation are unavailable.</div>
+    <Banner role="alert" color="danger" size="sm" className={schemaStatusClassName}>
+      <Banner.Content>
+        <Text size="sm" tone="danger">Editor schemas unavailable: this host does not support editor-demand schema registration. Completion and schema validation are unavailable.</Text>
+      </Banner.Content>
+    </Banner>
     <CodeEditorSurface key={props.path} {...props} isolateModel />
   </div>;
-  return <Boundary key={JSON.stringify(schemaScope)} {...schemaScope} modelPath={props.path}><CodeEditorSurface key={props.path} {...props} isolateModel /></Boundary>;
+  return <Boundary key={JSON.stringify(schemaScope)} {...schemaScope} modelPath={props.path} statusClassName={schemaStatusClassName}><CodeEditorSurface key={props.path} {...props} isolateModel /></Boundary>;
 };
 
 const CodeEditorSurface: FC<Props & { isolateModel?: boolean }> = ({

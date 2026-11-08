@@ -219,6 +219,11 @@
   border-radius: 5px;
 }
 
+.schemaStatus {
+  flex-shrink: 0;
+  margin: 8px 24px;
+}
+
 .code {
   position: relative;
   flex: 1;

@@ -52,6 +52,7 @@ const UpgradeDialogSession: React.FC<Props> = ({
   const [dryRunManifest, setDryRunManifest] = React.useState<string | null>(null);
   const [valuesLoaded, setValuesLoaded] = React.useState(false);
   const [valuesError, setValuesError] = React.useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = React.useState(0);
 
   const editorPath = useResourceEditorModelPath({
     pluginID: PLUGIN_ID, route: { connection: connectionID }, type: 'helm:releases',
@@ -87,7 +88,7 @@ const UpgradeDialogSession: React.FC<Props> = ({
       });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, releaseName]);
+  }, [open, releaseName, loadAttempt]);
 
   const handleDryRun = async () => {
     try {
@@ -111,6 +112,14 @@ const UpgradeDialogSession: React.FC<Props> = ({
     } catch (error: unknown) {
       setDryRunManifest(`Error: ${error instanceof Error ? error.message : 'Upgrade failed'}`);
     }
+  };
+
+  const retryValues = () => {
+    // A retry starts from a clean slate: no stale draft, no previous error.
+    setValues('');
+    setValuesError(null);
+    setValuesLoaded(false);
+    setLoadAttempt((attempt) => attempt + 1);
   };
 
   const handleClose = () => {
@@ -140,9 +149,14 @@ const UpgradeDialogSession: React.FC<Props> = ({
           </Stack>
 
           {valuesError !== null && (
-            <Text role="alert" size="sm" tone="danger">
-              Failed to load current values: {valuesError}. Close and reopen to retry.
-            </Text>
+            <Stack direction="row" spacing={2} align="center">
+              <Text role="alert" size="sm" tone="danger">
+                Failed to load current values: {valuesError}.
+              </Text>
+              <Button size="sm" variant="outline" color="neutral" onClick={retryValues}>
+                Retry
+              </Button>
+            </Stack>
           )}
 
           {/* Values editor */}
@@ -192,7 +206,7 @@ const UpgradeDialogSession: React.FC<Props> = ({
           size="sm"
           variant="outline"
           color="neutral"
-          disabled={isExecuting || valuesError !== null}
+          disabled={isExecuting || !valuesLoaded || valuesError !== null}
           onClick={() => void handleDryRun()}
         >
           Dry Run
@@ -201,7 +215,7 @@ const UpgradeDialogSession: React.FC<Props> = ({
           size="sm"
           variant="solid"
           color="brand"
-          disabled={isExecuting || valuesError !== null}
+          disabled={isExecuting || !valuesLoaded || valuesError !== null}
           onClick={() => void handleUpgrade()}
         >
           Upgrade
