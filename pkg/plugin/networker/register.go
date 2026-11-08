@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/omniview/kubernetes/pkg/diag"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -121,7 +122,9 @@ func (f *PodResourceForwarder) ForwardResource(
 	// start the forwarder
 	go func() {
 		log.Info(ctx, "pod port-forward: ForwardPorts starting")
+		diag.PortForward("started")
 		if err := fw.ForwardPorts(); err != nil {
+			diag.PortForward("failed")
 			log.Error(ctx, "pod port-forward: ForwardPorts returned error",
 				logging.Error(err),
 				logging.String("stdout", out.String()),
@@ -129,6 +132,7 @@ func (f *PodResourceForwarder) ForwardResource(
 			)
 			errCh <- err
 		} else {
+			diag.PortForward("ended")
 			log.Info(ctx, "pod port-forward: ForwardPorts exited cleanly",
 				logging.String("stdout", out.String()),
 				logging.String("stderr", errOut.String()),
@@ -388,7 +392,13 @@ func (f *WorkloadResourceForwarder) forwardToPod(
 		logging.Int("remote_port", int(remotePort)),
 	)
 
+	diag.PortForward("started")
 	fwErr := fw.ForwardPorts()
+	if fwErr != nil {
+		diag.PortForward("failed")
+	} else {
+		diag.PortForward("ended")
+	}
 
 	// Always log the portforward output for diagnostics.
 	if stdout := out.String(); stdout != "" {

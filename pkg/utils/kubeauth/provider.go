@@ -3,6 +3,7 @@ package kubeauth
 import (
 	"context"
 	"errors"
+	"github.com/omniview/kubernetes/pkg/diag"
 	"log"
 	"net/http"
 
@@ -51,6 +52,7 @@ func LoadKubeClients(ctx context.Context, kubeconfigPath string, kubeContext str
 	// timeouts when starting many informers concurrently.
 	restConfig.QPS = 50
 	restConfig.Burst = 100
+	restConfig.Wrap(diag.Transport)
 
 	clientset, err := strategy.NewForConfig(restConfig)
 	if err != nil {
