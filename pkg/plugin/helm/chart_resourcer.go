@@ -158,11 +158,11 @@ func (r *ChartResourcerWithActions) GetActions(
 			ParamsSchema: versionParams,
 		},
 		{
-			ID:          "get-versions",
-			Label:       "Get All Versions",
-			Description: "Get all available versions of this chart",
-			Icon:        "LuList",
-			Scope:       resource.ActionScopeInstance,
+			ID:           "get-versions",
+			Label:        "Get All Versions",
+			Description:  "Get all available versions of this chart",
+			Icon:         "LuList",
+			Scope:        resource.ActionScopeInstance,
 			ParamsSchema: &resource.Schema{},
 		},
 		{
