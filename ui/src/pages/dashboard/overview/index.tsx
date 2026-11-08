@@ -1,4 +1,4 @@
-import { Button, Stack, Text } from '@omniviewdev/base-ui';
+import { Stack, Text } from '@omniviewdev/base-ui';
 import {
   useConnection,
   useExtensionPoint,
@@ -84,6 +84,7 @@ const ClusterDashboardOverviewPage: React.FC = () => {
   const [namespaces, setNamespaces] = React.useState<string[]>([]);
   const [nodeDemand, setNodeDemand] = React.useState<string>();
   const nodesRequested = nodeDemand === id;
+  const loadNodes = React.useCallback(() => setNodeDemand(id), [id]);
   const [timeRange, setTimeRange] = React.useState<ChartTimeRange>(() => ({
     from: new Date(Date.now() - 3600000),
     to: new Date(),
@@ -149,13 +150,10 @@ const ClusterDashboardOverviewPage: React.FC = () => {
           nodeCount={nodeCount}
           pods={allPods}
           events={allEvents}
+          onLoadNodes={nodesRequested ? undefined : loadNodes}
         />
         <CollectionStatus {...pods} label="Pods" />
-        {nodesRequested ? <CollectionStatus {...nodes} error={nodes.error ?? (nodes.sourceError ? 'Live Node source unavailable; retry refreshes the collection, not the live source.' : undefined)} label="Nodes" /> : (
-          <Button size="sm" variant="outline" onClick={() => setNodeDemand(id)}>
-            Load Node health and count
-          </Button>
-        )}
+        {nodesRequested && <CollectionStatus {...nodes} error={nodes.error ?? (nodes.sourceError ? 'Live Node source unavailable; retry refreshes the collection, not the live source.' : undefined)} label="Nodes" />}
 
         {/* Namespace filter */}
         <Stack direction="row" align="center" spacing={2} style={{ flexWrap: 'wrap', minWidth: 0 }}>

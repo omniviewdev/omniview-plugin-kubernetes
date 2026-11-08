@@ -1,4 +1,4 @@
-import { Chip, Spinner, Stack, Text } from '@omniviewdev/base-ui';
+import { Button, Chip, Spinner, Stack, Text } from '@omniviewdev/base-ui';
 import type { NodeCondition, Node as K8sNode, Event as K8sEvent, Pod  } from 'kubernetes-types/core/v1';
 import React from 'react';
 import { useConnectionMetadata } from '@omniviewdev/runtime';
@@ -38,19 +38,34 @@ type Props = {
   nodeCount?: number;
   pods: Pod[];
   events: K8sEvent[];
+  /** Present only while Node health has not been requested; invoked once to request it. */
+  onLoadNodes?: () => void;
 };
 
 
-function StatItem({ icon, label, value }: { icon: React.ReactNode; label: string; value: React.ReactNode }) {
+function StatItem({
+  icon,
+  label,
+  value,
+  valueRef,
+  action,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: React.ReactNode;
+  valueRef?: React.Ref<HTMLSpanElement>;
+  action?: React.ReactNode;
+}) {
   return (
     <Stack direction="row" align="center" spacing={1}>
       <span style={statIconStyle}>{icon}</span>
       <Text size="xs" style={statLabelStyle} truncate>
         {label}
       </Text>
-      <Text size="xs" truncate tone="muted">
+      <Text size="xs" truncate tone="muted" ref={valueRef} tabIndex={valueRef ? -1 : undefined}>
         {value}
       </Text>
+      {action}
     </Stack>
   );
 }
@@ -81,8 +96,9 @@ function useHealthStatus(nodes: K8sNode[] | undefined, pods: Pod[], events: K8sE
   }, [nodes, pods, events]);
 }
 
-const ClusterInfoCard: React.FC<Props> = ({ connectionID, loading, nodes, nodeCount, pods, events }) => {
+const ClusterInfoCard: React.FC<Props> = ({ connectionID, loading, nodes, nodeCount, pods, events, onLoadNodes }) => {
   const metadata = useConnectionMetadata('kubernetes', connectionID);
+  const nodesValueRef = React.useRef<HTMLSpanElement>(null);
   const fact = (key: string, label: string, provenance: 'observed' | 'configured' = 'observed') => <ConnectionMetadataValue {...metadata} metadataKey={`kubernetes.${key}`} label={label} provenance={provenance} />;
   const health = useHealthStatus(nodes, pods, events);
 
@@ -120,6 +136,20 @@ const ClusterInfoCard: React.FC<Props> = ({ connectionID, loading, nodes, nodeCo
           icon={<LuServer size={12} />}
           label="Nodes"
           value={nodeCount === undefined ? 'Unknown' : String(nodeCount)}
+          valueRef={nodesValueRef}
+          action={onLoadNodes && (
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => {
+                // The button unmounts once demand is set; hand focus to the persistent Node value first.
+                nodesValueRef.current?.focus();
+                onLoadNodes();
+              }}
+            >
+              Load Node health and count
+            </Button>
+          )}
         />
       </Stack>
 

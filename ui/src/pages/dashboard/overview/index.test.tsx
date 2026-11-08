@@ -1,5 +1,6 @@
 /// <reference types="@testing-library/jest-dom/vitest" />
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { Node as K8sNode, Pod } from 'kubernetes-types/core/v1';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -103,6 +104,21 @@ describe('dashboard shared Pod result', () => {
     view.rerender(<ClusterDashboardOverviewPage />);
     expect(screen.getByText('Nodes').parentElement).toHaveTextContent('Unknown');
     expect(screen.getByRole('button', { name: 'Load Node health and count' })).toBeInTheDocument();
+  });
+
+  it('keeps keyboard focus on the Node value when activating the load control', async () => {
+    const user = userEvent.setup();
+    render(<ClusterDashboardOverviewPage />);
+    const load = screen.getByRole('button', { name: 'Load Node health and count' });
+    expect(screen.getByText('Nodes').parentElement).toContainElement(load);
+    await user.tab();
+    load.focus();
+    expect(load).toHaveFocus();
+    await user.keyboard('{Enter}');
+    expect(screen.queryByRole('button', { name: 'Load Node health and count' })).not.toBeInTheDocument();
+    expect(document.activeElement).not.toBe(document.body);
+    expect(document.activeElement).toHaveTextContent(/^(Unknown|\d+)$/);
+    expect(screen.getByText('Nodes').parentElement).toContainElement(document.activeElement as HTMLElement);
   });
 
   it('keeps unavailable and loading Node counts unknown, but permits authoritative empty collections', () => {

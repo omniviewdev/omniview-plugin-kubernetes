@@ -31,4 +31,16 @@ describe('overview connection facts', () => {
     expect(screen.getByText('kind')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Kubernetes version: Saved observation/ })).toBeTruthy();
   });
+  it('labels saved configured endpoints as configuration and keeps the clock for observations only', () => {
+    metadata.snapshot.entries['kubernetes.server_url'] = { state: 'current', value: 'https://k8s.example', observedAt: '2026-10-31T10:00:00Z' };
+    const view = render(<ClusterInfoCard connectionID="owned" nodes={[]} pods={[]} events={[]} />);
+    expect(screen.getByRole('button', { name: 'API server: Configured endpoint' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Kubernetes version: Observation details' })).toBeTruthy();
+    view.unmount();
+    metadata.transportAvailable = false;
+    render(<ClusterInfoCard connectionID="owned" nodes={[]} pods={[]} events={[]} />);
+    expect(screen.getByRole('button', { name: 'API server: Saved configured endpoint' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Kubernetes version: Saved observation' })).toBeTruthy();
+    delete (metadata.snapshot.entries as Record<string, unknown>)['kubernetes.server_url'];
+  });
 });
