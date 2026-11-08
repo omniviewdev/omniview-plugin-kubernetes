@@ -1041,7 +1041,7 @@ rather than adding unsupported manifest fields.
 
 ### Prerequisites
 
-- Go 1.25+
+- Go 1.27+
 - Node.js 26.13.0
 - pnpm 12.14.0 (pinned by `ui/package.json`)
 
@@ -1050,9 +1050,9 @@ Registry installs retain pnpm's 24-hour release-age protection. Only coordinated
 The current frontend cohort uses `@omniviewdev/base-ui` 0.15.0,
 `@omniviewdev/editors` 6.2.0, and runtime/Vite plugin 0.30.2.
 The published runtime and Vite plugin must match; host application builds use the host lockfile.
-The backend pins SDK `v0.15.0` (`427ef1da1f1d`) and replaces
+The backend pins SDK `v0.18.1-0.20261108223201-09042bf0afcd` and replaces
 grpc-go with `github.com/omniviewdev/grpc-go` at
-`v1.79.3-0.20261103012409-4c6f1d1c4e10` for source-session receive controls.
+`v1.85.1-0.20261107225428-6ba964c95af2` for source-session receive controls.
 Debug preferences discard unsaved drafts when reopened or switched to another
 connection, but preserve active drafts when saved defaults refresh.
 
