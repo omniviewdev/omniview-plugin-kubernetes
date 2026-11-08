@@ -3,6 +3,7 @@ package resource
 import (
 	"context"
 	"fmt"
+	"github.com/omniview/kubernetes/pkg/diag"
 	"log"
 	"path/filepath"
 	"sort"
@@ -93,6 +94,14 @@ func (p *kubeConnectionProvider) LoadConnections(ctx context.Context) ([]types.C
 
 // CheckConnection validates connectivity to the cluster.
 func (p *kubeConnectionProvider) CheckConnection(ctx context.Context, conn *types.Connection, client *clients.ClientSet) (types.ConnectionStatus, error) {
+	result, err := p.checkConnection(ctx, conn, client)
+	if err == nil {
+		diag.ConnectionChecked(result.Status)
+	}
+	return result, err
+}
+
+func (p *kubeConnectionProvider) checkConnection(ctx context.Context, conn *types.Connection, client *clients.ClientSet) (types.ConnectionStatus, error) {
 	if conn == nil {
 		return types.ConnectionStatus{
 			Connection: conn,

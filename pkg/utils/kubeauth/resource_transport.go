@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"errors"
+	"github.com/omniview/kubernetes/pkg/diag"
 	"io"
 	"mime"
 	"net/http"
@@ -52,6 +53,7 @@ func LoadResourceKubeClients(ctx context.Context, path, kubeContext string) (*Ku
 		copy := *client
 		client = &copy
 	}
+	client.Transport = diag.Transport(client.Transport)
 	// Construct once from the exact configured/authenticated transport, before
 	// installing resource-only response budgets.
 	streamingHTTP := *client
