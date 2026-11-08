@@ -51,6 +51,7 @@ const UpgradeDialogSession: React.FC<Props> = ({
   const [reuseValues, setReuseValues] = React.useState(true);
   const [dryRunManifest, setDryRunManifest] = React.useState<string | null>(null);
   const [valuesLoaded, setValuesLoaded] = React.useState(false);
+  const [valuesError, setValuesError] = React.useState<string | null>(null);
 
   const editorPath = useResourceEditorModelPath({
     pluginID: PLUGIN_ID, route: { connection: connectionID }, type: 'helm:releases',
@@ -69,15 +70,22 @@ const UpgradeDialogSession: React.FC<Props> = ({
   React.useEffect(() => {
     if (!open || !releaseName || valuesLoaded) return;
 
+    let cancelled = false;
     void runAction('get-values', jsonToValue({ all: true }))
       .then((result) => {
+        if (cancelled) return;
         const data = helmActionData(result) as { values?: unknown } | undefined;
         setValues(data?.values ? stringify(data.values) : '');
         setValuesLoaded(true);
       })
-      .catch(() => {
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        // Never keep a prior draft when the current values cannot be loaded.
+        setValues('');
+        setValuesError(error instanceof Error ? error.message : 'Failed to load current values');
         setValuesLoaded(true);
       });
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, releaseName]);
 
@@ -99,7 +107,7 @@ const UpgradeDialogSession: React.FC<Props> = ({
       await runAction('upgrade', jsonToValue({
         chart: chartRef, reuse_values: reuseValues, values: helmValues(values),
       }));
-      onClose();
+      handleClose();
     } catch (error: unknown) {
       setDryRunManifest(`Error: ${error instanceof Error ? error.message : 'Upgrade failed'}`);
     }
@@ -108,6 +116,8 @@ const UpgradeDialogSession: React.FC<Props> = ({
   const handleClose = () => {
     setDryRunManifest(null);
     setValuesLoaded(false);
+    setValuesError(null);
+    setValues('');
     onClose();
   };
 
@@ -128,6 +138,12 @@ const UpgradeDialogSession: React.FC<Props> = ({
               Reuse existing values
             </Checkbox>
           </Stack>
+
+          {valuesError !== null && (
+            <Text role="alert" size="sm" tone="danger">
+              Failed to load current values: {valuesError}. Close and reopen to retry.
+            </Text>
+          )}
 
           {/* Values editor */}
           <Stack direction="column" spacing={1}>
@@ -176,7 +192,7 @@ const UpgradeDialogSession: React.FC<Props> = ({
           size="sm"
           variant="outline"
           color="neutral"
-          disabled={isExecuting}
+          disabled={isExecuting || valuesError !== null}
           onClick={() => void handleDryRun()}
         >
           Dry Run
@@ -185,7 +201,7 @@ const UpgradeDialogSession: React.FC<Props> = ({
           size="sm"
           variant="solid"
           color="brand"
-          disabled={isExecuting}
+          disabled={isExecuting || valuesError !== null}
           onClick={() => void handleUpgrade()}
         >
           Upgrade
