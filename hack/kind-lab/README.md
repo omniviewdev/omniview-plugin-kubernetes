@@ -22,12 +22,13 @@ The workspace includes host and Kubernetes plugin feature worktrees. It was not 
 | --- | ---: | ---: | ---: | ---: | --- |
 | smoke | 2 | 4 | 12 | 1 | 4 GiB |
 | baseline | 10 | 300 | 900 | 3 | 8–12 GiB |
+| medium | 20 | 600 | 1800 | 6 | 14–18 GiB |
 | large | 20 | 1000 | 3000 | 10 | 20–24 GiB |
 | xl | 40 | 2000 | 6000 | 20 | 32–48 GiB |
 
-Memory figures are planning estimates, not measured guarantees. Docker reported 18 CPUs and 7.75 GiB during initial setup. A beefy Mac still needs an explicit Docker Desktop VM memory allocation. Keep enough RAM outside Docker for macOS and Omniview. Other running clusters share that VM.
+Memory figures are planning estimates, not measured guarantees; the `medium` row is interpolated between `baseline` and `large`. Docker reported 18 CPUs and 7.75 GiB during initial setup. A beefy Mac still needs an explicit Docker Desktop VM memory allocation. Keep enough RAM outside Docker for macOS and Omniview. Other running clusters share that VM.
 
-Workers retain normal kubelet pod limits. Roughly 100 application pods per worker leaves room below the usual 110-pod limit for system pods and rollouts. Do not seed large/xl into the default three-worker topology. Recreate the dedicated lab with the appropriate worker count first. More real nodes consume kubelet/containerd memory; fake nodes would be a separate API-only scenario, not equivalent runtime realism.
+Workers retain normal kubelet pod limits. Roughly 100 application pods per worker leaves room below the usual 110-pod limit for system pods and rollouts, so `seed` refuses a preset with more than 100 application Pods per Ready worker; a three-worker lab accepts `baseline` at most. Recreate a dedicated lab with the appropriate worker count first. More real nodes consume kubelet/containerd memory; fake nodes would be a separate API-only scenario, not equivalent runtime realism.
 
 Pods request 1m CPU / 4 MiB and limit 50m CPU / 16 MiB. Requests are scheduler inputs, not total cluster memory. No service mesh, ingress, persistent volumes, or heavyweight application images.
 
@@ -44,9 +45,9 @@ python3 hack/kind-lab/lab.py seed --preset baseline
 python3 hack/kind-lab/lab.py status
 ```
 
-The baseline cluster already exists after initial setup. Do not rerun `create` against it. Seed is repeatable; it does not prune a previous larger preset. Use a fresh cluster for exact comparative inventories. `render --preset large` emits manifests without contacting Kubernetes.
+The baseline cluster already exists after initial setup. `create` refuses a cluster that already exists, before writing any state. Seed is repeatable; it does not prune a previous larger preset. Use a fresh cluster for exact comparative inventories. `render --preset large` emits manifests without contacting Kubernetes.
 
-Kubeconfig is `hack/kind-lab/.state/kubeconfig`; context is `kind-omniview-load-lab`. All lab mutations explicitly select both. Creation never modifies `~/.kube/config`. The API binds loopback, and no application ports are published to the host. State is ignored by Git and contains cluster administrator credentials; do not share it.
+Without `--name`, kubeconfig is `hack/kind-lab/.state/kubeconfig` and context is `kind-omniview-load-lab`; `--name NAME` uses separate state ([Named benchmark clusters](#named-benchmark-clusters)). All lab mutations explicitly select both. Creation never modifies `~/.kube/config`. The API binds loopback, and no application ports are published to the host. State is ignored by Git and contains cluster administrator credentials; do not share it.
 
 If the cluster exists but this checkout has no private kubeconfig, recover it
 without merging the default kubeconfig or recreating the cluster:
@@ -72,18 +73,70 @@ kubectl --kubeconfig "$PWD/hack/kind-lab/.state/kubeconfig" \
 
 Compare container creation times, node names, and the loopback API endpoint with
 your own lab creation records. These checks identify the target; neither the kind
-name nor its labels prove ownership. The current driver writes no ownership
-receipt ([#86](https://github.com/omniviewdev/omniview-plugin-kubernetes/issues/86)).
+name nor its labels prove ownership. The default lab has no ownership receipt
+([#86](https://github.com/omniviewdev/omniview-plugin-kubernetes/issues/86));
+only clusters made with `create --name` get one.
 If you cannot establish that you created this disposable cluster, stop without
 seeding, churning, or deleting it; confirm ownership with its creator first.
 
 A successful seed waits for Deployment Available, not a settled rollout: verify
-actual desired/current/ready Pods and deleting Pods before benchmarking.
+actual desired/current/ready Pods and deleting Pods before benchmarking; `status`
+prints the labeled, Ready, and deleting Pod counts.
 Reseeding after churn or source changes can replace Pods and generate many
 additional controller Events. Count total Events separately from the 900 baseline
 seed Events; presets do not prune a previous larger inventory.
 
 To connect Omniview later, select this kubeconfig explicitly in the Kubernetes plugin. Workspace profiles do not isolate HOME or kubeconfig automatically. No production configuration was merged or replaced.
+
+## Named benchmark clusters
+
+`--name NAME` runs any command against a separate kind cluster, so a benchmark never touches the default `omniview-load-lab` or its state. A name is 1–40 lowercase letters, digits, or hyphens, beginning and ending with a letter or digit; anything else is rejected before a path is built. Without `--name`, every command keeps the default cluster and its original `.state` files.
+
+| Cluster | Private state under `hack/kind-lab/.state` | Context |
+| --- | --- | --- |
+| `omniview-load-lab` (default) | `kubeconfig`, `kind.json` | `kind-omniview-load-lab` |
+| `NAME` | `clusters/NAME/kubeconfig`, `kind.json`, `owner.json` | `kind-NAME` |
+
+Every kubectl call selects its own kubeconfig and context explicitly, and kind writes or removes entries only in that kubeconfig. `~/.kube/config`, another cluster's kubeconfig, other kind clusters, and Docker settings are never modified; the existence check only reads names from `kind get clusters`. The named state directory is mode 0700 and its kubeconfig 0600. Seeded objects, Pod templates, and Events carry `app.kubernetes.io/part-of=NAME`, and `status`/`churn` select on it. Secrets stay 1 KiB synthetic filler (`synthetic: xxx…`), never real credentials.
+
+`create` refuses, before writing anything, when `kind get clusters` already lists the name or, for a named cluster, when `clusters/NAME` already exists. It never overwrites an existing cluster's `kind.json` or kubeconfig; the default lab's flat `.state` is reused after `delete`, as before. A named `create` writes `owner.json` before kind runs. Every `create` then waits up to three minutes for all workers to be Ready. If kind fails and no cluster with that name exists, a named `create` removes only the state it just made so the name can be retried. After a timeout, or any failure that leaves the cluster present, the state is kept for inspection and cleanup is manual.
+
+Named `seed`, `churn`, `delete`, and `native_metrics.py install` require that `owner.json` receipt, so they refuse a kind cluster this checkout did not create; the receipt is checkout-local, and adopting a cluster from another checkout remains [#86](https://github.com/omniviewdev/omniview-plugin-kubernetes/issues/86). `status`, `render`, and `native_metrics.py verify` do not need it. `delete --name NAME --confirm-delete` removes the cluster and the files `create` wrote, and keeps any other file in the directory. The default lab has no receipt and behaves as before.
+
+### Pod stages
+
+Each application is one Deployment with one Pod, so a preset's application Pod count is namespaces × applications per namespace. System Pods are extra.
+
+| Stage | Preset | Application Pods | Minimum Ready workers |
+| ---: | --- | ---: | ---: |
+| 300 | `baseline` | 300 | 3 |
+| 600 | `medium` | 600 | 6 |
+| 1000 | `large` | 1000 | 10 |
+
+Each stage is a strict superset of the previous one with identical names and specs, so seeding the next preset on the same cluster adds objects instead of replacing them. `seed` refuses a preset with more than 100 application Pods per Ready worker before applying anything, then waits only for Deployment Available. A stage is settled only when `status` reports the stage's count for `pods:`, `ready pods:`, and `deployments:` and `deleting pods: 0`.
+
+```sh
+python3 hack/kind-lab/lab.py create --name omniview-bench --workers 10
+
+python3 hack/kind-lab/lab.py seed --name omniview-bench --preset baseline
+python3 hack/kind-lab/lab.py status --name omniview-bench
+python3 hack/kind-lab/lab.py seed --name omniview-bench --preset medium
+python3 hack/kind-lab/lab.py status --name omniview-bench
+python3 hack/kind-lab/lab.py seed --name omniview-bench --preset large
+python3 hack/kind-lab/lab.py status --name omniview-bench
+```
+
+Decide the Docker VM memory allocation before `create`: running clusters share it, kind nodes have no per-cluster memory limit (`docker stats` shows the whole VM as every container's limit), so a full VM can disrupt every cluster on it. Every real worker and Pod consumes memory, and this driver never changes Docker settings. Read the VM total, what each running cluster already uses, and what the kernel still has available before `create` and again after each stage; none of these changes anything:
+
+```sh
+docker info --format 'CPUs={{.NCPU}} MemTotal={{.MemTotal}}'
+docker stats --no-stream --format '{{.Name}}\t{{.MemUsage}}'
+docker exec NAME-control-plane grep -E 'MemTotal|MemAvailable' /proc/meminfo   # VM-wide view, after create
+```
+
+Divide the growth in used memory between two stages by the Pods it added to project the next one, and leave several GiB unused after it. One observation, not a guarantee: the existing 3-worker lab (316 Pods, 98–109 per worker, kindest/node v1.35.0) showed 2.23–2.32 GiB per worker and 1.35 GiB for the control plane after three days running, and 1.35–1.56 GiB per worker three minutes after a Docker restart. The 10-worker, 1000-Pod stage is the `large` row above. To use the cluster from Omniview, select `hack/kind-lab/.state/clusters/omniview-bench/kubeconfig` explicitly in the Kubernetes plugin. Remove it with `delete --name omniview-bench --confirm-delete`.
+
+The driver's tests run offline, without Docker or kind: `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s hack/kind-lab -p 'test_*.py' -v`.
 
 ## Activity scenarios
 
@@ -108,7 +161,7 @@ Secrets are synthetic. No cloud accounts, external services, or credentials are 
 
 ## Reset
 
-Deletion is explicit and destroys only the dedicated `omniview-load-lab` cluster:
+Without `--name`, deletion is explicit and destroys only the dedicated `omniview-load-lab` cluster:
 
 ```sh
 python3 hack/kind-lab/lab.py delete --confirm-delete
@@ -117,6 +170,8 @@ python3 hack/kind-lab/lab.py seed --preset large
 ```
 
 Stop churn before reset. Existing unrelated kind clusters are not touched. Larger presets require separate capacity validation before performance conclusions.
+
+With `--name NAME`, `delete` destroys only that cluster, and only when this checkout holds its `owner.json` receipt; it also removes the files `create` wrote under `.state/clusters/NAME`.
 
 ## Initial smoke evidence
 
@@ -137,6 +192,14 @@ python3 hack/kind-lab/native_metrics.py install --confirm-install --confirm-owne
 # Read-only: wait for real measurements from at least two Ready seeded Pods.
 python3 hack/kind-lab/native_metrics.py verify --namespace load-000 --timeout 120
 ```
+
+For a named benchmark cluster, pass the same `--name`; `install` additionally requires that cluster's `owner.json` receipt:
+
+```sh
+python3 hack/kind-lab/native_metrics.py install --name omniview-bench --confirm-install --confirm-owner-permission
+python3 hack/kind-lab/native_metrics.py verify --name omniview-bench --namespace load-000 --timeout 120
+```
+
 Before installation, establish that you created this disposable cluster or obtain
 its creator's permission to install cluster-wide RBAC. Names, Docker labels, and
 loopback ports identify a target; they do not prove ownership on shared Docker.
@@ -144,9 +207,11 @@ loopback ports identify a target; they do not prove ownership on shared Docker.
 stop without installing anything.
 
 
-Both commands require the private `hack/kind-lab/.state/kubeconfig`, fixed
-`kind-omniview-load-lab` context, actual Kind cluster membership, Docker Kind
-ownership labels, and a loopback API port matching that control-plane container.
+Both commands require the selected cluster's private kubeconfig
+(`hack/kind-lab/.state/kubeconfig`, or `.state/clusters/NAME/kubeconfig` with
+`--name NAME`), its fixed `kind-NAME` context, actual Kind cluster membership,
+Docker Kind ownership labels, and a loopback API port matching that
+control-plane container.
 They refuse arbitrary contexts, ambient kubeconfigs, remote endpoints, or another
 cluster. They never merge kubeconfigs or change an ambient current context.
 The installation adds `--kubelet-insecure-tls` only for this verified local Kind

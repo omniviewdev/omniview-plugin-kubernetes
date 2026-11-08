@@ -3,10 +3,13 @@ package metric
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 
+	"github.com/omniview/kubernetes/pkg/diag"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	metricsv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
@@ -46,14 +49,44 @@ func (r *nativeBudgetReader) Read(data []byte) (int, error) {
 }
 
 func scanNativeNamespace(ctx context.Context, client rest.Interface, namespace string, budget *nativeScanBudget, visit func(*metricsv1beta1.PodMetrics), retain ...func(*metricsv1beta1.PodMetrics) bool) error {
-	return scanNativeMetrics(ctx, client, "/apis/metrics.k8s.io/v1beta1/namespaces/"+namespace+"/pods", "PodMetricsList", budget, visit, retain...)
+	return scanNativeMetrics(ctx, client, diag.ScanNamespace, "/apis/metrics.k8s.io/v1beta1/namespaces/"+namespace+"/pods", "PodMetricsList", budget, visit, retain...)
 }
 
 func scanNativeNodes(ctx context.Context, client rest.Interface, budget *nativeScanBudget, visit func(*metricsv1beta1.NodeMetrics), retain ...func(*metricsv1beta1.NodeMetrics) bool) error {
-	return scanNativeMetrics(ctx, client, "/apis/metrics.k8s.io/v1beta1/nodes", "NodeMetricsList", budget, visit, retain...)
+	return scanNativeMetrics(ctx, client, diag.ScanNode, "/apis/metrics.k8s.io/v1beta1/nodes", "NodeMetricsList", budget, visit, retain...)
 }
 
-func scanNativeMetrics[T any](ctx context.Context, client rest.Interface, path, kind string, budget *nativeScanBudget, visit func(*T), retain ...func(*T) bool) error {
+// nativeScanOutcome maps a finished scan to the closed diagnostics vocabulary.
+// Context errors win over any transport error that wraps them, so an abandoned
+// scan is never counted as a source failure. Error text is never inspected.
+func nativeScanOutcome(err error) diag.ScanOutcome {
+	switch {
+	case err == nil:
+		return diag.ScanOK
+	case errors.Is(err, context.Canceled):
+		return diag.ScanCanceled
+	case errors.Is(err, context.DeadlineExceeded):
+		return diag.ScanTimeout
+	case errors.Is(err, errNativeBudget):
+		return diag.ScanBudget
+	case apierrors.IsForbidden(err) || apierrors.IsUnauthorized(err):
+		return diag.ScanDenied
+	default:
+		return diag.ScanFailed
+	}
+}
+
+// scanNativeMetrics reports its own cost to plugin diagnostics: list requests,
+// validated pages, decoded objects, response bytes and one outcome per scan.
+// Objects and bytes are measured from the shared budget, so work consumed by a
+// scan that is later rejected, exhausted or canceled is still counted. Nothing
+// that names a namespace, Pod, continuation token or error text is recorded.
+func scanNativeMetrics[T any](ctx context.Context, client rest.Interface, operation diag.ScanOperation, path, kind string, budget *nativeScanBudget, visit func(*T), retain ...func(*T) bool) (scanErr error) {
+	startObjects, startBytes := budget.objects, budget.bytes
+	defer func() {
+		diag.ScanVolume(operation, int64(startObjects-budget.objects), startBytes-budget.bytes)
+		diag.ScanFinished(nativeScanOutcome(scanErr))
+	}()
 	continuation := ""
 	seenContinuation := make(map[string]bool)
 	for {
@@ -64,6 +97,7 @@ func scanNativeMetrics[T any](ctx context.Context, client rest.Interface, path, 
 			return errNativeBudget
 		}
 		budget.pages--
+		diag.ScanRequest(operation)
 		// metrics-server may ignore limit; never assume one page is bounded by it.
 		request := client.Get().AbsPath(path).
 			SetHeader("Accept", "application/json").SetHeader("Accept-Encoding", "identity").Param("limit", "1000")
@@ -79,6 +113,7 @@ func scanNativeMetrics[T any](ctx context.Context, client rest.Interface, path, 
 		if err != nil {
 			return err
 		}
+		diag.ScanPage(operation)
 		if next == "" {
 			return nil
 		}

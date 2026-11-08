@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/omniview/kubernetes/pkg/diag"
 	"github.com/omniview/kubernetes/pkg/utils"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
@@ -50,6 +51,7 @@ type nativeLane struct {
 }
 
 func newNativeProvider() *nativeProvider {
+	diag.DeclareNativeScan()
 	return &nativeProvider{cache: NewClientCache(ClientCacheOpts{}), lanes: make(map[string]*nativeLane)}
 }
 
@@ -100,11 +102,30 @@ func (p *nativeProvider) catalog(pc *types.PluginContext, request sdkmetric.Reso
 	return catalog, nil
 }
 
+// observeNativeAbandon counts a query that ended without delivering results
+// because its caller canceled, a deadline expired or its source generation was
+// retired. Only the lane can tell caller cancellation from retirement; the error
+// alone cannot. Other failures are counted by scan outcome, not here.
+func observeNativeAbandon(lane *nativeLane, err error) {
+	switch resourcev2.ErrorCode(err) {
+	case "CANCELLED":
+		if lane.ctx.Err() != nil {
+			diag.ScanAbandoned(diag.AbandonRetired)
+		} else {
+			diag.ScanAbandoned(diag.AbandonCaller)
+		}
+	case "TIMEOUT":
+		diag.ScanAbandoned(diag.AbandonDeadline)
+	case "RESET_REQUIRED":
+		diag.ScanAbandoned(diag.AbandonRetired)
+	}
+}
+
 // query executes one bounded namespace scan per namespace, following continuation
 // only when the API actually returns it. Server-side limit support is not assumed.
 // Namespace inventory, not admitted target count, determines scan cost. An unseen
 // target is missing only after its entire namespace scan completes successfully.
-func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.ResourceMetricsQuery) (*sdkmetric.ResourceMetricsResponse, error) {
+func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.ResourceMetricsQuery) (published *sdkmetric.ResourceMetricsResponse, finalErr error) {
 	if err := nativeContext(pc); err != nil {
 		return nil, err
 	}
@@ -187,6 +208,7 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 	defer cancel()
 	stop := context.AfterFunc(lane.ctx, cancel)
 	defer stop()
+	defer func() { observeNativeAbandon(lane, finalErr) }()
 	if lane.ctx.Err() != nil {
 		return nil, resourcev2.NewError("RESET_REQUIRED", "Native metric source generation was retired")
 	}

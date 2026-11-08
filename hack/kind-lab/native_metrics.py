@@ -4,7 +4,6 @@ import argparse
 import datetime
 import decimal
 import json
-import pathlib
 import re
 import subprocess
 import time
@@ -12,13 +11,20 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-ROOT = pathlib.Path(__file__).resolve().parent
-NAME = 'omniview-load-lab'
-KUBE = ROOT / '.state' / 'kubeconfig'
+import lab
+
+NAME = lab.DEFAULT_NAME
+KUBE = lab.kubeconfig_path(NAME)
 CONTEXT = 'kind-' + NAME
 VERSION = 'v0.8.0'
 MANIFEST = f'https://github.com/kubernetes-sigs/metrics-server/releases/download/{VERSION}/components.yaml'
 IMAGE = 'registry.k8s.io/metrics-server/metrics-server:' + VERSION
+
+
+def select(name):
+    """Target another lab cluster: its private kubeconfig and context replace the defaults for this process."""
+    global NAME, KUBE, CONTEXT
+    NAME, KUBE, CONTEXT = name, lab.kubeconfig_path(name), 'kind-' + name
 
 
 def run(args, data=None, timeout=60):
@@ -258,12 +264,15 @@ def verify(namespace, timeout):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['install', 'verify'])
+    parser.add_argument('--name', type=lab.cluster_name, default=lab.DEFAULT_NAME,
+                        help='lab cluster to target; each name uses only its own private kubeconfig (default: %(default)s)')
     parser.add_argument('--confirm-install', action='store_true', help='Explicitly allow installation into the owned lab')
     parser.add_argument('--confirm-owner-permission', action='store_true',
                         help='Attest that you created this disposable cluster or its creator permits cluster-wide RBAC installation')
     parser.add_argument('--namespace', default='load-000')
     parser.add_argument('--timeout', type=int, default=120)
     args = parser.parse_args()
+    select(args.name)
     if not re.fullmatch(r'load-[0-9]{3}', args.namespace) or not 1 <= args.timeout <= 300:
         parser.error('namespace must be load-NNN; timeout must be 1..300 seconds')
     if args.command == 'install' and not args.confirm_install:
@@ -271,6 +280,7 @@ def main():
     if args.command == 'install' and not args.confirm_owner_permission:
         parser.error('install requires --confirm-owner-permission; names and Docker labels do not prove ownership')
     if args.command == 'install':
+        lab.require_owned(NAME)
         require_owned_kind()
     if args.command == 'install':
         install()
