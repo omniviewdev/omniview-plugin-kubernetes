@@ -48,12 +48,17 @@ func (r *nativeBudgetReader) Read(data []byte) (int, error) {
 	return n, err
 }
 
-func scanNativeNamespace(ctx context.Context, client rest.Interface, namespace string, budget *nativeScanBudget, visit func(*metricsv1beta1.PodMetrics), retain ...func(*metricsv1beta1.PodMetrics) bool) error {
-	return scanNativeMetrics(ctx, client, diag.ScanNamespace, "/apis/metrics.k8s.io/v1beta1/namespaces/"+namespace+"/pods", "PodMetricsList", budget, visit, retain...)
+func scanNativeNamespace(ctx context.Context, client rest.Interface, namespace, name string, budget *nativeScanBudget, visit func(*metricsv1beta1.PodMetrics), retain ...func(*metricsv1beta1.PodMetrics) bool) error {
+	selector := ""
+	if name != "" {
+		// Names came from validated DNS resource identities, not query text.
+		selector = "metadata.name=" + name
+	}
+	return scanNativeMetrics(ctx, client, diag.ScanNamespace, "/apis/metrics.k8s.io/v1beta1/namespaces/"+namespace+"/pods", "PodMetricsList", selector, budget, visit, retain...)
 }
 
 func scanNativeNodes(ctx context.Context, client rest.Interface, budget *nativeScanBudget, visit func(*metricsv1beta1.NodeMetrics), retain ...func(*metricsv1beta1.NodeMetrics) bool) error {
-	return scanNativeMetrics(ctx, client, diag.ScanNode, "/apis/metrics.k8s.io/v1beta1/nodes", "NodeMetricsList", budget, visit, retain...)
+	return scanNativeMetrics(ctx, client, diag.ScanNode, "/apis/metrics.k8s.io/v1beta1/nodes", "NodeMetricsList", "", budget, visit, retain...)
 }
 
 // nativeScanOutcome maps a finished scan to the closed diagnostics vocabulary.
@@ -81,7 +86,7 @@ func nativeScanOutcome(err error) diag.ScanOutcome {
 // Objects and bytes are measured from the shared budget, so work consumed by a
 // scan that is later rejected, exhausted or canceled is still counted. Nothing
 // that names a namespace, Pod, continuation token or error text is recorded.
-func scanNativeMetrics[T any](ctx context.Context, client rest.Interface, operation diag.ScanOperation, path, kind string, budget *nativeScanBudget, visit func(*T), retain ...func(*T) bool) (scanErr error) {
+func scanNativeMetrics[T any](ctx context.Context, client rest.Interface, operation diag.ScanOperation, path, kind, selector string, budget *nativeScanBudget, visit func(*T), retain ...func(*T) bool) (scanErr error) {
 	startObjects, startBytes := budget.objects, budget.bytes
 	defer func() {
 		diag.ScanVolume(operation, int64(startObjects-budget.objects), startBytes-budget.bytes)
@@ -101,6 +106,9 @@ func scanNativeMetrics[T any](ctx context.Context, client rest.Interface, operat
 		// metrics-server may ignore limit; never assume one page is bounded by it.
 		request := client.Get().AbsPath(path).
 			SetHeader("Accept", "application/json").SetHeader("Accept-Encoding", "identity").Param("limit", "1000")
+		if selector != "" {
+			request = request.Param("fieldSelector", selector)
+		}
 		if continuation != "" {
 			request = request.Param("continue", continuation)
 		}

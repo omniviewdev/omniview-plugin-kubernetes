@@ -283,7 +283,16 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 				return wanted && item.Namespace == ""
 			})
 		} else {
-			err = scanNativeNamespace(ctx, clients.Clientset.CoreV1().RESTClient(), namespace, &budget, visit, func(item *metricsv1beta1.PodMetrics) bool {
+			name := ""
+			if len(indices) == 1 {
+				for targetName := range indices {
+					name = targetName
+				}
+			}
+			// A singleton can use the API's exact name selector without adding
+			// a request. Keep filtering, pagination and all scan budgets even
+			// when an aggregated metrics API ignores the selector.
+			err = scanNativeNamespace(ctx, clients.Clientset.CoreV1().RESTClient(), namespace, name, &budget, visit, func(item *metricsv1beta1.PodMetrics) bool {
 				_, wanted := indices[item.Name]
 				return wanted && item.Namespace == namespace
 			})

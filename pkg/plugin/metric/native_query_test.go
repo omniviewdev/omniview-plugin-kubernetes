@@ -13,6 +13,7 @@ import (
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
 	sdkmetric "github.com/omniviewdev/plugin-sdk/pkg/v1/metric"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
@@ -332,4 +333,84 @@ func TestNativeQueryRefreshReachesPreviouslyBudgetStarvedNamespace(t *testing.T)
 		}
 	}
 	t.Fatalf("refresh lost previously starved target %q", starved)
+}
+
+func TestNativeNameSelectionReducesScanWithoutSplittingBatches(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		targets []string
+		scanned float64
+	}{
+		{name: "singleton", targets: []string{"same"}, scanned: 1},
+		{name: "batch", targets: []string{"same", "peer"}, scanned: 3},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			calls := 0
+			provider := nativeTestProvider(t, func(request *http.Request) (*http.Response, error) {
+				calls++
+				selector, err := fields.ParseSelector(request.URL.Query().Get("fieldSelector"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				var items []string
+				for _, name := range []string{"unrequested", "same", "peer"} {
+					if selector.Matches(fields.Set{"metadata.name": name}) {
+						items = append(items, strings.ReplaceAll(nativeSample, `"name":"same"`, `"name":"`+name+`"`))
+					}
+				}
+				return nativeTestResponse(request, nativePage(strings.Join(items, ","))), nil
+			})
+			pc := &types.PluginContext{Context: context.Background(), Connection: &types.Connection{ID: "selected"}}
+			query := sdkmetric.ResourceMetricsQuery{Source: nativeSource(pc), Shape: "current", MetricIDs: []string{nativeCPU, nativeMemory}}
+			for _, name := range test.targets {
+				query.Targets = append(query.Targets, nativeTestTarget(name, "one", name))
+			}
+			before := scanSeries(t)
+			response, err := provider.query(pc, query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !response.Complete || len(response.Results) != 2*len(test.targets) || calls != 1 {
+				t.Fatalf("namespace batch changed: calls=%d response=%+v", calls, response)
+			}
+			for _, result := range response.Results {
+				if result.Status != "ok" || result.Value == nil {
+					t.Fatalf("requested measurement lost by name selection: %+v", result)
+				}
+			}
+			if got := scanSeries(t)["objects|operation=namespace"] - before["objects|operation=namespace"]; got != test.scanned {
+				t.Fatalf("decoded %v objects, want %v", got, test.scanned)
+			}
+		})
+	}
+}
+
+func TestNativeNameSelectionSurvivesContinuationUnderNameScopedAccess(t *testing.T) {
+	calls := 0
+	provider := nativeTestProvider(t, func(request *http.Request) (*http.Response, error) {
+		calls++
+		// Name-scoped LIST access requires the same predicate on every page.
+		if request.URL.Query().Get("fieldSelector") != "metadata.name=same" {
+			response := nativeTestResponse(request, `{"kind":"Status","apiVersion":"v1","status":"Failure","reason":"Forbidden","code":403}`)
+			response.StatusCode = http.StatusForbidden
+			return response, nil
+		}
+		if request.URL.Query().Get("continue") == "" {
+			page := strings.Replace(nativePage(""), `"metadata":{}`, `"metadata":{"continue":"next"}`, 1)
+			return nativeTestResponse(request, page), nil
+		}
+		return nativeTestResponse(request, nativePage(nativeSample)), nil
+	})
+	pc := &types.PluginContext{Context: context.Background(), Connection: &types.Connection{ID: "selected"}}
+	query := sdkmetric.ResourceMetricsQuery{
+		Source: nativeSource(pc), Shape: "current", MetricIDs: []string{nativeCPU},
+		Targets: []sdkmetric.ResourceMetricTarget{nativeTestTarget("row", "one", "same")},
+	}
+	response, err := provider.query(pc, query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 || !response.Complete || len(response.Results) != 1 || response.Results[0].Status != "ok" || response.Results[0].Value == nil {
+		t.Fatalf("filtered continuation lost the admitted sample: calls=%d response=%+v", calls, response)
+	}
 }
