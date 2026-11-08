@@ -39,6 +39,8 @@ These recipes preserve the cAdvisor and kube-state-metrics aggregation, exporter
 
 The catalog declares public scope key `cluster`, named **Cluster label value**. This is the actual exporter label value, not the connection ID or resource authority. Required scope derives from required scope bindings on the effective mappings. Namespace and Pod bindings explicitly approve `/metadata/namespace` and `/metadata/name`. The host projects those scalars from admitted observed resource bodies through the owning schema's body guard; Grafana reads only host-provided public projections. Neither provider adds per-object GETs or reconstructs authority from row names. The two native-only Node definitions have no PromQL recipe, resource projections, or invented history.
 
+The built-in fixed-query Pod recipes declare `RangeReuse` for their pointwise range evaluations. This owner hint does not authorize caching: the executing provider must separately opt in. Edited or overridden definitions do not inherit the declaration. Native metrics-server remains current-only; no history or range-to-current equivalence is inferred from it.
+
 
 ## API migration
 
@@ -112,6 +114,7 @@ Clients reuse the Kubernetes connection's actual authenticated transport, includ
 - Tables use base-ui `MetricCell`: a fixed-density bar beside a compact value. Pod limits/requests and Node capacity come from their owning resources, in the catalog's physical units. Unknown bounds remain unknown.
 - Panels use `MetricPanel.value` and the shared segmented Area / Line / Bars / Value controls. Chart spacing and control styling belong to base-ui.
 - One current observation covers all selected current-capable metrics; one range observation covers history. Details show both samples without inventing historical expiry.
+- Range progress uses the shared partial/updating states. An absent pair in an incomplete frame stays pending, not missing. Charts use `maxGapMs` from the displayed step and preserve source null gaps. Compatible displayed history remains visible when progress would discard loaded samples; its domain and step are not relabeled as the pending request.
 - Identity chips use the admitted reference and owner-approved cluster scope, not series labels or source connection IDs. Owner scope survives external provider switches; native sources omit external owner scope.
 - Provider selection keeps `inherit`, `native`, and `external` routing separate from display preferences. Inherited selections show the resolved provider's icon without changing the saved mode.
 - Linked Pod and Node drawers expose the same Metrics view as their table-row drawers.
