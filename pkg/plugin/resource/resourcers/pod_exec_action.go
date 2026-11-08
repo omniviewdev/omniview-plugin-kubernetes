@@ -13,10 +13,10 @@ import (
 	resource "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/httpstream"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/util/exec"
+	"k8s.io/streaming/pkg/httpstream"
 )
 
 const (

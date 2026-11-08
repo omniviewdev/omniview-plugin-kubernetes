@@ -13,7 +13,7 @@ PLATFORMS := linux/amd64 windows/amd64 darwin/amd64 darwin/arm64
 
 build:
 	rm -rf bin && rm -f kubernetes.tar.gz
-	mkdir bin && GOEXPERIMENT=jsonv2 go build -o bin/plugin ./pkg
+	mkdir bin && go build -o bin/plugin ./pkg
 	cd ui && pnpm run build
 
 build-ui:
@@ -51,7 +51,7 @@ package:
 		MODPLATFORM=$${GOOS}_$${GOARCH}; \
 		if [ "$$GOOS" = "windows" ]; then OUTFILE=plugin.exe; fi; \
 		rm -rf $$OUTDIR && mkdir -p $$OUTDIR; \
-		GOEXPERIMENT=jsonv2 GOOS=$$GOOS GOARCH=$$GOARCH go build -o $$OUTDIR/$$OUTFILE ./pkg; \
+		GOOS=$$GOOS GOARCH=$$GOARCH go build -o $$OUTDIR/$$OUTFILE ./pkg; \
 		NAME=omniview-plugin-kubernetes-$(VERSION)-$$MODPLATFORM.tar.gz; \
 		tar -czvf ./build/$$NAME -C .package .; \
 	done
