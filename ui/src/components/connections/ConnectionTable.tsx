@@ -1,4 +1,4 @@
-import { Button, DataTable, useDataTable, type DataTableColumnDef } from '@omniviewdev/base-ui';
+import { DataTable, useDataTable, type DataTableColumnDef } from '@omniviewdev/base-ui';
 import { useNotifications } from '@omniviewdev/runtime';
 import React from 'react';
 
@@ -13,6 +13,9 @@ import type {
   SortDirection,
 } from '../../types/clusters';
 import { getClusterDisplayFacts, type ClusterDisplayFact } from '../../utils/clusterSearch';
+import { getProviderLabel } from '../../utils/providers';
+import { getRegionFlag } from '../../utils/regions';
+import ProviderIcon from './ProviderIcon';
 
 import ConnectionCard from './ConnectionCard';
 import ConnectionGroupComp from './ConnectionGroup';
@@ -41,15 +44,13 @@ type Props = {
 };
 
 const features = { sorting: true, columnVisibility: true, columnResizing: true, pagination: false };
-const factCell = (fact?: ClusterDisplayFact) =>
+const factCell = (fact?: ClusterDisplayFact, region = false) =>
   fact ? (
-    <span title={`${fact.provenance} · ${fact.key}`}>
+    <span title={fact.provenance}>
+      {region && <span aria-hidden="true">{getRegionFlag(fact.value)} </span>}
       {fact.value}
-      {fact.hint ? ' (configured hint)' : ''}
     </span>
-  ) : (
-    'Unknown'
-  );
+  ) : null;
 
 const GridCardWrapper = ({ enriched, ...props }: Props & { enriched: EnrichedConnection }) => {
   const id = enriched.connection.id;
@@ -97,7 +98,6 @@ const GridCardWrapper = ({ enriched, ...props }: Props & { enriched: EnrichedCon
 };
 
 function TableSection({ connections, ...props }: Props & { connections: EnrichedConnection[] }) {
-  const [compact, setCompact] = React.useState(true);
   const [coreVisibility, setCoreVisibility] = React.useState<Record<string, boolean>>({});
   const [localSorting, setLocalSorting] = React.useState<{ id: string; desc: boolean }[]>([]);
   const sorting = props.sortBy
@@ -137,7 +137,15 @@ function TableSection({ connections, ...props }: Props & { connections: Enriched
       enableHiding: false,
       cell: ({ row }) => item(row.original, 'identity'),
     },
-    { id: 'provider', header: 'Provider', accessorFn: (row) => row.provider, size: 130 },
+    {
+      id: 'provider', header: 'Provider', accessorFn: (row) => getProviderLabel(row.provider), size: 160,
+      cell: ({ row }) => (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--ov-space-stack-xs)' }}>
+          <ProviderIcon provider={row.original.provider} size={16} />
+          {getProviderLabel(row.original.provider)}
+        </span>
+      ),
+    },
     ...(['region', 'account', 'environment'] as const).map((key) => ({
       id: `fact:${key}`,
       header:
@@ -162,7 +170,7 @@ function TableSection({ connections, ...props }: Props & { connections: Enriched
             </>
           );
         }
-        return factCell(facts[key]);
+        return factCell(facts[key], key === 'region');
       },
     })),
     {
@@ -253,8 +261,12 @@ function TableSection({ connections, ...props }: Props & { connections: Enriched
     const index = visualIds.indexOf(props.selectedId);
     if (index < 0) return;
     if (data.length > 100 && scrollRef.current) {
-      scrollRef.current.scrollTop = index * (compact ? 40 : 48);
-      scrollRef.current.dispatchEvent(new Event('scroll'));
+      const row = scrollRef.current.querySelector('tbody tr');
+      const rowHeight = row?.getBoundingClientRect().height;
+      if (rowHeight) {
+        scrollRef.current.scrollTop = index * rowHeight;
+        scrollRef.current.dispatchEvent(new Event('scroll'));
+      }
     }
     const frame = requestAnimationFrame(() => {
       const action = [
@@ -263,30 +275,21 @@ function TableSection({ connections, ...props }: Props & { connections: Enriched
       action?.scrollIntoView?.({ block: 'nearest' });
     });
     return () => cancelAnimationFrame(frame);
-  }, [props.selectedId, visualKey, compact, data.length]);
+  }, [props.selectedId, visualKey, data.length]);
   return (
     <DataTable
       table={table}
       features={features}
-      size={compact ? 'sm' : 'md'}
       hoverable
       stickyHeader
     >
       <DataTable.Toolbar>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => setCompact((value) => !value)}
-          aria-label="Toggle table density"
-        >
-          {compact ? 'Comfortable rows' : 'Compact rows'}
-        </Button>
         <DataTable.ColumnVisibility />
       </DataTable.Toolbar>
       <DataTable.Container ref={scrollRef} style={{ maxHeight: 'min(70vh, 800px)' }}>
         <DataTable.Header />
         {data.length > 100 ? (
-          <DataTable.VirtualBody estimateRowSize={compact ? 40 : 48} overscan={12} />
+          <DataTable.VirtualBody overscan={12} />
         ) : (
           <DataTable.Body />
         )}

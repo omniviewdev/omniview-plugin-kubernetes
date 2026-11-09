@@ -17,6 +17,14 @@ import {
   LuArrowUpRight,
   LuEllipsisVertical,
   LuFolderPlus,
+  LuBookmarkPlus,
+  LuLayoutList,
+  LuLayers,
+  LuClock,
+  LuPin,
+  LuPlug,
+  LuChevronLeft,
+  LuChevronRight,
 } from 'react-icons/lu';
 
 import type { ClusterPreferencesState } from '../../hooks/useClusterPreferences';
@@ -51,6 +59,12 @@ const SCOPES = [
   ['connected', 'Connected'],
 ] as const;
 
+const SCOPE_ICONS = {
+  all: <LuLayers />,
+  recent: <LuClock />,
+  favorites: <LuPin />,
+  connected: <LuPlug />,
+};
 export default function ExplorerSidebar(props: Props) {
   const { preferences, connections } = props;
   const [lensDialog, setLensDialog] = React.useState<{ id?: string; name: string }>();
@@ -139,6 +153,7 @@ export default function ExplorerSidebar(props: Props) {
             <SidebarRow
               key={scope}
               label={label}
+              icon={SCOPE_ICONS[scope]}
               count={counts[scope]}
               current={props.scope === scope && !props.organizing}
               onClick={() => props.onScopeChange(scope)}
@@ -261,21 +276,6 @@ export default function ExplorerSidebar(props: Props) {
             ))}
           </div>
         )}
-        <ButtonGroup attached={false} aria-label="Explorer actions" className={styles.actions}>
-          <ButtonGroup.Button
-            aria-label="Save current lens"
-            onClick={() => setLensDialog({ name: '' })}
-          >
-            + Lens
-          </ButtonGroup.Button>
-          <ButtonGroup.Button
-            color={props.organizing ? 'brand' : 'neutral'}
-            aria-pressed={props.organizing}
-            onClick={props.onOrganize}
-          >
-            Organize
-          </ButtonGroup.Button>
-        </ButtonGroup>
         {error && (
           <Text size="sm" tone="danger" role="alert" className={styles.error}>
             {error}
@@ -283,7 +283,7 @@ export default function ExplorerSidebar(props: Props) {
         )}
       </div>
       {props.attributes.length > 0 && (
-        <Menu.Root>
+        <Menu.Root size="sm">
           <Menu.Trigger render={<Button size="sm" variant="ghost" />}>
             Browse attributes
           </Menu.Trigger>
@@ -295,16 +295,10 @@ export default function ExplorerSidebar(props: Props) {
                     <Menu.SubmenuTrigger showCaret>{attribute.displayName}</Menu.SubmenuTrigger>
                     <Menu.Portal>
                       <Menu.Positioner sideOffset={4}>
-                        <Menu.Popup>
-                          {attribute.distinctValues.map((value) => (
-                            <Menu.Item
-                              key={value}
-                              onClick={() => props.onBrowse(attribute.key, value)}
-                            >
-                              {value}
-                            </Menu.Item>
-                          ))}
-                        </Menu.Popup>
+                        <AttributeValues
+                          attribute={attribute}
+                          onBrowse={(value) => props.onBrowse(attribute.key, value)}
+                        />
                       </Menu.Positioner>
                     </Menu.Portal>
                   </Menu.SubmenuRoot>
@@ -314,6 +308,25 @@ export default function ExplorerSidebar(props: Props) {
           </Menu.Portal>
         </Menu.Root>
       )}
+      <ButtonGroup size="sm" attached={false} aria-label="Explorer actions" className={styles.actions}>
+        <ButtonGroup.Button
+          variant="ghost"
+          startDecorator={<LuBookmarkPlus />}
+          aria-label="Save current lens"
+          onClick={() => setLensDialog({ name: '' })}
+        >
+          Save lens
+        </ButtonGroup.Button>
+        <ButtonGroup.Button
+          variant="ghost"
+          startDecorator={<LuLayoutList />}
+          color={props.organizing ? 'brand' : 'neutral'}
+          aria-pressed={props.organizing}
+          onClick={props.onOrganize}
+        >
+          Organize
+        </ButtonGroup.Button>
+      </ButtonGroup>
       {lensDialog && (
         <Dialog
           open
@@ -346,6 +359,7 @@ export default function ExplorerSidebar(props: Props) {
             <Dialog.Body>
               <FormField label="Lens name" htmlFor="cluster-lens-name">
                 <Input.Control
+                  size="sm"
                   id="cluster-lens-name"
                   value={lensDialog.name}
                   ref={lensNameRef}
@@ -356,6 +370,7 @@ export default function ExplorerSidebar(props: Props) {
             </Dialog.Body>
             <Dialog.Footer>
               <Button
+                size="sm"
                 variant="ghost"
                 type="button"
                 disabled={pending}
@@ -363,7 +378,7 @@ export default function ExplorerSidebar(props: Props) {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={pending || !lensDialog.name.trim()}>
+              <Button size="sm" type="submit" disabled={pending || !lensDialog.name.trim()}>
                 Save
               </Button>
             </Dialog.Footer>
@@ -396,7 +411,7 @@ function SidebarRow({
 }: SidebarRowProps) {
   return (
     <Button
-      size="md"
+      size="sm"
       variant={current ? 'soft' : 'ghost'}
       color={current ? 'brand' : 'neutral'}
       aria-current={current ? 'page' : undefined}
@@ -434,5 +449,40 @@ function ItemMenu({ label, children }: { label: string; children: React.ReactNod
         </Menu.Positioner>
       </Menu.Portal>
     </Menu.Root>
+  );
+}
+
+function AttributeValues({
+  attribute,
+  onBrowse,
+}: {
+  attribute: ConnectionAttribute;
+  onBrowse: (value: string) => void;
+}) {
+  const [page, setPage] = React.useState(0);
+  const pageSize = 20;
+  const pageCount = Math.ceil(attribute.distinctValues.length / pageSize);
+  const currentPage = Math.min(page, Math.max(0, pageCount - 1));
+  return (
+    <Menu.Popup className={styles.attributeValues}>
+      {attribute.distinctValues.slice(currentPage * pageSize, (currentPage + 1) * pageSize).map((value) => (
+        <Menu.Item key={value} title={value} onClick={() => onBrowse(value)}>
+          {value}
+        </Menu.Item>
+      ))}
+      {pageCount > 1 && (
+        <>
+          <Menu.Separator />
+          <Menu.Item closeOnClick={false} disabled={currentPage === 0}
+            startDecorator={<LuChevronLeft />} onClick={() => setPage(currentPage - 1)}>
+            Previous
+          </Menu.Item>
+          <Menu.Item closeOnClick={false} disabled={currentPage === pageCount - 1}
+            endDecorator={<LuChevronRight />} onClick={() => setPage(currentPage + 1)}>
+            Next · {currentPage + 1} / {pageCount}
+          </Menu.Item>
+        </>
+      )}
+    </Menu.Popup>
   );
 }

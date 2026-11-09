@@ -85,11 +85,13 @@ identifiers containing colons, for example `"arn:aws:eks:cluster"`. Unknown keys
 and unfinished quotes show diagnostics and do not silently widen results.
 Keyed values match case-insensitive prefixes, so `region:us-` keeps matching
 clusters visible while completing a value.
-Displayed region, account, project, and environment facts retain their source.
-Explicit user tags take precedence over current metadata, followed by configured
-label/data hints; mutable AWS/GCP configuration metadata remains a labeled hint,
-not verified infrastructure ownership. Cluster names never establish production
-or local facts. Metadata freshness is separate from connection readiness and
+Displayed region, account, project, and environment facts retain their source in
+tooltips. Explicit user tags take precedence. A valid EKS cluster ARN supplies
+its cluster account before metadata or configuration account hints; authentication
+role ARNs never establish cluster ownership. Missing facts leave empty cells.
+Known cloud regions show country flags; unknown or multi-country regions have no flag.
+Mutable AWS/GCP configuration remains a hint, not verified infrastructure ownership.
+Cluster names never establish production or local facts. Metadata freshness is separate from connection readiness and
 workload health. The ready cluster resource route records each mounted view once
 in the shared backend-backed, 100-entry recent history, covering homepage,
 explorer, launcher, tabs and windows. Nested resource navigation does not add
@@ -107,6 +109,19 @@ New profiles group cards by sourced environment. Existing grouping preferences r
 Collapse state is local to the current view and grouping, including the attribute key. Collapsing a Cards group does not hide a Debug readiness section with the same value. Recent and main results share one pending-open scope, so activating the same connecting cluster from both entry points opens it once.
 
 Cards, Table, Debug, and Organize share the same scope and filters. Table stays flat regardless of collapsed card groups and retains both account and project facts when both exist. Project is also independently available in the column picker. Account / Project ordering uses both displayed facts when available, including saved lenses. New profiles start with curated identity columns; the column picker can reveal raw context data, and existing saved column choices remain intact.
+
+Explorer search, autocomplete, sidebar actions, and folder controls use the shared
+small control size. Table density follows the application's global setting, with
+no per-table density switch. Sidebar actions stay at the bottom, and attribute
+submenus show 20 single-line values per page with Previous/Next navigation.
+The column picker uses shared base-ui spacing. Cluster-name tooltips omit repeated
+identity values.
+
+Provider logos are bundled locally: Amazon EKS comes from the [Iconify SVG Logos
+collection](https://github.com/gilbarbara/logos) (CC0); [Minikube](https://github.com/kubernetes/minikube/blob/master/images/logo/logo.svg)
+and [Kind](https://github.com/kubernetes-sigs/kind/blob/main/logo/logo.svg) use their
+respective upstream project artwork. Logos remain the property of their owners.
+
 
 Folders retain preset icons, colors, legacy custom images, manual membership, and automatic rules. Effective membership is the deduplicated union of manual assignments and rule matches. Dragging into a folder adds manual membership; explicit menu actions provide keyboard alternatives. Cancelled and no-target drops leave membership unchanged.
 

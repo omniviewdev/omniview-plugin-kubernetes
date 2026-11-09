@@ -94,7 +94,7 @@ const ConnectionCard: React.FC<Props> = ({
         </Card.Action>
       </Card.Header>
       <Card.Body className={styles.footer}>
-        {environment ? (
+        {environment && (
           <Chip
             size="sm"
             variant="outline"
@@ -102,10 +102,6 @@ const ConnectionCard: React.FC<Props> = ({
             className={styles.environment}
           >
             {environment.value}
-          </Chip>
-        ) : (
-          <Chip size="sm" variant="outline" color="neutral" className={styles.environment}>
-            Unknown environment
           </Chip>
         )}
         <StatusDot

@@ -68,6 +68,11 @@ function props(connections: EnrichedConnection[]): ComponentProps<typeof Connect
 }
 
 describe('ConnectionTable', () => {
+  it('deduplicates identical cluster identity values in the name tooltip', () => {
+    render(<ConnectionTable {...props([connection('cluster-a')])} />);
+    const tooltip = screen.getByRole('button', { name: 'Open cluster-a' }).getAttribute('title')!;
+    expect(tooltip.split('\n').filter((line) => line === 'cluster-a')).toHaveLength(1);
+  });
   it('keeps all grid results available without a hidden pagination boundary', () => {
     const input = props(Array.from({ length: 45 }, (_, index) => connection(`cluster-${index}`)));
     const { container } = render(<ConnectionTable {...input} viewMode="grid" />);
@@ -81,10 +86,6 @@ describe('ConnectionTable', () => {
     );
     expect(screen.getByRole('columnheader', { name: /Provider/ })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: /Environment/ })).toBeInTheDocument();
-    expect(screen.getByText('eu-west-1 (configured hint)')).toHaveAttribute(
-      'title',
-      'Configured hint · label region · region',
-    );
     expect(screen.getByText('platform')).toBeInTheDocument();
     const open = screen.getByRole('button', { name: 'Open cluster-a' });
     expect(open).toHaveAttribute('data-cluster-open', 'cluster-a');
@@ -99,7 +100,7 @@ describe('ConnectionTable', () => {
     project.metadata = { 'gcp.project_id': 'local-project-fixture' };
     render(<ConnectionTable {...props([project])} />);
     expect(screen.getByRole('columnheader', { name: /Account \/ Project/ })).toBeInTheDocument();
-    const value = screen.getByText('local-project-fixture (configured hint)');
+    const value = screen.getByText('local-project-fixture');
     expect(value.parentElement).toHaveTextContent('Project: local-project-fixture');
     expect(value).toHaveAttribute('title', expect.stringContaining('gcp.project_id'));
   });
@@ -110,10 +111,10 @@ describe('ConnectionTable', () => {
     owned.connection.labels = { account: 'platform-account' };
     owned.metadata = { 'gcp.project_id': 'payments-project' };
     render(<ConnectionTable {...props([owned])} sortBy="name" onSortChange={vi.fn()} />);
-    expect(screen.getByText('platform-account (configured hint)')).toHaveAttribute(
+    expect(screen.getByText('platform-account')).toHaveAttribute(
       'title', expect.stringContaining('label account'),
     );
-    expect(screen.getByText('payments-project (configured hint)')).toHaveAttribute(
+    expect(screen.getByText('payments-project')).toHaveAttribute(
       'title', expect.stringContaining('gcp.project_id'),
     );
     expect(screen.queryByRole('columnheader', { name: 'Project', exact: true })).not.toBeInTheDocument();
@@ -121,11 +122,11 @@ describe('ConnectionTable', () => {
     await user.click(await screen.findByRole('checkbox', { name: 'Project', exact: true }));
     await user.keyboard('{Escape}');
     expect(screen.getByRole('columnheader', { name: 'Project', exact: true })).toBeVisible();
-    expect(screen.getByRole('cell', { name: 'payments-project (configured hint)', exact: true })).toBeVisible();
-    expect(screen.getByText('platform-account (configured hint)')).toBeVisible();
+    expect(screen.getByRole('cell', { name: 'payments-project', exact: true })).toBeVisible();
+    expect(screen.getByText('platform-account')).toBeVisible();
   });
 
-  it('sorts visible native open actions and changes density without dropping results', () => {
+  it('sorts visible native open actions without dropping results', () => {
     const onVisualOrderChange = vi.fn();
     const { container } = render(
       <ConnectionTable
@@ -140,9 +141,6 @@ describe('ConnectionTable', () => {
       ),
     ).toEqual(['alpha', 'zulu']);
     expect(onVisualOrderChange).toHaveBeenLastCalledWith(['alpha', 'zulu']);
-    fireEvent.click(screen.getByRole('button', { name: 'Toggle table density' }));
-    expect(screen.getByText('Compact rows')).toBeInTheDocument();
-    expect(container.querySelectorAll('[data-cluster-open]')).toHaveLength(2);
   });
 
   it('preserves group collapse and hides collapsed actions', () => {

@@ -1,6 +1,7 @@
 import type { EnrichedConnection } from '../../types/clusters';
 import { getClusterDisplayFacts, type ClusterDisplayFact } from '../../utils/clusterSearch';
 import { getProviderLabel } from '../../utils/providers';
+import { getRegionFlag } from '../../utils/regions';
 
 export interface ClusterCardFacts {
   providerLabel: string;
@@ -56,14 +57,11 @@ export function clusterCardFacts(enriched: EnrichedConnection): ClusterCardFacts
   };
 }
 
-/** One muted line. Unknown values stay visible without repeating a label per fact. */
+/** One muted line, omitting facts that are not known. */
 export function localityText({
   region,
   account,
-  accountLabel,
 }: Pick<ClusterCardFacts, 'region' | 'account' | 'accountLabel'>): string {
-  if (!region && !account) return `Region and ${accountLabel.toLowerCase()} unknown`;
-  return [region?.value ?? 'Region unknown', account?.value ?? `${accountLabel} unknown`].join(
-    ' · ',
-  );
+  return [region ? `${getRegionFlag(region.value)} ${region.value}`.trim() : undefined, account?.value]
+    .filter(Boolean).join(' · ');
 }

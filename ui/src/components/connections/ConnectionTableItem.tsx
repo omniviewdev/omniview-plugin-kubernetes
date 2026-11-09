@@ -97,7 +97,7 @@ const ConnectionTableItem: React.FC<Props> = ({
       ]
         .filter(Boolean)
         .join('\n')}
-      title={`${displayName}\n${connection.name}\n${connection.id}\n${enriched.displayDescription}`}
+      title={[...new Set([displayName, connection.name, connection.id, enriched.displayDescription].filter(Boolean))].join('\n')}
       disabled={connecting}
       style={{ maxWidth: '100%', justifyContent: 'flex-start' }}
     >

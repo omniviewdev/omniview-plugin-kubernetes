@@ -1,4 +1,4 @@
-import { Button, Heading, Skeleton, Stack, Text } from '@omniviewdev/base-ui';
+import { Button, Heading, ShortcutSummary, Skeleton, Stack, Text } from '@omniviewdev/base-ui';
 import {
   usePluginContext,
   useConnections,
@@ -506,7 +506,11 @@ export default function ClustersPage(): React.ReactElement {
           />
           {organize && (
             <Stack direction="row" align="center" justify="between">
-              <Text weight="semibold">Organize folders and sections</Text>
+              <ShortcutSummary style={{ flex: '1 1 0' }} aria-label="Folder keyboard shortcuts" items={[
+                { id: 'lift', keys: ['Space'], description: 'Lift / drop' },
+                { id: 'move', keys: ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'], description: 'Move' },
+                { id: 'cancel', keys: ['Escape'], description: 'Cancel' },
+              ]} />
               <Button size="sm" onClick={() => setOrganize(false)}>
                 Done
               </Button>
