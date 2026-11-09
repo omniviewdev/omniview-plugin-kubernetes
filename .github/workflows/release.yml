@@ -76,9 +76,10 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - uses: pnpm/setup@c9883cc79df532ad1a7b81bf9ab944ceb090d65c # v2.0.0
+      - uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
         with:
           version: 12.14.0
+          node-version-file: "false"
           install: false
 
       - uses: actions/setup-node@v4
@@ -155,7 +156,7 @@ jobs:
           publisher-slug: omniview
           plugin-id: kubernetes
           version: ${{ needs.build.outputs.version }}
-          min-ide-version: "0.32.1"
+          min-ide-version: "0.33.0"
           artifact-path: dist/
           architectures: ${{ needs.build.outputs.platforms }}
 

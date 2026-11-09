@@ -15,7 +15,7 @@ func metricOwnerCatalog(*types.PluginContext) (*sdkmetric.MetricOwnerCatalog, er
 		{Field: "namespace", Label: "namespace", Source: "resource", ResourcePath: "/metadata/namespace", Required: true},
 		{Field: "pod", Label: "pod", Source: "resource", ResourcePath: "/metadata/name", Required: true},
 	}
-	base := sdkmetric.MetricDefinition{ResourceKeys: []string{"k8s:/pods"}, Semantics: "gauge", QueryLanguage: "promql", FieldBindings: bindings, IdentityLabels: []string{"cluster", "namespace", "pod"}, Reducer: "none", BatchStrategy: "identity", Revision: "kubernetes-cadvisor-v1", SupportedShapes: []string{"current", "range"}}
+	base := sdkmetric.MetricDefinition{ResourceKeys: []string{"k8s:/pods"}, Semantics: "gauge", QueryLanguage: "promql", FieldBindings: bindings, IdentityLabels: []string{"cluster", "namespace", "pod"}, Reducer: "none", BatchStrategy: "identity", Revision: "kubernetes-cadvisor-v1", SupportedShapes: []string{"current", "range"}, RangeReuse: true}
 	clone := func() sdkmetric.MetricDefinition {
 		definition := base
 		definition.FieldBindings = slices.Clone(base.FieldBindings)

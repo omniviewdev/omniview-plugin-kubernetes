@@ -3,8 +3,8 @@ import { useEffect, type ReactNode } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
-  observation: { results: [] as object[], domain: { startMs: 1000, endMs: 2000 }, isLoading: false, isFetching: false, error: null as Error | null, refresh: vi.fn() },
-  currentObservation: { results: [] as object[], domain: null, isLoading: false, isFetching: false, error: null, refresh: vi.fn() },
+  observation: { results: [] as object[], domain: { startMs: 1000, endMs: 2000 }, isLoading: false, isFetching: false, isPartial: false, stepMs: null as number | null, error: null as Error | null, refresh: vi.fn() },
+  currentObservation: { results: [] as object[], domain: null, isLoading: false, isFetching: false, isPartial: false, error: null, refresh: vi.fn() },
   shapes: ['range'],
   mixed: false,
   timeMode: 'relative' as 'relative' | 'absolute',
@@ -57,6 +57,8 @@ afterEach(() => {
   cleanup(); state.shapes = ['range']; state.mixed = false; state.timeMode = 'relative';
   state.chartMounts = 0; state.observe.mockClear(); state.chart.mockClear();
   state.observation.isFetching = false; state.observation.results = []; state.currentObservation.results = [];
+  state.observation.isLoading = false; state.observation.isPartial = false; state.observation.stepMs = null; state.observation.domain = { startMs: 1000, endMs: 2000 };
+  state.currentObservation.isFetching = false; state.currentObservation.isPartial = false;
   state.extraMetrics = []; state.selectedIDs = null; state.useDefaults = false; state.update.mockClear(); state.defaults.mockClear();
   state.displays = {}; state.panel.mockClear(); state.parse.mockClear(); state.observation.error = null; state.catalogError = null;
   state.details.mockClear();
@@ -212,3 +214,4 @@ it('retains saved unavailable metric IDs instead of pruning them against the cat
   expect(screen.getByRole('button', { name: 'Remove saved-unavailable' })).toBeTruthy();
   expect(state.update).not.toHaveBeenCalled();
 });
+

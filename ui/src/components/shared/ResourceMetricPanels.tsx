@@ -12,6 +12,14 @@ import styles from './ResourceMetricPanels.module.css';
 import { PLUGIN_ID } from '@/pluginId';
 
 const METRIC_COLORS = ['series-1', 'series-2', 'series-3', 'series-4', 'series-5', 'series-6', 'series-7', 'series-8'] as const;
+/** One range request resolves about 250 points across its span, never finer than 15 s. */
+const rangeStepMs = (spanMs: number) => Math.max(15000, Math.ceil(spanMs / 250));
+/**
+ * Neighbouring samples sit one step apart and a missing one leaves two; source timestamp
+ * rounding stays far below half a step. One and a half steps joins neighbours and splits
+ * at an unloaded gap.
+ */
+const maxGapForStep = (stepMs: number) => Math.ceil(stepMs * 1.5);
 
 export interface ResourceMetricPanelsProps extends Pick<UseMetricObservationOptions, 'bindingID' | 'source'> {
   connectionID: string;
@@ -87,12 +95,14 @@ function SelectedMetricPanels({ catalog, sourceControl, ...props }: ResourceMetr
   const enabled = !catalog.isLoading && !catalog.error && !view.isLoading;
   const currentObservation = useMetricObservation({ ...scope, targets, metricIDs: currentIDs,
     shape: 'current', intervalMs: 15000, enabled: enabled && currentIDs.length > 0 });
+  const requestedStepMs = rangeStepMs(time.mode === 'relative' ? time.durationMs : time.domain.endMs - time.domain.startMs);
   const rangeObservation = useMetricObservation({ ...scope, targets, metricIDs: rangeIDs, shape: 'range',
     durationMs: time.mode === 'relative' ? time.durationMs : undefined,
     startTime: time.mode === 'absolute' ? new Date(time.domain.startMs).toISOString() : undefined,
     endTime: time.mode === 'absolute' ? new Date(time.domain.endMs).toISOString() : undefined,
-    stepMs: Math.max(15000, Math.ceil((time.mode === 'relative' ? time.durationMs : time.domain.endMs - time.domain.startMs) / 250)),
-    intervalMs: 15000, enabled: enabled && rangeIDs.length > 0 });
+    stepMs: requestedStepMs, intervalMs: 15000, enabled: enabled && rangeIDs.length > 0 });
+  // Displayed history keeps the resolution it was requested with until a newer frame replaces it.
+  const maxGapMs = maxGapForStep(rangeObservation.stepMs ?? requestedStepMs);
   const refresh = () => Promise.all([
     ...(currentIDs.length ? [currentObservation.refresh()] : []),
     ...(rangeIDs.length ? [rangeObservation.refresh()] : []),
@@ -164,13 +174,23 @@ function SelectedMetricPanels({ catalog, sourceControl, ...props }: ResourceMetr
           : history && savedDisplay !== 'value'
             ? savedDisplay === 'line' || savedDisplay === 'sample-bars' ? savedDisplay : 'area'
             : 'stat';
+        // A host still collecting publishes incomplete frames that omit the pairs it has not reached.
+        // Omission there is pending, never proof of no sample; completeness describes the whole frame.
+        const rangePartial = history && rangeObservation.isPartial;
+        const currentPartial = metric.shapes.includes('current') && currentObservation.isPartial;
+        const omittedHistory = rangePartial && !historyResults.length;
+        const omittedCurrent = currentPartial && !currentResults.length;
         const state: MetricPanelState = results.some(result => result.status === 'ok')
           ? { kind: 'data', updating: observation.isFetching || (metric.shapes.includes('current') && currentObservation.isFetching), freshness: results.some(sample => sample.freshness === 'delayed') ? 'delayed' : undefined,
+            completeness: (rangePartial || currentPartial) ? 'partial' : undefined,
             notice: failure ? { tone: 'warning', label: failure.label } : undefined }
           : failure ? { kind: failure.code === 'DENIED' || failure.code === 'FORBIDDEN' || failure.code === 'UNAUTHORIZED' ? 'denied' : failure.code === 'UNSUPPORTED' ? 'unsupported' : 'error', message: failure.label }
           : observation.isLoading ? { kind: 'initial' }
           : result?.status === 'denied' ? { kind: 'denied' }
-          : result?.status === 'unsupported' ? { kind: 'unsupported' } : { kind: 'empty', message: 'No sample' };
+          : result?.status === 'unsupported' ? { kind: 'unsupported' }
+          : (omittedHistory && rangeObservation.isFetching) || (omittedCurrent && currentObservation.isFetching) ? { kind: 'initial' }
+          : omittedHistory || omittedCurrent ? { kind: 'data', completeness: 'partial' }
+          : { kind: 'empty', message: 'No sample' };
         const unit = result?.unit ?? { kind: 'number' as const };
         const chartDomain = rangeObservation.domain?.startMs != null && rangeObservation.domain.endMs != null
           ? { startMs: rangeObservation.domain.startMs, endMs: rangeObservation.domain.endMs } : time.mode === 'absolute' ? time.domain : null;
@@ -207,7 +227,7 @@ function SelectedMetricPanels({ catalog, sourceControl, ...props }: ResourceMetr
               references={display === 'stat' ? props.presentation?.[metric.id]?.references : undefined} />}
           </Stack>}>
             {history && (display === 'area' || display === 'line' || display === 'sample-bars') && chartDomain && <TimeSeriesChart label={`${metric.name} history`} unit={unit} domain={chartDomain} mode={display}
-              references={props.presentation?.[metric.id]?.references}
+              maxGapMs={maxGapMs} references={props.presentation?.[metric.id]?.references}
               series={historyResults.map(series => ({ id: series.id, color: props.targets ? undefined : color, label: props.targets ? series.resourceToken : metric.name, points: series.points }))} />}
         </MetricPanel>;
       })}

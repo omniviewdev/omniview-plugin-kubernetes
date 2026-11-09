@@ -1043,9 +1043,11 @@ Cluster preferences and sidebar ordering remain plugin-data preferences, not SDK
 settings. Rebuild and reload both plugin artifacts after upgrading the coordinated
 SDK/runtime release; restarting an old executable alone does not migrate it.
 
-The plugin manifest schema has no minimum-host-version field. Keep the host,
-backend SDK, runtime, and Vite plugin on the coordinated release cohort below
-rather than adding unsupported manifest fields.
+The plugin manifest schema has no minimum-host-version field. Marketplace
+publication uses the release workflow's supported `min-ide-version` input,
+set to `0.33.0` for the coverage-aware metrics cohort. Keep the host, backend SDK,
+runtime, and Vite plugin coordinated rather than adding unsupported manifest
+fields. Do not package this candidate before that host/runtime cohort is published.
 
 ### Prerequisites
 
@@ -1053,14 +1055,27 @@ rather than adding unsupported manifest fields.
 - Node.js 26.13.0
 - pnpm 12.14.0 (pinned by `ui/package.json`)
 
+CI and release workflows pin `pnpm/setup` v3.1.2 at
+`fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e`. Its maintained native downloader
+verifies npm's signature and package checksum instead of depending on GitHub
+release-archive availability. pnpm remains 12.14.0, dependency installation
+still uses the frozen lockfile, and explicit Node setup remains authoritative.
+
 Registry installs retain pnpm's 24-hour release-age protection. Only coordinated
 `@omniviewdev/*` packages are exempted; linked source worktrees resolve locally.
-The current frontend cohort uses `@omniviewdev/base-ui` 0.15.0,
-`@omniviewdev/editors` 6.2.0, and runtime/Vite plugin 0.30.2.
+The declared frontend cohort uses `@omniviewdev/base-ui` 0.17.0,
+`@omniviewdev/editors` 6.2.2, and runtime/Vite plugin `~0.33.0`.
+The coordinated host v0.33.0 and npm cohort are published. Coverage-aware panels
+use that runtime's `useMetricObservation().isPartial` and `.stepMs` APIs with
+the matching host backend. Registry-only CI consumes the published packages
+through the checked-in frozen lockfile, without a source-workspace fallback.
 The published runtime and Vite plugin must match; host application builds use the host lockfile.
-The backend pins SDK `v0.15.0` (`427ef1da1f1d`) and replaces
+The backend pins the reviewed SDK release `v0.19.0` and replaces
 grpc-go with `github.com/omniviewdev/grpc-go` at
 `v1.85.1-0.20261107225428-6ba964c95af2` for source-session receive controls.
+The shared partial-status row has a tracked transient layout limitation:
+[`omniviewdev/ui#117`](https://github.com/omniviewdev/ui/issues/117).
+No Kubernetes-specific CSS or copied panel composition hides that gap.
 Debug preferences discard unsaved drafts when reopened or switched to another
 connection, but preserve active drafts when saved defaults refresh.
 
