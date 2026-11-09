@@ -2,7 +2,7 @@ import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import { MetricCell, type CapacityBound, type MetricReference, type MetricThreshold } from '@omniviewdev/base-ui/metrics';
 import { parseAppError, useMetricCatalog, useMetricObservation, useMetricViewSourceSelection, type HostRecord, type PreparedMetricResult, type ResourceMetricTarget, type UseMetricObservationOptions } from '@omniviewdev/runtime';
 import type { ColumnDef } from '@tanstack/react-table';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 
 import { useDocumentVisibility } from '@/hooks/useDocumentVisibility';
 import { PLUGIN_ID } from '@/pluginId';
@@ -63,21 +63,37 @@ export function TableMetricsProvider({ columnVisibility, recordsByBody, children
   const scope = useContext(ScopeContext);
   if (!scope) throw new Error('Metric table requires TableMetricsScope.');
   const visible = useDocumentVisibility();
-  const [mounted, setMounted] = useState<ReadonlyMap<object, number>>(() => new Map());
+  const mounted = useRef(new Map<object, number>());
+  const timer = useRef<number | undefined>(undefined);
+  const [bodies, setBodies] = useState<readonly object[]>([]);
+  useEffect(() => () => clearTimeout(timer.current), []);
   const register = useCallback((body: object) => {
-    setMounted(previous => new Map(previous).set(body, (previous.get(body) ?? 0) + 1));
-    return () => setMounted(previous => {
-      const next = new Map(previous);
-      const count = (next.get(body) ?? 1) - 1;
-      if (count > 0) next.set(body, count);
-      else next.delete(body);
-      return next;
-    });
+    // Virtual rows mount in batches, with one registration per metric cell.
+    // Publish only after scrolling settles; do not cancel/reopen network work
+    // for each cell or each intermediate virtual window.
+    const publish = () => {
+      clearTimeout(timer.current);
+      timer.current = window.setTimeout(() => {
+        setBodies(previous => previous.length === mounted.current.size && previous.every(item => mounted.current.has(item))
+          ? previous : Array.from(mounted.current.keys()));
+      }, 120);
+    };
+    const count = mounted.current.get(body) ?? 0;
+    mounted.current.set(body, count + 1);
+    if (count === 0) publish();
+    return () => {
+      const count = (mounted.current.get(body) ?? 1) - 1;
+      if (count > 0) mounted.current.set(body, count);
+      else {
+        mounted.current.delete(body);
+        publish();
+      }
+    };
   }, []);
-  const targets = useMemo<ResourceMetricTarget[]>(() => Array.from(mounted.keys()).flatMap(body => {
+  const targets = useMemo<ResourceMetricTarget[]>(() => bodies.flatMap(body => {
     const record = recordsByBody.get(body);
     return record ? [{ token: record.key, reference: record.record.reference, route: record.route }] : [];
-  }), [mounted, recordsByBody]);
+  }), [bodies, recordsByBody]);
   const metricIDs = useMemo(() => scope.columns.filter(column => columnVisibility[column.id] === true).map(column => column.metricID), [scope.columns, columnVisibility]);
   const observation = useMetricObservation({ ownerPluginID: PLUGIN_ID, ownerConnectionID: scope.ownerConnectionID,
     resourceKey: scope.resourceKey, bindingID: scope.bindingID, source: scope.source, targets, metricIDs,
@@ -94,7 +110,7 @@ export function TableMetricsProvider({ columnVisibility, recordsByBody, children
   }, [observation.results]);
   const tokenFor = useCallback((body: object) => recordsByBody.get(body)?.key, [recordsByBody]);
   const error = scope.error ?? observation.error;
-  const loading = !!scope.loading || (scope.ready && !error && (targets.length === 0 || observation.isFetching));
+  const loading = !!scope.loading || (scope.ready && !error && observation.isLoading);
   const value = useMemo(() => ({ metrics, register, tokenFor, error, loading }), [metrics, register, tokenFor, error, loading]);
   return <ValuesContext.Provider value={value}>{children}</ValuesContext.Provider>;
 }

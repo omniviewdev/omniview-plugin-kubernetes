@@ -43,4 +43,20 @@ describe('decodeResourceTableRows', () => {
     expect(rows.rowKeys).toEqual(['first-membership', 'second-membership']);
     expect(rows.recordsByBody.get(rows.rows[1])?.record.reference.incarnation).toBe('native-uid');
   });
+
+  it('retains unchanged row bodies across sparse updates without retaining replaced membership', () => {
+    const first = record('one', 'one');
+    const second = record('two', 'two');
+    const changed = { ...second, record: { ...second.record, body: { kind: 'map' as const, value: {} } } };
+    decode.mockReturnValueOnce({ metadata: { name: 'first' } })
+      .mockReturnValueOnce({ metadata: { name: 'second' } })
+      .mockReturnValueOnce({ metadata: { name: 'updated' } });
+    const before = decodeResourceTableRows([first, second]);
+    const after = decodeResourceTableRows([first, changed]);
+    expect(after.rows[0]).toBe(before.rows[0]);
+    expect(after.rows[1]).not.toBe(before.rows[1]);
+    expect(after.recordsByBody.get(after.rows[1])).toBe(changed);
+    expect(after.recordsByBody.get(before.rows[1])).toBeUndefined();
+    expect(after.rows[1]).toEqual({ metadata: { name: 'updated' } });
+  });
 });

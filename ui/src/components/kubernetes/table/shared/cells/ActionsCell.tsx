@@ -180,7 +180,23 @@ function actionsToMenuItems(
   return items;
 }
 
-const ActionsCell: React.FC<Props> = ({
+const SharedRowMenu = React.createContext<React.ComponentProps<typeof Menu.Trigger>['handle']>(undefined);
+
+/** One menu owns popup state for all row triggers in a virtualized table. */
+export function RowActionsScope({ children }: React.PropsWithChildren) {
+  const [handle] = React.useState(() => Menu.createHandle<unknown>());
+  return <SharedRowMenu.Provider value={handle}>
+    {children}
+    <Menu.Root handle={handle}>
+      {({ payload }) => {
+        const active = payload as Props | undefined;
+        return active ? <ActiveRowActions {...active} /> : null;
+      }}
+    </Menu.Root>
+  </SharedRowMenu.Provider>;
+}
+
+const ActiveRowActions: React.FC<Props> = ({
   connectionID,
   resourceKey,
   resourceID,
@@ -239,28 +255,24 @@ const ActionsCell: React.FC<Props> = ({
 
   if (items.length === 0) return null;
 
-  return (
-    <Menu.Root>
-      <Menu.Trigger
-        render={
-          <IconButton
-            size="sm"
-            variant="ghost"
-            aria-label="Row actions"
-            style={triggerButtonStyle}
-            onClick={stopPropagation}
-          >
-            <LuEllipsis />
-          </IconButton>
-        }
-      />
-      <Menu.Portal>
-        <Menu.Positioner side="bottom" align="end" sideOffset={4}>
-          <Menu.Popup onClick={stopPropagation}>{renderMenuItems(items, invoke)}</Menu.Popup>
-        </Menu.Positioner>
-      </Menu.Portal>
-    </Menu.Root>
-  );
+  return <Menu.Portal>
+    <Menu.Positioner side="bottom" align="end" sideOffset={4}>
+      <Menu.Popup onClick={stopPropagation}>{renderMenuItems(items, invoke)}</Menu.Popup>
+    </Menu.Positioner>
+  </Menu.Portal>;
+};
+
+const ActionsCell: React.FC<Props> = (props) => {
+  const handle = React.useContext(SharedRowMenu);
+  const tableContext = useTableDrawer();
+  if (!handle) throw new Error('Row actions require RowActionsScope.');
+  if (!tableContext?.recordsByBody.get(props.data as object)) return null;
+  return <Menu.Trigger
+    handle={handle}
+    payload={props}
+    render={<IconButton size="sm" variant="ghost" aria-label="Row actions"
+      style={triggerButtonStyle} onClick={stopPropagation}><LuEllipsis /></IconButton>}
+  />;
 };
 
 /**

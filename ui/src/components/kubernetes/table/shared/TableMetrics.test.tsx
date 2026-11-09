@@ -1,5 +1,5 @@
 import type { HostRecord } from '@omniviewdev/runtime';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React, { useState } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -10,9 +10,10 @@ const state = vi.hoisted(() => ({
   source: { mode: 'inherit', source: undefined as undefined | { plugin_id: string; connection_id: string; datasource_uid: string; datasource_kind: string } },
   loading: false,
   results: [] as object[],
+  fetching: false,
 }));
 vi.mock('@omniviewdev/runtime', () => ({
-  useMetricObservation: (input: unknown) => { state.observe(input); return { results: state.results, error: null }; },
+  useMetricObservation: (input: unknown) => { state.observe(input); return { results: state.results, error: null, isLoading: false, isFetching: state.fetching }; },
   useMetricViewSourceSelection: () => ({ selection: state.source, isLoading: state.loading, error: null }),
   useMetricCatalog: (input: unknown) => {
     state.catalog(input);
@@ -44,6 +45,7 @@ afterEach(() => {
   cleanup(); vi.restoreAllMocks(); state.observe.mockClear(); state.catalog.mockClear();
   state.source = { mode: 'inherit', source: undefined }; state.loading = false;
   state.results = [];
+  state.fetching = false;
 });
 
 function StatefulTable() {
@@ -80,7 +82,7 @@ it('retains immutable rows, scroll, focus, and selection while metrics pause', a
   filter.focus();
   scroller.scrollTop = 240;
   app.rerender(<App enabled />);
-  expect(state.observe.mock.lastCall?.[0]).toMatchObject({ enabled: true });
+  await waitFor(() => expect(state.observe.mock.lastCall?.[0]).toMatchObject({ enabled: true }));
   app.rerender(<App enabled={false} />);
   expect(state.observe.mock.lastCall?.[0]).toMatchObject({ enabled: false });
   await act(async () => {
@@ -116,11 +118,11 @@ function CatalogTable({ selected = false, resourceKey = 'k8s:/pods' }: { selecte
   </TableMetricsScope>;
 }
 
-it('discovers optional custom current columns and shares one deduplicated target batch', () => {
+it('discovers optional custom current columns and shares one deduplicated target batch', async () => {
   const app = render(<CatalogTable />);
   expect(screen.getByRole('status')).toHaveTextContent('cpuUsage:false,metric:custom.requests:true');
   expect(screen.getByRole('status')).not.toHaveTextContent('history.only');
-  expect(state.observe.mock.lastCall?.[0]).toMatchObject({ metricIDs: ['cpu'], enabled: true });
+  await waitFor(() => expect(state.observe.mock.lastCall?.[0]).toMatchObject({ metricIDs: ['cpu'], enabled: true }));
   app.rerender(<CatalogTable selected />);
   expect(state.observe.mock.lastCall?.[0]).toMatchObject({
     metricIDs: ['cpu', 'custom.requests'],
@@ -131,16 +133,16 @@ it('discovers optional custom current columns and shares one deduplicated target
   expect(state.observe.mock.lastCall?.[0]).toMatchObject({ metricIDs: ['cpu'], targets: [{ token: record.key }] });
 });
 
-it('routes Node catalog and shared observations through the same explicit source', () => {
+it('routes Node catalog and shared observations through the same explicit source', async () => {
   state.source = { mode: 'external', source: {
     plugin_id: 'grafana', connection_id: 'monitoring', datasource_uid: 'prometheus-uid', datasource_kind: 'prometheus',
   } };
   render(<CatalogTable selected resourceKey="k8s:/nodes" />);
   expect(state.catalog.mock.lastCall?.[0]).toMatchObject({ resourceKey: 'k8s:/nodes', source: state.source.source });
-  expect(state.observe.mock.lastCall?.[0]).toMatchObject({ resourceKey: 'k8s:/nodes', source: state.source.source, enabled: true });
+  await waitFor(() => expect(state.observe.mock.lastCall?.[0]).toMatchObject({ resourceKey: 'k8s:/nodes', source: state.source.source, enabled: true }));
 });
 
-it('waits for durable source readiness without unmounting table rows', () => {
+it('waits for durable source readiness without unmounting table rows', async () => {
   state.loading = true;
   const app = render(<CatalogTable selected />);
   const value = screen.getByRole('status');
@@ -149,7 +151,7 @@ it('waits for durable source readiness without unmounting table rows', () => {
   state.loading = false;
   app.rerender(<CatalogTable selected />);
   expect(screen.getByRole('status')).toBe(value);
-  expect(state.observe.mock.lastCall?.[0]).toMatchObject({ enabled: true });
+  await waitFor(() => expect(state.observe.mock.lastCall?.[0]).toMatchObject({ enabled: true }));
 });
 
 it('does not fall back to native when an explicit external choice lacks its source', () => {
@@ -159,15 +161,15 @@ it('does not fall back to native when an explicit external choice lacks its sour
   expect(state.observe.mock.lastCall?.[0]).toMatchObject({ enabled: false });
 });
 
-it('selects the explicit native source for catalog and observation together', () => {
+it('selects the explicit native source for catalog and observation together', async () => {
   state.source = { mode: 'native', source: undefined };
   render(<CatalogTable selected resourceKey="k8s:/nodes" />);
   const source = { plugin_id: 'kubernetes', connection_id: 'test', native: true, datasource_uid: '', datasource_kind: '' };
   expect(state.catalog.mock.lastCall?.[0]).toMatchObject({ source, enabled: true });
-  expect(state.observe.mock.lastCall?.[0]).toMatchObject({ source, enabled: true });
+  await waitFor(() => expect(state.observe.mock.lastCall?.[0]).toMatchObject({ source, enabled: true }));
 });
 
-it('renders a real bounded cell and keeps unknown usage absolute', () => {
+it('renders a real bounded cell and keeps unknown usage absolute', async () => {
   state.results = [{ id: 'sample', metricID: 'cpu', resourceToken: record.key, status: 'ok', value: 0,
     unit: { kind: 'cpu', base: 'cores' }, observedAt: null }];
   function App({ known }: { known: boolean }) {
@@ -182,7 +184,18 @@ it('renders a real bounded cell and keeps unknown usage absolute', () => {
   app.rerender(<App known={false} />);
   expect(screen.getByRole('img')).toHaveAccessibleName(/bound unknown; absolute usage/);
   expect(screen.queryByRole('progressbar')).toBeNull();
-  expect(state.observe.mock.lastCall?.[0]).toMatchObject({ targets: [{ token: record.key }], metricIDs: ['cpu'] });
+  await waitFor(() => expect(state.observe.mock.lastCall?.[0]).toMatchObject({ targets: [{ token: record.key }], metricIDs: ['cpu'] }));
+});
+
+it('keeps settled unavailable cells static during a background refresh', () => {
+  state.fetching = true;
+  render(<TableMetricsScope value={{ ownerConnectionID: 'test', resourceKey: 'k8s:/pods', ready: true, columns: [{ id: 'cpuUsage', metricID: 'cpu' }] }}>
+    <TableMetricsProvider columnVisibility={{ cpuUsage: true }} recordsByBody={recordsByBody}>
+      <TableMetricCell body={pod} metricID="cpu" />
+    </TableMetricsProvider>
+  </TableMetricsScope>);
+  expect(screen.getByText('—')).toBeVisible();
+  expect(screen.queryByRole('progressbar')).toBeNull();
 });
 
 

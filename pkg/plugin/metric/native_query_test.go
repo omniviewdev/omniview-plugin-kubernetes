@@ -414,3 +414,48 @@ func TestNativeNameSelectionSurvivesContinuationUnderNameScopedAccess(t *testing
 		t.Fatalf("filtered continuation lost the admitted sample: calls=%d response=%+v", calls, response)
 	}
 }
+
+func TestNativeUnavailableEndpointDoesNotRefetchForScrollingTargets(t *testing.T) {
+	calls := 0
+	available := false
+	provider := nativeTestProvider(t, func(request *http.Request) (*http.Response, error) {
+		calls++
+		if available {
+			return nativeTestResponse(request, nativePage(nativeSample)), nil
+		}
+		response := nativeTestResponse(request, `{"kind":"Status","apiVersion":"v1","status":"Failure","reason":"NotFound","code":404,"message":"the server could not find the requested resource"}`)
+		response.StatusCode = http.StatusNotFound
+		return response, nil
+	})
+	now := time.Now()
+	provider.now = func() time.Time { return now }
+	pc := &types.PluginContext{Context: context.Background(), Connection: &types.Connection{ID: "selected"}}
+	query := sdkmetric.ResourceMetricsQuery{Source: nativeSource(pc), Shape: "current", MetricIDs: []string{nativeCPU}, Targets: []sdkmetric.ResourceMetricTarget{nativeTestTarget("first", "one", "same")}}
+	first, err := provider.query(pc, query)
+	if err != nil || first.Results[0].Status != "failed" {
+		t.Fatalf("absence must settle as failed, not zero or missing: response=%+v err=%v", first, err)
+	}
+	// New row tokens cannot bypass availability. Cache reads cannot extend expiry.
+	now = now.Add(nativeFailureTTL / 2)
+	query.Targets[0].Token = "scrolled"
+	second, err := provider.query(pc, query)
+	if err != nil || calls != 1 || second.Results[0].ResourceToken != "scrolled" || second.Results[0].Status != "failed" {
+		t.Fatalf("scroll retried unavailable source: calls=%d response=%+v err=%v", calls, second, err)
+	}
+	available = true
+	now = now.Add(nativeFailureTTL/2 + time.Millisecond)
+	recovered, err := provider.query(pc, query)
+	if err != nil || calls != 2 || recovered.Results[0].Status != "ok" {
+		t.Fatalf("availability did not recover at original expiry: calls=%d response=%+v err=%v", calls, recovered, err)
+	}
+	available = false
+	if _, err := provider.query(pc, query); err != nil {
+		t.Fatal(err)
+	}
+	provider.retireConnection("selected")
+	available = true
+	reconnected, err := provider.query(pc, query)
+	if err != nil || calls != 4 || reconnected.Results[0].Status != "ok" {
+		t.Fatalf("reconnect retained old unavailability: calls=%d response=%+v err=%v", calls, reconnected, err)
+	}
+}

@@ -31,6 +31,7 @@ const (
 	nativeMaxObjects     = 20000
 	nativeMaxPages       = 64
 	nativeTimeout        = 15 * time.Second
+	nativeFailureTTL     = 30 * time.Second
 )
 
 // nativeProvider has no polling or metric-result cache. Each source generation
@@ -41,18 +42,59 @@ type nativeProvider struct {
 	cache *ClientCache
 	lanes map[string]*nativeLane
 	next  uint64
+	now   func() time.Time
 }
 
 type nativeLane struct {
 	key           string
 	ctx           context.Context
 	cancel        context.CancelFunc
-	namespaceTurn uint64 // Protected by nativeProvider.mu.
+	namespaceTurn uint64                       // Protected by nativeProvider.mu.
+	failures      map[string]nativeScanFailure // Protected by nativeProvider.mu.
+}
+
+type nativeScanFailure struct {
+	err   error
+	until time.Time
+}
+
+// A failed endpoint is independent of which rows are currently mounted. Keep a
+// bounded negative availability cache, not metric samples. Expiry or connection
+// retirement permits recovery without issuing another request on every scroll.
+func (p *nativeProvider) scanFailure(lane *nativeLane, key string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	failure := lane.failures[key]
+	if p.now().Before(failure.until) {
+		return failure.err
+	}
+	delete(lane.failures, key)
+	return nil
+}
+
+func (p *nativeProvider) recordScanFailure(lane *nativeLane, key string, err error) {
+	if err == nil || err == errNativeBudget || lane.ctx.Err() != nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	now := p.now()
+	for key, failure := range lane.failures {
+		if !now.Before(failure.until) {
+			delete(lane.failures, key)
+		}
+	}
+	if len(lane.failures) < nativeMaxTargets {
+		if lane.failures == nil {
+			lane.failures = make(map[string]nativeScanFailure)
+		}
+		lane.failures[key] = nativeScanFailure{err: err, until: now.Add(nativeFailureTTL)}
+	}
 }
 
 func newNativeProvider() *nativeProvider {
 	diag.DeclareNativeScan()
-	return &nativeProvider{cache: NewClientCache(ClientCacheOpts{}), lanes: make(map[string]*nativeLane)}
+	return &nativeProvider{cache: NewClientCache(ClientCacheOpts{}), lanes: make(map[string]*nativeLane), now: time.Now}
 }
 
 func (p *nativeProvider) retireConnection(connectionID string) {
@@ -256,8 +298,10 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 				fillNativeResult(result, item, query.Targets[index].Reference.Incarnation)
 			}
 		}
-		var err error
-		if isNode {
+		scanKey := resourceKey + ":" + namespace
+		err := p.scanFailure(lane, scanKey)
+		scanned := err == nil
+		if err == nil && isNode {
 			err = scanNativeNodes(ctx, clients.Clientset.CoreV1().RESTClient(), &budget, func(item *metricsv1beta1.NodeMetrics) {
 				index, wanted := indices[item.Name]
 				if !wanted || item.Namespace != "" {
@@ -282,7 +326,7 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 				_, wanted := indices[item.Name]
 				return wanted && item.Namespace == ""
 			})
-		} else {
+		} else if err == nil {
 			name := ""
 			if len(indices) == 1 {
 				for targetName := range indices {
@@ -300,6 +344,9 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil, ctx.Err()
+			}
+			if scanned {
+				p.recordScanFailure(lane, scanKey, err)
 			}
 			response.Complete = false
 			status, message := "failed", "Native metrics namespace scan failed"

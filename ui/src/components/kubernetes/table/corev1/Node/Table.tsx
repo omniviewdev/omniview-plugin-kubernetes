@@ -1,4 +1,5 @@
 import type { DataTableFeatures } from '@omniviewdev/base-ui';
+import type { MetricThreshold } from '@omniviewdev/base-ui/metrics';
 import { DrawerComponent } from '@omniviewdev/runtime';
 import { ColumnDef } from '@tanstack/react-table';
 import { Node } from 'kubernetes-types/core/v1';
@@ -26,19 +27,20 @@ const defaultMetrics = {};
 
 const NodeTable: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
-  const metrics = useTableMetrics<Node>({ ownerConnectionID: id, resourceKey }, defaultMetrics, {
+  const presentation = React.useMemo(() => ({
     headers: { 'kubernetes.node.cpu.usage': 'CPU', 'kubernetes.node.memory.working_set': 'Memory' },
-    cell: (node, metricID) => {
+    cell: (node: Node, metricID: string) => {
       const resource = metricID === 'kubernetes.node.cpu.usage' ? 'cpu' : metricID === 'kubernetes.node.memory.working_set' ? 'memory' : null;
       const quantity = resource ? node.status?.capacity?.[resource] : undefined;
       if (!quantity) return {};
       const value = parseResourceQuantity(quantity);
       return value != null && value > 0 ? {
-        bound: { kind: 'capacity', value },
-        thresholds: [{ value: 0, tone: 'success' }, { value: value * 0.7, tone: 'warning' }, { value: value * 0.9, tone: 'danger' }],
+        bound: { kind: 'capacity' as const, value },
+        thresholds: [{ value: 0, tone: 'success' }, { value: value * 0.7, tone: 'warning' }, { value: value * 0.9, tone: 'danger' }] satisfies MetricThreshold[],
       } : {};
     },
-  });
+  }), []);
+  const metrics = useTableMetrics<Node>({ ownerConnectionID: id, resourceKey }, defaultMetrics, presentation);
 
   const columns = React.useMemo<Array<ColumnDef<DataTableFeatures, Node>>>(
     () =>
