@@ -162,9 +162,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-patchedDependencies:
-  monaco-editor@0.52.2: c9b4df6cf0c9f7250a4cac07c32e978eff7b3e8a3972ccf4e016e437eac285e0
-
 importers:
 
   .:
@@ -183,7 +180,7 @@ importers:
         version: 3.2.2(react@19.3.1)
       '@monaco-editor/react':
         specifier: 4.7.0
-        version: 4.7.0(monaco-editor@0.52.2(patch_hash=c9b4df6cf0c9f7250a4cac07c32e978eff7b3e8a3972ccf4e016e437eac285e0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        version: 4.7.0(monaco-editor@0.52.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@omniviewdev/base-ui':
         specifier: 0.16.0
         version: 0.16.0(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -191,8 +188,8 @@ importers:
         specifier: 6.2.1
         version: 6.2.1(@omniviewdev/base-ui@0.16.0(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@omniviewdev/runtime':
-        specifier: ~0.31.0
-        version: 0.31.0(@omniviewdev/base-ui@0.16.0(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@tanstack/react-query@5.105.0(@types/react@19.3.0)(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react-router@8.5.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
+        specifier: ~0.33.0
+        version: 0.33.0(@omniviewdev/base-ui@0.16.0(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@tanstack/react-query@5.105.0(@types/react@19.3.0)(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react-router@8.5.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
       '@tanstack/react-query':
         specifier: 5.105.0
         version: 5.105.0(@types/react@19.3.0)(react@19.3.1)
@@ -219,10 +216,10 @@ importers:
         version: 4.4.2
       monaco-editor:
         specifier: 0.52.2
-        version: 0.52.2(patch_hash=c9b4df6cf0c9f7250a4cac07c32e978eff7b3e8a3972ccf4e016e437eac285e0)
+        version: 0.52.2
       monaco-yaml:
         specifier: 5.5.1
-        version: 5.5.1(monaco-editor@0.52.2(patch_hash=c9b4df6cf0c9f7250a4cac07c32e978eff7b3e8a3972ccf4e016e437eac285e0))
+        version: 5.5.1(monaco-editor@0.52.2)
       react:
         specifier: 19.3.1
         version: 19.3.1
@@ -252,8 +249,8 @@ importers:
         specifier: 10.0.1
         version: 10.0.1(eslint@10.13.0)
       '@omniviewdev/vite-plugin':
-        specifier: ~0.31.0
-        version: 0.31.0(vite@7.3.7(yaml@2.9.1))
+        specifier: ~0.33.0
+        version: 0.33.0(vite@7.3.7(yaml@2.9.1))
       '@storybook/addon-docs':
         specifier: 10.6.5
         version: 10.6.5(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react@19.3.1))
@@ -986,17 +983,17 @@ packages:
       react: ^19.3.1
       react-dom: ^19.3.1
 
-  '@omniviewdev/runtime@0.31.0':
-    resolution: {integrity: sha512-YAKir7klpZ8k55svkQrXwfB3MkLH6tEa8SxEI9O5c0K+KHVzIqCkzooPedX1mXrnyxe0I6iezrJyo1KSsWNBag==}
+  '@omniviewdev/runtime@0.33.0':
+    resolution: {integrity: sha512-PX7HUy+rnKIkqbGq4pOGA0n+49xcWDdlSAygVYDHcxQ3ipt79S+ezYji36r2t31/BVLUY8SmH4Z95Sbyn/dQjA==}
     peerDependencies:
-      '@omniviewdev/base-ui': ~0.16.0
+      '@omniviewdev/base-ui': ~0.17.0
       '@tanstack/react-query': ^5.105.0
       react: ^19.3.1
       react-dom: ^19.3.1
       react-router: ^8.5.0
 
-  '@omniviewdev/vite-plugin@0.31.0':
-    resolution: {integrity: sha512-xVit/PZeG+SO8ZdiLZuOW/t1kwjBXBoyfqVJA/sZg5ztVkBEOxM00so0tzeKrW68xxkSETgGt3f5x0vOesv7bw==}
+  '@omniviewdev/vite-plugin@0.33.0':
+    resolution: {integrity: sha512-ocqxU7Ksiy00ZLeeZbOw9cSF3DRiqMBB1nnEnmPqRK39t7TGcCtsRaZtTBmP/quNhs/sw8gFh/x7TZ4etFbtKA==}
     peerDependencies:
       vite: ^7.3.7
 
@@ -2022,8 +2019,8 @@ packages:
   '@vscode/l10n@0.0.18':
     resolution: {integrity: sha512-KYSIHVmslkaCDyw013pphY+d7x1qV8IZupYfeIfzNA+nsaWHbn5uPuQRvdRFsa9zFzGeudPuoGoZ1Op4jrJXIQ==}
 
-  '@wailsio/runtime@3.0.0-beta.34':
-    resolution: {integrity: sha512-uchPkqqbH+yAweQh4J0y0G1NRE6ILcas6huNTruTVU84aWqCFanlpdVM/KYJdcNzWKhdHGcGGBJYCUYn3ualoQ==}
+  '@wailsio/runtime@3.1.0':
+    resolution: {integrity: sha512-noEAedvRyO8TLCrqhGwzrp+mbMxAIDa2rYmdJQOzvJV9MxgaZeXAJGNBiMiKMTSSy4ESOtQi4VH/5heSzi6ZmA==}
 
   '@webcontainer/env@1.1.1':
     resolution: {integrity: sha512-6aN99yL695Hi9SuIk1oC88l9o0gmxL1nGWWQ/kNy81HigJ0FoaoTXpytCj6ItzgyCEwA9kF1wixsTuv5cjsgng==}
@@ -4227,10 +4224,10 @@ snapshots:
     dependencies:
       state-local: 1.0.7
 
-  '@monaco-editor/react@4.7.0(monaco-editor@0.52.2(patch_hash=c9b4df6cf0c9f7250a4cac07c32e978eff7b3e8a3972ccf4e016e437eac285e0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
+  '@monaco-editor/react@4.7.0(monaco-editor@0.52.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
       '@monaco-editor/loader': 1.7.0
-      monaco-editor: 0.52.2(patch_hash=c9b4df6cf0c9f7250a4cac07c32e978eff7b3e8a3972ccf4e016e437eac285e0)
+      monaco-editor: 0.52.2
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
 
@@ -4287,8 +4284,8 @@ snapshots:
       '@xterm/addon-web-links': 0.12.0
       '@xterm/addon-webgl': 0.19.0
       '@xterm/xterm': 6.0.0
-      monaco-editor: 0.52.2(patch_hash=c9b4df6cf0c9f7250a4cac07c32e978eff7b3e8a3972ccf4e016e437eac285e0)
-      monaco-yaml: 5.5.1(monaco-editor@0.52.2(patch_hash=c9b4df6cf0c9f7250a4cac07c32e978eff7b3e8a3972ccf4e016e437eac285e0))
+      monaco-editor: 0.52.2
+      monaco-yaml: 5.5.1(monaco-editor@0.52.2)
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
       react-markdown: 10.1.0(@types/react@19.3.0)(react@19.3.1)
@@ -4299,18 +4296,18 @@ snapshots:
       - '@types/react'
       - supports-color
 
-  '@omniviewdev/runtime@0.31.0(@omniviewdev/base-ui@0.16.0(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@tanstack/react-query@5.105.0(@types/react@19.3.0)(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react-router@8.5.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)':
+  '@omniviewdev/runtime@0.33.0(@omniviewdev/base-ui@0.16.0(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@tanstack/react-query@5.105.0(@types/react@19.3.0)(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react-router@8.5.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)':
     dependencies:
       '@omniviewdev/base-ui': 0.16.0(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@tanstack/react-query': 5.105.0(@types/react@19.3.0)(react@19.3.1)
-      '@wailsio/runtime': 3.0.0-beta.34
+      '@wailsio/runtime': 3.1.0
       lodash.get: 4.4.2
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
       react-router: 8.5.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       ts-invariant: 0.10.3
 
-  '@omniviewdev/vite-plugin@0.31.0(vite@7.3.7(yaml@2.9.1))':
+  '@omniviewdev/vite-plugin@0.33.0(vite@7.3.7(yaml@2.9.1))':
     dependencies:
       vite: 7.3.7(yaml@2.9.1)
 
@@ -5095,7 +5092,7 @@ snapshots:
 
   '@vscode/l10n@0.0.18': {}
 
-  '@wailsio/runtime@3.0.0-beta.34': {}
+  '@wailsio/runtime@3.1.0': {}
 
   '@webcontainer/env@1.1.1': {}
 
@@ -6322,7 +6319,7 @@ snapshots:
 
   minipass@7.1.3: {}
 
-  monaco-editor@0.52.2(patch_hash=c9b4df6cf0c9f7250a4cac07c32e978eff7b3e8a3972ccf4e016e437eac285e0): {}
+  monaco-editor@0.52.2: {}
 
   monaco-languageserver-types@0.4.1:
     dependencies:
@@ -6336,19 +6333,19 @@ snapshots:
 
   monaco-types@0.1.2: {}
 
-  monaco-worker-manager@2.0.1(monaco-editor@0.52.2(patch_hash=c9b4df6cf0c9f7250a4cac07c32e978eff7b3e8a3972ccf4e016e437eac285e0)):
+  monaco-worker-manager@2.0.1(monaco-editor@0.52.2):
     dependencies:
-      monaco-editor: 0.52.2(patch_hash=c9b4df6cf0c9f7250a4cac07c32e978eff7b3e8a3972ccf4e016e437eac285e0)
+      monaco-editor: 0.52.2
 
-  monaco-yaml@5.5.1(monaco-editor@0.52.2(patch_hash=c9b4df6cf0c9f7250a4cac07c32e978eff7b3e8a3972ccf4e016e437eac285e0)):
+  monaco-yaml@5.5.1(monaco-editor@0.52.2):
     dependencies:
       '@vscode/l10n': 0.0.18
       jsonc-parser: 3.3.1
-      monaco-editor: 0.52.2(patch_hash=c9b4df6cf0c9f7250a4cac07c32e978eff7b3e8a3972ccf4e016e437eac285e0)
+      monaco-editor: 0.52.2
       monaco-languageserver-types: 0.4.1
       monaco-marker-data-provider: 1.2.5
       monaco-types: 0.1.2
-      monaco-worker-manager: 2.0.1(monaco-editor@0.52.2(patch_hash=c9b4df6cf0c9f7250a4cac07c32e978eff7b3e8a3972ccf4e016e437eac285e0))
+      monaco-worker-manager: 2.0.1(monaco-editor@0.52.2)
       path-browserify: 1.0.1
       prettier: 3.9.10
       proxy-disposable: 1.0.0
