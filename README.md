@@ -1047,8 +1047,12 @@ rather than adding unsupported manifest fields.
 
 Registry installs retain pnpm's 24-hour release-age protection. Only coordinated
 `@omniviewdev/*` packages are exempted; linked source worktrees resolve locally.
-The current frontend cohort uses `@omniviewdev/base-ui` 0.15.0,
-`@omniviewdev/editors` 6.2.0, and runtime/Vite plugin 0.30.2.
+The declared frontend cohort uses `@omniviewdev/base-ui` 0.16.0,
+`@omniviewdev/editors` 6.2.1, and runtime/Vite plugin `~0.31.0`.
+Coverage-aware panels additionally require the coordinated runtime API exposing
+`useMetricObservation().isPartial` and `.stepMs`, plus its matching host backend.
+Publish and pin that runtime/Vite cohort before packaging these panel changes;
+the existing registry cohort does not provide those fields.
 The published runtime and Vite plugin must match; host application builds use the host lockfile.
 The backend pins SDK `v0.18.1-0.20261108223201-09042bf0afcd` and replaces
 grpc-go with `github.com/omniviewdev/grpc-go` at
