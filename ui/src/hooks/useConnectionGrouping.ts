@@ -1,11 +1,11 @@
-import { type types } from '@omniviewdev/runtime/models';
-import { useMemo } from 'react';
+import type { KeyedSearchField, KeyedSearchDiagnostic } from '@omniviewdev/base-ui';
 import {
   useConnectionMetadataConnections,
   readCurrentConnectionMetadataString,
   useConnectionStatus,
 } from '@omniviewdev/runtime';
-import type { KeyedSearchField, KeyedSearchDiagnostic } from '@omniviewdev/base-ui';
+import { type types } from '@omniviewdev/runtime/models';
+import { useMemo } from 'react';
 
 import type {
   GroupByMode,
@@ -21,7 +21,6 @@ import type {
   RecentEntry,
 } from '../types/clusters';
 import { LEGACY_GROUP_ALIASES, LEGACY_SORT_ALIASES } from '../types/clusters';
-import { computeEffectiveMembers } from '../utils/folderRules';
 import {
   buildClusterSearch,
   getClusterDisplayFacts,
@@ -29,6 +28,7 @@ import {
   parseKeyedSearch,
   type SearchableConnection,
 } from '../utils/clusterSearch';
+import { computeEffectiveMembers } from '../utils/folderRules';
 import { detectProvider, getProviderLabel } from '../utils/providers';
 
 interface UseConnectionGroupingOpts {
@@ -70,6 +70,10 @@ function enrichConnection(
 function matchesFilters(enriched: EnrichedConnection, filters: FilterState): boolean {
   if (filters.providers?.length && !filters.providers.includes(enriched.provider)) {
     return false;
+  }
+  if (filters.environments?.length) {
+    const environment = getClusterDisplayFacts(enriched).environment?.value;
+    if (!environment || !filters.environments.includes(environment)) return false;
   }
   if (filters.status?.length) {
     const connStatus = enriched.isConnected ? 'connected' : 'disconnected';
@@ -120,7 +124,9 @@ function sortConnections(
                 : sortBy === 'fact:region'
                   ? facts.region?.value
                   : sortBy === 'fact:account'
-                    ? (facts.account ?? facts.project)?.value
+                    ? facts.account && facts.project
+                      ? `${facts.account.value} ${facts.project.value}`
+                      : (facts.account ?? facts.project)?.value
                     : facts.environment?.value;
             return [connection, value?.toLowerCase() ?? ''] as const;
           }),
@@ -199,6 +205,26 @@ function groupConnections(
 ): GroupedSection[] {
   if (groupBy === 'none') {
     return [{ key: 'all', label: 'All Clusters', connections }];
+  }
+  if (groupBy === 'environment') {
+    const sections = new Map<string, GroupedSection>();
+    for (const connection of connections) {
+      const value = getClusterDisplayFacts(connection).environment?.value;
+      const key = value ? `environment:value:${value}` : 'environment:unknown';
+      const existing = sections.get(key);
+      if (existing) existing.connections.push(connection);
+      else
+        sections.set(key, {
+          key,
+          label: value || 'Unknown environment',
+          connections: [connection],
+        });
+    }
+    return [...sections.values()].sort((left, right) => {
+      if (left.key === 'environment:unknown') return 1;
+      if (right.key === 'environment:unknown') return -1;
+      return left.label.localeCompare(right.label);
+    });
   }
 
   if (groupBy === 'favorites') {
@@ -344,12 +370,16 @@ function groupConnections(
     }
   }
 
-  return Array.from(groupMap.entries()).map(([key, group]) => ({
-    key,
-    label: group.label,
-    provider: group.provider,
-    connections: group.connections,
-  }));
+  return Array.from(groupMap.entries())
+    .sort(([left], [right]) =>
+      groupBy === 'status' ? Number(right === 'connected') - Number(left === 'connected') : 0,
+    )
+    .map(([key, group]) => ({
+      key,
+      label: group.label,
+      provider: group.provider,
+      connections: group.connections,
+    }));
 }
 
 function formatAttributeName(key: string): string {

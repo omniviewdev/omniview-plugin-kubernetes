@@ -1,36 +1,47 @@
-import { Button, Skeleton, Stack, Text } from '@omniviewdev/base-ui';
-import { usePluginContext, useConnections, useConnection, useNotifications } from '@omniviewdev/runtime';
+import { Button, Heading, Skeleton, Stack, Text } from '@omniviewdev/base-ui';
+import {
+  usePluginContext,
+  useConnections,
+  useConnection,
+  useNotifications,
+} from '@omniviewdev/runtime';
 import React from 'react';
 
-import { useStoredState } from '@/hooks/useStoredState';
 
 import ClusterHub from '../components/connections/ClusterHub';
+import { ClusterOrganization } from '../components/connections/ClusterOrganization';
 import ClustersToolbar from '../components/connections/ClustersToolbar';
+import CompactClusterCard from '../components/connections/CompactClusterCard';
 import ConnectionTable from '../components/connections/ConnectionTable';
 import DeleteConfirmationModal from '../components/connections/DeleteConfirmationModal';
 import EmptyState from '../components/connections/EmptyState';
+import ExplorerSidebar from '../components/connections/ExplorerSidebar';
 import FilterChips from '../components/connections/FilterChips';
 import FolderDialog, { type FolderDialogValues } from '../components/connections/FolderDialog';
+import { ClusterActionProvider, useClusterAction } from '../hooks/useClusterAction';
 import { useClusterPreferences } from '../hooks/useClusterPreferences';
 import { useConnectionGrouping } from '../hooks/useConnectionGrouping';
 import { useLegacyColumnMigration } from '../hooks/useLegacyColumnMigration';
-import { ClusterOrganization } from '../components/connections/ClusterOrganization';
-import ExplorerSidebar from '../components/connections/ExplorerSidebar';
-import { computeEffectiveMembers } from '../utils/folderRules';
-import styles from './ClustersPage.module.css';
-import { useClusterAction } from '../hooks/useClusterAction';
 import type { ClusterScope } from '../types/clusterExplorer';
 import type {
   ConnectionGroup,
+  EnrichedConnection,
   GroupByMode,
   SortByField,
   SortDirection,
   ViewMode,
   FilterState,
 } from '../types/clusters';
+import { getClusterDisplayFacts } from '../utils/clusterSearch';
+import { computeEffectiveMembers } from '../utils/folderRules';
+
+import styles from './ClustersPage.module.css';
 
 
-const DEFAULT_VISIBLE_COLUMNS = ['cluster', 'kubeconfig', 'user'];
+import { useStoredState } from '@/hooks/useStoredState';
+
+const DEFAULT_VISIBLE_COLUMNS: string[] = [];
+const EMPTY_COLLAPSED_GROUPS = new Set<string>();
 
 const loadingSkeletonStyle: React.CSSProperties = {
   display: 'flex',
@@ -42,7 +53,7 @@ const loadingSkeletonStyle: React.CSSProperties = {
 export default function ClustersPage(): React.ReactElement {
   const { meta } = usePluginContext();
   const { connections } = useConnections({ plugin: meta.id });
-  useLegacyColumnMigration(connections.data?.map(connection => connection.id));
+  useLegacyColumnMigration(connections.data?.map((connection) => connection.id));
   const { notify } = useNotifications();
 
   const [organize, setOrganize] = React.useState(false);
@@ -53,7 +64,10 @@ export default function ClustersPage(): React.ReactElement {
   const [visualOrder, setVisualOrder] = React.useState<string[]>();
   const [selectedId, setSelectedId] = React.useState<string>();
   const [viewMode, setViewMode] = useStoredState<ViewMode>('kubernetes-clusters-view', 'grid');
-  const [groupBy, setGroupBy] = useStoredState<GroupByMode>('kubernetes-clusters-groupby', 'none');
+  const [groupBy, setGroupBy] = useStoredState<GroupByMode>(
+    'kubernetes-clusters-groupby',
+    'environment',
+  );
   const [sortBy, setSortBy] = useStoredState<SortByField>('kubernetes-clusters-sortby', 'name');
   const [sortDirection, setSortDirection] = useStoredState<SortDirection>(
     'kubernetes-clusters-sortdir',
@@ -67,7 +81,7 @@ export default function ClustersPage(): React.ReactElement {
   // Ephemeral UI state
   const [search, setSearch] = React.useState('');
   const [filters, setFilters] = React.useState<FilterState>({});
-  const [collapsedGroups, setCollapsedGroups] = React.useState<Set<string>>(new Set());
+  const [collapsedByView, setCollapsedByView] = React.useState<Record<string, Set<string>>>({});
   const [deleteTarget, setDeleteTarget] = React.useState<{ id: string; name: string } | null>(null);
   const [folderDialog, setFolderDialog] = React.useState<{
     mode: 'create' | 'edit';
@@ -98,6 +112,26 @@ export default function ClustersPage(): React.ReactElement {
     () => new Map(hubEnriched.map((entry) => [entry.connection.id, entry])),
     [hubEnriched],
   );
+  const availableEnvironments = React.useMemo(
+    () =>
+      [
+        ...new Set(
+          hubEnriched.flatMap((entry) => {
+            const environment = getClusterDisplayFacts(entry).environment?.value;
+            return environment ? [environment] : [];
+          }),
+        ),
+      ].sort(),
+    [hubEnriched],
+  );
+  const recentConnections = React.useMemo(
+    () =>
+      hubEnriched
+        .filter((entry) => !!entry.lastAccessed)
+        .sort((left, right) => right.lastAccessed! - left.lastAccessed!)
+        .slice(0, 4),
+    [hubEnriched],
+  );
   const folderMembers = React.useMemo(() => {
     if (!scope.startsWith('group:')) return undefined;
     const folder = preferences.customGroups.find((group) => group.id === scope.slice(6));
@@ -119,6 +153,9 @@ export default function ClustersPage(): React.ReactElement {
   );
 
   // Grouped/filtered/sorted result
+  const effectiveGroupBy = viewMode === 'debug' ? 'status' : viewMode === 'list' ? 'none' : groupBy;
+  const collapseScope = `${viewMode}:${effectiveGroupBy}`;
+  const collapsedGroups = collapsedByView[collapseScope] ?? EMPTY_COLLAPSED_GROUPS;
   const grouped = useConnectionGrouping({
     connections: scopedConnections,
     favorites: preferences.favorites,
@@ -126,11 +163,19 @@ export default function ClustersPage(): React.ReactElement {
     customGroups: preferences.customGroups,
     recentConnections: preferences.recentConnections,
     search,
-    groupBy: viewMode === 'debug' ? 'none' : groupBy,
+    groupBy: effectiveGroupBy,
     sortBy,
     sortDirection,
     filters,
   });
+  const organizedConnections = React.useMemo(() => {
+    if (!organize) return hubEnriched;
+    const visibleIds = new Set<string>();
+    for (const group of grouped.groups) {
+      for (const entry of group.connections) visibleIds.add(entry.connection.id);
+    }
+    return hubEnriched.filter((entry) => visibleIds.has(entry.connection.id));
+  }, [organize, grouped.groups, hubEnriched]);
 
   // All label keys across connections
   const allLabelKeys = React.useMemo(() => {
@@ -158,16 +203,16 @@ export default function ClustersPage(): React.ReactElement {
   );
 
   const handleToggleCollapse = React.useCallback((groupKey: string) => {
-    setCollapsedGroups((prev) => {
-      const next = new Set(prev);
+    setCollapsedByView((prev) => {
+      const next = new Set(prev[collapseScope]);
       if (next.has(groupKey)) {
         next.delete(groupKey);
       } else {
         next.add(groupKey);
       }
-      return next;
+      return { ...prev, [collapseScope]: next };
     });
-  }, []);
+  }, [collapseScope]);
 
   const handleToggleProvider = React.useCallback((provider: string) => {
     setFilters((prev) => {
@@ -281,7 +326,7 @@ export default function ClustersPage(): React.ReactElement {
     setDeleteTarget({ id, name });
   }, []);
   const availableResults = grouped.groups.flatMap((group) =>
-    viewMode !== 'debug' && collapsedGroups.has(group.key) ? [] : group.connections,
+    effectiveGroupBy !== 'none' && collapsedGroups.has(group.key) ? [] : group.connections,
   );
   const byId = new Map(availableResults.map((entry) => [entry.connection.id, entry]));
   const orderedResults = [
@@ -294,7 +339,7 @@ export default function ClustersPage(): React.ReactElement {
     ? selectedId
     : orderedResults[0]?.connection.id;
   React.useEffect(() => {
-    if (viewMode !== 'grid') return;
+    if (viewMode === 'list') return;
     const selected = Array.from(
       resultsRef.current?.querySelectorAll<HTMLElement>('[data-cluster-open]') ?? [],
     ).find((element) => element.dataset.clusterOpen === activeId);
@@ -336,8 +381,33 @@ export default function ClustersPage(): React.ReactElement {
   const isInitialLoading = connections.isLoading && !connections.data;
   const noConnections = !isInitialLoading && (connections.data?.length ?? 0) === 0;
   const noResults = !noConnections && grouped.filteredCount === 0;
+  const hasFilters = !!(
+    filters.providers?.length ||
+    filters.environments?.length ||
+    filters.status?.length ||
+    filters.tags?.length ||
+    Object.values(filters.labels ?? {}).some((values) => values.length > 0)
+  );
+  const showRecent =
+    !organize &&
+    scope === 'all' &&
+    viewMode === 'grid' &&
+    !search &&
+    !hasFilters &&
+    recentConnections.length > 0;
+  const scopeLabel =
+    scope === 'favorites'
+      ? 'Pinned'
+      : scope === 'recent'
+        ? 'Recent'
+        : scope === 'connected'
+          ? 'Connected'
+          : scope.startsWith('group:')
+            ? (preferences.customGroups.find((folder) => folder.id === scope.slice(6))?.name ??
+              'All clusters')
+            : 'All clusters';
 
-  return (
+  return React.createElement(ClusterActionProvider, null,
     <ClusterOrganization
       onAssignToGroup={(groupId, connectionId) => preferences.assignToGroup(groupId, connectionId)}
     >
@@ -382,6 +452,9 @@ export default function ClustersPage(): React.ReactElement {
           }}
         />
         <main className={styles.main}>
+          <Heading level={1} size="lg">
+            Clusters
+          </Heading>
           {!organize && activeId && (
             <SelectedClusterAction
               key={activeId}
@@ -409,22 +482,27 @@ export default function ClustersPage(): React.ReactElement {
             onSortDirectionChange={setSortDirection}
             viewMode={viewMode}
             onViewModeChange={setViewMode}
-            totalCount={grouped.totalCount}
-            filteredCount={grouped.filteredCount}
+            filters={filters}
+            onFiltersChange={setFilters}
+            onClearFilters={handleClearFilters}
+            availableProviders={hubGrouped.availableProviders}
+            availableEnvironments={availableEnvironments}
+            moreFilters={
+              <FilterChips
+                filters={filters}
+                availableProviders={hubGrouped.availableProviders}
+                availableAttributes={hubGrouped.availableAttributes}
+                availableTags={hubGrouped.availableTags}
+                onToggleProvider={handleToggleProvider}
+                onToggleStatus={handleToggleStatus}
+                onToggleTag={handleToggleTag}
+                onToggleLabelFilter={handleToggleLabelFilter}
+                onClearAll={handleClearFilters}
+              />
+            }
             hasCustomGroups={preferences.customGroups.length > 0}
             availableAttributes={grouped.availableAttributes}
             availableTags={grouped.availableTags}
-          />
-          <FilterChips
-            filters={filters}
-            availableProviders={grouped.availableProviders}
-            availableAttributes={grouped.availableAttributes}
-            availableTags={grouped.availableTags}
-            onToggleProvider={handleToggleProvider}
-            onToggleStatus={handleToggleStatus}
-            onToggleTag={handleToggleTag}
-            onToggleLabelFilter={handleToggleLabelFilter}
-            onClearAll={handleClearFilters}
           />
           {organize && (
             <Stack direction="row" align="center" justify="between">
@@ -440,7 +518,7 @@ export default function ClustersPage(): React.ReactElement {
             <EmptyState variant="no-connections" />
           ) : organize ? (
             <ClusterHub
-              enrichedConnections={hubEnriched}
+              enrichedConnections={organizedConnections}
               availableAttributes={hubGrouped.availableAttributes}
               customGroups={preferences.customGroups}
               hubSections={preferences.hubSections}
@@ -465,39 +543,58 @@ export default function ClustersPage(): React.ReactElement {
               }}
             />
           ) : (
-            <div ref={resultsRef} className={styles.results}>
-              <ConnectionTable
-                grouped={grouped}
-                groupBy={groupBy}
-                viewMode={viewMode}
-                selectedId={activeId}
-                debug={viewMode === 'debug'}
-                onVisualOrderChange={setVisualOrder}
-                sortBy={sortBy}
-                sortDirection={sortDirection}
-                onSortChange={(field, direction) => {
-                  setSortBy(field);
-                  setSortDirection(direction);
-                }}
-                customGroups={preferences.customGroups}
-                collapsedGroups={collapsedGroups}
-                visibleColumns={visibleColumns}
-                allLabelKeys={allLabelKeys}
-                onToggleColumn={handleToggleColumn}
-                onToggleCollapse={handleToggleCollapse}
-                onToggleFavorite={(id) => {
-                  void preferences.toggleFavorite(id);
-                }}
-                onAssignToGroup={(groupId, id) => {
-                  void preferences.assignToGroup(groupId, id);
-                }}
-                onRemoveFromGroup={(groupId, id) => {
-                  void preferences.removeFromGroup(groupId, id);
-                }}
-                onCreateFolder={handleCreateFolder}
-                onDeleteRequest={handleDeleteRequest}
-              />
-            </div>
+            <>
+              {showRecent && (
+                <section aria-label="Recently opened clusters" className={styles.recent}>
+                  <Heading level={2} size="sm">
+                    Recent
+                  </Heading>
+                  <div className={styles.recentGrid}>
+                    {recentConnections.map((entry) => (
+                      <RecentClusterAction key={entry.connection.id} enriched={entry} />
+                    ))}
+                  </div>
+                </section>
+              )}
+              <Heading level={2} size="sm">
+                {scopeLabel}{' '}
+                <Text as="span" size="xs" tone="muted">
+                  / {grouped.filteredCount}
+                </Text>
+              </Heading>
+              <div ref={resultsRef} className={styles.results}>
+                <ConnectionTable
+                  grouped={grouped}
+                  groupBy={effectiveGroupBy}
+                  viewMode={viewMode}
+                  selectedId={activeId}
+                  onVisualOrderChange={setVisualOrder}
+                  sortBy={sortBy}
+                  sortDirection={sortDirection}
+                  onSortChange={(field, direction) => {
+                    setSortBy(field);
+                    setSortDirection(direction);
+                  }}
+                  customGroups={preferences.customGroups}
+                  collapsedGroups={collapsedGroups}
+                  visibleColumns={visibleColumns}
+                  allLabelKeys={allLabelKeys}
+                  onToggleColumn={handleToggleColumn}
+                  onToggleCollapse={handleToggleCollapse}
+                  onToggleFavorite={(id) => {
+                    void preferences.toggleFavorite(id);
+                  }}
+                  onAssignToGroup={(groupId, id) => {
+                    void preferences.assignToGroup(groupId, id);
+                  }}
+                  onRemoveFromGroup={(groupId, id) => {
+                    void preferences.removeFromGroup(groupId, id);
+                  }}
+                  onCreateFolder={handleCreateFolder}
+                  onDeleteRequest={handleDeleteRequest}
+                />
+              </div>
+            </>
           )}
         </main>
 
@@ -533,6 +630,20 @@ export default function ClustersPage(): React.ReactElement {
         )}
       </div>
     </ClusterOrganization>
+  );
+}
+
+function RecentClusterAction({ enriched }: { enriched: EnrichedConnection }) {
+  const { handleClick } = useClusterAction(enriched.connection.id, enriched.isConnected);
+  const region = getClusterDisplayFacts(enriched).region?.value;
+  return (
+    <CompactClusterCard
+      enriched={enriched}
+      subtitle={[region, 'Recently opened'].filter(Boolean).join(' · ')}
+      onClick={() => {
+        void handleClick();
+      }}
+    />
   );
 }
 

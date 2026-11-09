@@ -62,6 +62,7 @@ const FilterChips: React.FC<Props> = ({
 }) => {
   const hasActiveFilters =
     (filters.providers?.length ?? 0) > 0 ||
+    (filters.environments?.length ?? 0) > 0 ||
     (filters.status?.length ?? 0) > 0 ||
     (filters.tags?.length ?? 0) > 0 ||
     Object.values(filters.labels ?? {}).some((v) => v.length > 0);
@@ -73,8 +74,6 @@ const FilterChips: React.FC<Props> = ({
   const filterableAttrs = availableAttributes.filter(
     (a) => a.coverage >= 0.3 && a.distinctValues.length >= 2 && a.distinctValues.length <= 8,
   );
-
-  if (!showProviders && !showTags && filterableAttrs.length === 0 && !hasActiveFilters) return null;
 
   return (
     <Stack direction="row" align="center" wrap style={{ gap: 6 }}>

@@ -4,7 +4,9 @@ import {
   type KeyedSearchField,
   type ParsedKeyedSearch,
 } from '@omniviewdev/base-ui';
+
 import type { EnrichedConnection } from '../types/clusters';
+
 import { isRetiredConnectionDataKey } from './migrateFolderMetadataRules';
 
 export type ClusterMetadataState = 'current' | 'stale' | 'unknown' | 'unavailable';
@@ -91,22 +93,37 @@ export interface ClusterSearchDocument {
   text: string;
   fields: Map<string, string[]>;
 }
+
+interface ClusterSearchSuggestion {
+  value: string;
+  count: number;
+  connectionIds: string[];
+  parent?: ClusterSearchSuggestion;
+  matchingIds?: Set<string>;
+}
+
 export function buildClusterSearch(connections: readonly SearchableConnection[]) {
   const documents = new Map<string, ClusterSearchDocument>();
-  const suggestions = new Map<string, Set<string>>(
-    ['region', 'provider', 'env', 'account', 'status', 'tag'].map((key) => [
-      key,
-      new Set<string>(),
-    ]),
+  const suggestions = new Map<string, Map<string, ClusterSearchSuggestion>>(
+    ['region', 'provider', 'env', 'account', 'status', 'tag'].map((key) => [key, new Map()]),
   );
   for (const enriched of connections) {
     const fields = new Map<string, string[]>();
     const add = (key: string, value: string) => {
       key = key.toLowerCase();
       if (!/^[a-z_][\w.-]*$/.test(key) || !value) return;
-      fields.set(key, [...(fields.get(key) ?? []), value.toLowerCase()]);
-      if (!suggestions.has(key)) suggestions.set(key, new Set());
-      suggestions.get(key)!.add(value);
+      const normalized = value.toLowerCase();
+      const existing = fields.get(key) ?? [];
+      if (existing.includes(normalized)) return;
+      fields.set(key, [...existing, normalized]);
+      let values = suggestions.get(key);
+      if (!values) {
+        values = new Map<string, ClusterSearchSuggestion>();
+        suggestions.set(key, values);
+      }
+      const entry = values.get(normalized);
+      if (entry) entry.connectionIds.push(enriched.connection.id);
+      else values.set(normalized, { value, count: 0, connectionIds: [enriched.connection.id] });
     };
     const addAttribute = (key: string, value: string) => {
       const name = key.toLowerCase();
@@ -151,17 +168,54 @@ export function buildClusterSearch(connections: readonly SearchableConnection[])
       .toLowerCase();
     documents.set(enriched.connection.id, { text, fields });
   }
-  const fields: KeyedSearchField[] = [...suggestions].map(([name, values]) => ({
-    name,
-    values: [...values].sort(),
-    description: ['region', 'provider', 'env', 'account', 'status', 'tag'].includes(name)
-      ? 'Explicit cluster facts'
-      : 'Configured attribute or current metadata',
-  }));
+  const fields: KeyedSearchField[] = [...suggestions].map(([name, values]) => {
+    // Code-unit order lets a stack find each value's nearest existing prefix.
+    const ordered = [...values].sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
+    const ancestors: typeof ordered = [];
+    for (const pair of ordered) {
+      const [prefix, entry] = pair;
+      while (ancestors.length && !prefix.startsWith(ancestors[ancestors.length - 1][0])) {
+        ancestors.pop();
+      }
+      entry.parent = ancestors[ancestors.length - 1]?.[1];
+      ancestors.push(pair);
+    }
+    // Capture child counts before transferring their sets; merge smaller sets into larger ones.
+    for (let index = ordered.length - 1; index >= 0; index--) {
+      const entry = ordered[index][1];
+      let matchingIds = entry.matchingIds;
+      entry.matchingIds = undefined;
+      if (matchingIds) {
+        for (const id of entry.connectionIds) matchingIds.add(id);
+      }
+      entry.count = matchingIds?.size ?? entry.connectionIds.length;
+      const parent = entry.parent;
+      if (!parent) continue;
+      matchingIds ??= new Set(entry.connectionIds);
+      if (!parent.matchingIds) {
+        parent.matchingIds = matchingIds;
+      } else if (parent.matchingIds.size < matchingIds.size) {
+        for (const id of parent.matchingIds) matchingIds.add(id);
+        parent.matchingIds = matchingIds;
+      } else {
+        for (const id of matchingIds) parent.matchingIds.add(id);
+      }
+    }
+    return {
+      name,
+      values: ordered
+        .sort(([, left], [, right]) => left.value.localeCompare(right.value))
+        .map(([, { value, count }]) => ({
+          value,
+          label: `${name}:${value}`,
+          description: `${count} ${count === 1 ? 'cluster' : 'clusters'}`,
+        })),
+    };
+  });
   return { fields, index: createKeyedSearchIndex(fields), documents };
 }
 
-/** Repeated keys OR together; different keys and free text AND together. Invalid queries match nothing. */
+/** Keyed values match prefixes; repeated keys OR together. Different keys and free text AND together. Invalid queries match nothing. */
 export function matchesClusterQuery(
   document: ClusterSearchDocument | undefined,
   query: ParsedKeyedSearch,
@@ -172,7 +226,9 @@ export function matchesClusterQuery(
   for (const token of query.filters)
     filters.set(token.key!, [...(filters.get(token.key!) ?? []), token.value.toLowerCase()]);
   return [...filters].every(([key, values]) =>
-    values.some((value) => document.fields.get(key)?.some((candidate) => candidate === value)),
+    values.some((value) =>
+      document.fields.get(key)?.some((candidate) => candidate.startsWith(value)),
+    ),
   );
 }
 export { parseKeyedSearch };

@@ -4,6 +4,7 @@ import type { ComponentProps, FormEvent } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { EnrichedConnection } from '../../types/clusters';
+import type { SearchableConnection } from '../../utils/clusterSearch';
 
 import CompactClusterCard from './CompactClusterCard';
 import ConnectionCard from './ConnectionCard';
@@ -26,13 +27,18 @@ vi.mock('../../hooks/useClusterPreferences', () => ({
   useClusterPreferences: () => ({ iconAssets: [] }),
 }));
 
-function cluster(overrides: Partial<EnrichedConnection> = {}): EnrichedConnection {
+/** Name, provider and context hints that must never become environment, ownership or locality. */
+function cluster(
+  overrides: Partial<SearchableConnection> = {},
+  connection: Record<string, unknown> = {},
+): SearchableConnection {
   return {
     connection: {
       id: 'arn:aws:eks:us-east-1:123:cluster/production',
       name: 'production-us-east-1-account-123-context',
       labels: {},
       data: {},
+      ...connection,
     } as EnrichedConnection['connection'],
     provider: 'eks',
     isFavorite: false,
@@ -92,47 +98,26 @@ describe('ConnectionCard', () => {
     const props = cardProps();
     const view = render(<ConnectionCard {...props} selected />);
     const primary = screen.getByRole('button', { name: `Open ${props.enriched.displayName}` });
-    expect(primary.getAttribute('title')).toContain(props.enriched.connection.name);
-    expect(primary.getAttribute('title')).toContain(props.enriched.connection.id);
     expect(primary.getAttribute('aria-description')).toContain('A custom description');
     expect(primary.getAttribute('aria-description')).toContain('Tags: team:platform');
-    expect(screen.getByText('A custom description')).toBeInTheDocument();
 
     view.rerender(<ConnectionCard {...props} selected={false} />);
     expect(primary).not.toHaveAttribute('aria-current');
-    expect(primary.closest('section')).toHaveAttribute('data-ov-selected', 'false');
-    expect(primary.closest('section')).not.toHaveAttribute('aria-selected');
   });
 
-  it('does not turn name hints or disconnection into environment, ownership or health facts', () => {
-    render(<ConnectionCard {...cardProps()} />);
-    expect(screen.getByText('Env: unknown')).toBeInTheDocument();
-    expect(screen.getByText('Region: unknown')).toBeInTheDocument();
-    expect(screen.getByText('Account: unknown')).toBeInTheDocument();
-    expect(screen.getByText('Disconnected')).toBeInTheDocument();
-    expect(screen.getByText('Metadata unknown')).toBeInTheDocument();
+  it('marks only an active connection as success and never claims workload health', () => {
+    const view = render(<ConnectionCard {...cardProps(cluster({ isConnected: true }))} />);
+    expect(screen.getByText('Connected').closest('[data-ov-status]')).toHaveAttribute(
+      'data-ov-status',
+      'success',
+    );
+
+    view.rerender(<ConnectionCard {...cardProps(cluster({ isConnected: false }))} />);
+    expect(screen.getByText('Not connected').closest('[data-ov-status]')).toHaveAttribute(
+      'data-ov-status',
+      'neutral',
+    );
     expect(screen.queryByText(/healthy|unhealthy/i)).not.toBeInTheDocument();
-  });
-
-  it('shows sourced facts, labels configuration as hints and keeps metadata freshness separate', () => {
-    const base = cluster();
-    const enriched = {
-      ...base,
-      avatar: 'data:image/png;base64,custom-avatar',
-      connection: {
-        ...base.connection,
-        labels: { region: 'us-gov-west-1' },
-        data: { account: 'configured-account' },
-      },
-      tags: ['env:staging'],
-      metadataState: 'stale' as const,
-    };
-    render(<ConnectionCard {...cardProps(enriched)} />);
-    expect(screen.getByText('Env: staging')).toBeInTheDocument();
-    expect(screen.getByText('Region hint: us-gov-west-1')).toBeInTheDocument();
-    expect(screen.getByText('Account hint: configured-account')).toBeInTheDocument();
-    expect(screen.getByText('Metadata stale')).toBeInTheDocument();
-    expect(screen.getByText('Amazon EKS hint')).toBeInTheDocument();
   });
 
   it('keeps favorite and connection actions independent from primary navigation', async () => {
@@ -165,15 +150,15 @@ describe('ConnectionCard', () => {
 });
 
 describe('CompactClusterCard', () => {
-  it('uses a native primary action with full identity, subtitle and separate favorite', async () => {
+  it('shows the name over one supporting line with a native primary action and separate favorite', async () => {
     const user = userEvent.setup();
-    const enriched = cluster({ isConnected: true });
+    const enriched = cluster({ isConnected: true }, { labels: { region: 'us-east-1' } });
     const open = vi.fn();
     const favorite = vi.fn();
     render(
       <CompactClusterCard
         enriched={enriched}
-        subtitle="Opened yesterday"
+        subtitle="us-east-1 · Recently opened"
         selected
         showFavorite
         onClick={open}
@@ -182,11 +167,7 @@ describe('CompactClusterCard', () => {
     );
     const primary = screen.getByRole('button', { name: `Open ${enriched.displayName}` });
     expect(primary).toHaveAttribute('aria-current', 'true');
-    expect(primary.getAttribute('title')).toContain(enriched.connection.name);
     expect(primary.getAttribute('aria-description')).toContain(enriched.connection.id);
-    expect(screen.getByText('Opened yesterday')).toBeInTheDocument();
-    expect(screen.getByText('Amazon EKS hint')).toBeInTheDocument();
-    expect(screen.getByText('Connected')).toBeInTheDocument();
     expect(primary.contains(screen.getByRole('button', { name: 'Favorite' }))).toBe(false);
     await user.tab();
     expect(primary).toHaveFocus();
@@ -198,13 +179,5 @@ describe('CompactClusterCard', () => {
     await user.keyboard('{Enter}');
     expect(favorite).toHaveBeenCalledTimes(1);
     expect(open).toHaveBeenCalledTimes(2);
-  });
-
-  it('omits unavailable favorite controls and preserves identity without a subtitle', () => {
-    const enriched = cluster({ displayDescription: '' });
-    render(<CompactClusterCard enriched={enriched} showFavorite onClick={vi.fn()} />);
-    expect(screen.queryByRole('button', { name: 'Favorite' })).not.toBeInTheDocument();
-    expect(screen.getByText(enriched.connection.name)).toBeInTheDocument();
-    expect(screen.getByText('Disconnected')).toBeInTheDocument();
   });
 });

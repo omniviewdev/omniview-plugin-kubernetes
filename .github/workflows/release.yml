@@ -72,7 +72,7 @@ jobs:
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `value=${version}\nplatforms=${process.env.PLATFORMS.split(' ').join(',')}\n`);
           NODE
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
 

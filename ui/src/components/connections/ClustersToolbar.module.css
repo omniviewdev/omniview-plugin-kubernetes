@@ -1,0 +1,35 @@
+.toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ov-space-stack-md);
+  min-inline-size: 0;
+}
+.controls,
+.facets,
+.views {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ov-space-stack-sm);
+  min-inline-size: 0;
+}
+.controls {
+  justify-content: space-between;
+}
+.views {
+  margin-inline-start: auto;
+}
+.facet {
+  inline-size: 12em;
+  max-inline-size: 100%;
+}
+.filterPopup {
+  inline-size: min(28rem, calc(100vw - 2rem));
+  max-block-size: min(60vh, 28rem);
+  overflow: auto;
+}
+@media (max-width: 700px) {
+  .views {
+    margin-inline-start: 0;
+  }
+}
