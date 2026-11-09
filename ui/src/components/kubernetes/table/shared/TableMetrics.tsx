@@ -1,22 +1,15 @@
 import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import { MetricCell, type CapacityBound, type MetricReference, type MetricThreshold } from '@omniviewdev/base-ui/metrics';
-import { parseAppError, useMetricCatalog, useMetricObservation, useMetricViewSourceSelection, type HostRecord, type PreparedMetricResult, type ResourceMetricTarget, type UseMetricObservationOptions } from '@omniviewdev/runtime';
+import { parseAppError, useMetricCatalog, useTableMetricObservation, useMetricViewSourceSelection, type HostRecord, type TableMetricObservation, type UseMetricObservationOptions } from '@omniviewdev/runtime';
 import type { ColumnDef } from '@tanstack/react-table';
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
+import { createContext, useContext, useEffect, useMemo, type PropsWithChildren } from 'react';
 
-import { useDocumentVisibility } from '@/hooks/useDocumentVisibility';
 import { PLUGIN_ID } from '@/pluginId';
 
 type Scope = Pick<UseMetricObservationOptions, 'ownerConnectionID' | 'resourceKey' | 'bindingID' | 'source'>;
 type MetricColumn = { id: string; metricID: string };
 const ScopeContext = createContext<(Scope & { columns: MetricColumn[]; ready: boolean; loading?: boolean; error?: unknown }) | null>(null);
-const ValuesContext = createContext<{
-  metrics: ReadonlyMap<string, ReadonlyMap<string, PreparedMetricResult>>;
-  register: (body: object) => () => void;
-  tokenFor: (body: object) => string | undefined;
-  error: unknown;
-  loading: boolean;
-} | null>(null);
+const ValuesContext = createContext<TableMetricObservation | null>(null);
 
 /** Resource owners supply scope and default columns; generic tables only compose typed slots. */
 export function useTableMetrics<T extends object>(scope: Scope, defaults: Readonly<Record<string, string>>, presentation?: {
@@ -62,63 +55,17 @@ export function TableMetricsProvider({ columnVisibility, recordsByBody, children
 }>) {
   const scope = useContext(ScopeContext);
   if (!scope) throw new Error('Metric table requires TableMetricsScope.');
-  const visible = useDocumentVisibility();
-  const mounted = useRef(new Map<object, number>());
-  const timer = useRef<number | undefined>(undefined);
-  const [bodies, setBodies] = useState<readonly object[]>([]);
-  useEffect(() => () => clearTimeout(timer.current), []);
-  const register = useCallback((body: object) => {
-    // Virtual rows mount in batches, with one registration per metric cell.
-    // Publish only after scrolling settles; do not cancel/reopen network work
-    // for each cell or each intermediate virtual window.
-    const publish = () => {
-      clearTimeout(timer.current);
-      timer.current = window.setTimeout(() => {
-        setBodies(previous => previous.length === mounted.current.size && previous.every(item => mounted.current.has(item))
-          ? previous : Array.from(mounted.current.keys()));
-      }, 120);
-    };
-    const count = mounted.current.get(body) ?? 0;
-    mounted.current.set(body, count + 1);
-    if (count === 0) publish();
-    return () => {
-      const count = (mounted.current.get(body) ?? 1) - 1;
-      if (count > 0) mounted.current.set(body, count);
-      else {
-        mounted.current.delete(body);
-        publish();
-      }
-    };
-  }, []);
-  const targets = useMemo<ResourceMetricTarget[]>(() => bodies.flatMap(body => {
-    const record = recordsByBody.get(body);
-    return record ? [{ token: record.key, reference: record.record.reference, route: record.route }] : [];
-  }), [bodies, recordsByBody]);
   const metricIDs = useMemo(() => scope.columns.filter(column => columnVisibility[column.id] === true).map(column => column.metricID), [scope.columns, columnVisibility]);
-  const observation = useMetricObservation({ ownerPluginID: PLUGIN_ID, ownerConnectionID: scope.ownerConnectionID,
-    resourceKey: scope.resourceKey, bindingID: scope.bindingID, source: scope.source, targets, metricIDs,
-    shape: 'current', intervalMs: 30_000,
-    enabled: scope.ready && visible && metricIDs.length > 0 && targets.length > 0 && !!scope.ownerConnectionID });
-  const metrics = useMemo(() => {
-    const map = new Map<string, Map<string, PreparedMetricResult>>();
-    for (const result of observation.results) {
-      let values = map.get(result.resourceToken);
-      if (!values) { values = new Map(); map.set(result.resourceToken, values); }
-      values.set(result.metricID, result);
-    }
-    return map;
-  }, [observation.results]);
-  const tokenFor = useCallback((body: object) => recordsByBody.get(body)?.key, [recordsByBody]);
-  const error = scope.error ?? observation.error;
-  const loading = !!scope.loading || (scope.ready && !error && observation.isLoading);
-  const value = useMemo(() => ({ metrics, register, tokenFor, error, loading }), [metrics, register, tokenFor, error, loading]);
+  const value = useTableMetricObservation({ ownerPluginID: PLUGIN_ID, ownerConnectionID: scope.ownerConnectionID,
+    resourceKey: scope.resourceKey, bindingID: scope.bindingID, source: scope.source, recordsByBody, metricIDs,
+    enabled: scope.ready, loading: scope.loading, error: scope.error });
   return <ValuesContext.Provider value={value}>{children}</ValuesContext.Provider>;
 }
 
 export function TableMetricCell({ body, metricID, bound, references, thresholds }: { body: object; metricID: string; bound?: CapacityBound; references?: readonly MetricReference[]; thresholds?: readonly MetricThreshold[] }) {
   const context = useContext(ValuesContext);
   if (!context) throw new Error('Metric cells require TableMetricsProvider.');
-  const { register, tokenFor, metrics, error, loading } = context;
+  const { register, tokenFor, metrics, error, isLoading } = context;
   useEffect(() => register(body), [register, body]);
   const token = tokenFor(body);
   const result = token ? metrics.get(token)?.get(metricID) : undefined;
@@ -126,5 +73,5 @@ export function TableMetricCell({ body, metricID, bound, references, thresholds 
     ? (result.observedAt == null ? undefined : `Observed ${new Date(result.observedAt).toLocaleString()}`) : result?.status;
   return <div title={title} style={{ width: '100%', minWidth: 0 }}>{result?.unit
     ? <MetricCell label={metricID} value={result.status === 'ok' ? result.value : null} unit={result.unit} bound={bound} references={references} thresholds={thresholds} />
-    : loading && !error ? <MetricCell label={metricID} loading /> : '—'}</div>;
+    : isLoading && !error ? <MetricCell label={metricID} loading /> : '—'}</div>;
 }

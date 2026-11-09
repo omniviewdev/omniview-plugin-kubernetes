@@ -137,13 +137,25 @@ The v1.35 aggregation helper can return a partial limit sum. That sum is not a c
 
 Panel presentation maps and table cell callbacks are private Kubernetes UI composition, not public SDK APIs. Shared metrics components receive only typed bounds, references and optional thresholds; they do not inspect Kubernetes kinds or object paths. Node capacity remains an explicit positive bound from the current Node object. Existing shared table batching still owns all visible rows and selected metrics; references add no per-row network reads.
 
-Virtualized tables publish mounted metric targets after 120 milliseconds without
-target changes. Per-cell registration does not copy or publish the whole target
-map. A background refresh does not restart loading animations for settled cells;
+Tables consume the runtime's headless `useTableMetricObservation` hook. The runtime
+publishes mounted metric targets after 120 milliseconds without target changes,
+deduplicates per-cell registrations, pauses hidden-document collection, and indexes
+results by admitted host token and metric ID. A background refresh does not restart
+loading animations for settled cells;
 unavailable values render a static gap. Ordinary resource rows retain decoded
 body identity across sparse source updates. Tables share one tooltip popup and
 one row-action menu; action lists and dependency subscriptions are prepared only
 for the selected menu trigger, with its admitted row context.
+
+Kubernetes retains source preferences, current-capable column selection, headers,
+Pod/Node physical bounds, and rendering. The shared batching hook contains no
+Kubernetes IDs or table-framework dependency. Native endpoint failure cooldowns
+remain in the Kubernetes provider, not in this frontend hook or the Go SDK.
+
+Publish the runtime release containing `useTableMetricObservation` and its matching
+Vite-plugin shim before shipping this consumer. Then update published consumer
+dependency pins to that actual release. A managed source build verifies the local
+contract, not availability in an older published runtime.
 
 ## Real local prerequisite
 
