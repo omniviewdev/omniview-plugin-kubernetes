@@ -8,7 +8,6 @@ import NamedAvatar from '../shared/NamedAvatar';
 
 import ConnectionContextMenu from './ConnectionContextMenu';
 import FavoriteButton from './FavoriteButton';
-import ProviderIcon from './ProviderIcon';
 import { ClusterDragHandle } from './ClusterOrganization';
 
 type Props = {
@@ -36,7 +35,7 @@ const ConnectionTableItem: React.FC<Props> = ({
   selectedId,
   part = 'identity',
 }) => {
-  const { connection, displayName, isConnected, isFavorite, provider } = enriched;
+  const { connection, displayName, isConnected, isFavorite } = enriched;
   const { handleClick, handleConnect, handleDisconnect, connecting } = useClusterAction(
     connection.id,
     isConnected,
@@ -99,14 +98,18 @@ const ConnectionTableItem: React.FC<Props> = ({
         .join('\n')}
       title={[...new Set([displayName, connection.name, connection.id, enriched.displayDescription].filter(Boolean))].join('\n')}
       disabled={connecting}
-      style={{ maxWidth: '100%', justifyContent: 'flex-start', paddingInline: 0 }}
+      style={{
+        maxWidth: '100%',
+        justifyContent: 'flex-start',
+        paddingInlineStart: 0,
+        paddingInlineEnd: 'var(--ov-space-stack-sm)',
+      }}
     >
       {enriched.avatar ? (
         <Avatar size="xs" shape="rounded" src={enriched.avatar} alt="" />
       ) : (
         <NamedAvatar value={displayName} color={enriched.avatarColor} />
       )}
-      <ProviderIcon provider={provider} size={14} />
       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {displayName}
       </span>

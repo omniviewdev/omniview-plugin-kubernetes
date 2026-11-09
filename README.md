@@ -112,9 +112,10 @@ Cards, Table, Debug, and Organize share the same scope and filters. Table stays 
 
 Table view fills the space below the search and view controls. Only the table
 viewport scrolls, vertically or horizontally; the surrounding main area stays
-fixed when resizing. Identity/action edge gutters use shared table spacing, and
-the action column does not stretch. Open actions keep their normal hit-target
-height without adding a second horizontal inset around the avatar.
+fixed when resizing. The leading cell inset matches the row's vertical padding,
+and the action column does not stretch. Cluster cells show one cluster avatar;
+provider logos appear only in the Provider column. Open actions keep their normal
+hit-target height, with a shared small trailing inset inside the selection surface.
 
 Explorer search, autocomplete, sidebar actions, and folder controls use the shared
 small control size. Table density follows the application's global setting, with
