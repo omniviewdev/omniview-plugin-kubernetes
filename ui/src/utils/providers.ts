@@ -12,7 +12,7 @@ export const providerConfig: Record<string, ProviderConfig> = {
   eks: { label: 'Amazon EKS', color: '#FF9900' },
   gke: { label: 'Google GKE', color: '#4285F4' },
   aks: { label: 'Azure AKS', color: '#0078D4' },
-  kind: { label: 'kind', color: '#326CE5' },
+  kind: { label: 'Kind', color: '#326CE5' },
   minikube: { label: 'Minikube', color: '#F4B400' },
   'docker-desktop': { label: 'Docker Desktop', color: '#2496ED' },
   k3d: { label: 'k3d', color: '#FFC61C' },

@@ -288,6 +288,7 @@ const FolderDialog: React.FC<Props> = ({
 
             <Stack direction="column" className={styles.section}>
               <IconPicker
+                size="sm"
                 accept={['image/png', 'image/jpeg', 'image/webp']}
                 label="Folder icon"
                 uploadFields={
@@ -402,14 +403,14 @@ const FolderDialog: React.FC<Props> = ({
         </Dialog.Body>
         <Dialog.Footer>
           {mode === 'edit' && onDelete && (
-            <Button variant="ghost" color="danger" onClick={onDelete} style={deleteBtnStyle}>
+            <Button size="sm" variant="ghost" color="danger" onClick={onDelete} style={deleteBtnStyle}>
               Delete
             </Button>
           )}
-          <Button variant="ghost" color="neutral" onClick={onClose}>
+          <Button size="sm" variant="ghost" color="neutral" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" variant="solid" color="brand" disabled={!canSubmit}>
+          <Button size="sm" type="submit" variant="solid" color="brand" disabled={!canSubmit}>
             {mode === 'create' ? 'Create' : 'Save'}
           </Button>
         </Dialog.Footer>

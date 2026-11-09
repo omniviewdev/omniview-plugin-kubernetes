@@ -67,6 +67,7 @@ export default function ClustersToolbar({ searchRef, ...props }: Props) {
   return (
     <div className={styles.toolbar}>
       <KeyedSearch
+        size="sm"
         ref={searchRef}
         query={props.search}
         onQueryChange={props.onSearchChange}

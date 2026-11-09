@@ -59,6 +59,26 @@ export function getClusterDisplayFacts(enriched: SearchableConnection): ClusterD
       }
     }
     if (result[field]) continue;
+    if (field === 'account') {
+      const candidates = [
+        ['id', enriched.connection.id],
+        ['label.cluster', enriched.connection.labels?.cluster],
+        ['data.cluster', enriched.connection.data?.cluster],
+      ] as const;
+      for (const [key, value] of candidates) {
+        if (typeof value !== 'string') continue;
+        const arn = /^arn:(aws|aws-us-gov|aws-cn):eks:([a-z]{2}(?:-[a-z]+)+-[0-9]+):([0-9]{12}):cluster\/[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/.exec(value);
+        if (!arn) continue;
+        const partition = arn[2].startsWith('cn-') ? 'aws-cn' : arn[2].startsWith('us-gov-') ? 'aws-us-gov' : 'aws';
+        if (arn[1] !== partition) continue;
+        result.account = {
+          value: arn[3], source: 'configuration', key, hint: true,
+          provenance: `Cluster ARN · ${key}`,
+        };
+        break;
+      }
+      if (result.account) continue;
+    }
     const sources = [
       ['metadata', enriched.metadata],
       ['label', enriched.connection.labels],

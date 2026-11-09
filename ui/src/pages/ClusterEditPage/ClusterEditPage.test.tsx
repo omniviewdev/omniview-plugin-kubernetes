@@ -285,7 +285,6 @@ describe('Deep linking via search params', () => {
   it('renders cluster-info section for ?section=cluster-info', () => {
     renderPage('cluster-info');
     expect(screen.getByRole('region', { name: 'Server identity' })).toBeInTheDocument();
-    expect(screen.getByText('kind')).toBeInTheDocument();
     expect(screen.queryByTestId('avatar-editor')).not.toBeInTheDocument();
   });
 

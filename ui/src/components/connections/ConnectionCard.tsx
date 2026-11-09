@@ -1,4 +1,4 @@
-import { Card, Chip, StatusDot, Text } from '@omniviewdev/base-ui';
+import { Card, Caption, Chip, StatusDot } from '@omniviewdev/base-ui';
 import React from 'react';
 
 import type { EnrichedConnection, ConnectionGroup } from '../../types/clusters';
@@ -29,8 +29,8 @@ type Props = {
 
 /**
  * Provider and independent actions, the friendly name, one muted locality line, then the
- * environment and connection state. Exact identity, sources and freshness stay available from the
- * primary action's tooltip and description and from the Preview action.
+ * environment and connection state. Hover shows a concise identity summary; Preview retains
+ * the full saved configuration.
  */
 const ConnectionCard: React.FC<Props> = ({
   enriched,
@@ -59,19 +59,19 @@ const ConnectionCard: React.FC<Props> = ({
           <span className={styles.providerIcon} aria-hidden="true">
             <ProviderIcon provider={provider} size={16} />
           </span>
-          <Text size="xs" tone="muted" truncate>
+          <Caption size="sm" tone="muted" truncate>
             {facts.providerLabel}
-          </Text>
+          </Caption>
         </div>
         <ClusterCardTitle
           enriched={enriched}
           selected={selected}
-          details={`${facts.identity}\n${facts.provenance}`}
+          facts={facts}
           onClick={onClick}
         />
-        <Text size="xs" tone="muted" truncate className={styles.detail}>
+        <Card.Description className={styles.detail}>
           {localityText(facts)}
-        </Text>
+        </Card.Description>
         <Card.Action placement="inline" className={styles.actions}>
           <FavoriteButton isFavorite={isFavorite} onToggle={onToggleFavorite} />
           <ClusterDragHandle connectionId={connection.id} />
@@ -94,7 +94,7 @@ const ConnectionCard: React.FC<Props> = ({
         </Card.Action>
       </Card.Header>
       <Card.Body className={styles.footer}>
-        {environment ? (
+        {environment && (
           <Chip
             size="sm"
             variant="outline"
@@ -102,10 +102,6 @@ const ConnectionCard: React.FC<Props> = ({
             className={styles.environment}
           >
             {environment.value}
-          </Chip>
-        ) : (
-          <Chip size="sm" variant="outline" color="neutral" className={styles.environment}>
-            Unknown environment
           </Chip>
         )}
         <StatusDot

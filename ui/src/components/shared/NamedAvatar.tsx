@@ -41,6 +41,7 @@ const NamedAvatar: React.FC<Props> = ({ value = '', color }) => {
   return (
     <Avatar
       size="sm"
+      shape="rounded"
       alt={value || 'NA'}
       fallback={initials}
       deterministic={false}

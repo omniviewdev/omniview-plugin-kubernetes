@@ -92,7 +92,7 @@ export function ClusterDragHandle({
       ref={setNodeRef}
       {...attributes}
       {...listeners}
-      size="xs"
+      size="sm"
       variant="ghost"
       aria-label="Drag cluster to folder"
       title="Drag to folder; press Space to lift, arrows to move, Space to drop, Escape to cancel"

@@ -4,9 +4,9 @@
 .sidebar {
   display: flex;
   flex-direction: column;
-  gap: var(--ov-space-stack-lg);
+  gap: var(--ov-space-stack-md);
   min-inline-size: 0;
-  padding: var(--ov-space-stack-lg) var(--ov-space-stack-md);
+  padding: var(--ov-space-stack-md) var(--ov-space-stack-sm);
   overflow-x: hidden;
   overflow-y: auto;
   border-inline-end: var(--ov-size-separator-thickness-md) solid var(--ov-color-border-default);
@@ -19,7 +19,7 @@
   align-items: center;
   gap: var(--ov-space-stack-sm);
   min-inline-size: 0;
-  padding-inline: var(--ov-size-button-padding-inline-md);
+  padding-inline: var(--ov-size-button-padding-inline-sm);
 }
 
 .brandMark {
@@ -43,7 +43,7 @@
 
 .sectionLabel,
 .sectionHeader {
-  padding-inline-start: var(--ov-size-button-padding-inline-md);
+  padding-inline-start: var(--ov-size-button-padding-inline-sm);
 }
 
 .navigation,
@@ -98,11 +98,20 @@
 
 .sidebar .actions {
   flex-wrap: wrap;
-  margin-block-start: var(--ov-space-stack-sm);
+  margin-block-start: auto;
+  padding-block-start: var(--ov-space-stack-md);
+}
+
+.attributeValues {
+  inline-size: max-content;
+  max-inline-size: min(48rem, var(--available-width));
+  max-block-size: min(32rem, var(--available-height));
+  overflow: auto;
+  white-space: nowrap;
 }
 
 .error {
-  padding-inline: var(--ov-size-button-padding-inline-md);
+  padding-inline: var(--ov-size-button-padding-inline-sm);
 }
 
 @media (max-width: 700px) {

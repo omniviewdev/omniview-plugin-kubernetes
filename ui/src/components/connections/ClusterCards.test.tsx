@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ComponentProps, FormEvent } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -103,6 +103,21 @@ describe('ConnectionCard', () => {
 
     view.rerender(<ConnectionCard {...props} selected={false} />);
     expect(primary).not.toHaveAttribute('aria-current');
+  });
+
+  it('shows one identity and only available facts in the hover summary', async () => {
+    const user = userEvent.setup();
+    const identity = 'local-cluster';
+    const enriched = cluster({ displayName: identity }, {
+      id: identity, name: identity, labels: { region: 'eu-west-1' },
+    });
+    render(<ConnectionCard {...cardProps(enriched)} />);
+    await user.hover(screen.getByRole('button', { name: `Open ${identity}` }));
+    const tooltip = within(await screen.findByRole('tooltip'));
+    expect(tooltip.getAllByText(identity)).toHaveLength(1);
+    const facts = tooltip.getAllByRole('definition');
+    expect(facts).toHaveLength(1);
+    expect(facts[0]).toHaveTextContent('eu-west-1');
   });
 
   it('marks only an active connection as success and never claims workload health', () => {

@@ -1,4 +1,4 @@
-import { Card, StatusDot, Text } from '@omniviewdev/base-ui';
+import { Card, StatusDot } from '@omniviewdev/base-ui';
 import React from 'react';
 
 import type { EnrichedConnection } from '../../types/clusters';
@@ -18,9 +18,8 @@ type Props = {
 };
 
 /**
- * Friendly name over one supporting line: the caller's subtitle, else the sourced region, else an
- * explicit unknown. Only an active connection is called out; the exact identity and sources stay
- * in the primary action's tooltip and description.
+ * Friendly name over one supporting line: the caller's subtitle or the sourced region.
+ * Only an active connection is called out; exact identity and sources stay in the tooltip.
  */
 const CompactClusterCard: React.FC<Props> = ({
   enriched,
@@ -32,7 +31,7 @@ const CompactClusterCard: React.FC<Props> = ({
 }) => {
   const { isConnected } = enriched;
   const facts = clusterCardFacts(enriched);
-  const detail = subtitle || facts.region?.value || 'Region unknown';
+  const detail = subtitle || facts.region?.value || '';
 
   return (
     <Card interactive selected={selected} size="sm" className={`${styles.card} ${styles.compact}`}>
@@ -40,12 +39,12 @@ const CompactClusterCard: React.FC<Props> = ({
         <ClusterCardTitle
           enriched={enriched}
           selected={selected}
-          details={`${facts.identity}\n${facts.provenance}\n${connectionLabel(isConnected)}`}
+          facts={facts}
           onClick={onClick}
         />
-        <Text size="xs" tone="muted" truncate className={styles.detail}>
+        <Card.Description className={styles.detail}>
           {detail}
-        </Text>
+        </Card.Description>
         {isConnected && (
           <StatusDot
             className={styles.compactStatus}

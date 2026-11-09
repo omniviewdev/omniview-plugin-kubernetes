@@ -20,6 +20,23 @@
   min-height: 240px;
   min-width: 0;
 }
+
+/* Table mode has one scroll owner: the DataTable viewport, not the page. */
+.explorer[data-table-view] {
+  overflow: hidden;
+}
+.explorer[data-table-view] .main {
+  overflow: hidden;
+}
+.explorer[data-table-view] .main > :not(.results) {
+  flex-shrink: 0;
+}
+.explorer[data-table-view] .results {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
 .recent {
   display: flex;
   flex-direction: column;
@@ -41,5 +58,8 @@
   }
   .main {
     overflow: visible;
+  }
+  .explorer[data-table-view] {
+    grid-template-rows: auto minmax(0, 1fr);
   }
 }

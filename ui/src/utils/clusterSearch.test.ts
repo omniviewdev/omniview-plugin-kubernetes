@@ -77,6 +77,21 @@ describe('cluster explorer search', () => {
       metadataState: 'stale',
     });
   });
+  it('uses the EKS cluster account instead of a cross-account authentication role', () => {
+    const connection = cluster('arn:aws:eks:us-east-1:123456789012:cluster/production', {
+      account: '999999999999',
+    });
+    expect(getClusterDisplayFacts(connection).account?.value).toBe('123456789012');
+    expect(results([connection], 'account:123456789012')).toEqual([connection.connection.id]);
+    expect(results([connection], 'account:999999999999')).toEqual([]);
+  });
+  it.each([
+    'arn:aws:eks:us-east-1:123:cluster/production',
+    'arn:aws-cn:eks:us-east-1:123456789012:cluster/production',
+    'arn:aws:iam::123456789012:role/admin',
+  ])('does not infer cluster ownership from invalid or non-cluster ARNs: %s', (arn) => {
+    expect(getClusterDisplayFacts(cluster(arn)).account).toBeUndefined();
+  });
   it('matches exact AWS/GCP metadata keys while keeping configured ownership hints labeled', () => {
     const aws = {
       ...west,

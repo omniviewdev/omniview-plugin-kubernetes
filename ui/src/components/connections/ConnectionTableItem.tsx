@@ -8,7 +8,6 @@ import NamedAvatar from '../shared/NamedAvatar';
 
 import ConnectionContextMenu from './ConnectionContextMenu';
 import FavoriteButton from './FavoriteButton';
-import ProviderIcon from './ProviderIcon';
 import { ClusterDragHandle } from './ClusterOrganization';
 
 type Props = {
@@ -36,7 +35,7 @@ const ConnectionTableItem: React.FC<Props> = ({
   selectedId,
   part = 'identity',
 }) => {
-  const { connection, displayName, isConnected, isFavorite, provider } = enriched;
+  const { connection, displayName, isConnected, isFavorite } = enriched;
   const { handleClick, handleConnect, handleDisconnect, connecting } = useClusterAction(
     connection.id,
     isConnected,
@@ -58,7 +57,7 @@ const ConnectionTableItem: React.FC<Props> = ({
 
   if (part === 'actions')
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 'var(--ov-space-stack-xs)' }}>
         <ClusterDragHandle connectionId={connection.id} />
         <FavoriteButton isFavorite={isFavorite} onToggle={onToggleFavorite} />
         <ConnectionContextMenu
@@ -97,16 +96,20 @@ const ConnectionTableItem: React.FC<Props> = ({
       ]
         .filter(Boolean)
         .join('\n')}
-      title={`${displayName}\n${connection.name}\n${connection.id}\n${enriched.displayDescription}`}
+      title={[...new Set([displayName, connection.name, connection.id, enriched.displayDescription].filter(Boolean))].join('\n')}
       disabled={connecting}
-      style={{ maxWidth: '100%', justifyContent: 'flex-start' }}
+      style={{
+        maxWidth: '100%',
+        justifyContent: 'flex-start',
+        paddingInlineStart: 0,
+        paddingInlineEnd: 'var(--ov-space-stack-sm)',
+      }}
     >
       {enriched.avatar ? (
         <Avatar size="xs" shape="rounded" src={enriched.avatar} alt="" />
       ) : (
         <NamedAvatar value={displayName} color={enriched.avatarColor} />
       )}
-      <ProviderIcon provider={provider} size={14} />
       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {displayName}
       </span>

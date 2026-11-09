@@ -48,6 +48,13 @@
   min-inline-size: 0;
 }
 
+.name {
+  min-inline-size: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .nameRow {
   display: flex;
   align-items: center;
@@ -68,6 +75,9 @@
 
 .detail {
   grid-area: detail;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 /* The shared in-flow action slot reserves space for independent controls. */
@@ -109,7 +119,38 @@
   flex: 0 1 14rem;
 }
 
-.tooltipText {
-  white-space: pre-wrap;
+.tooltip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ov-space-stack-sm);
+  padding-block: var(--ov-space-stack-xs);
+}
+
+.tooltipHeader,
+.tooltipProvider {
+  display: flex;
+  align-items: center;
+  gap: var(--ov-space-stack-sm);
+}
+
+.tooltipHeader {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.tooltipName {
+  overflow-wrap: anywhere;
+}
+
+.tooltipFacts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--ov-space-stack-xs) var(--ov-space-stack-sm);
+  margin: 0;
+}
+
+.tooltipFacts dt,
+.tooltipFacts dd {
+  margin: 0;
   overflow-wrap: anywhere;
 }
