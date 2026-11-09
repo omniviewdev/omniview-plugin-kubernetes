@@ -1054,9 +1054,12 @@ Coverage-aware panels additionally require the coordinated runtime API exposing
 Publish and pin that runtime/Vite cohort before packaging these panel changes;
 the existing registry cohort does not provide those fields.
 The published runtime and Vite plugin must match; host application builds use the host lockfile.
-The backend pins SDK `v0.18.1-0.20261108223201-09042bf0afcd` and replaces
+The backend pins the reviewed SDK release `v0.19.0` and replaces
 grpc-go with `github.com/omniviewdev/grpc-go` at
 `v1.85.1-0.20261107225428-6ba964c95af2` for source-session receive controls.
+The shared partial-status row has a tracked transient layout limitation:
+[`omniviewdev/ui#117`](https://github.com/omniviewdev/ui/issues/117).
+No Kubernetes-specific CSS or copied panel composition hides that gap.
 Debug preferences discard unsaved drafts when reopened or switched to another
 connection, but preserve active drafts when saved defaults refresh.
 
