@@ -1221,6 +1221,21 @@ that file as the GitHub release body; it does not append generated notes.
 Kubernetes 0.16.2 requires IDE 0.30.2 or newer. Publish the Omniview 0.30.2
 desktop and matching npm release before publishing the plugin; npm publication alone is not a desktop release.
 
+Before publication, `archive-smoke` passes the candidate `plugin-archives`
+artifact to Omniview's reusable production archive harness. It uses the host's
+production renderer, SystemJS loader, and actual shared exports, not a plugin
+source link. It checks the homepage, empty cluster route, search interaction,
+browser errors, and named shared imports from every shipped module, including
+lazy chunks. Marketplace publication depends on its success; dry runs also run
+the gate. Merge the host's `plugin-archive-smoke.yml` workflow into `main` before
+merging this caller.
+
+The harness uses an in-page Wails fixture, not a real Kubernetes backend or
+WKWebView. Keep unit, connection/backend integration, and real application E2E
+checks. Manual native upgrade acceptance must retain an existing profile and
+verify that updating a loaded plugin does not reuse old child chunks. Never
+clear `~/.omniview` as a test prerequisite: doing so hides upgrade-state defects.
+
 The release workflow uses the Go version declared in `go.mod`, Node.js 26.13.0,
 and native pnpm 12.14.0 to build five platform archives on a GitHub-hosted runner.
 Marketplace publishing runs on the self-hosted `omniview` runners, which can

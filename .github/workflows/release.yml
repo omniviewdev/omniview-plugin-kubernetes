@@ -105,8 +105,15 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  publish:
+  archive-smoke:
     needs: build
+    uses: omniviewdev/omniview/.github/workflows/plugin-archive-smoke.yml@main
+    with:
+      host-ref: main
+      archive-artifact: plugin-archives
+
+  publish:
+    needs: [build, archive-smoke]
     if: ${{ !inputs.dry-run }}
     runs-on: [omniview]
     steps:
