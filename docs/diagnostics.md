@@ -34,3 +34,63 @@ A native metrics query reads PodMetrics (one list per namespace) or NodeMetrics 
 Every series exists at zero from the moment the provider starts, so a capture that begins before the first scan, denial, budget stop or cancellation still has a start value for each counter. Zero means that event has not happened since this process started; an absent series means the plugin predates the instrument or the host could not read it. A plugin restart changes the process start time, and a capture or comparison across it is reported as a reset rather than as a drop to zero.
 
 Attribute values are the sets listed above. A namespace, Pod or node name, a continuation token, a URL or an error message is never a label.
+
+## Singleton namespace selection
+
+When a namespace group has exactly one admitted Pod target, the native collector
+adds `fieldSelector=metadata.name=<name>` to its LIST, including continuation
+requests. Groups with multiple targets keep one unfiltered namespace LIST.
+This does not add per-target requests. An aggregated metrics API may ignore the
+selector; client-side identity checks, streaming validation, cancellation, and
+all page/object/byte budgets still apply.
+
+### Real 1,000-Pod comparison
+
+An isolated Kind lab with ten workers and one control plane supplied 1,000
+Running application Pods across 20 namespaces. Metrics-server v0.8.0 returned
+genuine CPU and memory usage for all 1,000, plus 30 system Pods. Readiness probes
+were unstable: the inventory observation recorded 367/1,000 Ready, and seed
+commands timed out waiting for Deployment availability. This is not a healthy
+1,000-Ready-Pod or a 20,000-Pod result.
+
+Both private captures used `native1000-fixed-viewport3x4-120s`: 45 seconds idle
+on Dashboard, then three Pod-table returns with four 800px scrolls per return
+inside a 120-second capture. Fixed dwell was 2 seconds after return and 1.2
+seconds after scrolling. Pending cells were not treated as zero or missing.
+The candidate used a bounded native browser locator after the browser helper
+timed out in an earlier attempt; action count, dwell, viewport and inventory
+were unchanged. These driver timings are not render-latency measurements.
+
+Baseline: `0c3397a506fc1f9cb918ac927bca843b`.
+Candidate: `6a36557c1384820c62cbc31298c07463`.
+The existing `diagnostics compare` reported compatible, valid measurements.
+Both captures had complete collection coverage without errors, drops or gaps.
+The host session was unchanged, and the plugin was rebuilt/restarted between
+builds. Source provenance was `unknown`; comparison warned that revision alone
+was not a complete source fingerprint.
+
+| Observation | Baseline | Singleton selection |
+|---|---:|---:|
+| Provider queries, successful / error | 13 / 1 | 16 / 1 |
+| Native API calls | 276 | 284 |
+| Validated pages | 276 | 283 |
+| Decoded objects | 13,800 | 6,310 |
+| Response-body bytes | 4,694,594 | 2,161,316 |
+| Caller cancellations | 0 | 1 |
+| Native scans, ok / canceled | 276 / 0 | 283 / 1 |
+| Successful provider-query mean, ms | 74.46 | 84.32 |
+| Plugin CPU time, seconds | 9.30 | 9.27 |
+| Mean plugin RSS, bytes | 452,260,713 | 528,688,850 |
+| Mean finite cache, bytes | 61,855 | 62,441 |
+| Mean finite snapshots, bytes | 12,576 | 22,588 |
+| End-of-window finite cache / snapshots, bytes | 38,524 / 38,980 | 37,306 / 37,656 |
+
+The measured win is less collector work: 54.3% fewer objects and 54.0% fewer
+response-body bytes in this workload. Request count did not improve; successful
+provider-query latency and mean RSS increased. CPU was effectively unchanged.
+These observations do not establish a latency, CPU, retained-memory or
+metrics-server-internal scan-complexity improvement.
+
+Earlier candidate captures are not comparison evidence: one workload stopped
+after a browser navigation timeout; another completed its actions but diagnostics
+marked the capture reset. Neither was substituted for the complete repeat.

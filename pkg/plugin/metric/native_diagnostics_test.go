@@ -235,7 +235,7 @@ func TestNativeScanDiagnosticsCountBudgetStops(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			budget := test.budget
 			before := scanSeries(t)
-			err := scanNativeNamespace(context.Background(), client, "one", &budget, func(*metricsv1beta1.PodMetrics) { t.Error("an exhausted scan committed a page") })
+			err := scanNativeNamespace(context.Background(), client, "one", "", &budget, func(*metricsv1beta1.PodMetrics) { t.Error("an exhausted scan committed a page") })
 			if !errors.Is(err, errNativeBudget) {
 				t.Fatalf("scan was not stopped by its budget: %v", err)
 			}
@@ -271,7 +271,7 @@ func TestNativeScanDiagnosticsCountFailedScans(t *testing.T) {
 			client := nativeTestRESTClient(t, test.transport)
 			budget := nativeScanBudget{bytes: 1 << 20, objects: 100, pages: 8}
 			before := scanSeries(t)
-			err := scanNativeNamespace(context.Background(), client, "one", &budget, func(*metricsv1beta1.PodMetrics) { t.Error("an invalid page committed a sample") })
+			err := scanNativeNamespace(context.Background(), client, "one", "", &budget, func(*metricsv1beta1.PodMetrics) { t.Error("an invalid page committed a sample") })
 			if err == nil || errors.Is(err, errNativeBudget) {
 				t.Fatalf("scan failure was lost or mistaken for budget exhaustion: %v", err)
 			}
