@@ -87,9 +87,41 @@ it('does not restore one Secret\'s saved edits into another Secret opened in the
   fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
   drawer.rerender(<SecretSidebar ctx={{ data: rows[1] }} />);
+  expect(screen.queryByDisplayValue('new-password')).toBeNull();
+  expect(screen.queryByText('password')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Show value' }));
+  expect(screen.getByDisplayValue('second-value')).toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: 'Add Entry' }));
   fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Show value' }));
   expect(screen.getByDisplayValue('second-value')).toBeVisible();
   expect(screen.queryByDisplayValue('new-password')).toBeNull();
 });
+
+it.each(['incarnation', 'connection'] as const)(
+  'keeps a draft across same-resource updates but resets it when the %s changes',
+  (changed) => {
+    const row = decodeResourceTableRows([record]).rows[0] as unknown as Secret;
+    const resource = {
+      pluginID: 'kubernetes', targetId: record.targetId, route: record.route,
+      reference: record.record.reference, representation: record.record.representation.id,
+      key: record.addressKey,
+    };
+    const drawer = render(<SecretSidebar ctx={{ data: row, resource }} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Show value' }));
+    fireEvent.change(screen.getByDisplayValue('old-password'), { target: { value: 'private-draft' } });
+
+    const updated = { ...row, metadata: { ...row.metadata, resourceVersion: '2' } };
+    drawer.rerender(<SecretSidebar ctx={{ data: updated, resource: { ...resource } }} />);
+    expect(screen.getByDisplayValue('private-draft')).toBeVisible();
+
+    const replacement = { ...updated, data: { password: btoa('replacement-value') } };
+    const nextResource = changed === 'incarnation'
+      ? { ...resource, reference: { ...resource.reference, incarnation: 'replacement-uid' } }
+      : { ...resource, route: { connection: 'other-cluster' }, targetId: 'other-target' };
+    drawer.rerender(<SecretSidebar ctx={{ data: replacement, resource: nextResource }} />);
+    expect(screen.queryByDisplayValue('private-draft')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Show value' }));
+    expect(screen.getByDisplayValue('replacement-value')).toBeVisible();
+  },
+);

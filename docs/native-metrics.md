@@ -150,6 +150,8 @@ loading distinguishes pending demand from settled unavailable results; backgroun
 refresh does not restart settled cells' loading animations. Unavailable values
 render a static gap. Ordinary resource rows retain decoded body identity across
 sparse source updates; editing drafts must not mutate those shared bodies.
+Secret drafts reset when the admitted resource, connection, or incarnation changes;
+same-resource updates preserve in-progress edits.
 Tables share one tooltip popup and one row-action menu; action lists and dependency
 subscriptions are prepared only for the selected menu trigger, with its admitted
 row context.

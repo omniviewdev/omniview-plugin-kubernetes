@@ -46,9 +46,27 @@ interface Props {
 }
 
 /**
- * Renders a sidebar for a Secret resource
+ * Renders a Secret sidebar with a draft isolated by resource identity.
  */
 export const SecretSidebar: React.FC<Props> = ({ ctx }) => {
+  const resource = ctx.resource;
+  const identity = resource
+    ? JSON.stringify([
+        resource.pluginID,
+        resource.route.connection,
+        resource.targetId,
+        resource.key ?? resource.reference.address,
+        resource.reference.incarnation,
+      ])
+    : JSON.stringify([
+        ctx.data?.metadata?.namespace,
+        ctx.data?.metadata?.name,
+        ctx.data?.metadata?.uid,
+      ]);
+  return <SecretDraft key={identity} ctx={ctx} />;
+};
+
+const SecretDraft: React.FC<Props> = ({ ctx }) => {
   const secret = ctx.data;
 
    
