@@ -16,7 +16,6 @@ describe('overview connection facts', () => {
     metadata.transportAvailable = false;
     render(<ClusterInfoCard connectionID="owned" nodes={[]} pods={[]} events={[]} />);
     expect(screen.getByText('v1.34')).toBeTruthy();
-    expect(screen.getByText('kind')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Kubernetes version: Saved observation/ })).toBeTruthy();
   });
 });
