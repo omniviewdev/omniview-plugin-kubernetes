@@ -159,10 +159,11 @@ Pod/Node physical bounds, and rendering. The shared batching hook contains no
 Kubernetes IDs or table-framework dependency. Native endpoint failure cooldowns
 remain in the Kubernetes provider, not in this frontend hook or the Go SDK.
 
-Publish the runtime release containing `useTableMetricObservation` and its matching
-Vite-plugin shim before shipping this consumer. Then update published consumer
-dependency pins to that actual release. A managed source build verifies the local
-contract, not availability in an older published runtime.
+The consumer requires published `@omniviewdev/runtime` and `@omniviewdev/vite-plugin`
+0.34.x, which contain `useTableMetricObservation` and its matching generated shim.
+Distribute this plugin only with a compatible desktop host containing that runtime;
+publishing npm packages does not update an installed desktop application. A managed
+source build verifies the local contract, not availability in an older host.
 
 ## Real local prerequisite
 
