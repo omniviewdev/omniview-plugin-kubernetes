@@ -46,9 +46,27 @@ interface Props {
 }
 
 /**
- * Renders a sidebar for a Secret resource
+ * Renders a Secret sidebar with a draft isolated by resource identity.
  */
 export const SecretSidebar: React.FC<Props> = ({ ctx }) => {
+  const resource = ctx.resource;
+  const identity = resource
+    ? JSON.stringify([
+        resource.pluginID,
+        resource.route.connection,
+        resource.targetId,
+        resource.key ?? resource.reference.address,
+        resource.reference.incarnation,
+      ])
+    : JSON.stringify([
+        ctx.data?.metadata?.namespace,
+        ctx.data?.metadata?.name,
+        ctx.data?.metadata?.uid,
+      ]);
+  return <SecretDraft key={identity} ctx={ctx} />;
+};
+
+const SecretDraft: React.FC<Props> = ({ ctx }) => {
   const secret = ctx.data;
 
    
@@ -56,7 +74,12 @@ export const SecretSidebar: React.FC<Props> = ({ ctx }) => {
   const [shown, setShown] = React.useState<Record<string, boolean>>({});
   const [copied, setCopied] = React.useState<string | undefined>(undefined);
 
-  const originalValues = decodeEntries(secret?.data);
+  // ctx.data is the table's cached row body, shared by every table and view of the record, so
+  // edits never write to it. Saved edits stay in this drawer, tied to the row they were saved on.
+  const [saved, setSaved] = React.useState<{ source: Secret; data: Record<string, string> }>();
+  const originalValues = decodeEntries(
+    saved && saved.source === secret ? saved.data : secret?.data,
+  );
   const [values, setValues] = React.useState<Record<string, string>>(originalValues);
   const [newValues, setNewValues] = React.useState<Array<Record<string, string>>>([]);
   const [edited, setEdited] = React.useState<boolean>(false);
@@ -146,9 +169,9 @@ export const SecretSidebar: React.FC<Props> = ({ ctx }) => {
     // add our new values
     const encodedNew = Object.fromEntries(newValues.map((entry) => [entry.key, btoa(entry.value)]));
 
-    // Mutate the original secret's data in-place (expected by the drawer context)
-    // eslint-disable-next-line react-hooks/immutability
-    secret.data = { ...encodedExisting, ...encodedNew };
+    // Nothing here writes to Kubernetes, and `secret` is the cached row shared with the tables.
+    // Keep the saved data in the drawer instead of changing that row.
+    setSaved({ source: secret, data: { ...encodedExisting, ...encodedNew } });
 
     try {
       setEdited(false);

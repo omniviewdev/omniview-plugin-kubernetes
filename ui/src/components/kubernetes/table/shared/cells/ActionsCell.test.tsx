@@ -11,7 +11,7 @@ import {
 } from '../../../../shared/drawer/actionDeps';
 import { TableDrawerContext } from '../../../../shared/table/TableDrawerContext';
 import { drawerActions } from '../../corev1/Pod/actions';
-import ActionsCell from './ActionsCell';
+import ActionsCell, { RowActionsScope } from './ActionsCell';
 
 vi.mock('@omniviewdev/runtime', () => ({
   useConfirmationModal: () => ({ show: vi.fn() }),
@@ -54,6 +54,7 @@ it('updates an already-rendered Pod row when native capability and pending regis
     <TableDrawerContext.Provider
       value={{ drawer: { actions: drawerActions } as DrawerComponent, recordsByBody }}
     >
+      <RowActionsScope>
       <ActionsCell
         connectionID="cluster"
         resourceKey="k8s:/pods"
@@ -61,6 +62,7 @@ it('updates an already-rendered Pod row when native capability and pending regis
         namespace="apps"
         data={data}
       />
+      </RowActionsScope>
     </TableDrawerContext.Provider>,
   );
   await user.click(screen.getByRole('button', { name: 'Row actions' }));
@@ -105,4 +107,30 @@ it('updates an already-rendered Pod row when native capability and pending regis
     unregisterPending();
     unregister();
   }
+});
+
+it('binds shared menu actions to the selected row rather than the previous trigger', async () => {
+  const user = userEvent.setup();
+  const bodies = [{ metadata: { name: 'first' } }, { metadata: { name: 'second' } }];
+  const recordsByBody = new WeakMap<object, HostRecord>(bodies.map((data) => [data, {
+    key: `host-${data.metadata.name}`, targetId: 'table', addressKey: data.metadata.name,
+    route: { connection: 'cluster' },
+    record: {
+      reference: { address: { provider: 'kubernetes', authority: 'cluster', type: 'k8s:/pods', scope: [], id: data.metadata.name } },
+      representation: { id: 'json', revision: '1', schema: { state: 'absent' } },
+      body: { kind: 'map', value: {} }, coverage: { kind: 'complete', paths: [] },
+    },
+  }]));
+  const selected: string[] = [];
+  const drawer = { actions: [{ title: 'Inspect', action: (ctx) => { selected.push(ctx.resource!.key!); } }] } as DrawerComponent;
+  const view = render(<TableDrawerContext.Provider value={{ drawer, recordsByBody }}>
+    <RowActionsScope>{bodies.map((data) => <ActionsCell key={data.metadata.name} data={data}
+      connectionID="cluster" resourceKey="k8s:/pods" resourceID={data.metadata.name} namespace="" />)}</RowActionsScope>
+  </TableDrawerContext.Provider>);
+  await user.click(screen.getAllByRole('button', { name: 'Row actions' })[0]);
+  await user.click(await screen.findByRole('menuitem', { name: 'Inspect' }));
+  await user.click(screen.getAllByRole('button', { name: 'Row actions' })[1]);
+  await user.click(await screen.findByRole('menuitem', { name: 'Inspect' }));
+  expect(selected).toEqual(['host-first', 'host-second']);
+  view.unmount();
 });

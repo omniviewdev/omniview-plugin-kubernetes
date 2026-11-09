@@ -3,7 +3,7 @@ import {
   useRightDrawer,
   useNotifications,
   parseAppError,
-  useResourceTypes,
+  useResourceType,
 } from '@omniviewdev/runtime';
 import { ResourceClient } from '@omniviewdev/runtime/api';
 import type { GraphNode } from '@omniviewdev/runtime/models';
@@ -82,7 +82,7 @@ const ResourceLinkChip: React.FC<Props> = (props) => {
   const route = canonical?.route ?? {
     connection: 'connectionID' in props ? props.connectionID : '',
   };
-  const { resourceTypes } = useResourceTypes({ pluginID, route });
+  const { resourceType } = useResourceType({ pluginID, route, type: resourceKey ?? '' });
 
   if (!resourceName || !resourceID || (!resourceKey && !owner)) return null;
 
@@ -150,7 +150,7 @@ const ResourceLinkChip: React.FC<Props> = (props) => {
 
   const kind =
     owner?.kind ??
-    resourceTypes.data?.find((entry) => entry.type === resourceKey)?.displayName ??
+    resourceType.data?.displayName ??
     '';
   const config = kindConfigMap[kind] ?? defaultConfig;
 

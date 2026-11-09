@@ -21,6 +21,9 @@ const SKELETON_ROWS = Array.from({ length: 8 }, (_, i) => `skel-${i}`);
 
 /** Sorting, resizing and pinning UI come from DataTable.Header; the rest is ours. */
 const TABLE_FEATURES = { sorting: true, columnResizing: true, columnPinning: true };
+const COLUMN_PINNING = { start: ['select'], end: ['menu'] };
+const EMPTY_ROW_SELECTION: RowSelectionState = {};
+const DEFAULT_COLUMN = { minSize: 40, maxSize: 800 };
 
 /** Body row height in px; ResourceTable.module.css sets the same height on the cells. */
 const ROW_HEIGHT = 30;
@@ -41,6 +44,8 @@ import { getBodyCellStyles } from '../utils';
 import styles from './ResourceTable.module.css';
 import ResourceTableErrorState from './ResourceTableErrorState';
 import ResourceTableToolbar from './ResourceTableToolbar';
+import { SimpleTooltipScope } from '../../SimpleTooltip';
+import { RowActionsScope } from '../../../kubernetes/table/shared/cells/ActionsCell';
 
 import { useConnectionNamespaces } from '@/hooks/useConnectionNamespaces';
 import { useStoredState } from '@/hooks/useStoredState';
@@ -194,7 +199,7 @@ const ResourceTableContainer = <T extends RowData,>({
     } : undefined,
     live: resourceType.data?.capabilities.some((capability) => capability.operation === 'sourceUpdates') ?? false,
   });
-  const rowSelection = collectionSelection.context === collectionContext ? collectionSelection.selection : {};
+  const rowSelection = collectionSelection.context === collectionContext ? collectionSelection.selection : EMPTY_ROW_SELECTION;
   const setRowSelection = React.useCallback<React.Dispatch<React.SetStateAction<RowSelectionState>>>((update) => {
     setCollectionSelection((state) => {
       const current = state.context === collectionContext ? state.selection : {};
@@ -291,10 +296,7 @@ const ResourceTableContainer = <T extends RowData,>({
     onRowSelectionChange: setRowSelection,
     onColumnVisibilityChange: setColumnVisibility,
     getRowId: (row) => recordsByBody.get(row as object)!.key,
-    defaultColumn: {
-      minSize: 40,
-      maxSize: 800,
-    },
+    defaultColumn: DEFAULT_COLUMN,
     state: {
       sorting,
       columnFilters: effectiveColumnFilters,
@@ -302,7 +304,7 @@ const ResourceTableContainer = <T extends RowData,>({
       columnSizing,
       rowSelection,
       globalFilter: search,
-      columnPinning: { start: ['select'], end: ['menu'] },
+      columnPinning: COLUMN_PINNING,
     },
   });
 
@@ -338,6 +340,7 @@ const ResourceTableContainer = <T extends RowData,>({
     },
     [drawer, openDrawer, recordsByBody],
   );
+  const drawerContext = useMemo(() => ({ drawer, recordsByBody }), [drawer, recordsByBody]);
 
   const placeHolderText = () => {
     const resource = resourceType.data?.displayName ?? resourceKey;
@@ -360,7 +363,9 @@ const ResourceTableContainer = <T extends RowData,>({
   }
 
   const content = (
-    <TableDrawerContext.Provider value={{ drawer, recordsByBody }}>
+    <TableDrawerContext.Provider value={drawerContext}>
+      <SimpleTooltipScope>
+      <RowActionsScope>
       {/* Row menu actions run outside the drawer, so the table mounts their handlers too */}
       {drawer && <DrawerActionsBridge connectionID={connectionID} resourceKey={resourceKey} />}
       <div className={styles.outer}>
@@ -429,13 +434,15 @@ const ResourceTableContainer = <T extends RowData,>({
                 className={styles.body}
                 estimateRowSize={ROW_HEIGHT}
                 fixedRowHeight
-                overscan={15}
+                overscan={24}
                 onRowClick={onRowClick}
               />
             )}
           </DataTable.Container>
         </DataTable.Root>
       </div>
+      </RowActionsScope>
+      </SimpleTooltipScope>
     </TableDrawerContext.Provider>
   );
   return ContentWrapper ? <ContentWrapper columnVisibility={effectiveColumnVisibility} recordsByBody={recordsByBody}>{content}</ContentWrapper> : content;

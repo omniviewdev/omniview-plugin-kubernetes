@@ -14,7 +14,7 @@ vi.mock('@omniviewdev/runtime', () => ({
   useRightDrawer: () => ({ showResourceSidebar: mocks.showResourceSidebar }),
   useNotifications: () => ({ notify: mocks.snackbar }),
   parseAppError: (error: Error) => ({ detail: error.message }),
-  useResourceTypes: () => ({ resourceTypes: { data: [] } }),
+  useResourceType: () => ({ resourceType: { data: undefined } }),
 }));
 vi.mock('@omniviewdev/runtime/api', () => ({
   ResourceClient: {

@@ -1,4 +1,5 @@
 import type { DataTableFeatures } from '@omniviewdev/base-ui';
+import type { MetricThreshold } from '@omniviewdev/base-ui/metrics';
 import {
   DrawerComponent,
 } from '@omniviewdev/runtime';
@@ -43,9 +44,9 @@ const defaultMetrics = {
 
 const PodTable: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
-  const metrics = useTableMetrics<Pod>({ ownerConnectionID: id, resourceKey }, defaultMetrics, {
+  const presentation = React.useMemo(() => ({
     headers: { 'kubernetes.pod.cpu.usage': 'CPU', 'kubernetes.pod.memory.working_set': 'Memory' },
-    cell: (pod, metricID) => {
+    cell: (pod: Pod, metricID: string) => {
       const resource = metricID === 'kubernetes.pod.cpu.usage' ? 'cpu' : metricID === 'kubernetes.pod.memory.working_set' ? 'memory' : null;
       if (!resource) return {};
       const presentation = podMetricPresentation(pod, resource);
@@ -54,10 +55,11 @@ const PodTable: React.FC = () => {
         ...presentation,
         thresholds: limit != null && limit > 0 ? [
           { value: 0, tone: 'success' }, { value: limit * 0.7, tone: 'warning' }, { value: limit * 0.9, tone: 'danger' },
-        ] : undefined,
+        ] satisfies MetricThreshold[] : undefined,
       };
     },
-  });
+  }), []);
+  const metrics = useTableMetrics<Pod>({ ownerConnectionID: id, resourceKey }, defaultMetrics, presentation);
 
 
   /**
