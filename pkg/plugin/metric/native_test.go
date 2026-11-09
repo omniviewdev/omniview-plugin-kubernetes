@@ -119,6 +119,23 @@ func TestNativeExactByteBudgetAllowsEOF(t *testing.T) {
 	}
 }
 
+// A limit that leaves only the envelope's closing brace over budget is the
+// hardest place for the budget stop to hide: json.Decoder.More consumes that
+// brace as the over-budget probe and discards the error, so the next read must
+// report the budget again instead of the clean EOF behind it.
+func TestNativeByteBudgetStopIsReportedAtEveryLimit(t *testing.T) {
+	page := nativePage(nativeSample)
+	for limit := 1; limit < len(page); limit++ {
+		budget := nativeScanBudget{bytes: int64(limit), objects: 100}
+		_, err := decodeNativePage(context.Background(), &nativeBudgetReader{source: strings.NewReader(page), budget: &budget}, &budget, func(*metricsv1beta1.PodMetrics) {
+			t.Fatalf("limit %d committed a sample from an over-budget page", limit)
+		})
+		if !errors.Is(err, errNativeBudget) {
+			t.Fatalf("limit %d of %d bytes: got %v, want the budget error", limit, len(page), err)
+		}
+	}
+}
+
 func TestNativeDecoderRejectsMalformedEnvelopesAndCancellation(t *testing.T) {
 	for _, page := range []string{
 		`{"apiVersion":"metrics.k8s.io/v1beta1","kind":"PodMetricsList","items":[` + nativeSample + `],"items":[]}`,

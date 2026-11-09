@@ -2,6 +2,7 @@ package metric
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -27,11 +28,16 @@ const (
 	nativeNodeMemory     = "kubernetes.node.memory.working_set"
 	nativeMaxTargets     = sdkmetric.MaxFiniteTargets
 	nativeMaxConnections = 128
+	nativeMaxFailures    = 256
 	nativeMaxBytes       = 8 << 20
 	nativeMaxObjects     = 20000
 	nativeMaxPages       = 64
 	nativeTimeout        = 15 * time.Second
-	nativeFailureTTL     = 30 * time.Second
+	// A missing API or a refused caller stays that way until cluster
+	// configuration changes. Any other failure (a transport error, a truncated
+	// body or a server error) often clears by itself and blocks retries briefly.
+	nativePersistentFailureTTL = 30 * time.Second
+	nativeTransientFailureTTL  = 5 * time.Second
 )
 
 // nativeProvider has no polling or metric-result cache. Each source generation
@@ -49,47 +55,107 @@ type nativeLane struct {
 	key           string
 	ctx           context.Context
 	cancel        context.CancelFunc
-	namespaceTurn uint64                       // Protected by nativeProvider.mu.
-	failures      map[string]nativeScanFailure // Protected by nativeProvider.mu.
+	namespaceTurn uint64                              // Protected by nativeProvider.mu.
+	failures      map[nativeScanKey]nativeScanFailure // Protected by nativeProvider.mu.
+	failureOrder  uint64                              // Protected by nativeProvider.mu.
+}
+
+// nativeScanKey names one list endpoint whose failure is remembered. Access can
+// be granted to a single metadata.name and refused for the namespace as a whole,
+// so the exact selector is part of the endpoint: refusing one selector says
+// nothing about any other.
+// A missing LIST endpoint is selector-independent and uses an empty name.
+type nativeScanKey struct {
+	resource  string
+	namespace string
+	name      string // Exact metadata.name selector; empty when the list is unselected.
 }
 
 type nativeScanFailure struct {
 	err   error
 	until time.Time
+	order uint64 // Insertion order; breaks eviction ties between equal expiries.
+}
+
+func (f nativeScanFailure) expiresBefore(other nativeScanFailure) bool {
+	if !f.until.Equal(other.until) {
+		return f.until.Before(other.until)
+	}
+	return f.order < other.order
 }
 
 // A failed endpoint is independent of which rows are currently mounted. Keep a
 // bounded negative availability cache, not metric samples. Expiry or connection
 // retirement permits recovery without issuing another request on every scroll.
-func (p *nativeProvider) scanFailure(lane *nativeLane, key string) error {
+func (p *nativeProvider) scanFailure(lane *nativeLane, key nativeScanKey) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	now := p.now()
+	if key.name != "" {
+		endpoint := key
+		endpoint.name = ""
+		failure := lane.failures[endpoint]
+		// A LIST returns an empty list, not 404, for an unmatched name.
+		// Missing API/namespace endpoints therefore apply to every selector.
+		if now.Before(failure.until) && apierrors.IsNotFound(failure.err) {
+			return failure.err
+		}
+	}
 	failure := lane.failures[key]
-	if p.now().Before(failure.until) {
+	if now.Before(failure.until) {
 		return failure.err
 	}
 	delete(lane.failures, key)
 	return nil
 }
 
-func (p *nativeProvider) recordScanFailure(lane *nativeLane, key string, err error) {
-	if err == nil || err == errNativeBudget || lane.ctx.Err() != nil {
+// nativeFailureCooldown bounds how long one failed scan suppresses new reads of
+// its endpoint. A missing API or a refused caller stays that way until cluster
+// configuration changes, so it holds for the long window. Everything else, such
+// as a transport error, a truncated body or a server error, often clears by
+// itself and holds only briefly.
+func nativeFailureCooldown(err error) time.Duration {
+	if apierrors.IsForbidden(err) || apierrors.IsUnauthorized(err) || apierrors.IsNotFound(err) {
+		return nativePersistentFailureTTL
+	}
+	return nativeTransientFailureTTL
+}
+
+// Expiry is fixed when a scan fails; reading an entry never extends it. At
+// capacity, expired entries are removed first. If every remaining entry is still
+// live, the one expiring earliest gives way, so the newest failure is always
+// cached and the cache stays bounded. An endpoint that is not cached is read
+// again; no status is ever inferred for it.
+func (p *nativeProvider) recordScanFailure(lane *nativeLane, key nativeScanKey, err error) {
+	if err == nil || errors.Is(err, errNativeBudget) || lane.ctx.Err() != nil {
 		return
+	}
+	if apierrors.IsNotFound(err) {
+		key.name = ""
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if lane.failures == nil {
+		lane.failures = make(map[nativeScanKey]nativeScanFailure)
+	}
 	now := p.now()
-	for key, failure := range lane.failures {
+	var earliest nativeScanKey
+	var earliestFailure nativeScanFailure
+	found := false
+	for existing, failure := range lane.failures {
 		if !now.Before(failure.until) {
-			delete(lane.failures, key)
+			delete(lane.failures, existing)
+			continue
+		}
+		if !found || failure.expiresBefore(earliestFailure) {
+			earliest, earliestFailure, found = existing, failure, true
 		}
 	}
-	if len(lane.failures) < nativeMaxTargets {
-		if lane.failures == nil {
-			lane.failures = make(map[string]nativeScanFailure)
-		}
-		lane.failures[key] = nativeScanFailure{err: err, until: now.Add(nativeFailureTTL)}
+	if _, replacing := lane.failures[key]; !replacing && len(lane.failures) >= nativeMaxFailures {
+		delete(lane.failures, earliest)
 	}
+	lane.failureOrder++
+	lane.failures[key] = nativeScanFailure{err: err, until: now.Add(nativeFailureCooldown(err)), order: lane.failureOrder}
 }
 
 func newNativeProvider() *nativeProvider {
@@ -298,7 +364,16 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 				fillNativeResult(result, item, query.Targets[index].Reference.Incarnation)
 			}
 		}
-		scanKey := resourceKey + ":" + namespace
+		// A singleton narrows its list to one metadata.name without adding a
+		// request. Access is judged per selector, so the effective selector is
+		// fixed here, before the failure cache is read, and is part of its key.
+		selected := ""
+		if !isNode && len(indices) == 1 {
+			for targetName := range indices {
+				selected = targetName
+			}
+		}
+		scanKey := nativeScanKey{resource: resourceKey, namespace: namespace, name: selected}
 		err := p.scanFailure(lane, scanKey)
 		scanned := err == nil
 		if err == nil && isNode {
@@ -327,16 +402,9 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 				return wanted && item.Namespace == ""
 			})
 		} else if err == nil {
-			name := ""
-			if len(indices) == 1 {
-				for targetName := range indices {
-					name = targetName
-				}
-			}
-			// A singleton can use the API's exact name selector without adding
-			// a request. Keep filtering, pagination and all scan budgets even
-			// when an aggregated metrics API ignores the selector.
-			err = scanNativeNamespace(ctx, clients.Clientset.CoreV1().RESTClient(), namespace, name, &budget, visit, func(item *metricsv1beta1.PodMetrics) bool {
+			// Keep filtering, pagination and all scan budgets even when an
+			// aggregated metrics API ignores the selector.
+			err = scanNativeNamespace(ctx, clients.Clientset.CoreV1().RESTClient(), namespace, selected, &budget, visit, func(item *metricsv1beta1.PodMetrics) bool {
 				_, wanted := indices[item.Name]
 				return wanted && item.Namespace == namespace
 			})

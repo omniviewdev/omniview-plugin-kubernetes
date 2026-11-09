@@ -109,14 +109,19 @@ Each Pod query rotates the starting namespace within its source generation. Repe
 
 Clients reuse the Kubernetes connection's actual authenticated transport, including custom authentication strategies. Finite requests use their caller context, not `context.Background()`. A source lane has its own lifecycle cancellation and opaque generation-specific cache key. Connection retirement cancels its in-flight reads, evicts its clients and fences late publication. Reconnect cannot reuse the retired lane. Legacy Prometheus/Node caches remain independent and retire through the same registered connection callback.
 
-Failed native scan endpoints have a 30-second negative availability window per
-source generation, resource type, and namespace (Node scans use their cluster
-endpoint). Scrolling to different row tokens does not bypass this window. Cache
-hits do not extend it. At most 256 failures are retained per lane; expired entries
-are removed on subsequent failures. No metric samples are cached by the provider.
-Caller cancellation and scan-budget exhaustion do not create negative entries.
-Expiry or connection retirement permits a new read; absent metrics remain failed
-or denied, never zero or proven missing.
+Persistent native endpoint availability and authorization failures have a 30-second
+negative availability window per source generation, resource type, and namespace.
+Authorization failures also retain the exact selector: a denial for one Pod must
+not suppress an authorized query for another. A missing LIST endpoint (404) is
+shared across selectors, so scrolling to new Pod names does not probe an absent
+metrics API again. Other failures, including transport, decoding, and server
+errors, use a 5-second cooldown. Cache hits do not extend expiry. At most 256
+failures are retained per lane; insertion prunes expired entries, then evicts the
+earliest-expiring failure, older insertion first on a tie, to retain a new failure.
+No metric samples are cached by the provider. Caller cancellation and scan-budget
+exhaustion do not create negative entries, including exhaustion encountered during
+a decoder look-ahead. Expiry, eviction, or connection retirement permits a new
+read; absent metrics remain failed or denied, never zero or proven missing.
 
 ## Metric views
 
@@ -138,14 +143,16 @@ The v1.35 aggregation helper can return a partial limit sum. That sum is not a c
 Panel presentation maps and table cell callbacks are private Kubernetes UI composition, not public SDK APIs. Shared metrics components receive only typed bounds, references and optional thresholds; they do not inspect Kubernetes kinds or object paths. Node capacity remains an explicit positive bound from the current Node object. Existing shared table batching still owns all visible rows and selected metrics; references add no per-row network reads.
 
 Tables consume the runtime's headless `useTableMetricObservation` hook. The runtime
-publishes mounted metric targets after 120 milliseconds without target changes,
-deduplicates per-cell registrations, pauses hidden-document collection, and indexes
-results by admitted host token and metric ID. A background refresh does not restart
-loading animations for settled cells;
-unavailable values render a static gap. Ordinary resource rows retain decoded
-body identity across sparse source updates. Tables share one tooltip popup and
-one row-action menu; action lists and dependency subscriptions are prepared only
-for the selected menu trigger, with its admitted row context.
+batches mounted metric targets after a quiet period, with a maximum wait during
+continuous scrolling. It deduplicates per-cell registrations, pauses hidden-document
+collection, and indexes results by admitted host token and metric ID. Per-cell
+loading distinguishes pending demand from settled unavailable results; background
+refresh does not restart settled cells' loading animations. Unavailable values
+render a static gap. Ordinary resource rows retain decoded body identity across
+sparse source updates; editing drafts must not mutate those shared bodies.
+Tables share one tooltip popup and one row-action menu; action lists and dependency
+subscriptions are prepared only for the selected menu trigger, with its admitted
+row context.
 
 Kubernetes retains source preferences, current-capable column selection, headers,
 Pod/Node physical bounds, and rendering. The shared batching hook contains no

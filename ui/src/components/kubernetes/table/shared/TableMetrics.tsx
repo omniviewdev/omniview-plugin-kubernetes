@@ -62,10 +62,15 @@ export function TableMetricsProvider({ columnVisibility, recordsByBody, children
   return <ValuesContext.Provider value={value}>{children}</ValuesContext.Provider>;
 }
 
+/**
+ * A known sample always renders, so a refresh never blanks it. Without one, the cell holds a
+ * placeholder only while its own sample is pending. A failure, or a sample that settled without
+ * data, leaves a static gap; a failure also puts its detail in the tooltip.
+ */
 export function TableMetricCell({ body, metricID, bound, references, thresholds }: { body: object; metricID: string; bound?: CapacityBound; references?: readonly MetricReference[]; thresholds?: readonly MetricThreshold[] }) {
   const context = useContext(ValuesContext);
   if (!context) throw new Error('Metric cells require TableMetricsProvider.');
-  const { register, tokenFor, metrics, error, isLoading } = context;
+  const { register, tokenFor, metrics, error, isLoadingFor } = context;
   useEffect(() => register(body), [register, body]);
   const token = tokenFor(body);
   const result = token ? metrics.get(token)?.get(metricID) : undefined;
@@ -73,5 +78,5 @@ export function TableMetricCell({ body, metricID, bound, references, thresholds 
     ? (result.observedAt == null ? undefined : `Observed ${new Date(result.observedAt).toLocaleString()}`) : result?.status;
   return <div title={title} style={{ width: '100%', minWidth: 0 }}>{result?.unit
     ? <MetricCell label={metricID} value={result.status === 'ok' ? result.value : null} unit={result.unit} bound={bound} references={references} thresholds={thresholds} />
-    : isLoading && !error ? <MetricCell label={metricID} loading /> : '—'}</div>;
+    : !error && isLoadingFor(body, metricID) ? <MetricCell label={metricID} loading /> : '—'}</div>;
 }

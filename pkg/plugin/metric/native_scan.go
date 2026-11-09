@@ -26,11 +26,20 @@ type nativeScanBudget struct {
 type nativeBudgetReader struct {
 	source io.Reader
 	budget *nativeScanBudget
+	// Set once the source is known to hold more than the budget allows. Proving
+	// that consumes a source byte and json.Decoder.More discards the first error
+	// it sees, so every later read repeats the verdict instead of probing again:
+	// the consumed byte may have been the last, and a second probe would then
+	// report a clean EOF for a body that overran its budget.
+	exhausted bool
 }
 
 func (r *nativeBudgetReader) Read(data []byte) (int, error) {
 	if len(data) == 0 {
 		return 0, nil
+	}
+	if r.exhausted {
+		return 0, errNativeBudget
 	}
 	if r.budget.bytes <= 0 {
 		var probe [1]byte
@@ -38,6 +47,7 @@ func (r *nativeBudgetReader) Read(data []byte) (int, error) {
 		if n == 0 && err == io.EOF {
 			return 0, io.EOF
 		}
+		r.exhausted = true
 		return 0, errNativeBudget
 	}
 	if int64(len(data)) > r.budget.bytes {

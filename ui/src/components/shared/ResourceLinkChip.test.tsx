@@ -13,8 +13,8 @@ vi.mock('@omniviewdev/runtime', () => ({
   useRightDrawer: () => ({ showResourceSidebar: mocks.drawer }),
   useNotifications: () => ({ notify: mocks.snackbar }),
   parseAppError: (error: Error) => ({ detail: error.message }),
-  useResourceTypes: () => ({
-    resourceTypes: { data: [{ type: 'k8s:/pods', displayName: 'Pod' }] },
+  useResourceType: () => ({
+    resourceType: { data: { type: 'k8s:/pods', displayName: 'Pod' } },
   }),
 }));
 vi.mock('@omniviewdev/runtime/api', () => ({
