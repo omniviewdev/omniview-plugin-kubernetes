@@ -1,109 +1,115 @@
-/* Grid owners set row height. Identity and facts never wrap or grow with name length.
- * Interactive surfaces, selection, focus and motion belong to base-ui Card.
+/* Cluster cards arrange content inside base-ui Card slots. The shared Card owns the surface,
+ * hover, selection rail, focus ring and motion. Every card renders the same single-line rows, so
+ * name length, missing facts and a custom icon never change card geometry. Grid owners set the
+ * card width and row height.
  */
-.card {
+
+/* Slot padding comes from the Card size. The grid lets the independent actions share the first
+ * row while staying after the primary action in DOM and tab order. Spacing next to optional
+ * items is margin, so an absent action never reserves a gap.
+ */
+.card > .header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 0;
+  row-gap: var(--ov-space-stack-xs);
   min-inline-size: 0;
-  gap: var(--ov-space-stack-sm);
-  padding: var(--ov-size-card-padding-block-sm) var(--ov-size-card-padding-inline-sm);
-  font-family: var(--ov-font-sans);
 }
 
-.header {
+.card > .headerFull {
+  grid-template-areas:
+    'provider actions'
+    'title title'
+    'detail detail';
+}
+
+.card > .headerCompact {
+  grid-template-areas:
+    'title actions'
+    'detail status';
+}
+
+.provider {
+  grid-area: provider;
   display: flex;
   align-items: center;
-  flex-direction: row;
   gap: var(--ov-space-stack-sm);
-  padding: 0;
   min-inline-size: 0;
+}
+
+.providerIcon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.title {
+  grid-area: title;
+  min-inline-size: 0;
+}
+
+.nameRow {
+  display: flex;
+  align-items: center;
+  gap: var(--ov-space-stack-sm);
+  min-inline-size: 0;
+  /* Reserve the custom icon's height on every card so adding one never moves another row. */
+  min-block-size: var(--ov-size-avatar-sm);
 }
 
 .avatar {
   display: inline-flex;
   flex-shrink: 0;
-  align-items: center;
 }
 
 .customAvatar {
   background-color: transparent;
 }
 
-.identity {
-  flex: 1;
-  min-inline-size: 0;
+.detail {
+  grid-area: detail;
 }
 
-.title {
-  min-inline-size: 0;
-  font-size: var(--ov-font-size-sm);
-  font-weight: var(--ov-font-weight-label);
-  line-height: 1.35;
-}
-
-.truncate,
-.subtitle,
-.fact,
-.status {
-  display: block;
-  min-inline-size: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.subtitle,
-.fact,
-.provider,
-.status {
-  font-size: var(--ov-font-size-xs);
-  line-height: 1.5;
-}
-
-.subtitle,
-.fact,
-.provider {
-  color: var(--ov-color-fg-muted);
-}
-
-.actions {
-  position: relative;
-  inset: auto;
-  flex-shrink: 0;
+/* The shared in-flow action slot reserves space for independent controls. */
+.header > .actions {
+  grid-area: actions;
   gap: 0;
+  margin-inline-start: var(--ov-space-stack-sm);
 }
 
-.details {
+.header > .compactStatus {
+  grid-area: status;
+  margin-inline-start: var(--ov-space-stack-sm);
+}
+
+/* Environment and connection state stay on one row pinned to the card's bottom edge. */
+.footer {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--ov-space-stack-sm);
+  min-inline-size: 0;
   margin-block-start: auto;
 }
 
-.factRow {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  align-items: center;
-  gap: var(--ov-space-stack-sm);
+/* Display casing only; the DOM text and tooltips keep the sourced value. */
+.environment {
   min-inline-size: 0;
-}
-
-.provider {
-  display: flex;
-  align-items: center;
-  gap: var(--ov-space-stack-sm);
-  min-inline-size: 0;
-}
-
-.provider > :first-child {
-  display: inline-flex;
-  flex-shrink: 0;
+  text-transform: capitalize;
 }
 
 .status {
-  color: var(--ov-color-fg-default);
+  flex-shrink: 0;
 }
 
+/* No fixed width: a grid stretches the card to its cell. The flex-basis only gives the group
+ * browser's flex-wrap container a base width and has no effect on grid items.
+ */
 .compact {
-  flex-shrink: 0;
-  inline-size: min(100%, 14rem);
-  max-inline-size: 100%;
+  flex: 0 1 14rem;
+}
+
+.tooltipText {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }

@@ -1,22 +1,33 @@
 import {
   Button,
+  ButtonGroup,
   Dialog,
   FormField,
   IconButton,
   Input,
   Menu,
+  Overline,
   Stack,
   Text,
 } from '@omniviewdev/base-ui';
 import React from 'react';
-import { LuArrowDown, LuArrowUp, LuEllipsisVertical, LuFolderPlus, LuPlus } from 'react-icons/lu';
+import {
+  LuArrowDown,
+  LuArrowUp,
+  LuArrowUpRight,
+  LuEllipsisVertical,
+  LuFolderPlus,
+} from 'react-icons/lu';
+
 import type { ClusterPreferencesState } from '../../hooks/useClusterPreferences';
 import type { ClusterLens, ClusterScope } from '../../types/clusterExplorer';
 import type { ConnectionAttribute, EnrichedConnection } from '../../types/clusters';
+import { FolderIconDisplay, resolveFolderImage } from '../../utils/folderIcons';
 import { computeEffectiveMembers } from '../../utils/folderRules';
-import { FolderIconDisplay } from '../../utils/folderIcons';
+
 import { ClusterFolderDropTarget } from './ClusterOrganization';
 import styles from './ExplorerSidebar.module.css';
+import ProviderIcon from './ProviderIcon';
 
 type Props = {
   scope: ClusterScope;
@@ -33,6 +44,13 @@ type Props = {
   onBrowse: (key: string, value: string) => void;
 };
 
+const SCOPES = [
+  ['all', 'All clusters'],
+  ['recent', 'Recent'],
+  ['favorites', 'Pinned'],
+  ['connected', 'Connected'],
+] as const;
+
 export default function ExplorerSidebar(props: Props) {
   const { preferences, connections } = props;
   const [lensDialog, setLensDialog] = React.useState<{ id?: string; name: string }>();
@@ -43,6 +61,8 @@ export default function ExplorerSidebar(props: Props) {
   }, [lensDialogOpen]);
   const [error, setError] = React.useState('');
   const [pending, setPending] = React.useState(false);
+  const foldersLabelId = React.useId();
+  const lensesLabelId = React.useId();
   const run = async (operation: () => Promise<unknown>) => {
     setError('');
     try {
@@ -75,210 +95,224 @@ export default function ExplorerSidebar(props: Props) {
     void run(() => preferences.reorderLenses(ids));
   };
   const moveFolder = (id: string, delta: number) => {
-    void run(() => preferences.setHubSections((current) => {
-      const sections = [...current];
-      for (const folder of preferences.customGroups) {
-        if (sections.some((section) => section.type === `group:${folder.id}`)) continue;
-        const browse = sections.findIndex((section) => section.type === 'browse');
-        sections.splice(browse < 0 ? sections.length : browse, 0, {
-          type: `group:${folder.id}`,
-          collapsed: false,
-        });
-      }
-      const folderIDs = new Set(preferences.customGroups.map((folder) => `group:${folder.id}`));
-      const positions = sections.flatMap((section, index) => folderIDs.has(section.type) ? [index] : []);
-      const from = positions.findIndex((position) => sections[position].type === `group:${id}`);
-      const to = from + delta;
-      if (from < 0 || to < 0 || to >= positions.length) return current;
-      const left = positions[from];
-      const right = positions[to];
-      [sections[left], sections[right]] = [sections[right], sections[left]];
-      return sections;
-    }));
+    void run(() =>
+      preferences.setHubSections((current) => {
+        const sections = [...current];
+        for (const folder of preferences.customGroups) {
+          if (sections.some((section) => section.type === `group:${folder.id}`)) continue;
+          const browse = sections.findIndex((section) => section.type === 'browse');
+          sections.splice(browse < 0 ? sections.length : browse, 0, {
+            type: `group:${folder.id}`,
+            collapsed: false,
+          });
+        }
+        const folderIDs = new Set(preferences.customGroups.map((folder) => `group:${folder.id}`));
+        const positions = sections.flatMap((section, index) =>
+          folderIDs.has(section.type) ? [index] : [],
+        );
+        const from = positions.findIndex((position) => sections[position].type === `group:${id}`);
+        const to = from + delta;
+        if (from < 0 || to < 0 || to >= positions.length) return current;
+        const left = positions[from];
+        const right = positions[to];
+        [sections[left], sections[right]] = [sections[right], sections[left]];
+        return sections;
+      }),
+    );
   };
   return (
     <aside className={styles.sidebar} aria-label="Cluster explorer navigation">
-      <Text weight="semibold" size="sm">
-        Workspace
-      </Text>
-      <nav className={styles.navigation} aria-label="Cluster scopes">
-        {(
-          [
-            ['all', 'All clusters'],
-            ['recent', 'Recent'],
-            ['favorites', 'Pinned'],
-            ['connected', 'Connected'],
-          ] as const
-        ).map(([scope, label]) => (
-          <Button
-            key={scope}
-            size="sm"
-            variant={props.scope === scope && !props.organizing ? 'soft' : 'ghost'}
-            color="neutral"
-            aria-current={props.scope === scope && !props.organizing ? 'page' : undefined}
-            onClick={() => props.onScopeChange(scope)}
-            className={styles.scope}
-          >
-            <span>{label}</span>
-            <span>{counts[scope]}</span>
-          </Button>
-        ))}
-      </nav>
-      <Stack direction="row" align="center" justify="between">
-        <Text size="xs" tone="muted">
-          FOLDERS
+      <div className={styles.brand}>
+        <span className={styles.brandMark} aria-hidden="true">
+          <ProviderIcon provider="generic" />
+        </span>
+        <Text weight="semibold" size="lg" truncate>
+          Kubernetes
         </Text>
-        <IconButton
-          size="xs"
-          variant="ghost"
-          aria-label="Create folder"
-          onClick={props.onCreateFolder}
-        >
-          <LuFolderPlus />
-        </IconButton>
-      </Stack>
-      {folders.map((folder, index) => {
-        const asset = preferences.iconAssets.find((item) => item.id === folder.iconAssetId);
-        return (
-          <ClusterFolderDropTarget key={folder.id} groupId={folder.id}>
-            <div className={styles.item}>
-              <Button
-                size="sm"
-                variant={
-                  props.scope === `group:${folder.id}` && !props.organizing ? 'soft' : 'ghost'
-                }
-                color="neutral"
-                aria-current={
-                  props.scope === `group:${folder.id}` && !props.organizing ? 'page' : undefined
-                }
-                title={folder.name}
-                onClick={() => props.onScopeChange(`group:${folder.id}`)}
-                className={styles.folder}
-              >
-                <FolderIconDisplay
-                  icon={folder.icon}
-                  customImage={asset?.dataUrl ?? folder.customImage}
-                  color={folder.color}
-                  size={16}
-                />
-                <span className={styles.name}>{folder.name}</span>
-                <span>
-                  {computeEffectiveMembers(folder.connectionIds, folder.ruleSet, connections).size}
-                </span>
-              </Button>
-              <ItemMenu label={`Actions for folder ${folder.name}`}>
-                <Menu.Item onClick={() => props.onEditFolder(folder.id)}>Edit folder</Menu.Item>
-                <Menu.Item disabled={index === 0} onClick={() => moveFolder(folder.id, -1)}>
-                  Move up
-                </Menu.Item>
-                <Menu.Item
-                  disabled={index === folders.length - 1}
-                  onClick={() => moveFolder(folder.id, 1)}
-                >
-                  Move down
-                </Menu.Item>
-              </ItemMenu>
-            </div>
-          </ClusterFolderDropTarget>
-        );
-      })}
-      <Stack direction="row" align="center" justify="between">
-        <Text size="xs" tone="muted">
-          SAVED LENSES
-        </Text>
-        <IconButton
-          size="xs"
-          variant="ghost"
-          aria-label="Save current lens"
-          onClick={() => setLensDialog({ name: '' })}
-        >
-          <LuPlus />
-        </IconButton>
-      </Stack>
-      {preferences.savedLenses.map((lens, index) => (
-        <div key={lens.id} className={styles.item}>
-          <Button
+      </div>
+      <div className={styles.section}>
+        <Overline size="sm" className={styles.sectionLabel}>
+          Workspace
+        </Overline>
+        <nav className={styles.navigation} aria-label="Cluster scopes">
+          {SCOPES.map(([scope, label]) => (
+            <SidebarRow
+              key={scope}
+              label={label}
+              count={counts[scope]}
+              current={props.scope === scope && !props.organizing}
+              onClick={() => props.onScopeChange(scope)}
+            />
+          ))}
+        </nav>
+      </div>
+      <div className={styles.section}>
+        <Stack direction="row" align="center" justify="between" className={styles.sectionHeader}>
+          <Overline size="sm" id={foldersLabelId}>
+            Folders
+          </Overline>
+          <IconButton
             size="sm"
             variant="ghost"
-            color="neutral"
-            onClick={() => props.onApplyLens(lens)}
-            className={styles.folder}
-            title={lens.name}
+            aria-label="Create folder"
+            onClick={props.onCreateFolder}
           >
-            <span className={styles.name}>{lens.name}</span>
-          </Button>
-          <ItemMenu label={`Actions for lens ${lens.name}`}>
-            <Menu.Item onClick={() => setLensDialog({ id: lens.id, name: lens.name })}>
-              Rename lens
-            </Menu.Item>
-            <Menu.Item
-              onClick={() => {
-                void run(() =>
-                  preferences.saveLens({ ...props.currentLens, id: lens.id, name: lens.name }),
-                );
-              }}
-            >
-              Replace with current view
-            </Menu.Item>
-            <Menu.Item
-              disabled={index === 0}
-              onClick={() => moveLens(lens.id, -1)}
-              startDecorator={<LuArrowUp />}
-            >
-              Move up
-            </Menu.Item>
-            <Menu.Item
-              disabled={index === preferences.savedLenses.length - 1}
-              onClick={() => moveLens(lens.id, 1)}
-              startDecorator={<LuArrowDown />}
-            >
-              Move down
-            </Menu.Item>
-            <Menu.Item
-              color="danger"
-              onClick={() => {
-                void run(() => preferences.removeLens(lens.id));
-              }}
-            >
-              Delete lens
-            </Menu.Item>
-          </ItemMenu>
-        </div>
-      ))}
-      <details>
-        <summary className={styles.browse}>Browse attributes</summary>
-        {props.attributes.map((attribute) => (
-          <details key={attribute.key}>
-            <summary className={styles.browse}>{attribute.displayName}</summary>
-            {attribute.distinctValues.map((value) => (
-              <Button
-                key={value}
-                size="xs"
-                variant="ghost"
-                color="neutral"
-                className={styles.attribute}
-                title={value}
-                onClick={() => props.onBrowse(attribute.key, value)}
-              >
-                {value}
-              </Button>
+            <LuFolderPlus />
+          </IconButton>
+        </Stack>
+        {folders.length > 0 && (
+          <div className={styles.rows} role="group" aria-labelledby={foldersLabelId}>
+            {folders.map((folder, index) => (
+              <ClusterFolderDropTarget key={folder.id} groupId={folder.id}>
+                <div className={styles.item}>
+                  <SidebarRow
+                    label={folder.name}
+                    title={folder.name}
+                    icon={
+                      <span className={styles.folderIcon}>
+                        <FolderIconDisplay
+                          icon={folder.icon}
+                          customImage={resolveFolderImage(folder, preferences.iconAssets)}
+                          color={folder.color}
+                          size={16}
+                        />
+                      </span>
+                    }
+                    count={
+                      computeEffectiveMembers(folder.connectionIds, folder.ruleSet, connections)
+                        .size
+                    }
+                    current={props.scope === `group:${folder.id}` && !props.organizing}
+                    onClick={() => props.onScopeChange(`group:${folder.id}`)}
+                  />
+                  <ItemMenu label={`Actions for folder ${folder.name}`}>
+                    <Menu.Item onClick={() => props.onEditFolder(folder.id)}>Edit folder</Menu.Item>
+                    <Menu.Item disabled={index === 0} onClick={() => moveFolder(folder.id, -1)}>
+                      Move up
+                    </Menu.Item>
+                    <Menu.Item
+                      disabled={index === folders.length - 1}
+                      onClick={() => moveFolder(folder.id, 1)}
+                    >
+                      Move down
+                    </Menu.Item>
+                  </ItemMenu>
+                </div>
+              </ClusterFolderDropTarget>
             ))}
-          </details>
-        ))}
-      </details>
-      <Button
-        size="sm"
-        variant={props.organizing ? 'soft' : 'ghost'}
-        color="neutral"
-        onClick={props.onOrganize}
-        aria-pressed={props.organizing}
-      >
-        Organize
-      </Button>
-      {error && (
-        <Text size="xs" role="alert">
-          {error}
-        </Text>
+          </div>
+        )}
+      </div>
+      <div className={styles.section}>
+        <Overline size="sm" id={lensesLabelId} className={styles.sectionLabel}>
+          Saved lenses
+        </Overline>
+        {preferences.savedLenses.length > 0 && (
+          <div className={styles.rows} role="group" aria-labelledby={lensesLabelId}>
+            {preferences.savedLenses.map((lens, index) => (
+              <div key={lens.id} className={styles.item}>
+                <SidebarRow
+                  label={lens.name}
+                  title={lens.name}
+                  trailing={<LuArrowUpRight aria-hidden="true" />}
+                  onClick={() => props.onApplyLens(lens)}
+                />
+                <ItemMenu label={`Actions for lens ${lens.name}`}>
+                  <Menu.Item onClick={() => setLensDialog({ id: lens.id, name: lens.name })}>
+                    Rename lens
+                  </Menu.Item>
+                  <Menu.Item
+                    onClick={() => {
+                      void run(() =>
+                        preferences.saveLens({
+                          ...props.currentLens,
+                          id: lens.id,
+                          name: lens.name,
+                        }),
+                      );
+                    }}
+                  >
+                    Replace with current view
+                  </Menu.Item>
+                  <Menu.Item
+                    disabled={index === 0}
+                    onClick={() => moveLens(lens.id, -1)}
+                    startDecorator={<LuArrowUp />}
+                  >
+                    Move up
+                  </Menu.Item>
+                  <Menu.Item
+                    disabled={index === preferences.savedLenses.length - 1}
+                    onClick={() => moveLens(lens.id, 1)}
+                    startDecorator={<LuArrowDown />}
+                  >
+                    Move down
+                  </Menu.Item>
+                  <Menu.Item
+                    color="danger"
+                    onClick={() => {
+                      void run(() => preferences.removeLens(lens.id));
+                    }}
+                  >
+                    Delete lens
+                  </Menu.Item>
+                </ItemMenu>
+              </div>
+            ))}
+          </div>
+        )}
+        <ButtonGroup attached={false} aria-label="Explorer actions" className={styles.actions}>
+          <ButtonGroup.Button
+            aria-label="Save current lens"
+            onClick={() => setLensDialog({ name: '' })}
+          >
+            + Lens
+          </ButtonGroup.Button>
+          <ButtonGroup.Button
+            color={props.organizing ? 'brand' : 'neutral'}
+            aria-pressed={props.organizing}
+            onClick={props.onOrganize}
+          >
+            Organize
+          </ButtonGroup.Button>
+        </ButtonGroup>
+        {error && (
+          <Text size="sm" tone="danger" role="alert" className={styles.error}>
+            {error}
+          </Text>
+        )}
+      </div>
+      {props.attributes.length > 0 && (
+        <Menu.Root>
+          <Menu.Trigger render={<Button size="sm" variant="ghost" />}>
+            Browse attributes
+          </Menu.Trigger>
+          <Menu.Portal>
+            <Menu.Positioner sideOffset={4}>
+              <Menu.Popup>
+                {props.attributes.map((attribute) => (
+                  <Menu.SubmenuRoot key={attribute.key}>
+                    <Menu.SubmenuTrigger showCaret>{attribute.displayName}</Menu.SubmenuTrigger>
+                    <Menu.Portal>
+                      <Menu.Positioner sideOffset={4}>
+                        <Menu.Popup>
+                          {attribute.distinctValues.map((value) => (
+                            <Menu.Item
+                              key={value}
+                              onClick={() => props.onBrowse(attribute.key, value)}
+                            >
+                              {value}
+                            </Menu.Item>
+                          ))}
+                        </Menu.Popup>
+                      </Menu.Positioner>
+                    </Menu.Portal>
+                  </Menu.SubmenuRoot>
+                ))}
+              </Menu.Popup>
+            </Menu.Positioner>
+          </Menu.Portal>
+        </Menu.Root>
       )}
       {lensDialog && (
         <Dialog
@@ -340,12 +374,56 @@ export default function ExplorerSidebar(props: Props) {
   );
 }
 
+type SidebarRowProps = {
+  label: string;
+  title?: string;
+  current?: boolean;
+  count?: number;
+  icon?: React.ReactNode;
+  trailing?: React.ReactNode;
+  onClick: () => void;
+};
+
+/** One full-width navigation row: leading icon, truncating label, then count or affordance. */
+function SidebarRow({
+  label,
+  title,
+  current = false,
+  count,
+  icon,
+  trailing,
+  onClick,
+}: SidebarRowProps) {
+  return (
+    <Button
+      size="md"
+      variant={current ? 'soft' : 'ghost'}
+      color={current ? 'brand' : 'neutral'}
+      aria-current={current ? 'page' : undefined}
+      title={title}
+      onClick={onClick}
+      className={styles.row}
+      startDecorator={icon}
+      endDecorator={trailing}
+    >
+      <Text truncate tone={current ? 'brand' : 'default'} className={styles.label}>
+        {label}
+      </Text>
+      {count === undefined ? null : (
+        <Text size="xs" tone="muted" className={styles.count}>
+          {count}
+        </Text>
+      )}
+    </Button>
+  );
+}
+
 function ItemMenu({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <Menu.Root size="xs">
       <Menu.Trigger
         render={
-          <IconButton size="xs" variant="ghost" aria-label={label}>
+          <IconButton size="sm" variant="ghost" aria-label={label}>
             <LuEllipsisVertical />
           </IconButton>
         }

@@ -1,65 +1,125 @@
+/* Sidebar arrangement only. Rows, buttons, menus and type come from base-ui;
+ * every size, space and color below resolves from a theme token.
+ */
 .sidebar {
   display: flex;
   flex-direction: column;
-  gap: var(--ov-space-2, 8px);
-  min-width: 0;
-  padding: var(--ov-space-3, 12px);
-  overflow: auto;
-  border-inline-end: 1px solid var(--ov-color-border-default);
+  gap: var(--ov-space-stack-lg);
+  min-inline-size: 0;
+  padding: var(--ov-space-stack-lg) var(--ov-space-stack-md);
+  overflow-x: hidden;
+  overflow-y: auto;
+  border-inline-end: var(--ov-size-separator-thickness-md) solid var(--ov-color-border-default);
   background: var(--ov-color-bg-surface);
 }
-.navigation {
+
+/* Brand, section labels and row text share one inset so they read as a single column. */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--ov-space-stack-sm);
+  min-inline-size: 0;
+  padding-inline: var(--ov-size-button-padding-inline-md);
+}
+
+.brandMark {
+  display: inline-flex;
+  flex: none;
+  inline-size: var(--ov-size-avatar-md);
+  block-size: var(--ov-size-avatar-md);
+}
+
+.brandMark > svg {
+  inline-size: 100%;
+  block-size: 100%;
+}
+
+.section {
   display: flex;
   flex-direction: column;
-  gap: var(--ov-space-1, 4px);
+  gap: var(--ov-space-stack-xs);
+  min-inline-size: 0;
 }
-.scope {
-  width: 100%;
-  justify-content: space-between;
+
+.sectionLabel,
+.sectionHeader {
+  padding-inline-start: var(--ov-size-button-padding-inline-md);
 }
+
+.navigation,
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ov-size-list-item-gap);
+  min-inline-size: 0;
+}
+
 .item {
   display: flex;
   align-items: center;
-  min-width: 0;
-  gap: var(--ov-space-1, 4px);
+  gap: var(--ov-space-stack-xs);
+  min-inline-size: 0;
 }
-.folder {
-  flex: 1;
-  min-width: 0;
+
+/* Rows fill their container; the label truncates before the count or trailing icon. */
+.sidebar .row {
+  inline-size: 100%;
+  min-inline-size: 0;
   justify-content: flex-start;
-}
-.name {
-  flex: 1;
   text-align: start;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
-.browse {
-  cursor: pointer;
-  padding-block: var(--ov-space-1, 4px);
-  color: var(--ov-color-fg-muted);
-  font-size: var(--ov-font-size-sm, 12px);
+
+.sidebar .item > .row {
+  flex: 1 1 0;
+  inline-size: auto;
 }
-.attribute {
-  display: flex;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+
+.label {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  text-align: start;
 }
+
+.count {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.folderIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.folderIcon :is(svg, img) {
+  inline-size: var(--ov-size-icon-button-icon-md);
+  block-size: var(--ov-size-icon-button-icon-md);
+}
+
+.sidebar .actions {
+  flex-wrap: wrap;
+  margin-block-start: var(--ov-space-stack-sm);
+}
+
+.error {
+  padding-inline: var(--ov-size-button-padding-inline-md);
+}
+
 @media (max-width: 700px) {
   .sidebar {
     max-height: 220px;
+    gap: var(--ov-space-stack-md);
     border-inline-end: 0;
-    border-block-end: 1px solid var(--ov-color-border-default);
+    border-block-end: var(--ov-size-separator-thickness-md) solid var(--ov-color-border-default);
   }
+
   .navigation {
     flex-direction: row;
     flex-wrap: wrap;
   }
-  .scope {
-    width: auto;
+
+  .sidebar .navigation .row {
+    inline-size: auto;
     flex: 1 1 auto;
   }
 }

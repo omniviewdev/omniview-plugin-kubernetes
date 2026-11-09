@@ -1,10 +1,10 @@
-import { Button, Dialog, FormField, IconPicker, Input, Stack, Text } from '@omniviewdev/base-ui';
+import { Button, Dialog, FormField, IconButton, IconPicker, Input, Stack, Text } from '@omniviewdev/base-ui';
 import React, { useState, useMemo, useCallback } from 'react';
 import { LuChevronDown, LuChevronRight } from 'react-icons/lu';
 
+import { useClusterPreferences } from '../../hooks/useClusterPreferences';
 import type { EnrichedConnection, FolderRuleSet } from '../../types/clusters';
 import { decodeClusterIcon } from '../../utils/clusterIconAssets';
-import { useClusterPreferences } from '../../hooks/useClusterPreferences';
 import { FOLDER_ICON_MAP, PRESET_COLORS } from '../../utils/folderIcons';
 import { compileRuleSet, matchConnections } from '../../utils/folderRules';
 import {
@@ -42,19 +42,6 @@ const iconKeys = Object.keys(FOLDER_ICON_MAP);
 
 const formStyle: React.CSSProperties = { display: 'contents' };
 const deleteBtnStyle: React.CSSProperties = { marginRight: 'auto' };
-const rulesToggleStyle: React.CSSProperties = {
-  cursor: 'pointer',
-  userSelect: 'none',
-  display: 'flex',
-  alignItems: 'center',
-  gap: 4,
-  background: 'none',
-  border: 'none',
-  padding: 0,
-  color: 'inherit',
-  font: 'inherit',
-  textAlign: 'left',
-};
 
 // ── Sub-components ───────────────────────────────────────────────────────────
 
@@ -64,22 +51,18 @@ const ColorSwatch: React.FC<{
   onColorSelect: (color: string) => void;
 }> = ({ swatchColor, selected, onColorSelect }) => {
   const handleClick = () => onColorSelect(swatchColor);
-  const style = useMemo<React.CSSProperties>(
-    () => ({
-      backgroundColor: swatchColor,
-      outline: selected ? `2px solid ${swatchColor}` : '2px solid transparent',
-    }),
-    [swatchColor, selected],
-  );
+  const style = useMemo<React.CSSProperties>(() => ({ backgroundColor: swatchColor }), [swatchColor]);
   return (
-    <button
-      type="button"
+    <IconButton
+      size="sm"
+      variant={selected ? 'soft' : 'ghost'}
+      color={selected ? 'brand' : 'neutral'}
       aria-label={`Color ${swatchColor}`}
       aria-pressed={selected}
-      className={styles.swatch}
       onClick={handleClick}
-      style={style}
-    />
+    >
+      <span className={styles.swatch} style={style} aria-hidden="true" />
+    </IconButton>
   );
 };
 
@@ -110,6 +93,7 @@ const FolderDialog: React.FC<Props> = ({
   const [removePending, setRemovePending] = useState(false);
   const [removeError, setRemoveError] = useState('');
   const [assetName, setAssetName] = useState('');
+  const customColorInput = React.useRef<HTMLInputElement>(null);
   const preferences = useClusterPreferences(pluginID);
   const { iconAssets } = preferences;
   const [ruleSet, setRuleSet] = useState<FolderRuleSet>(initial?.ruleSet ?? EMPTY_RULE_SET);
@@ -234,17 +218,8 @@ const FolderDialog: React.FC<Props> = ({
     });
   };
 
-  // ── Memoized dynamic styles ──────────────────────────────────────────────
-
   const isCustomColor = !PRESET_COLORS.includes(color);
 
-  const colorPickerLabelStyle = useMemo<React.CSSProperties>(
-    () => ({
-      backgroundColor: isCustomColor ? color : 'var(--ov-color-bg-surface)',
-      outline: isCustomColor ? `2px solid ${color}` : '2px solid transparent',
-    }),
-    [color, isCustomColor],
-  );
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -253,7 +228,7 @@ const FolderDialog: React.FC<Props> = ({
       <form onSubmit={handleSubmit} style={formStyle}>
         <Dialog.Title>{mode === 'create' ? 'New Folder' : 'Edit Folder'}</Dialog.Title>
         <Dialog.Body>
-          <Stack direction="column" style={{ gap: 12, minWidth: 360 }}>
+          <Stack direction="column" className={styles.body}>
             <FormField
               label="Name"
               htmlFor="folder-dialog-name"
@@ -271,11 +246,11 @@ const FolderDialog: React.FC<Props> = ({
             </FormField>
 
             {/* Color section */}
-            <Stack direction="column" style={{ gap: 6 }}>
+            <Stack direction="column" className={styles.section}>
               <Text weight="semibold" size="sm" tone="default">
                 Color
               </Text>
-              <Stack direction="row" wrap align="center" style={{ gap: 6 }}>
+              <Stack direction="row" wrap align="center" className={styles.colors}>
                 {PRESET_COLORS.map((c) => (
                   <ColorSwatch
                     key={c}
@@ -285,32 +260,51 @@ const FolderDialog: React.FC<Props> = ({
                   />
                 ))}
                 {/* Custom hex color picker */}
-                <label className={styles.colorPicker} style={colorPickerLabelStyle}>
-                  <span className={styles.colorPickerHash}>#</span>
-                  <input
-                    type="color"
-                    aria-label="Custom color"
-                    value={color}
-                    onChange={handleColorInputChange}
-                    className={styles.colorPickerInput}
-                  />
-                </label>
+                <IconButton
+                  size="sm"
+                  variant={isCustomColor ? 'soft' : 'ghost'}
+                  color={isCustomColor ? 'brand' : 'neutral'}
+                  aria-label={isCustomColor ? `Custom color ${color}` : 'Custom color'}
+                  aria-pressed={isCustomColor}
+                  onClick={() => customColorInput.current?.click()}
+                >
+                  {isCustomColor ? (
+                    <span className={styles.swatch} style={{ backgroundColor: color }} aria-hidden="true" />
+                  ) : (
+                    <span aria-hidden="true">#</span>
+                  )}
+                </IconButton>
+                <input
+                  ref={customColorInput}
+                  type="color"
+                  aria-hidden="true"
+                  tabIndex={-1}
+                  value={color}
+                  onChange={handleColorInputChange}
+                  className={styles.colorInput}
+                />
               </Stack>
             </Stack>
 
-            <Stack direction="column" style={{ gap: 6 }}>
-              <FormField label="Custom icon name" htmlFor="folder-icon-name">
-                <Input.Control
-                  id="folder-icon-name"
-                  size="sm"
-                  value={assetName}
-                  placeholder="Defaults to uploaded filename"
-                  onChange={(event) => setAssetName(event.target.value)}
-                />
-              </FormField>
+            <Stack direction="column" className={styles.section}>
               <IconPicker
                 accept={['image/png', 'image/jpeg', 'image/webp']}
                 label="Folder icon"
+                uploadFields={
+                  <FormField label="Custom icon name" htmlFor="folder-icon-name">
+                    <Input.Control
+                      id="folder-icon-name"
+                      size="sm"
+                      value={assetName}
+                      placeholder="Defaults to uploaded filename"
+                      disabled={uploadPending || removePending}
+                      onChange={(event) => setAssetName(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') event.preventDefault();
+                      }}
+                    />
+                  </FormField>
+                }
                 onDragOver={(event) => {
                   event.preventDefault();
                   event.dataTransfer.dropEffect = uploadPending || removePending ? 'none' : 'copy';
@@ -367,29 +361,25 @@ const FolderDialog: React.FC<Props> = ({
                 removePending={removePending}
                 removeError={removeError}
               />
-              <Text size="xs" tone="muted">
-                Removing a library icon keeps its image on folders already using it.
-              </Text>
             </Stack>
 
             {/* Auto-match Rules (collapsible) */}
-            <Stack direction="column" style={{ gap: 6 }}>
-              <button
-                type="button"
+            <Stack direction="column" className={styles.section}>
+              <Button
+                size="sm"
+                variant="ghost"
                 onClick={toggleRulesExpanded}
                 aria-expanded={rulesExpanded}
-                style={rulesToggleStyle}
+                style={{ alignSelf: 'flex-start' }}
               >
-                {rulesExpanded ? <LuChevronDown size={14} /> : <LuChevronRight size={14} />}
-                <Text weight="semibold" size="sm" tone="default">
-                  Auto-match Rules
-                </Text>
+                {rulesExpanded ? <LuChevronDown size="1em" /> : <LuChevronRight size="1em" />}
+                Auto-match Rules
                 {ruleSet.rules.length > 0 && (
-                  <Text size="xs" style={{ opacity: 0.5 }}>
+                  <Text size="xs" tone="muted">
                     ({ruleSet.rules.length})
                   </Text>
                 )}
-              </button>
+              </Button>
               {ruleSet.rules.some(
                 (rule) =>
                   rule.field.startsWith('data:') && isRetiredInventoryDataKey(rule.field.slice(5)),

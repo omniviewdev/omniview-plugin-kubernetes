@@ -1,4 +1,4 @@
-import { Chip, Text } from '@omniviewdev/base-ui';
+import { Button, Separator, Text } from '@omniviewdev/base-ui';
 import React from 'react';
 import { LuChevronRight } from 'react-icons/lu';
 
@@ -20,22 +20,27 @@ const ConnectionGroupHeader: React.FC<Props> = ({
   isCollapsed,
   onToggle,
 }) => (
-  // eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/no-static-element-interactions
-  <div className={styles.groupHeader} onClick={onToggle}>
-    <LuChevronRight
-      size={16}
-      style={{
-        transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)',
-        transition: 'transform 0.15s ease',
-      }}
-    />
-    {provider && <ProviderIcon provider={provider} size={16} />}
-    <Text weight="semibold" size="sm">
-      {label}
-    </Text>
-    <Chip size="sm" variant="soft" color="neutral">
-      {String(count)}
-    </Chip>
+  <div className={styles.groupHeader}>
+    <Button
+      size="sm"
+      variant="ghost"
+      onClick={onToggle}
+      aria-expanded={!isCollapsed}
+      style={{ minInlineSize: 0, maxInlineSize: '100%' }}
+    >
+      <LuChevronRight
+        aria-hidden
+        style={{ transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)' }}
+      />
+      {provider && <ProviderIcon provider={provider} size={16} />}
+      <Text weight="semibold" size="sm" truncate title={label}>
+        {label}
+      </Text>
+      <Text size="xs" tone="muted" style={{ whiteSpace: 'nowrap' }}>
+        {count} {count === 1 ? 'cluster' : 'clusters'}
+      </Text>
+    </Button>
+    <Separator decorative style={{ flex: 1 }} />
   </div>
 );
 

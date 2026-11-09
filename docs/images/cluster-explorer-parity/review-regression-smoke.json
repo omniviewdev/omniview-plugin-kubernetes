@@ -1,0 +1,59 @@
+{
+  "captureType": "Actual browser development IDE smoke plus published-cohort behavior regressions",
+  "organize": {
+    "query": "env:Production region:us-gov",
+    "matching": "ml-govcloud-prd",
+    "excluded": [
+      "ml-govcloud-int",
+      "ml-govcloud-sbx",
+      "ml-govcloud-stg",
+      "kind-bench"
+    ]
+  },
+  "collapse": {
+    "cardResultCollapsed": 0,
+    "debugResultVisible": 1,
+    "cardResultStillCollapsed": 0,
+    "recentUnaffected": true
+  },
+  "prefix": {
+    "query": "env:prod",
+    "suggestions": [
+      {
+        "text": "env:Production3 clusters",
+        "selected": "true"
+      }
+    ],
+    "results": [
+      "ml-cmb-prd",
+      "ml-govcloud-prd",
+      "ml-prd"
+    ]
+  },
+  "directOpen": {
+    "route": "/_plugin/kubernetes/cluster/kind-bench/resources",
+    "observedApiVersion": "v1.36.2"
+  },
+  "customColor": {
+    "accessibleName": "Custom color #123456",
+    "method": "Controlled color input change on actual folder dialog; cancelled without persisting",
+    "nativeOsPickerVerified": false
+  },
+  "accountProjectOrdering": {
+    "method": "Actual useConnectionGrouping pipeline regression",
+    "ascending": [
+      "Zulu",
+      "Alpha"
+    ],
+    "descending": [
+      "Alpha",
+      "Zulu"
+    ]
+  },
+  "regressions": {
+    "failedBefore": 6,
+    "fullSuitePassed": 1851,
+    "fullSuiteSkipped": 3
+  },
+  "limits": "26 context aliases on one owned API. No cloud connectivity, workload health, native OS dialog or synthetic-catalog render latency proof."
+}
