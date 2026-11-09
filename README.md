@@ -1055,8 +1055,8 @@ still uses the frozen lockfile, and explicit Node setup remains authoritative.
 
 Registry installs retain pnpm's 24-hour release-age protection. Only coordinated
 `@omniviewdev/*` packages are exempted; linked source worktrees resolve locally.
-The declared frontend cohort uses `@omniviewdev/base-ui` 0.16.0,
-`@omniviewdev/editors` 6.2.1, and runtime/Vite plugin `~0.33.0`.
+The declared frontend cohort uses `@omniviewdev/base-ui` 0.17.0,
+`@omniviewdev/editors` 6.2.2, and runtime/Vite plugin `~0.33.0`.
 The coordinated host v0.33.0 and npm cohort are published. Coverage-aware panels
 use that runtime's `useMetricObservation().isPartial` and `.stepMs` APIs with
 the matching host backend. Registry-only CI consumes the published packages
