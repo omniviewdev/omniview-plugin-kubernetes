@@ -211,7 +211,11 @@ function TableSection({ connections, ...props }: Props & { connections: Enriched
     {
       id: 'actions',
       header: 'Actions',
-      size: 90,
+      size: 112,
+      minSize: 112,
+      maxSize: 112,
+      enableResizing: false,
+      meta: { align: 'right' },
       enableSorting: false,
       enableHiding: false,
       cell: ({ row }) => item(row.original, 'actions'),
@@ -282,11 +286,12 @@ function TableSection({ connections, ...props }: Props & { connections: Enriched
       features={features}
       hoverable
       stickyHeader
+      style={props.groupBy === 'none' ? { height: '100%' } : undefined}
     >
       <DataTable.Toolbar>
         <DataTable.ColumnVisibility />
       </DataTable.Toolbar>
-      <DataTable.Container ref={scrollRef} style={{ maxHeight: 'min(70vh, 800px)' }}>
+      <DataTable.Container ref={scrollRef} aria-label="Cluster table">
         <DataTable.Header />
         {data.length > 100 ? (
           <DataTable.VirtualBody overscan={12} />
@@ -344,6 +349,15 @@ const ConnectionTable: React.FC<Props> = (props) => {
       );
     }
   }, [props.grouped, props.collapsedGroups, cards, isFlat, onVisualOrderChange]);
+  if (!cards && isFlat) {
+    return (
+      <TableSection
+        {...props}
+        connections={props.grouped.groups.flatMap((group) => group.connections)}
+        onVisualOrderChange={onVisualOrderChange}
+      />
+    );
+  }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {props.grouped.groups.map((group) => (

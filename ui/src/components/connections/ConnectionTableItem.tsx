@@ -58,7 +58,7 @@ const ConnectionTableItem: React.FC<Props> = ({
 
   if (part === 'actions')
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 'var(--ov-space-stack-xs)' }}>
         <ClusterDragHandle connectionId={connection.id} />
         <FavoriteButton isFavorite={isFavorite} onToggle={onToggleFavorite} />
         <ConnectionContextMenu
@@ -99,7 +99,7 @@ const ConnectionTableItem: React.FC<Props> = ({
         .join('\n')}
       title={[...new Set([displayName, connection.name, connection.id, enriched.displayDescription].filter(Boolean))].join('\n')}
       disabled={connecting}
-      style={{ maxWidth: '100%', justifyContent: 'flex-start' }}
+      style={{ maxWidth: '100%', justifyContent: 'flex-start', paddingInline: 0 }}
     >
       {enriched.avatar ? (
         <Avatar size="xs" shape="rounded" src={enriched.avatar} alt="" />

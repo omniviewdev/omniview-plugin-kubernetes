@@ -411,7 +411,7 @@ export default function ClustersPage(): React.ReactElement {
     <ClusterOrganization
       onAssignToGroup={(groupId, connectionId) => preferences.assignToGroup(groupId, connectionId)}
     >
-      <div className={styles.explorer}>
+      <div className={styles.explorer} data-table-view={viewMode === 'list' && !organize ? '' : undefined}>
         <ExplorerSidebar
           scope={scope}
           onScopeChange={(value) => {

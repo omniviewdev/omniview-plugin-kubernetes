@@ -110,6 +110,12 @@ Collapse state is local to the current view and grouping, including the attribut
 
 Cards, Table, Debug, and Organize share the same scope and filters. Table stays flat regardless of collapsed card groups and retains both account and project facts when both exist. Project is also independently available in the column picker. Account / Project ordering uses both displayed facts when available, including saved lenses. New profiles start with curated identity columns; the column picker can reveal raw context data, and existing saved column choices remain intact.
 
+Table view fills the space below the search and view controls. Only the table
+viewport scrolls, vertically or horizontally; the surrounding main area stays
+fixed when resizing. Identity/action edge gutters use shared table spacing, and
+the action column does not stretch. Open actions keep their normal hit-target
+height without adding a second horizontal inset around the avatar.
+
 Explorer search, autocomplete, sidebar actions, and folder controls use the shared
 small control size. Table density follows the application's global setting, with
 no per-table density switch. Sidebar actions stay at the bottom, and attribute
