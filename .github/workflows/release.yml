@@ -72,7 +72,7 @@ jobs:
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `value=${version}\nplatforms=${process.env.PLATFORMS.split(' ').join(',')}\n`);
           NODE
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
 
@@ -155,7 +155,7 @@ jobs:
           publisher-slug: omniview
           plugin-id: kubernetes
           version: ${{ needs.build.outputs.version }}
-          min-ide-version: "0.31.0"
+          min-ide-version: "0.32.1"
           artifact-path: dist/
           architectures: ${{ needs.build.outputs.platforms }}
 

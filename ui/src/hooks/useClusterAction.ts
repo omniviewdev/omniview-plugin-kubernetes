@@ -5,7 +5,15 @@ import {
   usePluginRouter,
 } from '@omniviewdev/runtime';
 import { types } from '@omniviewdev/runtime/models';
-import { useCallback, useRef, useState } from 'react';
+import { createContext, createElement, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
+
+const PendingClusterOpens = createContext<Set<string> | undefined>(undefined);
+
+/** Coalesces duplicate entry points within one explorer, never across pages or routers. */
+export function ClusterActionProvider({ children }: { children?: ReactNode }) {
+  const [pendingOpens] = useState(() => new Set<string>());
+  return createElement(PendingClusterOpens.Provider, { value: pendingOpens }, children);
+}
 
 /** Connection actions navigate only; the mounted ready route owns recent history. */
 export function useClusterAction(connectionId: string, isConnected: boolean) {
@@ -19,10 +27,12 @@ export function useClusterAction(connectionId: string, isConnected: boolean) {
   });
   const [connecting, setConnecting] = useState(false);
   const pending = useRef(false);
+  const pendingOpens = useContext(PendingClusterOpens);
   const run = useCallback(
     async (open: boolean) => {
-      if (pending.current) return;
+      if (pending.current || (open && pendingOpens?.has(connectionId))) return;
       pending.current = true;
+      if (open) pendingOpens?.add(connectionId);
       setConnecting(true);
       try {
         if (!isConnected) {
@@ -43,10 +53,11 @@ export function useClusterAction(connectionId: string, isConnected: boolean) {
         // Lifecycle failures already report structured details through useConnection.
       } finally {
         pending.current = false;
+        if (open) pendingOpens?.delete(connectionId);
         setConnecting(false);
       }
     },
-    [connectionId, isConnected, navigate, notify, startConnection],
+    [connectionId, isConnected, navigate, notify, startConnection, pendingOpens],
   );
   const handleClick = useCallback(() => run(true), [run]);
   const handleConnect = useCallback(() => run(false), [run]);

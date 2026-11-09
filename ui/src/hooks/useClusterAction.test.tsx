@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { types } from '@omniviewdev/runtime/models';
-import { useClusterAction } from './useClusterAction';
+import { ClusterActionProvider, useClusterAction } from './useClusterAction';
 const mocks = vi.hoisted(() => ({
   start: vi.fn(),
   stop: vi.fn(),
@@ -56,5 +56,26 @@ describe('cluster open actions', () => {
     });
     expect(result.current.connecting).toBe(false);
     expect(mocks.navigate).not.toHaveBeenCalled();
+  });
+  it('opens once when Recent and main results activate the same connecting cluster', async () => {
+    const start = Promise.withResolvers<{ status: types.ConnectionStatusCode }>();
+    mocks.start.mockReturnValue(start.promise);
+    const { result } = renderHook(() => ({
+      recent: useClusterAction('cluster', false),
+      main: useClusterAction('cluster', false),
+    }), { wrapper: ClusterActionProvider });
+    let first!: Promise<void>;
+    let second!: Promise<void>;
+    act(() => {
+      first = result.current.recent.handleClick();
+      second = result.current.main.handleClick();
+    });
+    await act(async () => {
+      start.resolve({ status: types.ConnectionStatusCode.ConnectionStatusConnected });
+      await Promise.all([first, second]);
+    });
+    expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith('/cluster/cluster/resources');
+    await act(() => result.current.main.handleClick());
+    expect(mocks.navigate).toHaveBeenCalledTimes(2);
   });
 });

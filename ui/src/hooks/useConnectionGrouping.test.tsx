@@ -1,8 +1,11 @@
+import type { types } from '@omniviewdev/runtime/models';
 import { renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { types } from '@omniviewdev/runtime/models';
-import { useConnectionGrouping } from './useConnectionGrouping';
+
 import { getClusterDisplayFacts } from '../utils/clusterSearch';
+
+import { useConnectionGrouping } from './useConnectionGrouping';
+
 const state = vi.hoisted(() => ({
   metadata: new Map(),
   entries: [] as { pluginID: string; connectionID: string; readiness: string }[],
@@ -86,7 +89,11 @@ describe('explorer visible result pipeline', () => {
     expect(first.metadata).toEqual({ 'kubernetes.server_version': 'v1.34.0' });
     expect(getClusterDisplayFacts(first).metadataState).toBe('stale');
     expect(
-      hook.result.current.searchFields.some((field) => field.values?.includes('obsolete-region')),
+      hook.result.current.searchFields.some((field) =>
+        field.values?.some(
+          (entry) => (typeof entry === 'string' ? entry : entry.value) === 'obsolete-region',
+        ),
+      ),
     ).toBe(false);
   });
   it.each(['fact:region', 'fact:account', 'fact:environment'] as const)(
@@ -118,6 +125,33 @@ describe('explorer visible result pipeline', () => {
       ]);
     },
   );
+  it('sorts distinct projects within the same account in both directions', () => {
+    state.metadata = new Map(['Alpha', 'Zulu'].map((id) => [
+      id,
+      {
+        transportAvailable: true,
+        snapshot: {
+          active: true,
+          entries: {
+            'gcp.project_id': { state: 'current', value: id === 'Alpha' ? 'z-project' : 'a-project' },
+          },
+        },
+      },
+    ]));
+    const hook = renderHook(
+      ({ sortDirection }: { sortDirection: 'asc' | 'desc' }) => useConnectionGrouping({
+        ...options,
+        connections: [connection('Alpha', { account: 'shared' }), connection('Zulu', { account: 'shared' })],
+        groupBy: 'none',
+        sortBy: 'fact:account',
+        sortDirection,
+      }),
+      { initialProps: { sortDirection: 'asc' } },
+    );
+    expect(hook.result.current.groups[0]!.connections.map((c) => c.connection.id)).toEqual(['Zulu', 'Alpha']);
+    hook.rerender({ sortDirection: 'desc' });
+    expect(hook.result.current.groups[0]!.connections.map((c) => c.connection.id)).toEqual(['Alpha', 'Zulu']);
+  });
   it('sorts the displayed metadata state without treating unknown as zero health', () => {
     state.metadata = new Map([
       [
@@ -143,5 +177,68 @@ describe('explorer visible result pipeline', () => {
       'unknown',
     ]);
     expect(rows.every((c) => !c.isConnected)).toBe(true);
+  });
+  it('groups and filters sourced environments without inferring missing facts from names', () => {
+    const connections = [
+      connection('label', { environment: 'production' }),
+      connection('tag', { environment: 'production' }),
+      connection('prod-without-metadata'),
+      connection('literal-unknown', { environment: 'unknown' }),
+    ];
+    const hook = renderHook(
+      ({ environments }: { environments: string[] }) =>
+        useConnectionGrouping({
+          ...options,
+          connections,
+          connectionOverrides: { tag: { tags: ['env:development'] } },
+          groupBy: 'environment',
+          filters: { environments },
+        }),
+      { initialProps: { environments: [] } },
+    );
+    expect(
+      hook.result.current.groups.map((group) => [
+        group.label,
+        group.connections.map((entry) => entry.connection.id),
+      ]),
+    ).toEqual([
+      ['development', ['tag']],
+      ['production', ['label']],
+      ['unknown', ['literal-unknown']],
+      ['Unknown environment', ['prod-without-metadata']],
+    ]);
+    expect(new Set(hook.result.current.groups.map((group) => group.key)).size).toBe(4);
+    hook.rerender({ environments: ['development', 'production'] });
+    expect(
+      hook.result.current.groups.flatMap((group) =>
+        group.connections.map((entry) => entry.connection.id),
+      ),
+    ).toEqual(['tag', 'label']);
+    hook.rerender({ environments: ['does-not-exist'] });
+    expect(hook.result.current.filteredCount).toBe(0);
+  });
+
+  it('groups connected contexts first while preserving selected sorting within each group', () => {
+    state.entries = [
+      { pluginID: 'kubernetes', connectionID: 'Zulu', readiness: 'CONNECTED' },
+      { pluginID: 'kubernetes', connectionID: 'Bravo', readiness: 'CONNECTED' },
+    ];
+    const hook = renderHook(() =>
+      useConnectionGrouping({
+        ...options,
+        connections: [connection('Alpha'), connection('Bravo'), connection('Zulu')],
+        groupBy: 'status',
+        sortDirection: 'desc',
+      }),
+    );
+    expect(
+      hook.result.current.groups.map((group) => [
+        group.label,
+        group.connections.map((entry) => entry.connection.id),
+      ]),
+    ).toEqual([
+      ['Connected', ['Zulu', 'Bravo']],
+      ['Disconnected', ['Alpha']],
+    ]);
   });
 });

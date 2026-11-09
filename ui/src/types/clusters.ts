@@ -2,7 +2,15 @@ import { type types } from '@omniviewdev/runtime/models';
 
 // Special grouping modes + dynamic label-based grouping via `label:${string}`
 export type GroupByMode =
-  'none' | 'provider' | 'status' | 'favorites' | 'custom' | 'tags' | 'recent' | `label:${string}`;
+  | 'none'
+  | 'environment'
+  | 'provider'
+  | 'status'
+  | 'favorites'
+  | 'custom'
+  | 'tags'
+  | 'recent'
+  | `label:${string}`;
 
 // Legacy aliases that map to label-based grouping
 export const LEGACY_GROUP_ALIASES: Record<string, string> = {
@@ -34,6 +42,7 @@ export type ViewMode = 'list' | 'grid' | 'debug';
 
 export interface FilterState {
   providers?: string[];
+  environments?: string[];
   status?: ('connected' | 'disconnected')[];
   tags?: string[];
   labels?: Record<string, string[]>;

@@ -7,11 +7,11 @@ import (
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/httpstream"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
+	"k8s.io/streaming/pkg/httpstream"
 
 	"github.com/omniview/kubernetes/pkg/pluginid"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"

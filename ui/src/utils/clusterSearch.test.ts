@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
 import type { types } from '@omniviewdev/runtime/models';
+import { describe, expect, it } from 'vitest';
+
 import {
   buildClusterSearch,
   getClusterDisplayFacts,
@@ -36,12 +37,23 @@ describe('cluster explorer search', () => {
     team: 'payments',
   });
   const east = cluster('east', { region: 'us-east-1', environment: 'staging', team: 'platform' });
-  it('matches typed keys exactly, OR within keys and AND across keys', () => {
+  it('combines repeated keys with OR and different keys with AND', () => {
     expect(results([west, east], 'region:us-west-2 region:us-east-1 env:production')).toEqual([
       'west',
     ]);
     expect(results([west, east], 'region:west')).toEqual([]);
     expect(results([west, east], 'team:payments tag:team:payments billing')).toEqual(['west']);
+  });
+  it('keeps matching clusters visible while keyed values are completed', () => {
+    const europe = cluster('europe', { region: 'eu-west-1', environment: 'staging' });
+    expect(results([west, east, europe], 'region:US-')).toEqual(['west', 'east']);
+    expect(results([west, east, europe], 'region:us-e')).toEqual(['east']);
+    expect(results([west, east, europe], 'region:us- env:stag')).toEqual(['east']);
+  });
+  it('does not confuse connected and disconnected status prefixes', () => {
+    const connected = { ...west, isConnected: true };
+    expect(results([connected, east], 'status:connected')).toEqual(['west']);
+    expect(results([connected, east], 'status:dis')).toEqual(['east']);
   });
   it('keeps description, configured data, labels and current metadata searchable', () => {
     expect(results([west], 'billing legacy-context payments')).toEqual(['west']);
@@ -94,8 +106,9 @@ describe('cluster explorer search', () => {
       metadata: { 'gcp.project_id': 'billing-project' },
     };
     expect(results([gcp], 'account:billing-project')).toEqual(['gcp']);
-    expect(buildClusterSearch([gcp]).fields.find((field) => field.name === 'account')?.values)
-      .toContain('billing-project');
+    expect(
+      buildClusterSearch([gcp]).fields.find((field) => field.name === 'account')?.values,
+    ).toEqual(expect.arrayContaining([expect.objectContaining({ value: 'billing-project' })]));
     const account = {
       ...gcp,
       metadata: { ...gcp.metadata, account: 'primary-account' },
@@ -119,5 +132,66 @@ describe('cluster explorer search', () => {
       value: 'staging',
       source: 'metadata',
     });
+  });
+  it('counts distinct matching clusters once per case-insensitive suggestion value', () => {
+    const repeated = { ...cluster('a'), tags: ['region:WEST', 'region:WEST'] };
+    const connections = [
+      repeated,
+      cluster('b', { region: 'west' }),
+      cluster('c', { region: 'east' }),
+    ];
+    const search = buildClusterSearch(connections);
+    const values = search.fields.find((field) => field.name === 'region')!.values!;
+    const counts = values.map((entry) => {
+      if (typeof entry === 'string') throw new Error('Expected counted suggestions');
+      return [entry.value.toLowerCase(), Number.parseInt(entry.description!, 10)];
+    });
+    expect(counts).toEqual([
+      ['east', 1],
+      ['west', 2],
+    ]);
+    expect(results(connections, 'region:west')).toEqual(['a', 'b']);
+  });
+
+  it('counts prefix matches without counting a cluster twice for overlapping tag values', () => {
+    const connections = [
+      cluster('short', { environment: 'prod' }),
+      {
+        ...cluster('long', { environment: 'production' }),
+        tags: ['prod', 'PRODUCTION', 'production'],
+      },
+      cluster('other', { environment: 'staging' }),
+    ];
+    const search = buildClusterSearch(connections);
+    const count = (field: string, value: string) => {
+      const entry = search.fields.find(({ name }) => name === field)!.values!.find(
+        (candidate) =>
+          typeof candidate !== 'string' && candidate.value.toLowerCase() === value,
+      );
+      if (!entry || typeof entry === 'string') throw new Error('Missing counted suggestion');
+      return Number.parseInt(entry.description!, 10);
+    };
+    expect(results(connections, 'env:prod')).toEqual(['short', 'long']);
+    expect(count('env', 'prod')).toBe(2);
+    expect(count('env', 'production')).toBe(1);
+    expect(results(connections, 'tag:prod')).toEqual(['long']);
+    expect(count('tag', 'prod')).toBe(1);
+    expect(count('tag', 'production')).toBe(1);
+  });
+
+  it('keeps nested and sibling prefix counts distinct when a cluster has several matching tags', () => {
+    const connections = [
+      { ...cluster('a'), tags: ['p', 'production'] },
+      { ...cluster('b'), tags: ['pro', 'prod', 'production', 'proz'] },
+      { ...cluster('c'), tags: ['program'] },
+      { ...cluster('d'), tags: ['production'] },
+    ];
+    const values = buildClusterSearch(connections).fields.find(({ name }) => name === 'tag')!.values!;
+    expect(values.map((entry) => {
+      if (typeof entry === 'string') throw new Error('Expected counted suggestions');
+      return [entry.value, Number.parseInt(entry.description!, 10)];
+    })).toEqual([
+      ['p', 4], ['pro', 4], ['prod', 3], ['production', 3], ['program', 1], ['proz', 1],
+    ]);
   });
 });

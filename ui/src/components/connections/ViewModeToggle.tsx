@@ -1,4 +1,4 @@
-import { IconButton, Stack } from '@omniviewdev/base-ui';
+import { Button, Stack } from '@omniviewdev/base-ui';
 import React from 'react';
 import { LuList, LuLayoutGrid, LuBug } from 'react-icons/lu';
 
@@ -10,37 +10,37 @@ type Props = {
 };
 
 const ViewModeToggle: React.FC<Props> = ({ value, onChange }) => (
-  <Stack direction="row" align="center" style={{ gap: 2 }}>
-    <IconButton
+  <Stack direction="row" align="center" style={{ gap: 'var(--ov-space-stack-xs)' }}>
+    <Button
       size="sm"
-      variant={value === 'list' ? 'soft' : 'ghost'}
-      color={value === 'list' ? 'brand' : 'neutral'}
-      onClick={() => onChange('list')}
-      aria-label="Table view"
-      aria-pressed={value === 'list'}
-    >
-      <LuList size={18} />
-    </IconButton>
-    <IconButton
-      size="sm"
-      variant={value === 'grid' ? 'soft' : 'ghost'}
+      variant={value === 'grid' ? 'soft' : 'outline'}
       color={value === 'grid' ? 'brand' : 'neutral'}
       onClick={() => onChange('grid')}
       aria-label="Cards view"
       aria-pressed={value === 'grid'}
     >
-      <LuLayoutGrid size={18} />
-    </IconButton>
-    <IconButton
+      <LuLayoutGrid aria-hidden /> Cards
+    </Button>
+    <Button
       size="sm"
-      variant={value === 'debug' ? 'soft' : 'ghost'}
+      variant={value === 'list' ? 'soft' : 'outline'}
+      color={value === 'list' ? 'brand' : 'neutral'}
+      onClick={() => onChange('list')}
+      aria-label="Table view"
+      aria-pressed={value === 'list'}
+    >
+      <LuList aria-hidden /> Table
+    </Button>
+    <Button
+      size="sm"
+      variant={value === 'debug' ? 'soft' : 'outline'}
       color={value === 'debug' ? 'brand' : 'neutral'}
       onClick={() => onChange('debug')}
       aria-label="Debug view"
       aria-pressed={value === 'debug'}
     >
-      <LuBug size={18} />
-    </IconButton>
+      <LuBug aria-hidden /> Debug
+    </Button>
   </Stack>
 );
 

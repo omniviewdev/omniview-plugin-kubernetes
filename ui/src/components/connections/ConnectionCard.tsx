@@ -1,17 +1,15 @@
-import { Avatar, Card } from '@omniviewdev/base-ui';
+import { Card, Chip, StatusDot, Text } from '@omniviewdev/base-ui';
 import React from 'react';
 
 import type { EnrichedConnection, ConnectionGroup } from '../../types/clusters';
-import { getClusterDisplayFacts } from '../../utils/clusterSearch';
-import { getProviderLabel } from '../../utils/providers';
-import NamedAvatar from '../shared/NamedAvatar';
 
+import { clusterCardFacts, connectionLabel, localityText } from './clusterCardFacts';
 import styles from './ClusterCards.module.css';
+import ClusterCardTitle from './ClusterCardTitle';
+import { ClusterDragHandle } from './ClusterOrganization';
 import ConnectionContextMenu from './ConnectionContextMenu';
-import ConnectionStatusBadge from './ConnectionStatusBadge';
 import FavoriteButton from './FavoriteButton';
 import ProviderIcon from './ProviderIcon';
-import { ClusterDragHandle } from './ClusterOrganization';
 
 type Props = {
   enriched: EnrichedConnection;
@@ -29,6 +27,11 @@ type Props = {
   onDelete: () => void;
 };
 
+/**
+ * Provider and independent actions, the friendly name, one muted locality line, then the
+ * environment and connection state. Exact identity, sources and freshness stay available from the
+ * primary action's tooltip and description and from the Preview action.
+ */
 const ConnectionCard: React.FC<Props> = ({
   enriched,
   customGroups,
@@ -43,74 +46,33 @@ const ConnectionCard: React.FC<Props> = ({
   onCopyId,
   onDelete,
 }) => {
-  const { connection, provider, isFavorite, isConnected, displayName, displayDescription } =
-    enriched;
-  const facts = getClusterDisplayFacts(enriched);
-  const account = facts.account ?? facts.project;
-  const accountLabel = facts.account ? 'Account' : facts.project ? 'Project' : 'Account';
-  const identity = [
-    `Context: ${connection.name || connection.id}`,
-    `Connection ID: ${connection.id}`,
-    displayDescription,
-    enriched.tags.length ? `Tags: ${enriched.tags.join(', ')}` : '',
-  ]
-    .filter(Boolean)
-    .join('\n');
-  const environment = facts.environment;
-  const region = facts.region;
-  const environmentText = `Env${environment?.hint ? ' hint' : ''}: ${environment?.value ?? 'unknown'}`;
-  const regionText = `Region${region?.hint ? ' hint' : ''}: ${region?.value ?? 'unknown'}`;
-  const accountText = `${accountLabel}${account?.hint ? ' hint' : ''}: ${account?.value ?? 'unknown'}`;
-  const factDetails = [
-    environment
-      ? `${environmentText} · ${environment.provenance}: ${environment.key}`
-      : 'Environment unknown',
-    region ? `${regionText} · ${region.provenance}: ${region.key}` : 'Region unknown',
-    account ? `${accountText} · ${account.provenance}: ${account.key}` : 'Account unknown',
-    `Configured provider hint: ${getProviderLabel(provider)}`,
-    `Metadata ${facts.metadataState}; not a workload health assessment`,
-  ].join('\n');
+  const { connection, provider, isFavorite, isConnected, displayName } = enriched;
+  const facts = clusterCardFacts(enriched);
+  const { environment } = facts;
+  // Emphasis follows the sourced environment fact only; cluster names never decide it.
+  const production = /^(?:prod|production|prd)$/i.test(environment?.value.trim() ?? '');
 
   return (
     <Card interactive selected={selected} size="sm" className={styles.card}>
-      <Card.Header className={styles.header}>
-        <span className={styles.avatar} aria-hidden="true">
-          <ConnectionStatusBadge isConnected={isConnected}>
-            {enriched.avatar ? (
-              <Avatar
-                size="sm"
-                shape="rounded"
-                src={enriched.avatar}
-                className={styles.customAvatar}
-              />
-            ) : (
-              <NamedAvatar value={displayName} color={enriched.avatarColor} />
-            )}
-          </ConnectionStatusBadge>
-        </span>
-        <div className={styles.identity}>
-          <Card.Title className={styles.title}>
-            <Card.ActionArea
-              as="button"
-              stretched
-              onClick={onClick}
-              data-cluster-open={connection.id}
-              aria-label={`Open ${displayName}`}
-              aria-description={`${identity}\n${factDetails}`}
-              aria-current={selected ? 'true' : undefined}
-              title={`${displayName}\n${identity}\n${factDetails}`}
-            >
-              <span className={styles.truncate}>{displayName}</span>
-            </Card.ActionArea>
-          </Card.Title>
-          <span
-            className={styles.subtitle}
-            title={displayDescription || connection.name || connection.id}
-          >
-            {displayDescription || connection.name || connection.id}
+      <Card.Header className={`${styles.header} ${styles.headerFull}`}>
+        <div className={styles.provider}>
+          <span className={styles.providerIcon} aria-hidden="true">
+            <ProviderIcon provider={provider} size={16} />
           </span>
+          <Text size="xs" tone="muted" truncate>
+            {facts.providerLabel}
+          </Text>
         </div>
-        <Card.Action className={styles.actions}>
+        <ClusterCardTitle
+          enriched={enriched}
+          selected={selected}
+          details={`${facts.identity}\n${facts.provenance}`}
+          onClick={onClick}
+        />
+        <Text size="xs" tone="muted" truncate className={styles.detail}>
+          {localityText(facts)}
+        </Text>
+        <Card.Action placement="inline" className={styles.actions}>
           <FavoriteButton isFavorite={isFavorite} onToggle={onToggleFavorite} />
           <ClusterDragHandle connectionId={connection.id} />
           <ConnectionContextMenu
@@ -131,56 +93,29 @@ const ConnectionCard: React.FC<Props> = ({
           />
         </Card.Action>
       </Card.Header>
-      <div className={styles.details}>
-        <div className={styles.factRow}>
-          <span
-            className={styles.provider}
-            title={`Configured provider hint: ${getProviderLabel(provider)}`}
+      <Card.Body className={styles.footer}>
+        {environment ? (
+          <Chip
+            size="sm"
+            variant="outline"
+            color={production ? 'warning' : 'neutral'}
+            className={styles.environment}
           >
-            <span aria-hidden="true">
-              <ProviderIcon provider={provider} size={14} />
-            </span>
-            <span className={styles.truncate}>{getProviderLabel(provider)} hint</span>
-          </span>
-          <span
-            className={styles.fact}
-            title={
-              environment
-                ? `${environmentText} · ${environment.provenance}: ${environment.key}`
-                : 'Environment unknown'
-            }
-          >
-            {environmentText}
-          </span>
-        </div>
-        <div className={styles.factRow}>
-          <span
-            className={styles.fact}
-            title={
-              region ? `${regionText} · ${region.provenance}: ${region.key}` : 'Region unknown'
-            }
-          >
-            {regionText}
-          </span>
-          <span
-            className={styles.fact}
-            title={
-              account ? `${accountText} · ${account.provenance}: ${account.key}` : 'Account unknown'
-            }
-          >
-            {accountText}
-          </span>
-        </div>
-        <div className={styles.factRow}>
-          <span className={styles.status}>{isConnected ? 'Connected' : 'Disconnected'}</span>
-          <span
-            className={styles.fact}
-            title={`Metadata ${facts.metadataState}; not a workload health assessment`}
-          >
-            Metadata {facts.metadataState}
-          </span>
-        </div>
-      </div>
+            {environment.value}
+          </Chip>
+        ) : (
+          <Chip size="sm" variant="outline" color="neutral" className={styles.environment}>
+            Unknown environment
+          </Chip>
+        )}
+        <StatusDot
+          className={styles.status}
+          size="sm"
+          status={isConnected ? 'success' : 'neutral'}
+          variant={isConnected ? 'solid' : 'outline'}
+          label={connectionLabel(isConnected)}
+        />
+      </Card.Body>
     </Card>
   );
 };
