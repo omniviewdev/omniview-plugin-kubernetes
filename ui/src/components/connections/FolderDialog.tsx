@@ -264,7 +264,7 @@ const FolderDialog: React.FC<Props> = ({
                   size="sm"
                   variant={isCustomColor ? 'soft' : 'ghost'}
                   color={isCustomColor ? 'brand' : 'neutral'}
-                  aria-label="Custom color"
+                  aria-label={isCustomColor ? `Custom color ${color}` : 'Custom color'}
                   aria-pressed={isCustomColor}
                   onClick={() => customColorInput.current?.click()}
                 >

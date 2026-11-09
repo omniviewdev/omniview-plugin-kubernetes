@@ -1,0 +1,48 @@
+{
+  "captureType": "Actual browser development IDE with owned local Kubernetes v1.36.2 API",
+  "organize": {
+    "query": "env:Production region:us-gov",
+    "matching": "ml-govcloud-prd",
+    "excluded": [
+      "ml-govcloud-int",
+      "ml-govcloud-sbx",
+      "ml-govcloud-stg",
+      "kind-bench"
+    ]
+  },
+  "collapse": {
+    "cardResultCollapsed": 0,
+    "debugResultVisible": 1,
+    "cardResultStillCollapsed": 0,
+    "recentUnaffected": true
+  },
+  "prefix": {
+    "query": "env:prod",
+    "suggestions": [
+      {
+        "text": "env:Production3 clusters",
+        "selected": "true"
+      }
+    ],
+    "results": [
+      "ml-cmb-prd",
+      "ml-govcloud-prd",
+      "ml-prd"
+    ]
+  },
+  "directOpen": {
+    "route": "/_plugin/kubernetes/cluster/kind-bench/resources",
+    "observedApiVersion": "v1.36.2"
+  },
+  "customColor": {
+    "accessibleName": "Custom color #123456",
+    "method": "Controlled color input change on actual folder dialog; cancelled without persisting",
+    "nativeOsPickerVerified": false
+  },
+  "regressions": {
+    "failedBefore": 5,
+    "fullSuitePassed": 1849,
+    "fullSuiteSkipped": 3
+  },
+  "limits": "26 context aliases on one owned API. No cloud connectivity, workload health, or native OS dialog proof."
+}

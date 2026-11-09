@@ -104,7 +104,9 @@ Cards use a provider-first header, a single-line display name, one location/acco
 
 New profiles group cards by sourced environment. Existing grouping preferences remain intact. Unknown environments stay in a separate group, never inferred from context names. The unfiltered All clusters Cards view includes up to four recently opened clusters in one horizontal row, with internal scrolling on narrow viewports. Debug uses the same cards in connected/disconnected sections and preserves the selected sort within each section; connection state is not workload health.
 
-Cards, Table, Debug, and Organize share the same scope and filters. Table stays flat regardless of collapsed card groups and includes account or project identity without dropping available project facts. New profiles start with curated identity columns; the column picker can reveal raw context data, and existing saved column choices remain intact.
+Collapse state is local to the current view and grouping, including the attribute key. Collapsing a Cards group does not hide a Debug readiness section with the same value. Recent and main results share one pending-open scope, so activating the same connecting cluster from both entry points opens it once.
+
+Cards, Table, Debug, and Organize share the same scope and filters. Table stays flat regardless of collapsed card groups and retains both account and project facts when both exist. Project is also independently available in the column picker. New profiles start with curated identity columns; the column picker can reveal raw context data, and existing saved column choices remain intact.
 
 Folders retain preset icons, colors, legacy custom images, manual membership, and automatic rules. Effective membership is the deduplicated union of manual assignments and rule matches. Dragging into a folder adds manual membership; explicit menu actions provide keyboard alternatives. Cancelled and no-target drops leave membership unchanged.
 

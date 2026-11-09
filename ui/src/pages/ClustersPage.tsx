@@ -18,7 +18,7 @@ import EmptyState from '../components/connections/EmptyState';
 import ExplorerSidebar from '../components/connections/ExplorerSidebar';
 import FilterChips from '../components/connections/FilterChips';
 import FolderDialog, { type FolderDialogValues } from '../components/connections/FolderDialog';
-import { useClusterAction } from '../hooks/useClusterAction';
+import { ClusterActionProvider, useClusterAction } from '../hooks/useClusterAction';
 import { useClusterPreferences } from '../hooks/useClusterPreferences';
 import { useConnectionGrouping } from '../hooks/useConnectionGrouping';
 import { useLegacyColumnMigration } from '../hooks/useLegacyColumnMigration';
@@ -41,6 +41,7 @@ import styles from './ClustersPage.module.css';
 import { useStoredState } from '@/hooks/useStoredState';
 
 const DEFAULT_VISIBLE_COLUMNS: string[] = [];
+const EMPTY_COLLAPSED_GROUPS = new Set<string>();
 
 const loadingSkeletonStyle: React.CSSProperties = {
   display: 'flex',
@@ -80,7 +81,7 @@ export default function ClustersPage(): React.ReactElement {
   // Ephemeral UI state
   const [search, setSearch] = React.useState('');
   const [filters, setFilters] = React.useState<FilterState>({});
-  const [collapsedGroups, setCollapsedGroups] = React.useState<Set<string>>(new Set());
+  const [collapsedByView, setCollapsedByView] = React.useState<Record<string, Set<string>>>({});
   const [deleteTarget, setDeleteTarget] = React.useState<{ id: string; name: string } | null>(null);
   const [folderDialog, setFolderDialog] = React.useState<{
     mode: 'create' | 'edit';
@@ -153,6 +154,8 @@ export default function ClustersPage(): React.ReactElement {
 
   // Grouped/filtered/sorted result
   const effectiveGroupBy = viewMode === 'debug' ? 'status' : viewMode === 'list' ? 'none' : groupBy;
+  const collapseScope = `${viewMode}:${effectiveGroupBy}`;
+  const collapsedGroups = collapsedByView[collapseScope] ?? EMPTY_COLLAPSED_GROUPS;
   const grouped = useConnectionGrouping({
     connections: scopedConnections,
     favorites: preferences.favorites,
@@ -165,6 +168,14 @@ export default function ClustersPage(): React.ReactElement {
     sortDirection,
     filters,
   });
+  const organizedConnections = React.useMemo(() => {
+    if (!organize) return hubEnriched;
+    const visibleIds = new Set<string>();
+    for (const group of grouped.groups) {
+      for (const entry of group.connections) visibleIds.add(entry.connection.id);
+    }
+    return hubEnriched.filter((entry) => visibleIds.has(entry.connection.id));
+  }, [organize, grouped.groups, hubEnriched]);
 
   // All label keys across connections
   const allLabelKeys = React.useMemo(() => {
@@ -192,16 +203,16 @@ export default function ClustersPage(): React.ReactElement {
   );
 
   const handleToggleCollapse = React.useCallback((groupKey: string) => {
-    setCollapsedGroups((prev) => {
-      const next = new Set(prev);
+    setCollapsedByView((prev) => {
+      const next = new Set(prev[collapseScope]);
       if (next.has(groupKey)) {
         next.delete(groupKey);
       } else {
         next.add(groupKey);
       }
-      return next;
+      return { ...prev, [collapseScope]: next };
     });
-  }, []);
+  }, [collapseScope]);
 
   const handleToggleProvider = React.useCallback((provider: string) => {
     setFilters((prev) => {
@@ -396,7 +407,7 @@ export default function ClustersPage(): React.ReactElement {
               'All clusters')
             : 'All clusters';
 
-  return (
+  return React.createElement(ClusterActionProvider, null,
     <ClusterOrganization
       onAssignToGroup={(groupId, connectionId) => preferences.assignToGroup(groupId, connectionId)}
     >
@@ -507,7 +518,7 @@ export default function ClustersPage(): React.ReactElement {
             <EmptyState variant="no-connections" />
           ) : organize ? (
             <ClusterHub
-              enrichedConnections={hubEnriched}
+              enrichedConnections={organizedConnections}
               availableAttributes={hubGrouped.availableAttributes}
               customGroups={preferences.customGroups}
               hubSections={preferences.hubSections}

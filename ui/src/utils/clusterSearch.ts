@@ -93,9 +93,16 @@ export interface ClusterSearchDocument {
   text: string;
   fields: Map<string, string[]>;
 }
+
+interface ClusterSearchSuggestion {
+  value: string;
+  count: number;
+  connectionIds: string[];
+}
+
 export function buildClusterSearch(connections: readonly SearchableConnection[]) {
   const documents = new Map<string, ClusterSearchDocument>();
-  const suggestions = new Map<string, Map<string, { value: string; count: number }>>(
+  const suggestions = new Map<string, Map<string, ClusterSearchSuggestion>>(
     ['region', 'provider', 'env', 'account', 'status', 'tag'].map((key) => [key, new Map()]),
   );
   for (const enriched of connections) {
@@ -109,12 +116,12 @@ export function buildClusterSearch(connections: readonly SearchableConnection[])
       fields.set(key, [...existing, normalized]);
       let values = suggestions.get(key);
       if (!values) {
-        values = new Map<string, { value: string; count: number }>();
+        values = new Map<string, ClusterSearchSuggestion>();
         suggestions.set(key, values);
       }
       const entry = values.get(normalized);
-      if (entry) entry.count++;
-      else values.set(normalized, { value, count: 1 });
+      if (entry) entry.connectionIds.push(enriched.connection.id);
+      else values.set(normalized, { value, count: 0, connectionIds: [enriched.connection.id] });
     };
     const addAttribute = (key: string, value: string) => {
       const name = key.toLowerCase();
@@ -159,16 +166,33 @@ export function buildClusterSearch(connections: readonly SearchableConnection[])
       .toLowerCase();
     documents.set(enriched.connection.id, { text, fields });
   }
-  const fields: KeyedSearchField[] = [...suggestions].map(([name, values]) => ({
-    name,
-    values: [...values.values()]
-      .sort((left, right) => left.value.localeCompare(right.value))
-      .map(({ value, count }) => ({
-        value,
-        label: `${name}:${value}`,
-        description: `${count} ${count === 1 ? 'cluster' : 'clusters'}`,
-      })),
-  }));
+  const fields: KeyedSearchField[] = [...suggestions].map(([name, values]) => {
+    // Code-unit order keeps every prefix's descendants contiguous.
+    const ordered = [...values].sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
+    for (let index = 0; index < ordered.length; index++) {
+      const [prefix, entry] = ordered[index];
+      let matchingIds: Set<string> | undefined;
+      for (
+        let next = index + 1;
+        next < ordered.length && ordered[next][0].startsWith(prefix);
+        next++
+      ) {
+        matchingIds ??= new Set(entry.connectionIds);
+        for (const id of ordered[next][1].connectionIds) matchingIds.add(id);
+      }
+      entry.count = matchingIds?.size ?? entry.connectionIds.length;
+    }
+    return {
+      name,
+      values: ordered
+        .sort(([, left], [, right]) => left.value.localeCompare(right.value))
+        .map(([, { value, count }]) => ({
+          value,
+          label: `${name}:${value}`,
+          description: `${count} ${count === 1 ? 'cluster' : 'clusters'}`,
+        })),
+    };
+  });
   return { fields, index: createKeyedSearchIndex(fields), documents };
 }
 

@@ -152,4 +152,30 @@ describe('cluster explorer search', () => {
     ]);
     expect(results(connections, 'region:west')).toEqual(['a', 'b']);
   });
+
+  it('counts prefix matches without counting a cluster twice for overlapping tag values', () => {
+    const connections = [
+      cluster('short', { environment: 'prod' }),
+      {
+        ...cluster('long', { environment: 'production' }),
+        tags: ['prod', 'PRODUCTION', 'production'],
+      },
+      cluster('other', { environment: 'staging' }),
+    ];
+    const search = buildClusterSearch(connections);
+    const count = (field: string, value: string) => {
+      const entry = search.fields.find(({ name }) => name === field)!.values!.find(
+        (candidate) =>
+          typeof candidate !== 'string' && candidate.value.toLowerCase() === value,
+      );
+      if (!entry || typeof entry === 'string') throw new Error('Missing counted suggestion');
+      return Number.parseInt(entry.description!, 10);
+    };
+    expect(results(connections, 'env:prod')).toEqual(['short', 'long']);
+    expect(count('env', 'prod')).toBe(2);
+    expect(count('env', 'production')).toBe(1);
+    expect(results(connections, 'tag:prod')).toEqual(['long']);
+    expect(count('tag', 'prod')).toBe(1);
+    expect(count('tag', 'production')).toBe(1);
+  });
 });

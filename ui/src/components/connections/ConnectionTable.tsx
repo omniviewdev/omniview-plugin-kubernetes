@@ -144,17 +144,36 @@ function TableSection({ connections, ...props }: Props & { connections: Enriched
         key === 'environment' ? 'Environment' : key === 'account' ? 'Account / Project' : 'Region',
       accessorFn: (row: EnrichedConnection) => {
         const facts = getClusterDisplayFacts(row);
-        return (key === 'account' ? (facts.account ?? facts.project) : facts[key])?.value ?? '';
+        if (key === 'account') {
+          return facts.account && facts.project
+            ? `${facts.account.value} ${facts.project.value}`
+            : (facts.account ?? facts.project)?.value ?? '';
+        }
+        return facts[key]?.value ?? '';
       },
       size: 160,
       cell: ({ row }: { row: { original: EnrichedConnection } }) => {
         const facts = getClusterDisplayFacts(row.original);
-        if (key === 'account' && !facts.account && facts.project) {
-          return <>Project: {factCell(facts.project)}</>;
+        if (key === 'account' && facts.project) {
+          return (
+            <>
+              {facts.account && <>{factCell(facts.account)} · </>}
+              Project: {factCell(facts.project)}
+            </>
+          );
         }
         return factCell(facts[key]);
       },
     })),
+    {
+      id: 'fact:project',
+      header: 'Project',
+      accessorFn: (row) => getClusterDisplayFacts(row).project?.value ?? '',
+      cell: ({ row }) => factCell(getClusterDisplayFacts(row.original).project),
+      size: 180,
+      // The page's persisted sorting contract does not include a project field.
+      enableSorting: !props.onSortChange,
+    },
     {
       id: 'status',
       header: 'Connection',
@@ -193,6 +212,7 @@ function TableSection({ connections, ...props }: Props & { connections: Enriched
   const columnVisibility = {
     recency: false,
     metadata: false,
+    'fact:project': false,
     ...coreVisibility,
     ...Object.fromEntries(
       props.allLabelKeys.map((key) => [`label:${key}`, props.visibleColumns.includes(key)]),

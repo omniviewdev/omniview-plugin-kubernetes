@@ -71,5 +71,22 @@
     "recentHistoryAfterAppRestarts": 3,
     "verified": ["Search autofocus and disabled autocapitalization", "First suggestion autoselection and native arrows/Enter", "Result arrows retain input focus", "Primary action opens the actual API resource route without Preview", "Independent Preview and Settings", "Settings alias survives reload", "Table survives collapsed card groups", "Native pointer drag into folder and keyboard alternatives/cancel", "Automatic rule edits recalculate membership", "Real raster upload, search, reuse, restart persistence and inline fallback after library removal", "Lens save, rename, reorder, replace and delete", "Folder deletion preserves clusters"]
   },
+  "reviewFollowUp": {
+    "overview": "after-review-overview-dark-1568.png",
+    "scopedOrganize": "after-review-scoped-organize-dark-1568.png",
+    "collapseIsolation": "after-review-debug-collapse-isolation.png",
+    "prefixSuggestions": "after-review-prefix-suggestions.png",
+    "directOpen": "after-review-direct-open.png",
+    "projectTable": "after-review-project-table-dark-1568.png",
+    "projectTableNarrow": "after-review-project-table-high-contrast-light-360-125.png",
+    "projectNativeThemes": ["after-review-project-table-void-1568.png", "after-review-project-table-light-1568.png", "after-review-project-table-obsidian-1568.png", "after-review-project-table-carbon-1568.png", "after-review-project-table-solarized-dark-1568.png", "after-review-project-table-solarized-light-1568.png", "after-review-project-table-high-contrast-dark-1568.png", "after-review-project-table-high-contrast-light-1568.png"],
+    "projectSizingMatrix": "review-project-sizing-matrix.json",
+    "behaviorSmoke": "review-regression-smoke.json",
+    "additionalLayoutCases": 360,
+    "layoutFailures": 0,
+    "consumerTestsPassed": 1849,
+    "consumerTestsSkipped": 3,
+    "regressionsReproducedBeforeFix": 5
+  },
   "visualLimits": ["No native OS window, file picker or color picker rendering claim", "360px stresses desktop host chrome; pre-existing global toolbar crowding is outside the cluster repair"]
 }

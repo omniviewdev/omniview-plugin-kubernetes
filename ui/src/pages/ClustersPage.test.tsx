@@ -1,8 +1,10 @@
+import { DndContext } from '@dnd-kit/core';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
+import type ClusterHubComponent from '../components/connections/ClusterHub';
 import type ConnectionTableComponent from '../components/connections/ConnectionTable';
 import type { ClusterLens } from '../types/clusterExplorer';
 import type { ConnectionGroup, HubSectionConfig } from '../types/clusters';
@@ -23,6 +25,7 @@ const state = vi.hoisted(() => ({
   setSections: vi.fn().mockResolvedValue(undefined),
   visualIds: undefined as string[] | undefined,
   nativeTable: false,
+  nativeHub: false,
 }));
 vi.mock('@omniviewdev/runtime', () => ({
   usePluginContext: () => ({ meta: { id: 'kubernetes' }, pluginId: 'kubernetes' }),
@@ -41,9 +44,13 @@ vi.mock('@omniviewdev/runtime', () => ({
     })),
   }),
 }));
-vi.mock('../hooks/useClusterAction', () => ({
-  useClusterAction: (id: string) => ({ handleClick: () => state.open(id) }),
-}));
+vi.mock('../hooks/useClusterAction', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../hooks/useClusterAction')>();
+  return {
+    ...actual,
+    useClusterAction: (id: string) => ({ handleClick: () => state.open(id) }),
+  };
+});
 vi.mock('@/hooks/useStoredState', () => ({
   useStoredState: <T,>(_key: string, initial: T) => React.useState(initial),
 }));
@@ -73,13 +80,18 @@ vi.mock('../hooks/useClusterPreferences', () => ({
   }),
 }));
 vi.mock('../components/connections/ClusterOrganization', () => ({
-  ClusterOrganization: ({ children }: { children: React.ReactNode }) => children,
+  ClusterOrganization: ({ children }: { children: React.ReactNode }) =>
+    state.nativeHub ? <DndContext>{children}</DndContext> : children,
   ClusterFolderDropTarget: ({ children }: { children: React.ReactNode }) => children,
   ClusterDragHandle: () => null,
 }));
-vi.mock('../components/connections/ClusterHub', () => ({
-  default: () => <div>Folder and section organization</div>,
-}));
+vi.mock('../components/connections/ClusterHub', async (importOriginal) => {
+  const actual = await importOriginal<{ default: typeof ClusterHubComponent }>();
+  return {
+    default: (props: React.ComponentProps<typeof ClusterHubComponent>) =>
+      state.nativeHub ? <actual.default {...props} /> : <div>Folder and section organization</div>,
+  };
+});
 vi.mock('../components/connections/FilterChips', () => ({ default: () => null }));
 vi.mock('../components/connections/ConnectionContextMenu', () => ({
   default: () => <button>Cluster actions</button>,
@@ -129,6 +141,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.loading = false;
   state.nativeTable = false;
+  state.nativeHub = false;
   state.folders = [];
   state.lenses = [];
   state.favorites = [];
@@ -388,6 +401,60 @@ describe('Cluster explorer', () => {
     await user.click(screen.getByRole('combobox', { name: 'Search clusters' }));
     await user.keyboard('{Escape}{ArrowDown}{Enter}');
     expect(state.open).toHaveBeenLastCalledWith('b');
+  });
+
+  it('keeps Cards collapse local to its grouping when Debug reuses the same key', async () => {
+    const user = userEvent.setup();
+    state.nativeTable = true;
+    state.connections = [
+      { id: 'a', name: 'alpha', labels: { team: 'connected' } },
+      { id: 'b', name: 'beta', labels: { team: 'connected' } },
+    ];
+    state.connectedIds = ['a'];
+    state.lenses = [{
+      id: 'team', name: 'Team grouping', query: '', filters: {},
+      groupBy: 'label:team', sortBy: 'name', sortDirection: 'asc',
+      viewMode: 'grid', scope: 'all',
+    }];
+    render(<ClustersPage />);
+    await user.click(screen.getByRole('button', { name: 'Team grouping', exact: true }));
+    await user.click(screen.getByRole('button', { name: /^connected.*2 clusters$/i }));
+    expect(screen.queryByRole('button', { name: 'Open alpha' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Debug view' }));
+    expect(screen.getByRole('button', { name: 'Open alpha' })).toBeVisible();
+    await user.click(screen.getByRole('combobox', { name: 'Search clusters' }));
+    await user.keyboard('{Escape}{Enter}');
+    expect(state.open).toHaveBeenLastCalledWith('a');
+    await user.click(screen.getByRole('button', { name: 'Team grouping', exact: true }));
+    expect(screen.queryByRole('button', { name: 'Open alpha' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open beta' })).not.toBeInTheDocument();
+  });
+
+  it('keeps Organize inside the folder, environment and keyed query intersection', async () => {
+    const user = userEvent.setup();
+    state.nativeHub = true;
+    state.connections = [
+      { id: 'a', name: 'alpha', labels: { environment: 'production', team: 'platform' } },
+      { id: 'b', name: 'beta', labels: { environment: 'production', team: 'platform' } },
+      { id: 'c', name: 'charlie', labels: { environment: 'development', team: 'platform' } },
+      { id: 'd', name: 'delta', labels: { environment: 'production', team: 'platform' } },
+    ];
+    state.folders = [{
+      id: 'team', name: 'Team folder', connectionIds: ['a', 'c'],
+      ruleSet: { logic: 'and', rules: [{ id: 'beta', field: 'name', operator: 'equals', value: 'beta' }] },
+    }];
+    state.lenses = [{
+      id: 'incident', name: 'Incident scope', query: 'team:platform',
+      filters: { environments: ['production'] }, groupBy: 'none',
+      sortBy: 'name', sortDirection: 'asc', viewMode: 'grid', scope: 'group:team',
+    }];
+    render(<ClustersPage />);
+    await user.click(screen.getByRole('button', { name: 'Incident scope', exact: true }));
+    await user.click(screen.getByRole('button', { name: 'Organize', exact: true }));
+    expect(screen.getAllByText('alpha')[0]).toBeVisible();
+    expect(screen.getAllByText('beta')[0]).toBeVisible();
+    expect(screen.queryAllByText('charlie')).toHaveLength(0);
+    expect(screen.queryAllByText('delta')).toHaveLength(0);
   });
 
   it('keeps Debug readiness sections, selected sort and keyboard order aligned', async () => {
