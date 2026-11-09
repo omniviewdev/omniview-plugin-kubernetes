@@ -2,9 +2,11 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import type { ConnectionGroup, HubSectionConfig } from '../types/clusters';
-import type { ClusterLens } from '../types/clusterExplorer';
+
 import type ConnectionTableComponent from '../components/connections/ConnectionTable';
+import type { ClusterLens } from '../types/clusterExplorer';
+import type { ConnectionGroup, HubSectionConfig } from '../types/clusters';
+
 import ClustersPage from './ClustersPage';
 
 const state = vi.hoisted(() => ({
@@ -215,15 +217,6 @@ describe('Cluster explorer', () => {
     await user.keyboard('{Escape}{ArrowDown}{ArrowDown}{Enter}');
     expect(state.open).toHaveBeenLastCalledWith('c');
   });
-  it('opens a Debug result even when its source group was collapsed', async () => {
-    const user = userEvent.setup();
-    render(<ClustersPage />);
-    await user.click(screen.getByRole('button', { name: 'Collapse results' }));
-    await user.click(screen.getByRole('button', { name: 'Debug view' }));
-    await user.click(screen.getByRole('combobox', { name: 'Search clusters' }));
-    await user.keyboard('{Escape}{Enter}');
-    expect(state.open).toHaveBeenLastCalledWith('b');
-  });
   it('reorders only folder slots, preserving interleaved section positions and collapse state', async () => {
     const user = userEvent.setup();
     state.folders = [
@@ -253,22 +246,30 @@ describe('Cluster explorer', () => {
 
   it('applies a deleted-folder lens to all clusters while preserving its query and view', async () => {
     const user = userEvent.setup();
-    state.lenses = [{
-      id: 'orphaned',
-      name: 'Billing fleet',
-      query: 'beta',
-      filters: {},
-      groupBy: 'none',
-      sortBy: 'name',
-      sortDirection: 'asc',
-      viewMode: 'list',
-      scope: 'group:deleted',
-    }];
+    state.lenses = [
+      {
+        id: 'orphaned',
+        name: 'Billing fleet',
+        query: 'beta',
+        filters: {},
+        groupBy: 'none',
+        sortBy: 'name',
+        sortDirection: 'asc',
+        viewMode: 'list',
+        scope: 'group:deleted',
+      },
+    ];
     render(<ClustersPage />);
     await user.click(screen.getByRole('button', { name: 'Billing fleet', exact: true }));
-    expect(screen.getByRole('button', { name: /All clusters/ })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('button', { name: /All clusters/ })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
     expect(screen.getByRole('combobox', { name: 'Search clusters' })).toHaveValue('beta');
-    expect(screen.getByRole('button', { name: 'Table view' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Table view' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
     expect(screen.getByRole('button', { name: 'beta', exact: true })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'alpha', exact: true })).not.toBeInTheDocument();
     await user.click(screen.getByRole('combobox', { name: 'Search clusters' }));
@@ -279,26 +280,30 @@ describe('Cluster explorer', () => {
   it('keeps existing folder lenses scoped to manual and automatic members', async () => {
     const user = userEvent.setup();
     state.connections.push({ id: 'c', name: 'charlie' });
-    state.folders = [{
-      id: 'team',
-      name: 'Team',
-      connectionIds: ['a'],
-      ruleSet: {
-        logic: 'and',
-        rules: [{ id: 'beta', field: 'name', operator: 'equals', value: 'beta' }],
+    state.folders = [
+      {
+        id: 'team',
+        name: 'Team',
+        connectionIds: ['a'],
+        ruleSet: {
+          logic: 'and',
+          rules: [{ id: 'beta', field: 'name', operator: 'equals', value: 'beta' }],
+        },
       },
-    }];
-    state.lenses = [{
-      id: 'team-lens',
-      name: 'Team lens',
-      query: '',
-      filters: {},
-      groupBy: 'none',
-      sortBy: 'name',
-      sortDirection: 'asc',
-      viewMode: 'grid',
-      scope: 'group:team',
-    }];
+    ];
+    state.lenses = [
+      {
+        id: 'team-lens',
+        name: 'Team lens',
+        query: '',
+        filters: {},
+        groupBy: 'none',
+        sortBy: 'name',
+        sortDirection: 'asc',
+        viewMode: 'grid',
+        scope: 'group:team',
+      },
+    ];
     render(<ClustersPage />);
     await user.click(screen.getByRole('button', { name: 'Team lens', exact: true }));
     expect(screen.getByRole('button', { name: 'alpha', exact: true })).toBeInTheDocument();
@@ -319,10 +324,15 @@ describe('Cluster explorer', () => {
     render(<ClustersPage />);
     await user.click(screen.getByRole('button', { name: /^Payments folder/ }));
     expect(screen.queryByRole('button', { name: 'beta', exact: true })).not.toBeInTheDocument();
-    await user.click(screen.getByText('Browse attributes'));
-    await user.click(screen.getByText('Team', { selector: 'summary' }));
-    await user.click(screen.getByRole('button', { name: 'platform', exact: true }));
-    expect(screen.getByRole('button', { name: /All clusters/ })).toHaveAttribute('aria-current', 'page');
+    await user.click(screen.getByRole('button', { name: 'Browse attributes' }));
+    await screen.findByRole('menuitem', { name: 'Team', exact: true });
+    await user.keyboard('{ArrowDown}{ArrowRight}');
+    await waitFor(() => expect(screen.getByRole('menuitem', { name: 'payments', exact: true })).toHaveFocus());
+    await user.keyboard('{ArrowDown}{Enter}');
+    expect(screen.getByRole('button', { name: /All clusters/ })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
     expect(screen.getByRole('button', { name: 'beta', exact: true })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'alpha', exact: true })).not.toBeInTheDocument();
     await user.click(screen.getByRole('combobox', { name: 'Search clusters' }));
@@ -339,45 +349,79 @@ describe('Cluster explorer', () => {
       await user.click(screen.getByRole('button', { name: new RegExp(`^${label}`) }));
       expect(screen.queryByRole('button', { name: 'alpha', exact: true })).not.toBeInTheDocument();
       await user.click(screen.getByRole('button', { name: 'Clear Filters', exact: true }));
-      expect(screen.getByRole('button', { name: /All clusters/ })).toHaveAttribute('aria-current', 'page');
+      expect(screen.getByRole('button', { name: /All clusters/ })).toHaveAttribute(
+        'aria-current',
+        'page',
+      );
       expect(screen.getByRole('button', { name: 'alpha', exact: true })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'beta', exact: true })).toBeInTheDocument();
     },
   );
 
-  it('sorts Debug globally across folders and opens the visually selected cluster', async () => {
+  it('keeps flat table rows and keyboard navigation available after collapsing a Cards attribute group', async () => {
+    const user = userEvent.setup();
+    state.nativeTable = true;
+    state.connections = [
+      { id: 'a', name: 'alpha', labels: { team: 'all' } },
+      { id: 'b', name: 'beta', labels: { team: 'all' } },
+    ];
+    state.lenses = [
+      {
+        id: 'by-team',
+        name: 'By team',
+        query: '',
+        filters: {},
+        groupBy: 'label:team',
+        sortBy: 'name',
+        sortDirection: 'asc',
+        viewMode: 'grid',
+        scope: 'all',
+      },
+    ];
+    render(<ClustersPage />);
+    await user.click(screen.getByRole('button', { name: 'By team', exact: true }));
+    await user.click(screen.getByRole('button', { name: /^all.*2 clusters$/i }));
+    expect(screen.queryByRole('button', { name: 'Open alpha' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Table view' }));
+    expect(screen.getByText('alpha')).toBeVisible();
+    expect(screen.getByText('beta')).toBeVisible();
+    await user.click(screen.getByRole('combobox', { name: 'Search clusters' }));
+    await user.keyboard('{Escape}{ArrowDown}{Enter}');
+    expect(state.open).toHaveBeenLastCalledWith('b');
+  });
+
+  it('keeps Debug readiness sections, selected sort and keyboard order aligned', async () => {
     const user = userEvent.setup();
     state.nativeTable = true;
     state.connections = [
       { id: 'z', name: 'zulu' },
       { id: 'a', name: 'alpha' },
+      { id: 'b', name: 'bravo' },
+      { id: 'c', name: 'charlie' },
     ];
-    state.connectedIds = ['z'];
-    state.folders = [
-      { id: 'first', name: 'First', connectionIds: ['z'] },
-      { id: 'second', name: 'Second', connectionIds: ['a'] },
+    state.connectedIds = ['b', 'z'];
+    state.lenses = [
+      {
+        id: 'debug-lens',
+        name: 'Debug fleet',
+        query: '',
+        filters: {},
+        groupBy: 'custom',
+        sortBy: 'name',
+        sortDirection: 'desc',
+        viewMode: 'debug',
+        scope: 'all',
+      },
     ];
-    state.lenses = [{
-      id: 'debug-lens',
-      name: 'Debug fleet',
-      query: '',
-      filters: {},
-      groupBy: 'custom',
-      sortBy: 'name',
-      sortDirection: 'asc',
-      viewMode: 'debug',
-      scope: 'all',
-    }];
     const { container } = render(<ClustersPage />);
     await user.click(screen.getByRole('button', { name: 'Debug fleet', exact: true }));
     expect(
       [...container.querySelectorAll('[data-cluster-open]')].map((node) =>
         node.getAttribute('data-cluster-open'),
       ),
-    ).toEqual(['a', 'z']);
-    expect(screen.getByRole('columnheader', { name: /Cluster/ })).toHaveAttribute('aria-sort', 'ascending');
+    ).toEqual(['z', 'b', 'c', 'a']);
     await user.click(screen.getByRole('combobox', { name: 'Search clusters' }));
-    await user.keyboard('{Escape}{Enter}');
-    expect(state.open).toHaveBeenLastCalledWith('a');
+    await user.keyboard('{Escape}{ArrowDown}{Enter}');
+    expect(state.open).toHaveBeenLastCalledWith('b');
   });
 });

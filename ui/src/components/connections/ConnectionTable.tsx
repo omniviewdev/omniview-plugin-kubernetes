@@ -35,7 +35,6 @@ type Props = {
   onDeleteRequest: (connectionId: string, connectionName: string) => void;
   selectedId?: string;
   onVisualOrderChange?: (ids: string[]) => void;
-  debug?: boolean;
   sortBy?: SortByField;
   sortDirection?: SortDirection;
   onSortChange?: (field: SortByField, direction: SortDirection) => void;
@@ -64,9 +63,15 @@ const GridCardWrapper = ({ enriched, ...props }: Props & { enriched: EnrichedCon
       enriched={enriched}
       customGroups={props.customGroups}
       selected={props.selectedId === id}
-      onClick={() => { void handleClick(); }}
-      onConnect={() => { void handleConnect(); }}
-      onDisconnect={() => { void handleDisconnect(); }}
+      onClick={() => {
+        void handleClick();
+      }}
+      onConnect={() => {
+        void handleConnect();
+      }}
+      onDisconnect={() => {
+        void handleDisconnect();
+      }}
       onToggleFavorite={() => props.onToggleFavorite(id)}
       onAssignToGroup={(groupId) => props.onAssignToGroup(groupId, id)}
       onRemoveFromGroup={
@@ -104,7 +109,6 @@ function TableSection({ connections, ...props }: Props & { connections: Enriched
       ]
     : localSorting;
   const scrollRef = React.useRef<HTMLDivElement>(null);
-  const debug = props.debug || props.viewMode === 'debug';
   const data = connections;
   const item = (enriched: EnrichedConnection, part: 'identity' | 'actions') => (
     <ConnectionTableItem
@@ -136,10 +140,11 @@ function TableSection({ connections, ...props }: Props & { connections: Enriched
     { id: 'provider', header: 'Provider', accessorFn: (row) => row.provider, size: 130 },
     ...(['region', 'account', 'environment'] as const).map((key) => ({
       id: `fact:${key}`,
-      header: key === 'environment' ? 'Environment' : key === 'account' ? 'Account / Project' : 'Region',
+      header:
+        key === 'environment' ? 'Environment' : key === 'account' ? 'Account / Project' : 'Region',
       accessorFn: (row: EnrichedConnection) => {
         const facts = getClusterDisplayFacts(row);
-        return (key === 'account' ? facts.account ?? facts.project : facts[key])?.value ?? '';
+        return (key === 'account' ? (facts.account ?? facts.project) : facts[key])?.value ?? '';
       },
       size: 160,
       cell: ({ row }: { row: { original: EnrichedConnection } }) => {
@@ -170,24 +175,6 @@ function TableSection({ connections, ...props }: Props & { connections: Enriched
       accessorFn: (row: EnrichedConnection) => getClusterDisplayFacts(row).metadataState,
       size: 130,
     },
-    ...(debug
-      ? [
-          {
-            id: 'workloads',
-            header: 'Workloads',
-            accessorFn: () => 'Unknown — not queried',
-            size: 200,
-            enableSorting: false,
-          },
-          {
-            id: 'metrics',
-            header: 'Metrics',
-            accessorFn: () => 'Unknown — provider required',
-            size: 230,
-            enableSorting: false,
-          },
-        ]
-      : []),
     ...props.allLabelKeys.map((key) => ({
       id: `label:${key}`,
       header: key,
@@ -205,7 +192,7 @@ function TableSection({ connections, ...props }: Props & { connections: Enriched
   ];
   const columnVisibility = {
     recency: false,
-    metadata: debug,
+    metadata: false,
     ...coreVisibility,
     ...Object.fromEntries(
       props.allLabelKeys.map((key) => [`label:${key}`, props.visibleColumns.includes(key)]),
@@ -288,27 +275,8 @@ function TableSection({ connections, ...props }: Props & { connections: Enriched
   );
 }
 
-const ConnectionTable: React.FC<Props> = (input) => {
-  const debug = input.debug || input.viewMode === 'debug';
-  const debugConnections = debug
-    ? [
-        ...new Map(
-          input.grouped.groups.flatMap((group) =>
-            group.connections.map((connection) => [connection.connection.id, connection] as const),
-          ),
-        ).values(),
-      ]
-    : [];
-  const props = debug
-    ? {
-        ...input,
-        groupBy: 'none' as const,
-        grouped: {
-          ...input.grouped,
-          groups: [{ key: 'debug', label: 'Debug', connections: debugConnections }],
-        },
-      }
-    : input;
+const ConnectionTable: React.FC<Props> = (props) => {
+  const cards = props.viewMode !== 'list';
   const isFlat = props.groupBy === 'none';
   const orders = React.useRef<Record<string, string[]>>({});
   const lastOrder = React.useRef('');
@@ -332,7 +300,7 @@ const ConnectionTable: React.FC<Props> = (input) => {
             orders.current[group.key] = ids;
             onVisualOrderChange?.(
               props.grouped.groups
-                .filter((section) => !props.collapsedGroups.has(section.key))
+                .filter((section) => isFlat || !props.collapsedGroups.has(section.key))
                 .flatMap(
                   (section) =>
                     orders.current[section.key] ??
@@ -342,17 +310,17 @@ const ConnectionTable: React.FC<Props> = (input) => {
           },
         ]),
       ),
-    [groupKeys, props.grouped, props.collapsedGroups, onVisualOrderChange],
+    [groupKeys, props.grouped, props.collapsedGroups, isFlat, onVisualOrderChange],
   );
   React.useEffect(() => {
-    if (props.viewMode === 'grid' && !debug) {
+    if (cards) {
       onVisualOrderChange?.(
         props.grouped.groups
-          .filter((group) => !props.collapsedGroups.has(group.key))
+          .filter((group) => isFlat || !props.collapsedGroups.has(group.key))
           .flatMap((group) => group.connections.map((row) => row.connection.id)),
       );
     }
-  }, [props.grouped, props.collapsedGroups, props.viewMode, debug, onVisualOrderChange]);
+  }, [props.grouped, props.collapsedGroups, cards, isFlat, onVisualOrderChange]);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {props.grouped.groups.map((group) => (
@@ -362,18 +330,18 @@ const ConnectionTable: React.FC<Props> = (input) => {
           label={group.label}
           count={group.connections.length}
           provider={group.provider}
-          isCollapsed={props.collapsedGroups.has(group.key)}
+          isCollapsed={!isFlat && props.collapsedGroups.has(group.key)}
           onToggleCollapse={() => props.onToggleCollapse(group.key)}
           hideHeader={isFlat}
         >
-          {props.viewMode === 'grid' && !debug ? (
+          {cards ? (
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 260px), 1fr))',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 17.5rem), 1fr))',
                 gridAutoRows: '1fr',
-                gap: 12,
-                padding: isFlat ? 0 : 8,
+                gap: 'var(--ov-space-stack-md)',
+                paddingBlockEnd: 'var(--ov-space-stack-sm)',
               }}
             >
               {group.connections.map((enriched) => (

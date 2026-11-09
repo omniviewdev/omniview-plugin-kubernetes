@@ -1,0 +1,75 @@
+{
+  "trackingIssue": "https://github.com/omniviewdev/omniview-plugin-kubernetes/issues/224",
+  "sharedComponentsPR": "https://github.com/omniviewdev/ui/pull/119",
+  "captureType": "Actual browser development IDE; not redrawn mocks or packaged desktop captures",
+  "fixture": {
+    "apiVersion": "v1.36.2",
+    "contextAliases": 26,
+    "apiServers": 1,
+    "nodes": 0,
+    "scheduler": false,
+    "limits": "Owned local API and etcd only. Names and configured hints do not prove cloud infrastructure, production ownership, workload health, or cloud connectivity. No user kubeconfig or cloud cluster was used."
+  },
+  "references": {
+    "approvedOverview": "approved-overview.png",
+    "approvedAutomaticSuggestions": "approved-search.png",
+    "historicalShippedBefore": "before-shipped-cards.png",
+    "historicalBeforeLimit": "Historical shipped capture, not a matched fixture/pixel baseline.",
+    "partialFilterBefore": "before-partial-filter-cards.png"
+  },
+  "overview": {
+    "mockMatched": "after-overview-matched-mock-dark-1440.png",
+    "mockMatchedGeometry": "1440x900 CSS pixels at 1.25 device scale; 1800x1125 image",
+    "desktop": "after-overview-dark-1568.png",
+    "publishedUICohort": "after-overview-published-cohort-dark-1568.png",
+    "medium": "after-overview-dark-768.png",
+    "narrowTextExtreme": "after-overview-high-contrast-light-360-125.png"
+  },
+  "nativeThemeCaptures": {
+    "void": "after-overview-void-1568.png",
+    "dark": "after-overview-dark-1568.png",
+    "light": "after-overview-light-1568.png",
+    "obsidian": "after-overview-obsidian-1568.png",
+    "carbon": "after-overview-carbon-1568.png",
+    "solarized-dark": "after-overview-solarized-dark-1568.png",
+    "solarized-light": "after-overview-solarized-light-1568.png",
+    "high-contrast-dark": "after-overview-high-contrast-dark-1568.png",
+    "high-contrast-light": "after-overview-high-contrast-light-1568.png"
+  },
+  "table": ["after-table-dark-360.png", "after-table-dark-768.png", "after-table-dark-1063.png", "after-table-dark-1568.png"],
+  "debug": ["after-debug-dark-360.png", "after-debug-dark-768.png", "after-debug-dark-1063.png", "after-debug-dark-1568.png"],
+  "scenarios": {
+    "automaticSuggestionsAndPartialResults": "after-search-suggestions-dark-1568.png",
+    "explicitPreview": "after-explicit-preview-dark-1568.png",
+    "fullLiteralIdentity": "after-full-identity-tooltip-dark-1568.png",
+    "folderEditor": "after-folder-editor-dark-1568.png",
+    "ruleOptionsInsideAccessibleModal": "after-folder-rule-dropdown-dark-1568.png",
+    "iconOnlyChangerAndInPopupMetadata": "after-folder-icon-picker-dark-1568.png",
+    "manualAndAutomaticFolderUnion": "after-folder-manual-and-auto-dark-1568.png",
+    "organize": "after-organize-dark-1568.png",
+    "productionLens": "after-production-lens-dark-1568.png",
+    "liveDebuggingLens": "after-live-debugging-lens-dark-1568.png",
+    "directOpenToOwnedAPI": "after-direct-open-owned-api-dark-1568.png"
+  },
+  "layoutVerification": {
+    "cards": "theme-sizing-matrix.json",
+    "tableAndDebug": "table-debug-sizing-matrix.json",
+    "cases": 1080,
+    "failures": 0,
+    "themes": 9,
+    "densities": ["comfortable", "compact"],
+    "textScales": [80, 90, 100, 110, 125],
+    "viewportWidths": [360, 768, 1063, 1568],
+    "invariants": ["No document horizontal overflow", "Single-line card names", "Card actions remain inside their frames", "Recent cards stay in one internally scrolling row", "Flat Table retains 26 fixture rows", "Debug retains 26 cards"]
+  },
+  "behaviorVerification": {
+    "partialRegionResults": 22,
+    "regionSuggestionCounts": {"us-east-1": 18, "us-gov-east-1": 4},
+    "completedRegionResults": 18,
+    "savedLensResults": {"Production": 3, "GovCloud": 4, "Live debugging": 1},
+    "folderMembership": {"automatic": 4, "manual": 1, "deduplicatedTotal": 5},
+    "recentHistoryAfterAppRestarts": 3,
+    "verified": ["Search autofocus and disabled autocapitalization", "First suggestion autoselection and native arrows/Enter", "Result arrows retain input focus", "Primary action opens the actual API resource route without Preview", "Independent Preview and Settings", "Settings alias survives reload", "Table survives collapsed card groups", "Native pointer drag into folder and keyboard alternatives/cancel", "Automatic rule edits recalculate membership", "Real raster upload, search, reuse, restart persistence and inline fallback after library removal", "Lens save, rename, reorder, replace and delete", "Folder deletion preserves clusters"]
+  },
+  "visualLimits": ["No native OS window, file picker or color picker rendering claim", "360px stresses desktop host chrome; pre-existing global toolbar crowding is outside the cluster repair"]
+}

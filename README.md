@@ -83,6 +83,8 @@ Cluster explorer search supports free text and `region:`, `provider:`, `env:`,
 match any value; combine different keys to require every field. Quote literal
 identifiers containing colons, for example `"arn:aws:eks:cluster"`. Unknown keys
 and unfinished quotes show diagnostics and do not silently widen results.
+Keyed values match case-insensitive prefixes, so `region:us-` keeps matching
+clusters visible while completing a value.
 Displayed region, account, project, and environment facts retain their source.
 Explicit user tags take precedence over current metadata, followed by configured
 label/data hints; mutable AWS/GCP configuration metadata remains a labeled hint,
@@ -98,25 +100,29 @@ The primary card or row action opens the cluster. Use the independent action men
 
 Long cluster names remain available in accessible names and full-name tooltips without changing the card height. Opaque context IDs stay literal identifiers, including colons and slashes; quote them when searching. Keyboard users can open results, use action menus, assign folders, and cancel drag operations without relying on pointer-only controls.
 
-Cards, Table, Debug, and Organize share the same scope and filters. Table includes account or project identity without dropping available project facts. Debug separates connection readiness, metadata freshness, and unknown workload health.
+Cards use a provider-first header, a single-line display name, one location/account line, and an environment/connection footer. Exact context identity, provenance, and metadata freshness remain available in the card tooltip and Preview. The full-width search has a separate filter/view toolbar; provider and environment facets support multiple selections, with additional status/tag/attribute filters under Filters.
+
+New profiles group cards by sourced environment. Existing grouping preferences remain intact. Unknown environments stay in a separate group, never inferred from context names. The unfiltered All clusters Cards view includes up to four recently opened clusters in one horizontal row, with internal scrolling on narrow viewports. Debug uses the same cards in connected/disconnected sections and preserves the selected sort within each section; connection state is not workload health.
+
+Cards, Table, Debug, and Organize share the same scope and filters. Table stays flat regardless of collapsed card groups and includes account or project identity without dropping available project facts. New profiles start with curated identity columns; the column picker can reveal raw context data, and existing saved column choices remain intact.
 
 Folders retain preset icons, colors, legacy custom images, manual membership, and automatic rules. Effective membership is the deduplicated union of manual assignments and rule matches. Dragging into a folder adds manual membership; explicit menu actions provide keyboard alternatives. Cancelled and no-target drops leave membership unchanged.
 
-The icon-only folder changer opens a searchable picker with reusable named images. Browse and drop share validation for PNG, JPEG, and WebP files up to 5 MiB; accepted images are normalized to PNG within 128×128 before profile-backed storage. SVG is not imported. Removing a library image preserves its appearance on folders already using it.
+The icon-only folder changer opens a searchable picker with reusable named images. Optional image naming stays inside the popup rather than changing the external trigger's alignment. Browse and drop share validation for PNG, JPEG, and WebP files up to 5 MiB; accepted images are normalized to PNG within 128×128 before profile-backed storage. SVG is not imported. Removing a library image preserves its appearance on folders already using it.
 
 Saved lenses retain query, facets, scope, grouping, sort, and view. Folders, assets, lens order, and shared recent history persist in backend plugin data rather than depending on one browser window.
 
 ### Actual IDE evidence
 
-![Actual development IDE showing the cluster explorer Cards view](docs/images/cluster-explorer/final-cards-1568.png)
+![Actual cluster explorer at the approved mock's 1440×900 CSS viewport](docs/images/cluster-explorer-parity/after-overview-matched-mock-dark-1440.png)
 
-![Actual development IDE showing manual and rule-based folder organization](docs/images/cluster-explorer/organize-final.png)
+![Actual manual and automatic folder membership with a custom icon](docs/images/cluster-explorer-parity/after-folder-manual-and-auto-dark-1568.png)
 
-These are unmodified captures from the running development IDE, not mockups or packaged-desktop screenshots. The owned fixture exposes a real Kubernetes API and etcd with four namespaces, zero Nodes, and no scheduler. All 26 context aliases point to that one fixture; cloud-like names and configured provider hints do not prove a cloud fleet, production ownership, workload health, or cloud connectivity.
+These are unmodified captures from the running development IDE, not mockups or packaged-desktop screenshots. The mock-matched capture uses 1440×900 CSS pixels at 1.25 device scale, producing the original mock's 1800×1125 image dimensions. The owned fixture exposes a real Kubernetes v1.36.2 API and etcd with four namespaces, zero Nodes, and no scheduler. All 26 context aliases point to that one fixture; cloud-like names and configured provider hints do not prove a cloud fleet, production ownership, workload health, or cloud connectivity.
 
-The [evidence index](docs/images/cluster-explorer/index.json) links all twelve final Cards/Table/Debug captures at 360, 768, 1063, and 1568 pixels, organization and search captures, settled API views, restart snapshots, and the live scenario summary. Nine themes, five text scales, both densities, keyboard actions, direct opening, new-tab handoff, folder assets, lenses, and shared recents were exercised. Native OS window creation was not proved.
+The [parity evidence index](docs/images/cluster-explorer-parity/index.json) links the approved mocks, historical before capture, current Cards/Table/Debug views, all nine native palettes, responsive/text-scaling extremes, search completion, explicit Preview, folder editing and custom icons, saved lenses, and actual API access. The measured matrix covers nine themes, five text scales, both densities, and 360/768/1063/1568-pixel widths. Keyboard navigation, direct opening, folder rules/manual membership, icon reuse/removal, lens management, and restart persistence were exercised. Native OS window and file/color-dialog rendering were not proved.
 
-Kubernetes plugin 0.16.2 requires Omniview 0.30.2 or newer, runtime/Vite 0.30.2, Base UI 0.15.0, and Editors 6.2.0. This matching UI cohort preserves activity, structured notifications, and the plugin-data snapshot and compare-and-swap bindings used by the explorer. Upgrade the desktop before installing the plugin; older runtime packages with a Base UI `~0.14.0` peer are incompatible with Base UI 0.15.0 even if workspace source links resolve imports.
+Kubernetes plugin 0.19.1 requires Omniview 0.32.1 or newer, runtime/Vite 0.32.1, Base UI 0.17.0, and Editors 6.2.2. This cohort includes shared in-flow Card actions, outline status indicators, compact in-picker upload metadata, and correctly layered rule dropdowns. Upgrade the desktop before installing the plugin; runtime packages with a Base UI `~0.16.0` peer are incompatible with this cohort even if local source links resolve imports.
 
 Container log requests with an explicit `SinceTime` use that timestamp instead
 of `SinceSeconds`. Kubernetes accepts only one time filter per log request.

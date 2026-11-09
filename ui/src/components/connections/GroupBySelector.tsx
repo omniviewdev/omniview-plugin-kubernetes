@@ -39,6 +39,7 @@ const GroupBySelector: React.FC<Props> = ({
       style={selectStyle}
       options={[
         { value: 'none', label: 'No Grouping' },
+        { value: 'environment', label: 'By environment' },
         { value: 'favorites', label: 'Favorites' },
         { value: 'provider', label: 'Provider' },
         { value: 'status', label: 'Status' },

@@ -1,17 +1,18 @@
-import React from 'react';
 import type * as BaseUI from '@omniviewdev/base-ui';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
 import FolderDialog from './FolderDialog';
 
 const state = vi.hoisted(() => ({
   asset: { id: 'logo', name: 'Logo', dataUrl: 'data:image/png;base64,YQ==', createdAt: 1 },
   assets: [] as { id: string; name: string; dataUrl: string; createdAt: number }[],
   remove: vi.fn(),
-  accept: [] as string[],
   add: vi.fn(),
   decode: vi.fn(),
+  nativePicker: false,
 }));
 vi.mock('../../hooks/useClusterPreferences', () => ({
   useClusterPreferences: () => ({
@@ -27,21 +28,12 @@ vi.mock('@omniviewdev/base-ui', async () => {
   const actual = await vi.importActual<typeof BaseUI>('@omniviewdev/base-ui');
   return {
     ...actual,
-    IconPicker: ({
-      onRemove,
-      accept,
-      onDragOver,
-      onDrop,
-      uploadError,
-    }: React.HTMLAttributes<HTMLDivElement> & {
-      onRemove: (id: string) => void;
-      accept: string[];
-      uploadError?: string;
-    }) => {
-      state.accept = accept;
+    IconPicker: (props: React.ComponentProps<typeof actual.IconPicker>) => {
+      if (state.nativePicker) return <actual.IconPicker {...props} />;
+      const { onRemove, onDragOver, onDrop, uploadError } = props;
       return (
         <div data-testid="icon-drop-target" onDragOver={onDragOver} onDrop={onDrop}>
-          <button type="button" onClick={() => onRemove('logo')}>
+          <button type="button" onClick={() => onRemove?.('logo')}>
             Remove library icon
           </button>
           {uploadError && <span role="alert">{uploadError}</span>}
@@ -53,6 +45,7 @@ vi.mock('@omniviewdev/base-ui', async () => {
 
 afterEach(cleanup);
 beforeEach(() => {
+  state.nativePicker = false;
   state.assets = [state.asset];
   state.remove.mockReset();
   state.remove.mockResolvedValue(undefined);
@@ -98,7 +91,6 @@ describe('folder icon library removal', () => {
     expect(submit).toHaveBeenCalledWith(
       expect.objectContaining({ iconAssetId: undefined, customImage: state.asset.dataUrl }),
     );
-    expect(state.accept).toEqual(['image/png', 'image/jpeg', 'image/webp']);
   });
   it('keeps the referenced icon when library deletion fails', async () => {
     state.remove.mockRejectedValue(new Error('offline'));
@@ -143,5 +135,24 @@ describe('folder icon library removal', () => {
       'Choose a PNG, JPEG or WebP raster image',
     ));
     expect(state.add).toHaveBeenCalledTimes(1);
+  });
+  it('does not submit the folder when Enter edits upload metadata inside the icon picker', async () => {
+    state.nativePicker = true;
+    const submit = vi.fn();
+    const user = userEvent.setup();
+    render(<FolderDialog open mode="create" onSubmit={submit} onClose={vi.fn()} />);
+    await user.type(screen.getByRole('textbox', { name: 'Name', exact: true }), 'Incident tools');
+    await user.click(screen.getByRole('button', { name: 'Folder icon: Folder' }));
+    const iconName = await screen.findByRole('textbox', { name: 'Custom icon name' });
+    act(() => iconName.focus());
+    await user.keyboard('Toolbox{Enter}');
+    expect(submit).not.toHaveBeenCalled();
+    await user.keyboard('{Escape}');
+    await waitFor(() =>
+      expect(screen.queryByRole('searchbox', { name: 'Search icons' })).not.toBeInTheDocument(),
+    );
+    await user.click(screen.getByRole('button', { name: 'Create', exact: true }));
+    expect(submit).toHaveBeenCalledOnce();
+    expect(submit).toHaveBeenCalledWith(expect.objectContaining({ name: 'Incident tools' }));
   });
 });

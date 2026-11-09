@@ -4,7 +4,9 @@ import {
   type KeyedSearchField,
   type ParsedKeyedSearch,
 } from '@omniviewdev/base-ui';
+
 import type { EnrichedConnection } from '../types/clusters';
+
 import { isRetiredConnectionDataKey } from './migrateFolderMetadataRules';
 
 export type ClusterMetadataState = 'current' | 'stale' | 'unknown' | 'unavailable';
@@ -93,20 +95,26 @@ export interface ClusterSearchDocument {
 }
 export function buildClusterSearch(connections: readonly SearchableConnection[]) {
   const documents = new Map<string, ClusterSearchDocument>();
-  const suggestions = new Map<string, Set<string>>(
-    ['region', 'provider', 'env', 'account', 'status', 'tag'].map((key) => [
-      key,
-      new Set<string>(),
-    ]),
+  const suggestions = new Map<string, Map<string, { value: string; count: number }>>(
+    ['region', 'provider', 'env', 'account', 'status', 'tag'].map((key) => [key, new Map()]),
   );
   for (const enriched of connections) {
     const fields = new Map<string, string[]>();
     const add = (key: string, value: string) => {
       key = key.toLowerCase();
       if (!/^[a-z_][\w.-]*$/.test(key) || !value) return;
-      fields.set(key, [...(fields.get(key) ?? []), value.toLowerCase()]);
-      if (!suggestions.has(key)) suggestions.set(key, new Set());
-      suggestions.get(key)!.add(value);
+      const normalized = value.toLowerCase();
+      const existing = fields.get(key) ?? [];
+      if (existing.includes(normalized)) return;
+      fields.set(key, [...existing, normalized]);
+      let values = suggestions.get(key);
+      if (!values) {
+        values = new Map<string, { value: string; count: number }>();
+        suggestions.set(key, values);
+      }
+      const entry = values.get(normalized);
+      if (entry) entry.count++;
+      else values.set(normalized, { value, count: 1 });
     };
     const addAttribute = (key: string, value: string) => {
       const name = key.toLowerCase();
@@ -153,15 +161,18 @@ export function buildClusterSearch(connections: readonly SearchableConnection[])
   }
   const fields: KeyedSearchField[] = [...suggestions].map(([name, values]) => ({
     name,
-    values: [...values].sort(),
-    description: ['region', 'provider', 'env', 'account', 'status', 'tag'].includes(name)
-      ? 'Explicit cluster facts'
-      : 'Configured attribute or current metadata',
+    values: [...values.values()]
+      .sort((left, right) => left.value.localeCompare(right.value))
+      .map(({ value, count }) => ({
+        value,
+        label: `${name}:${value}`,
+        description: `${count} ${count === 1 ? 'cluster' : 'clusters'}`,
+      })),
   }));
   return { fields, index: createKeyedSearchIndex(fields), documents };
 }
 
-/** Repeated keys OR together; different keys and free text AND together. Invalid queries match nothing. */
+/** Keyed values match prefixes; repeated keys OR together. Different keys and free text AND together. Invalid queries match nothing. */
 export function matchesClusterQuery(
   document: ClusterSearchDocument | undefined,
   query: ParsedKeyedSearch,
@@ -172,7 +183,9 @@ export function matchesClusterQuery(
   for (const token of query.filters)
     filters.set(token.key!, [...(filters.get(token.key!) ?? []), token.value.toLowerCase()]);
   return [...filters].every(([key, values]) =>
-    values.some((value) => document.fields.get(key)?.some((candidate) => candidate === value)),
+    values.some((value) =>
+      document.fields.get(key)?.some((candidate) => candidate.startsWith(value)),
+    ),
   );
 }
 export { parseKeyedSearch };

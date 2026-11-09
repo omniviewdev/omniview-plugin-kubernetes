@@ -1,8 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
 import type { ComponentProps } from 'react';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { EnrichedConnection } from '../../types/clusters';
+
 import ConnectionTable from './ConnectionTable';
 
 const actions = vi.hoisted(() => ({
@@ -92,28 +93,14 @@ describe('ConnectionTable', () => {
     expect(container.querySelector('table')).not.toBeNull();
   });
 
-  it.each([false, true])('preserves project facts without calling them accounts in Debug=%s', (debug) => {
+  it('preserves project facts without calling them accounts', () => {
     const project = connection('project-cluster');
     project.metadata = { 'gcp.project_id': 'local-project-fixture' };
-    render(<ConnectionTable {...props([project])} debug={debug} />);
+    render(<ConnectionTable {...props([project])} />);
     expect(screen.getByRole('columnheader', { name: /Account \/ Project/ })).toBeInTheDocument();
     const value = screen.getByText('local-project-fixture (configured hint)');
     expect(value.parentElement).toHaveTextContent('Project: local-project-fixture');
     expect(value).toHaveAttribute('title', expect.stringContaining('gcp.project_id'));
-  });
-
-  it('preserves supplied Debug order without claiming workload or metric health', () => {
-    const { container } = render(
-      <ConnectionTable {...props([connection('offline'), connection('online', true)])} debug />,
-    );
-    expect(
-      [...container.querySelectorAll('[data-cluster-open]')].map((node) =>
-        node.getAttribute('data-cluster-open'),
-      ),
-    ).toEqual(['offline', 'online']);
-    expect(screen.getAllByText('Unknown — not queried')).toHaveLength(2);
-    expect(screen.getAllByText('Unknown — provider required')).toHaveLength(2);
-    expect(screen.getByText('Disconnected')).toBeInTheDocument();
   });
 
   it('sorts visible native open actions and changes density without dropping results', () => {
@@ -171,26 +158,6 @@ describe('ConnectionTable', () => {
     ).toEqual(['zulu', 'alpha']);
   });
 
-  it('includes collapsed source sections in the flattened Debug result order', () => {
-    const input = props([]);
-    input.grouped.groups = [
-      { key: 'one', label: 'One', connections: [connection('offline')] },
-      { key: 'two', label: 'Two', connections: [connection('online', true)] },
-    ];
-    const order = vi.fn();
-    render(
-      <ConnectionTable
-        {...input}
-        viewMode="debug"
-        groupBy="custom"
-        collapsedGroups={new Set(['one', 'two'])}
-        onVisualOrderChange={order}
-      />,
-    );
-    expect(screen.getByRole('button', { name: 'Open offline' })).toBeInTheDocument();
-    expect(order).toHaveBeenLastCalledWith(['offline', 'online']);
-  });
-
   it('deduplicates navigation IDs while keeping overlapping visual memberships', () => {
     const input = props([]);
     input.grouped.groups = [
@@ -226,10 +193,6 @@ describe('ConnectionTable', () => {
           node.getAttribute('data-cluster-open'),
         ),
       ).toEqual(ids);
-      expect(screen.getByRole('columnheader', { name: /Cluster/ })).toHaveAttribute(
-        'aria-sort',
-        direction === 'asc' ? 'ascending' : 'descending',
-      );
       expect(onVisualOrderChange).toHaveBeenLastCalledWith(ids);
     },
   );

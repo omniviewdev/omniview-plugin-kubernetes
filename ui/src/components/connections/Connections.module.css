@@ -3,15 +3,9 @@
 .groupHeader {
   display: flex;
   align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  padding: 4px 6px;
-  border-radius: var(--ov-radius-sm, 4px);
-  user-select: none;
-}
-
-.groupHeader:hover {
-  background-color: var(--ov-color-state-hover);
+  gap: var(--ov-space-stack-sm);
+  min-inline-size: 0;
+  margin-block-end: var(--ov-space-stack-sm);
 }
 
 /* Clickable tile used by HubClusterRow / CompactClusterCard / GroupBrowser cards */
