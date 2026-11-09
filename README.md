@@ -1035,9 +1035,11 @@ Cluster preferences and sidebar ordering remain plugin-data preferences, not SDK
 settings. Rebuild and reload both plugin artifacts after upgrading the coordinated
 SDK/runtime release; restarting an old executable alone does not migrate it.
 
-The plugin manifest schema has no minimum-host-version field. Keep the host,
-backend SDK, runtime, and Vite plugin on the coordinated release cohort below
-rather than adding unsupported manifest fields.
+The plugin manifest schema has no minimum-host-version field. Marketplace
+publication uses the release workflow's supported `min-ide-version` input,
+set to `0.33.0` for the coverage-aware metrics cohort. Keep the host, backend SDK,
+runtime, and Vite plugin coordinated rather than adding unsupported manifest
+fields. Do not package this candidate before that host/runtime cohort is published.
 
 ### Prerequisites
 

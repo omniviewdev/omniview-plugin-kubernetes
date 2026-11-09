@@ -76,7 +76,8 @@ was not a complete source fingerprint.
 | Validated pages | 276 | 283 |
 | Decoded objects | 13,800 | 6,310 |
 | Response-body bytes | 4,694,594 | 2,161,316 |
-| Caller cancellations | 0 | 1 |
+| Plugin-reported caller cancellations | 0 | 1 |
+| Host-wide reader/provider cancellation requests | 5 / 5 | 2 / 2 |
 | Native scans, ok / canceled | 276 / 0 | 283 / 1 |
 | Successful provider-query mean, ms | 74.46 | 84.32 |
 | Plugin CPU time, seconds | 9.30 | 9.27 |
@@ -90,6 +91,9 @@ response-body bytes in this workload. Request count did not improve; successful
 provider-query latency and mean RSS increased. CPU was effectively unchanged.
 These observations do not establish a latency, CPU, retained-memory or
 metrics-server-internal scan-complexity improvement.
+Host cancellation requests and plugin-reported canceled queries are different
+events. A request does not prove that a provider stopped; neither series is a
+cancellation-efficiency claim.
 
 Earlier candidate captures are not comparison evidence: one workload stopped
 after a browser navigation timeout; another completed its actions but diagnostics
