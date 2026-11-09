@@ -1,7 +1,12 @@
+import contextlib
+import io
 import json
+import pathlib
+import tempfile
 import unittest
 from unittest.mock import patch
 
+import lab
 import native_metrics as native
 
 from native_metrics import decode_manifest_objects
@@ -117,6 +122,76 @@ class VerificationBoundaryTests(unittest.TestCase):
                 native.main()
             identity.assert_not_called()
             install.assert_not_called()
+
+
+class ClusterSelectionTests(unittest.TestCase):
+    def setUp(self):
+        # main() and select() rebind the module's target; restore it so test order never matters.
+        patcher = patch.multiple(native, NAME=native.NAME, KUBE=native.KUBE, CONTEXT=native.CONTEXT)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def install_argv(self):
+        return ['native_metrics.py', 'install', '--name', 'bench-1',
+                '--confirm-install', '--confirm-owner-permission']
+
+    def test_default_target_keeps_the_original_private_state(self):
+        native.select(lab.DEFAULT_NAME)
+        self.assertEqual(native.NAME, 'omniview-load-lab')
+        self.assertEqual(native.KUBE, lab.ROOT / '.state' / 'kubeconfig')
+        self.assertEqual(native.CONTEXT, 'kind-omniview-load-lab')
+
+    def test_named_target_uses_only_its_own_kubeconfig_and_context(self):
+        native.select('bench-1')
+        self.assertEqual(native.NAME, 'bench-1')
+        self.assertEqual(native.KUBE, lab.ROOT / '.state' / 'clusters' / 'bench-1' / 'kubeconfig')
+        self.assertEqual(native.CONTEXT, 'kind-bench-1')
+        with patch.object(native, 'run') as run:
+            native.kubectl('get', 'nodes')
+        self.assertEqual(run.call_args[0][0][:5],
+                         ['kubectl', '--kubeconfig', str(native.KUBE), '--context', 'kind-bench-1'])
+
+    def test_verify_runs_against_the_requested_cluster(self):
+        argv = ['native_metrics.py', 'verify', '--name', 'bench-1', '--namespace', 'load-001', '--timeout', '5']
+        with patch('sys.argv', argv), patch.object(native, 'verify') as verify:
+            native.main()
+        verify.assert_called_once_with('load-001', 5)
+        self.assertEqual(native.CONTEXT, 'kind-bench-1')
+
+    def test_invalid_cluster_names_are_rejected_before_any_lookup(self):
+        for name in ('../escape', 'Bench', 'x' * 41):
+            with self.subTest(name=name):
+                argv = ['native_metrics.py', 'verify', '--name', name]
+                with patch('sys.argv', argv), patch.object(native, 'verify') as verify, \
+                        patch.object(native, 'require_owned_kind') as identity, \
+                        contextlib.redirect_stderr(io.StringIO()):
+                    with self.assertRaises(SystemExit):
+                        native.main()
+                verify.assert_not_called()
+                identity.assert_not_called()
+
+    def test_named_install_requires_this_checkouts_receipt_before_cluster_access(self):
+        with tempfile.TemporaryDirectory() as scratch, \
+                patch.object(lab, 'STATE', pathlib.Path(scratch) / '.state'), \
+                patch('sys.argv', self.install_argv()), \
+                patch.object(native, 'require_owned_kind') as identity, \
+                patch.object(native, 'install') as install:
+            with self.assertRaises(SystemExit):
+                native.main()
+        identity.assert_not_called()
+        install.assert_not_called()
+
+    def test_named_install_proceeds_with_the_receipt(self):
+        with tempfile.TemporaryDirectory() as scratch:
+            state = pathlib.Path(scratch) / '.state'
+            (state / 'clusters' / 'bench-1').mkdir(parents=True)
+            (state / 'clusters' / 'bench-1' / 'owner.json').write_text(json.dumps({'name': 'bench-1'}))
+            with patch.object(lab, 'STATE', state), patch('sys.argv', self.install_argv()), \
+                    patch.object(native, 'require_owned_kind') as identity, \
+                    patch.object(native, 'install') as install:
+                native.main()
+        identity.assert_called_once_with()
+        install.assert_called_once_with()
 
 
 if __name__ == '__main__':
