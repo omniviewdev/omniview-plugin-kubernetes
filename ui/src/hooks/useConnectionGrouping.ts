@@ -124,7 +124,9 @@ function sortConnections(
                 : sortBy === 'fact:region'
                   ? facts.region?.value
                   : sortBy === 'fact:account'
-                    ? (facts.account ?? facts.project)?.value
+                    ? facts.account && facts.project
+                      ? `${facts.account.value} ${facts.project.value}`
+                      : (facts.account ?? facts.project)?.value
                     : facts.environment?.value;
             return [connection, value?.toLowerCase() ?? ''] as const;
           }),

@@ -106,7 +106,7 @@ New profiles group cards by sourced environment. Existing grouping preferences r
 
 Collapse state is local to the current view and grouping, including the attribute key. Collapsing a Cards group does not hide a Debug readiness section with the same value. Recent and main results share one pending-open scope, so activating the same connecting cluster from both entry points opens it once.
 
-Cards, Table, Debug, and Organize share the same scope and filters. Table stays flat regardless of collapsed card groups and retains both account and project facts when both exist. Project is also independently available in the column picker. New profiles start with curated identity columns; the column picker can reveal raw context data, and existing saved column choices remain intact.
+Cards, Table, Debug, and Organize share the same scope and filters. Table stays flat regardless of collapsed card groups and retains both account and project facts when both exist. Project is also independently available in the column picker. Account / Project ordering uses both displayed facts when available, including saved lenses. New profiles start with curated identity columns; the column picker can reveal raw context data, and existing saved column choices remain intact.
 
 Folders retain preset icons, colors, legacy custom images, manual membership, and automatic rules. Effective membership is the deduplicated union of manual assignments and rule matches. Dragging into a folder adds manual membership; explicit menu actions provide keyboard alternatives. Cancelled and no-target drops leave membership unchanged.
 

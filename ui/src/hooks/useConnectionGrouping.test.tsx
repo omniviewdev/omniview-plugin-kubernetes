@@ -125,6 +125,33 @@ describe('explorer visible result pipeline', () => {
       ]);
     },
   );
+  it('sorts distinct projects within the same account in both directions', () => {
+    state.metadata = new Map(['Alpha', 'Zulu'].map((id) => [
+      id,
+      {
+        transportAvailable: true,
+        snapshot: {
+          active: true,
+          entries: {
+            'gcp.project_id': { state: 'current', value: id === 'Alpha' ? 'z-project' : 'a-project' },
+          },
+        },
+      },
+    ]));
+    const hook = renderHook(
+      ({ sortDirection }: { sortDirection: 'asc' | 'desc' }) => useConnectionGrouping({
+        ...options,
+        connections: [connection('Alpha', { account: 'shared' }), connection('Zulu', { account: 'shared' })],
+        groupBy: 'none',
+        sortBy: 'fact:account',
+        sortDirection,
+      }),
+      { initialProps: { sortDirection: 'asc' } },
+    );
+    expect(hook.result.current.groups[0]!.connections.map((c) => c.connection.id)).toEqual(['Zulu', 'Alpha']);
+    hook.rerender({ sortDirection: 'desc' });
+    expect(hook.result.current.groups[0]!.connections.map((c) => c.connection.id)).toEqual(['Alpha', 'Zulu']);
+  });
   it('sorts the displayed metadata state without treating unknown as zero health', () => {
     state.metadata = new Map([
       [

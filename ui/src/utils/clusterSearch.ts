@@ -98,6 +98,8 @@ interface ClusterSearchSuggestion {
   value: string;
   count: number;
   connectionIds: string[];
+  parent?: ClusterSearchSuggestion;
+  matchingIds?: Set<string>;
 }
 
 export function buildClusterSearch(connections: readonly SearchableConnection[]) {
@@ -167,20 +169,37 @@ export function buildClusterSearch(connections: readonly SearchableConnection[])
     documents.set(enriched.connection.id, { text, fields });
   }
   const fields: KeyedSearchField[] = [...suggestions].map(([name, values]) => {
-    // Code-unit order keeps every prefix's descendants contiguous.
+    // Code-unit order lets a stack find each value's nearest existing prefix.
     const ordered = [...values].sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
-    for (let index = 0; index < ordered.length; index++) {
-      const [prefix, entry] = ordered[index];
-      let matchingIds: Set<string> | undefined;
-      for (
-        let next = index + 1;
-        next < ordered.length && ordered[next][0].startsWith(prefix);
-        next++
-      ) {
-        matchingIds ??= new Set(entry.connectionIds);
-        for (const id of ordered[next][1].connectionIds) matchingIds.add(id);
+    const ancestors: typeof ordered = [];
+    for (const pair of ordered) {
+      const [prefix, entry] = pair;
+      while (ancestors.length && !prefix.startsWith(ancestors[ancestors.length - 1][0])) {
+        ancestors.pop();
+      }
+      entry.parent = ancestors[ancestors.length - 1]?.[1];
+      ancestors.push(pair);
+    }
+    // Capture child counts before transferring their sets; merge smaller sets into larger ones.
+    for (let index = ordered.length - 1; index >= 0; index--) {
+      const entry = ordered[index][1];
+      let matchingIds = entry.matchingIds;
+      entry.matchingIds = undefined;
+      if (matchingIds) {
+        for (const id of entry.connectionIds) matchingIds.add(id);
       }
       entry.count = matchingIds?.size ?? entry.connectionIds.length;
+      const parent = entry.parent;
+      if (!parent) continue;
+      matchingIds ??= new Set(entry.connectionIds);
+      if (!parent.matchingIds) {
+        parent.matchingIds = matchingIds;
+      } else if (parent.matchingIds.size < matchingIds.size) {
+        for (const id of parent.matchingIds) matchingIds.add(id);
+        parent.matchingIds = matchingIds;
+      } else {
+        for (const id of matchingIds) parent.matchingIds.add(id);
+      }
     }
     return {
       name,

@@ -82,11 +82,12 @@
     "projectNativeThemes": ["after-review-project-table-void-1568.png", "after-review-project-table-light-1568.png", "after-review-project-table-obsidian-1568.png", "after-review-project-table-carbon-1568.png", "after-review-project-table-solarized-dark-1568.png", "after-review-project-table-solarized-light-1568.png", "after-review-project-table-high-contrast-dark-1568.png", "after-review-project-table-high-contrast-light-1568.png"],
     "projectSizingMatrix": "review-project-sizing-matrix.json",
     "behaviorSmoke": "review-regression-smoke.json",
+    "prefixPerformance": "review-prefix-performance.json",
     "additionalLayoutCases": 360,
     "layoutFailures": 0,
-    "consumerTestsPassed": 1849,
+    "consumerTestsPassed": 1851,
     "consumerTestsSkipped": 3,
-    "regressionsReproducedBeforeFix": 5
+    "regressionsReproducedBeforeFix": 6
   },
   "visualLimits": ["No native OS window, file picker or color picker rendering claim", "360px stresses desktop host chrome; pre-existing global toolbar crowding is outside the cluster repair"]
 }

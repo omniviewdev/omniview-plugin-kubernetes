@@ -1,0 +1,70 @@
+{
+  "method": "Synthetic CPU smoke: three sequential runs per case against published registry dependencies. Not packaged-desktop, render-latency, or statistical benchmark proof.",
+  "before": {
+    "runtime": "v26.12.0",
+    "results": [
+      {
+        "name": "2000 nested tag prefixes",
+        "clusters": 1,
+        "buildMs": [
+          1821.676291,
+          1908.5843750000004,
+          1873.0373749999999
+        ],
+        "queryMs": [
+          0.06195900000011534,
+          0.009874999999738066,
+          0.010666999999557447
+        ]
+      },
+      {
+        "name": "10000 cluster catalog",
+        "clusters": 10000,
+        "buildMs": [
+          19.135874999999942,
+          12.333000000000538,
+          12.56208400000014
+        ],
+        "queryMs": [
+          3.453375000000051,
+          3.1380840000001626,
+          3.996291999999812
+        ]
+      }
+    ]
+  },
+  "after": {
+    "runtime": "v26.12.0",
+    "results": [
+      {
+        "name": "2000 nested tag prefixes",
+        "clusters": 1,
+        "buildMs": [
+          32.24316699999986,
+          24.221874999999955,
+          23.168833000000177
+        ],
+        "queryMs": [
+          0.05116700000007768,
+          0.010917000000063126,
+          0.010917000000063126
+        ]
+      },
+      {
+        "name": "10000 cluster catalog",
+        "clusters": 10000,
+        "buildMs": [
+          24.976874999999836,
+          15.475541000000021,
+          15.668874999999844
+        ],
+        "queryMs": [
+          3.900875000000042,
+          3.0635420000000977,
+          3.6106250000000273
+        ]
+      }
+    ]
+  },
+  "implementation": "Nearest-prefix stack followed by bottom-up distinct-ID unions; smaller sets merge into larger sets. Exact values without prefix relationships need no ID set."
+}

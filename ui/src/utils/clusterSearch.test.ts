@@ -178,4 +178,20 @@ describe('cluster explorer search', () => {
     expect(count('tag', 'prod')).toBe(1);
     expect(count('tag', 'production')).toBe(1);
   });
+
+  it('keeps nested and sibling prefix counts distinct when a cluster has several matching tags', () => {
+    const connections = [
+      { ...cluster('a'), tags: ['p', 'production'] },
+      { ...cluster('b'), tags: ['pro', 'prod', 'production', 'proz'] },
+      { ...cluster('c'), tags: ['program'] },
+      { ...cluster('d'), tags: ['production'] },
+    ];
+    const values = buildClusterSearch(connections).fields.find(({ name }) => name === 'tag')!.values!;
+    expect(values.map((entry) => {
+      if (typeof entry === 'string') throw new Error('Expected counted suggestions');
+      return [entry.value, Number.parseInt(entry.description!, 10)];
+    })).toEqual([
+      ['p', 4], ['pro', 4], ['prod', 3], ['production', 3], ['program', 1], ['proz', 1],
+    ]);
+  });
 });
