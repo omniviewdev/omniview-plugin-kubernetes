@@ -102,7 +102,7 @@ The primary card or row action opens the cluster. Use the independent action men
 
 Long cluster names remain available in accessible names and full-name tooltips without changing the card height. Opaque context IDs stay literal identifiers, including colons and slashes; quote them when searching. Keyboard users can open results, use action menus, assign folders, and cancel drag operations without relying on pointer-only controls.
 
-Cards use a provider-first header, a single-line display name, one location/account line, and an environment/connection footer. Exact context identity, provenance, and metadata freshness remain available in the card tooltip and Preview. The full-width search has a separate filter/view toolbar; provider and environment facets support multiple selections, with additional status/tag/attribute filters under Filters.
+Cards use a provider-first header, a single-line display name, one location/account line, and an environment/connection footer. Small card titles inherit `Card.Title` typography; provider captions and location details use the shared annotation scale. Hover shows provider, connection state, the full name once, and only available region/account/environment facts. Saved configuration stays in Preview, and table fact tooltips retain source provenance. The full-width search has a separate filter/view toolbar; provider and environment facets support multiple selections, with additional status/tag/attribute filters under Filters.
 
 New profiles group cards by sourced environment. Existing grouping preferences remain intact. Unknown environments stay in a separate group, never inferred from context names. The unfiltered All clusters Cards view includes up to four recently opened clusters in one horizontal row, with internal scrolling on narrow viewports. Debug uses the same cards in connected/disconnected sections and preserves the selected sort within each section; connection state is not workload health.
 
@@ -115,7 +115,8 @@ small control size. Table density follows the application's global setting, with
 no per-table density switch. Sidebar actions stay at the bottom, and attribute
 submenus show 20 single-line values per page with Previous/Next navigation.
 The column picker uses shared base-ui spacing. Cluster-name tooltips omit repeated
-identity values.
+identity values. All card action buttons use the same shared small size, including
+the drag handle; `StatusDot` owns label/dot alignment.
 
 Provider logos are bundled locally: Amazon EKS comes from the [Iconify SVG Logos
 collection](https://github.com/gilbarbara/logos) (CC0); [Minikube](https://github.com/kubernetes/minikube/blob/master/images/logo/logo.svg)

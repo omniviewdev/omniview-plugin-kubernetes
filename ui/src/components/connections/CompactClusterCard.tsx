@@ -1,4 +1,4 @@
-import { Card, StatusDot, Text } from '@omniviewdev/base-ui';
+import { Card, StatusDot } from '@omniviewdev/base-ui';
 import React from 'react';
 
 import type { EnrichedConnection } from '../../types/clusters';
@@ -39,12 +39,12 @@ const CompactClusterCard: React.FC<Props> = ({
         <ClusterCardTitle
           enriched={enriched}
           selected={selected}
-          details={`${facts.identity}\n${facts.provenance}\n${connectionLabel(isConnected)}`}
+          facts={facts}
           onClick={onClick}
         />
-        <Text size="xs" tone="muted" truncate className={styles.detail}>
+        <Card.Description className={styles.detail}>
           {detail}
-        </Text>
+        </Card.Description>
         {isConnected && (
           <StatusDot
             className={styles.compactStatus}
