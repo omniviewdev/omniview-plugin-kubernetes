@@ -1047,6 +1047,12 @@ fields. Do not package this candidate before that host/runtime cohort is publish
 - Node.js 26.13.0
 - pnpm 12.14.0 (pinned by `ui/package.json`)
 
+CI and release workflows pin `pnpm/setup` v3.1.2 at
+`fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e`. Its maintained native downloader
+verifies npm's signature and package checksum instead of depending on GitHub
+release-archive availability. pnpm remains 12.14.0, dependency installation
+still uses the frozen lockfile, and explicit Node setup remains authoritative.
+
 Registry installs retain pnpm's 24-hour release-age protection. Only coordinated
 `@omniviewdev/*` packages are exempted; linked source worktrees resolve locally.
 The declared frontend cohort uses `@omniviewdev/base-ui` 0.16.0,
