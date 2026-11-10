@@ -538,6 +538,11 @@ When host telemetry is enabled, each Kubernetes informer source emits a
 finishes; it does not remain open for the lifetime of the watch. The
 `k8s.resource` attribute identifies the resource type, not a cluster or object.
 
+SDK v0.19.1 adds the host's optional Client ID to plugin trace resources as
+`omniview.client.id` and to Pyroscope profiles as `omniview_client_id`.
+Set the value in the host telemetry settings, then restart Omniview and the
+plugin. Empty Client IDs add no label.
+
 ## Connection/server metadata
 
 The resource provider publishes core server facts through the optional SDK `connectionMetadata` trait:
