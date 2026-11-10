@@ -24,6 +24,8 @@ const TABLE_FEATURES = { sorting: true, columnResizing: true, columnPinning: tru
 const COLUMN_PINNING = { start: ['select'], end: ['menu'] };
 const EMPTY_ROW_SELECTION: RowSelectionState = {};
 const DEFAULT_COLUMN = { minSize: 40, maxSize: 800 };
+/** Source-view bodies are immutable; unchanged bodies keep their identity. */
+const TABLE_META = { dataTableImmutableRows: true } as const;
 
 /** Body row height in px; ResourceTable.module.css sets the same height on the cells. */
 const ROW_HEIGHT = 30;
@@ -38,7 +40,7 @@ import { useDynamicResourceColumns } from '../../../tables/ColumnFilter/useDynam
 import DrawerActionsBridge from '../../drawer/DrawerActionsBridge';
 import { useTableActions } from '../TableActionsContext';
 import { TableActionsScope } from '../TableActionsScope';
-import { TableDrawerContext, TableRecordsContext } from '../TableDrawerContext';
+import { TableDrawerContext } from '../TableDrawerContext';
 import { ColumnMeta } from '../types';
 import { useRowSelectionCleanup } from '../useRowSelectionCleanup';
 import { getBodyCellStyles } from '../utils';
@@ -295,6 +297,7 @@ const ResourceTableContainer = <T extends RowData,>({
     manualExpanding: true,
     data: rows as unknown as T[],
     columns: allColumns,
+    meta: TABLE_META,
     columnResizeMode: 'onChange',
     onSortingChange: setSorting,
     onColumnFiltersChange: handleColumnFiltersChange,
@@ -372,8 +375,7 @@ const ResourceTableContainer = <T extends RowData,>({
   const content = (
     <TableDrawerContext.Provider value={drawerContext}>
       <SimpleTooltipScope>
-      <TableRecordsContext.Provider value={recordsByBody}>
-      <RowActionsScope>
+      <RowActionsScope recordsByBody={recordsByBody}>
       {/* Row menu actions run outside the drawer, so the table mounts their handlers too */}
       {drawer && <DrawerActionsBridge connectionID={connectionID} resourceKey={resourceKey} />}
       <div className={styles.outer}>
@@ -450,7 +452,6 @@ const ResourceTableContainer = <T extends RowData,>({
         </DataTable.Root>
       </div>
       </RowActionsScope>
-      </TableRecordsContext.Provider>
       </SimpleTooltipScope>
     </TableDrawerContext.Provider>
   );

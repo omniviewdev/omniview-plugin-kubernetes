@@ -413,12 +413,19 @@ cells follow their own state through table subscriptions. The row action trigger
 reads no collection snapshot: only the open menu resolves its row's record. One scope
 per table reads the host's drawer and activity contexts once and hands rows stable
 forwarding actions, so rows and link chips do not render again when the drawer opens
-or an activity arrives; a chip outside a table opens a scope of its own. The namespace
-copy and filter controls mount on the first pointer entry into a cell, with their width
-reserved, instead of in every mounted row. Metric cells subscribe to their own sample
-(see `docs/native-metrics.md`).
+or an activity arrives; a chip outside a table opens a scope of its own. Namespace
+cells keep a native copy button reachable by keyboard, but defer its glyph and the
+filter subscription until pointer entry or keyboard focus. Reserved width prevents
+text movement. Copy failures show feedback and remain retryable. Metric cells share
+one table observation (see `docs/native-metrics.md`).
 
-The fixed-height viewport keeps 32 rows of overscan on each side. Compared with the
+Resource tables opt into shared immutable-row sorting with `meta.dataTableImmutableRows`.
+Row bodies stay read-only, and accessors for cached built-in text sorts must be pure.
+Nonsort updates retain the existing order while returning rows from the current model.
+The changing admitted-record map wraps only the active row menu, not the virtualized row
+tree. An open menu still loses its actions when its record leaves the collection.
+
+The fixed-height viewport keeps at least 32 rows of overscan on each side. Compared with the
 previous 24, this adds 240 pixels of buffer in each direction at the 30-pixel row
 height without mounting the collection. Overscan is a finite buffer, not a
 substitute for bounding main-thread work.

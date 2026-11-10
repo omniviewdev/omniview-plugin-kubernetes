@@ -15,7 +15,7 @@ import { LuEllipsis, LuTrash } from 'react-icons/lu';
 import { PLUGIN_ID } from '@/pluginId';
 
 import { drawerActionDepsStore } from '../../../../shared/drawer/actionDeps';
-import { useTableDrawer, useTableRecords } from '../../../../shared/table/TableDrawerContext';
+import { TableRecordsContext, useTableDrawer, useTableRecords } from '../../../../shared/table/TableDrawerContext';
 
 const triggerButtonStyle = { flex: 'none', minHeight: 28, minWidth: 28 } as const;
 
@@ -183,14 +183,18 @@ function actionsToMenuItems(
 const SharedRowMenu = React.createContext<React.ComponentProps<typeof Menu.Trigger>['handle']>(undefined);
 
 /** One menu owns popup state for all row triggers in a virtualized table. */
-export function RowActionsScope({ children }: React.PropsWithChildren) {
+export function RowActionsScope({ children, recordsByBody }: React.PropsWithChildren<{
+  recordsByBody: WeakMap<object, HostRecord>;
+}>) {
   const [handle] = React.useState(() => Menu.createHandle<unknown>());
   return <SharedRowMenu.Provider value={handle}>
     {children}
     <Menu.Root handle={handle}>
       {({ payload }) => {
         const active = payload as Props | undefined;
-        return active ? <ActiveRowActions {...active} /> : null;
+        return active ? <TableRecordsContext.Provider value={recordsByBody}>
+          <ActiveRowActions {...active} />
+        </TableRecordsContext.Provider> : null;
       }}
     </Menu.Root>
   </SharedRowMenu.Provider>;

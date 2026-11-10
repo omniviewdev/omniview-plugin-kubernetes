@@ -1,9 +1,9 @@
 import { dataTableFeatures } from '@omniviewdev/base-ui';
 import { flexRender, useTable } from '@tanstack/react-table';
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
-import { expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 
 import { namespaceColumn } from '../columns/namespaceColumn';
 
@@ -15,6 +15,8 @@ const rows: Row[] = [
 ];
 
 type Filterable = { getFilterValue: () => unknown; setFilterValue: (value: unknown) => void };
+
+afterEach(() => vi.restoreAllMocks());
 
 /**
  * Cells are rendered from row data alone, as the virtual body keeps them: this table never
@@ -33,16 +35,13 @@ function Cells({ columnRef }: { columnRef?: React.Ref<Filterable> }) {
   ))}</>;
 }
 
-it('mounts the hover controls on first pointer entry and keeps them current with the table filter', async () => {
+it('reveals the filter on pointer entry and keeps it current with the table filter', async () => {
   const user = userEvent.setup();
   const namespaceColumnOfTable = React.createRef<Filterable>();
   render(<Cells columnRef={namespaceColumnOfTable} />);
-  expect(screen.queryByRole('button', { name: 'Copy namespace' })).toBeNull();
   expect(screen.queryByTitle('Filter by this namespace')).toBeNull();
 
   await user.hover(screen.getByText('kube-system'));
-  // Only the cell that was entered holds controls.
-  expect(screen.getAllByRole('button', { name: 'Copy namespace' })).toHaveLength(1);
   await user.click(screen.getByTitle('Filter by this namespace'));
   expect(namespaceColumnOfTable.current!.getFilterValue()).toEqual(['kube-system']);
   expect(screen.getByTitle('Remove namespace filter')).toBeVisible();
@@ -59,6 +58,50 @@ it('copies the namespace', async () => {
   const user = userEvent.setup();
   render(<Cells />);
   await user.hover(screen.getByText('apps'));
-  await user.click(screen.getByRole('button', { name: 'Copy namespace' }));
+  await user.click(within(screen.getByText('apps').parentElement!).getByRole('button', { name: 'Copy namespace' }));
   expect(await navigator.clipboard.readText()).toBe('apps');
+});
+
+it('supports copying and toggling a namespace filter using only the keyboard', async () => {
+  const user = userEvent.setup();
+  const namespaceColumnOfTable = React.createRef<Filterable>();
+  render(<Cells columnRef={namespaceColumnOfTable} />);
+  const cell = within(screen.getByText('apps').parentElement!);
+  await user.tab();
+  expect(cell.getByRole('button', { name: 'Copy namespace' })).toHaveFocus();
+  await user.keyboard('{Enter}');
+  expect(await navigator.clipboard.readText()).toBe('apps');
+  await user.tab();
+  expect(cell.getByRole('button', { name: 'Filter by this namespace' })).toHaveFocus();
+  await user.keyboard('{Enter}');
+  expect(namespaceColumnOfTable.current!.getFilterValue()).toEqual(['apps']);
+  await user.keyboard(' ');
+  expect(namespaceColumnOfTable.current!.getFilterValue()).toEqual([]);
+});
+
+it('normalizes a non-array filter before adding the namespace', async () => {
+  const user = userEvent.setup();
+  const namespaceColumnOfTable = React.createRef<Filterable>();
+  render(<Cells columnRef={namespaceColumnOfTable} />);
+  act(() => namespaceColumnOfTable.current!.setFilterValue('apps'));
+  await user.hover(screen.getByText('apps'));
+  await user.click(screen.getByRole('button', { name: 'Filter by this namespace' }));
+  expect(namespaceColumnOfTable.current!.getFilterValue()).toEqual(['apps']);
+});
+
+it('reports denied clipboard access and allows another copy attempt', async () => {
+  const user = userEvent.setup();
+  render(<Cells />);
+  const write = vi.spyOn(navigator.clipboard, 'writeText')
+    .mockRejectedValueOnce(new DOMException('Denied', 'NotAllowedError'));
+  await user.hover(screen.getByText('apps'));
+  const cell = within(screen.getByText('apps').parentElement!);
+  const copy = cell.getByRole('button', { name: 'Copy namespace' });
+  await user.click(copy);
+  expect(cell.getByRole('status')).toHaveTextContent('Unable to copy namespace');
+  expect(copy).toHaveAttribute('title', 'Unable to copy namespace');
+  write.mockRestore();
+  await user.click(copy);
+  expect(await navigator.clipboard.readText()).toBe('apps');
+  expect(cell.getByRole('status')).toHaveTextContent('Namespace copied');
 });

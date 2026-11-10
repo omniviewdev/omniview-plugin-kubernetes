@@ -16,9 +16,9 @@ export function useTableDrawer() {
 }
 
 /**
- * The admitted records of the current collection snapshot, by presentation body. Every snapshot
- * brings a new map, so only the single open row menu may read it: a row cell that did would
- * render again for each update, whether or not its own row changed.
+ * The admitted records of the current collection snapshot, by presentation body. Each snapshot
+ * brings a new map. Scope this provider to the single active row menu, not around virtualized
+ * rows, so snapshot changes do not propagate through the whole row tree.
  */
 export const TableRecordsContext = createContext<WeakMap<object, HostRecord> | undefined>(undefined);
 
