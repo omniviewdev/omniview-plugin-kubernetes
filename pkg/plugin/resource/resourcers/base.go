@@ -15,6 +15,8 @@ import (
 
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	resource "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -363,6 +365,9 @@ func newSourceHealthProbe(client *clients.ClientSet) (func(context.Context) erro
 
 // Source leases informer handlers for one source session.
 func (s *KubernetesResourcerBase[T]) Source(ctx context.Context, client *clients.ClientSet, request resource.SourceRequest, emit resource.SourceEmitter) error {
+	_, snapshotSpan := otel.Tracer("omniview.plugin.kubernetes").Start(ctx, "kubernetes.source.snapshot")
+	defer snapshotSpan.End()
+	snapshotSpan.SetAttributes(attribute.String("k8s.resource", s.resourceType.Resource))
 	if client == nil || client.DynamicClient == nil || emit == nil {
 		return fmt.Errorf("client and source emitter are required")
 	}
@@ -499,6 +504,7 @@ func (s *KubernetesResourcerBase[T]) Source(ctx context.Context, client *clients
 	if err := emit.EndSnapshot(ctx, coverage, resource.ContinuityBestEffort); err != nil {
 		return err
 	}
+	snapshotSpan.End()
 	unhealthy, releaseHealth, err := acquireSourceHealth(ctx, client)
 	if err != nil {
 		return err
