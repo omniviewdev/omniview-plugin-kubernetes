@@ -10,7 +10,7 @@ require (
 	github.com/aws/smithy-go v1.28.8
 	github.com/fairwindsops/polaris v0.0.0-20261106180842-ff72eb2d3c01
 	github.com/fsnotify/fsnotify v1.10.1
-	github.com/omniviewdev/plugin-sdk v0.19.1
+	github.com/omniviewdev/plugin-sdk v0.19.2
 	github.com/stretchr/testify v1.12.1
 	github.com/tidwall/gjson v1.18.0
 	go.opentelemetry.io/otel v1.47.0
