@@ -15,18 +15,17 @@ const rows: Row[] = [
 ];
 
 type Filterable = { getFilterValue: () => unknown; setFilterValue: (value: unknown) => void };
-let namespaceColumnOfTable: () => Filterable;
 
 /**
  * Cells are rendered from row data alone, as the virtual body keeps them: this table never
  * renders again for a state change, so a cell can only follow the filter through its own subscription.
  */
-function Cells() {
+function Cells({ columnRef }: { columnRef?: React.Ref<Filterable> }) {
   const table = useTable(
     { features: dataTableFeatures, columns, data: rows, getRowId: (row) => row.metadata.name },
     () => ({}),
   );
-  namespaceColumnOfTable = () => table.getColumn('namespace')!;
+  React.useImperativeHandle(columnRef, () => table.getColumn('namespace')!, [table]);
   return <>{table.getRowModel().rows.map((row) => (
     <div key={row.id}>{row.getVisibleCells().map((cell) => (
       <React.Fragment key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</React.Fragment>
@@ -36,7 +35,8 @@ function Cells() {
 
 it('mounts the hover controls on first pointer entry and keeps them current with the table filter', async () => {
   const user = userEvent.setup();
-  render(<Cells />);
+  const namespaceColumnOfTable = React.createRef<Filterable>();
+  render(<Cells columnRef={namespaceColumnOfTable} />);
   expect(screen.queryByRole('button', { name: 'Copy namespace' })).toBeNull();
   expect(screen.queryByTitle('Filter by this namespace')).toBeNull();
 
@@ -44,15 +44,15 @@ it('mounts the hover controls on first pointer entry and keeps them current with
   // Only the cell that was entered holds controls.
   expect(screen.getAllByRole('button', { name: 'Copy namespace' })).toHaveLength(1);
   await user.click(screen.getByTitle('Filter by this namespace'));
-  expect(namespaceColumnOfTable().getFilterValue()).toEqual(['kube-system']);
+  expect(namespaceColumnOfTable.current!.getFilterValue()).toEqual(['kube-system']);
   expect(screen.getByTitle('Remove namespace filter')).toBeVisible();
 
   // The filter changes from elsewhere, as the toolbar's namespace selector does.
-  act(() => namespaceColumnOfTable().setFilterValue(['apps']));
+  act(() => namespaceColumnOfTable.current!.setFilterValue(['apps']));
   expect(screen.getByTitle('Filter by this namespace')).toBeVisible();
   expect(screen.queryByTitle('Remove namespace filter')).toBeNull();
   await user.click(screen.getByTitle('Filter by this namespace'));
-  expect(namespaceColumnOfTable().getFilterValue()).toEqual(['apps', 'kube-system']);
+  expect(namespaceColumnOfTable.current!.getFilterValue()).toEqual(['apps', 'kube-system']);
 });
 
 it('copies the namespace', async () => {
