@@ -148,13 +148,13 @@ continuous scrolling. It deduplicates per-cell registrations, pauses hidden-docu
 collection, and indexes results by admitted host token and metric ID. Per-cell
 loading distinguishes pending demand from settled unavailable results; background
 refresh does not restart settled cells' loading animations. Unavailable values
-render a static gap. The table provider puts only the observation's stable `cells`
-handle in context, and each metric cell calls the runtime's
-`useTableMetricCell(cells, body, metricID)`, which registers that row body's demand
-and renders the cell again only when its own sample, pending state or error changes:
-not for another row's sample, nor for a collection update that leaves its answer as
-it was. Metric columns declare data-only cells for the virtual body, so selection,
-sorting, filtering and search leave them alone. Ordinary resource rows retain decoded
+render a static gap. The table provider shares the observation through context.
+Cells register their body in an effect and read their own sample and loading
+state during the same React update. The experimental per-cell store was removed:
+publishing from a layout effect forced another synchronous commit after sample
+delivery. Metric columns still declare data-only cells for the virtual body, so
+selection, sorting, filtering and search leave their row-data renderers alone.
+Ordinary resource rows retain decoded
 body identity across sparse source updates; editing drafts must not mutate those
 shared bodies.
 Secret drafts reset when the admitted resource, connection, or incarnation changes;
@@ -168,12 +168,9 @@ Pod/Node physical bounds, and rendering. The shared batching hook contains no
 Kubernetes IDs or table-framework dependency. Native endpoint failure cooldowns
 remain in the Kubernetes provider, not in this frontend hook or the Go SDK.
 
-The consumer requires `@omniviewdev/runtime` and `@omniviewdev/vite-plugin` releases that
-contain `useTableMetricObservation`, its matching generated shim and the per-cell
-`useTableMetricCell` with the observation's `cells`
-([omniview #463](https://github.com/omniviewdev/omniview/issues/463)). Published 0.34.x
-has the first two but not the per-cell API: move the runtime and Vite plugin ranges to
-the release that adds it before building against published packages.
+The consumer uses the released `useTableMetricObservation` API and its matching
+generated shim in runtime/Vite 0.34.x. It does not require the removed experimental
+per-cell subscription.
 Distribute this plugin only with a compatible desktop host containing that runtime;
 publishing npm packages does not update an installed desktop application. A managed
 source build verifies the local contract, not availability in an older host.

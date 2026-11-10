@@ -2,9 +2,8 @@ import type { HostRecord } from '@omniviewdev/runtime';
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 
-// The runtime owns observation lifecycle; these tests cover Kubernetes presentation. Like the
-// runtime, the fake answers per cell: a cell reads only its own sample, and only a token/metric
-// pair in `pending` is loading, while the aggregate flag stays true as long as anything is pending.
+// The runtime owns observation lifecycle; these tests cover Kubernetes presentation.
+// Each registered token/metric pair has its own pending state even when the aggregate is loading.
 const observation = vi.hoisted(() => ({
   metrics: new Map<string, Map<string, object>>(),
   pending: new Set<string>(),
@@ -12,18 +11,13 @@ const observation = vi.hoisted(() => ({
 }));
 vi.mock('@omniviewdev/runtime', () => ({
   useTableMetricObservation: ({ recordsByBody }: { recordsByBody: WeakMap<object, { key: string }> }) => ({
-    cells: { recordsByBody },
+    register: () => () => {},
+    tokenFor: (body: object) => recordsByBody.get(body)?.key,
+    metrics: observation.metrics,
+    isLoadingFor: (body: object, metricID: string) => observation.pending.has(`${recordsByBody.get(body)?.key}/${metricID}`),
     error: observation.error,
     isLoading: observation.pending.size > 0,
   }),
-  useTableMetricCell: ({ recordsByBody }: { recordsByBody: WeakMap<object, { key: string }> }, body: object, metricID: string) => {
-    const token = recordsByBody.get(body)?.key;
-    return {
-      sample: token ? observation.metrics.get(token)?.get(metricID) : undefined,
-      isLoading: observation.pending.has(`${token}/${metricID}`),
-      error: observation.error,
-    };
-  },
   parseAppError: (error: Error) => ({ detail: error.message }),
 }));
 
