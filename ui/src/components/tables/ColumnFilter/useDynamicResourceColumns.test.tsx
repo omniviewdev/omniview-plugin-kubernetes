@@ -63,4 +63,39 @@ describe('useDynamicResourceColumns', () => {
     expect(result.current.annotations).toBe(discoveredAnnotations);
     expect(writes).not.toHaveBeenCalled();
   });
+
+  it('reads only the bodies it has not read yet while every row still contributes', () => {
+    const reads = new Map<string, number>();
+    // The body of a record: immutable, and retained by the source view until the record changes.
+    const body = (name: string, labels: Record<string, string>): KubernetesResourceObject => {
+      const metadata = { name, labels };
+      return {
+        get metadata() {
+          reads.set(name, (reads.get(name) ?? 0) + 1);
+          return metadata;
+        },
+      };
+    };
+    const retained = body('retained', { app: 'api' });
+    const { result, rerender } = renderHook(
+      ({ rows }: { rows: KubernetesResourceObject[] }) => useDynamicResourceColumns({ resourceKey, rows }),
+      { initialProps: { rows: [retained, body('replaced', { tier: 'backend' })] } },
+    );
+    expect(result.current.labels).toEqual({ app: false, tier: false });
+
+    reads.clear();
+    // A sparse update replaces one record: its new body brings a key, the retained body is not read.
+    const replacement = body('replaced', { tier: 'backend', zone: 'a' });
+    rerender({ rows: [retained, replacement] });
+    expect(reads.has('retained')).toBe(false);
+    expect(reads.has('replaced')).toBe(true);
+    expect(result.current.labels).toEqual({ app: false, tier: false, zone: false });
+
+    // The same bodies in a new array change nothing, and read nothing.
+    reads.clear();
+    const labels = result.current.labels;
+    rerender({ rows: [retained, replacement] });
+    expect(reads.size).toBe(0);
+    expect(result.current.labels).toBe(labels);
+  });
 });

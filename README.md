@@ -149,7 +149,7 @@ The [parity evidence index](docs/images/cluster-explorer-parity/index.json) link
 
 The published Kubernetes plugin 0.19.1 requires Omniview 0.32.1 or newer, runtime/Vite 0.32.1, Base UI 0.17.0, and Editors 6.2.2. This cohort includes shared in-flow Card actions, outline status indicators, compact in-picker upload metadata, and correctly layered rule dropdowns. Upgrade the desktop before installing the plugin; runtime packages with a Base UI `~0.16.0` peer are incompatible with this cohort even if local source links resolve imports.
 
-The unreleased source candidate uses runtime/Vite 0.34.x, Base UI 0.17.1, and Editors 6.2.3. It requires a desktop containing `useTableMetricObservation` and per-cell loading from [host PR457](https://github.com/omniviewdev/omniview/pull/457), merged at `358c2d36655faedf4dfe233696f6088bcbcc46b1`. The published 0.19.1 compatibility notice above does not apply to this candidate. No minimum desktop release version is declared for it yet: npm publication alone does not establish desktop availability. Do not distribute the candidate until a compatible desktop release is verified and its actual minimum version is documented.
+The unreleased source candidate uses runtime/Vite 0.34.x, Base UI 0.17.1, and Editors 6.2.3. It requires a desktop containing `useTableMetricObservation` and per-cell loading from [host PR457](https://github.com/omniviewdev/omniview/pull/457), merged at `358c2d36655faedf4dfe233696f6088bcbcc46b1`. Its table metric cells also use the per-cell subscription (`useTableMetricCell` and the observation's `cells`) from the renderer sprint's runtime change ([omniview #463](https://github.com/omniviewdev/omniview/issues/463)), which is not in the published 0.34.x runtime: the runtime and Vite plugin ranges must move to the release that contains it before this candidate builds against published packages. The published 0.19.1 compatibility notice above does not apply to this candidate. No minimum desktop release version is declared for it yet: npm publication alone does not establish desktop availability. Do not distribute the candidate until a compatible desktop release is verified and its actual minimum version is documented.
 
 Container log requests with an explicit `SinceTime` use that timestamp instead
 of `SinceSeconds`. Kubernetes accepts only one time filter per log request.
@@ -398,6 +398,37 @@ per-resource storage keys remain shared across connections. New keys start
 unselected; updates with no new keys preserve selection state and write nothing
 to localStorage. Combined table columns retain their reference until inputs change.
 
+Column discovery reads each retained row body once. A source view keeps the immutable
+body of every unchanged record, so a sparse update reads only the bodies it brings
+while every row, offscreen rows included, still contributes its keys; keys are only
+ever added. Toolbar value filters (the Pod table's node and controller, for example)
+take their options from the same complete, unfiltered collection, one pass per update,
+and keep the same option arrays while their members are unchanged, so a status-only
+update leaves the toolbar nothing to render. An option leaves with the last row that
+has it. Cells whose renderers read only their row's data (select, name, namespace,
+age and actions, the audited Pod columns, label and annotation columns, and metric
+columns) declare `dataTableCellDependencies: 'data'`, so the base-ui virtual body keeps
+them through selection, sort, filter and search changes; the select and namespace
+cells follow their own state through table subscriptions. The row action trigger
+reads no collection snapshot: only the open menu resolves its row's record. One scope
+per table reads the host's drawer and activity contexts once and hands rows stable
+forwarding actions, so rows and link chips do not render again when the drawer opens
+or an activity arrives; a chip outside a table opens a scope of its own. The namespace
+copy and filter controls mount on the first pointer entry into a cell, with their width
+reserved, instead of in every mounted row. Metric cells subscribe to their own sample
+(see `docs/native-metrics.md`).
+
+The fixed-height viewport keeps 32 rows of overscan on each side. Compared with the
+previous 24, this adds 240 pixels of buffer in each direction at the 30-pixel row
+height without mounting the collection. Overscan is a finite buffer, not a
+substitute for bounding main-thread work.
+
+The renderer sprint ([#459](https://github.com/omniviewdev/omniview/issues/459),
+[#465](https://github.com/omniviewdev/omniview/issues/465)) measures the combined
+runtime, shared-table and plugin changes with a local, complete 5,000-Pod fixture.
+Individual gains are not isolated, CPU slowdown is not M1 certification, and
+contended-host frame timings are not acceptance evidence.
+
 Dashboard events now render a measured, overscanned viewport rather than mounting
 every event. Filtering, search, warning counts, ordering, and object links still
 cover the full event collection. The overview owns its Pod subscription and passes
@@ -452,6 +483,7 @@ Regression checks:
 cd ui
 pnpm exec vitest run src/components/tables/ColumnFilter/useDynamicResourceColumns.test.tsx
 pnpm exec vitest run src/utils/ageClock.test.tsx src/components/kubernetes/table/shared/TableMetrics.test.tsx src/components/shared/table/ResourceTable/index.test.tsx
+pnpm exec vitest run src/components/shared/table src/components/shared/ResourceLinkChip.test.tsx src/components/kubernetes/table/shared/cells src/components/kubernetes/table/shared/columns
 AGE_CLOCK_BENCH=1 pnpm exec vitest run src/components/kubernetes/table/shared/cells/AgeCell.benchmark.test.tsx --silent=false --reporter=verbose
 cd ..
 GOWORK=off GOFLAGS= go test ./pkg/plugin/resource/resourcers -count=1

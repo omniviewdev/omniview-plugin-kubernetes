@@ -1,6 +1,6 @@
 import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import { Button, DataTable, Progress, Skeleton, dataTableFeatures } from '@omniviewdev/base-ui';
-import { useResources, useResourceType, useResolvedResourceTarget, useRightDrawer, usePluginRouter, DrawerComponent } from '@omniviewdev/runtime';
+import { useResources, useResourceType, useResolvedResourceTarget, usePluginRouter, DrawerComponent } from '@omniviewdev/runtime';
 import type { HostRecord } from '@omniviewdev/runtime';
 import {
   type ColumnDef,
@@ -36,7 +36,9 @@ import ColumnFilter from '../../../tables/ColumnFilter';
 import type { ColumnPickerProps } from '../../../tables/ColumnFilter/types';
 import { useDynamicResourceColumns } from '../../../tables/ColumnFilter/useDynamicResourceColumns';
 import DrawerActionsBridge from '../../drawer/DrawerActionsBridge';
-import { TableDrawerContext } from '../TableDrawerContext';
+import { useTableActions } from '../TableActionsContext';
+import { TableActionsScope } from '../TableActionsScope';
+import { TableDrawerContext, TableRecordsContext } from '../TableDrawerContext';
 import { ColumnMeta } from '../types';
 import { useRowSelectionCleanup } from '../useRowSelectionCleanup';
 import { getBodyCellStyles } from '../utils';
@@ -50,6 +52,7 @@ import { RowActionsScope } from '../../../kubernetes/table/shared/cells/ActionsC
 import { useConnectionNamespaces } from '@/hooks/useConnectionNamespaces';
 import { useStoredState } from '@/hooks/useStoredState';
 
+import { useFilterOptions } from './filterOptions';
 import { decodeResourceTableRows } from './rows';
 
 export type ToolbarFilterDef = {
@@ -209,9 +212,12 @@ const ResourceTableContainer = <T extends RowData,>({
         : { context: collectionContext, selection };
     });
   }, [collectionContext]);
+  // A status-only update keeps the source view's record array, so rows are decoded again only
+  // when records or membership change.
+  const records = acquired?.page.records;
   const { rows, recordsByBody, rowKeys } = useMemo(
-    () => decodeResourceTableRows(acquired?.page.records ?? []),
-    [acquired?.page],
+    () => decodeResourceTableRows(records ?? []),
+    [records],
   );
   useRowSelectionCleanup(rowKeys, setRowSelection, resources.isSuccess && !resources.isFetching);
 
@@ -220,6 +226,7 @@ const ResourceTableContainer = <T extends RowData,>({
     rows,
     resourceKey,
   });
+  const filterOptions = useFilterOptions(rows, toolbarFilters);
 
   const handleLabels = (vals: Record<string, boolean>) => {
     setLabels((prev: Record<string, boolean>) => ({ ...prev, ...vals }));
@@ -310,7 +317,7 @@ const ResourceTableContainer = <T extends RowData,>({
 
   const hasResizedColumns = Object.keys(columnSizing).length > 0;
 
-  const { openDrawer } = useRightDrawer();
+  const { openDrawer } = useTableActions();
   const onRowClick = React.useCallback(
     (row: Row<DataTableFeatures, T>, event: React.MouseEvent<HTMLTableRowElement>) => {
       if (drawer === undefined) {
@@ -340,7 +347,7 @@ const ResourceTableContainer = <T extends RowData,>({
     },
     [drawer, openDrawer, recordsByBody],
   );
-  const drawerContext = useMemo(() => ({ drawer, recordsByBody }), [drawer, recordsByBody]);
+  const drawerContext = useMemo(() => ({ drawer }), [drawer]);
 
   const placeHolderText = () => {
     const resource = resourceType.data?.displayName ?? resourceKey;
@@ -365,6 +372,7 @@ const ResourceTableContainer = <T extends RowData,>({
   const content = (
     <TableDrawerContext.Provider value={drawerContext}>
       <SimpleTooltipScope>
+      <TableRecordsContext.Provider value={recordsByBody}>
       <RowActionsScope>
       {/* Row menu actions run outside the drawer, so the table mounts their handlers too */}
       {drawer && <DrawerActionsBridge connectionID={connectionID} resourceKey={resourceKey} />}
@@ -395,7 +403,7 @@ const ResourceTableContainer = <T extends RowData,>({
             hideNamespaceSelector={hideNamespaceSelector}
             sharedNamespaces={sharedNamespaces}
             setSharedNamespaces={setSharedNamespaces}
-            data={rows}
+            filterOptions={filterOptions}
             extraFilterValues={extraFilterValues}
             setExtraFilterValues={setExtraFilterValues}
             hasResizedColumns={hasResizedColumns}
@@ -434,7 +442,7 @@ const ResourceTableContainer = <T extends RowData,>({
                 className={styles.body}
                 estimateRowSize={ROW_HEIGHT}
                 fixedRowHeight
-                overscan={24}
+                overscan={32}
                 onRowClick={onRowClick}
               />
             )}
@@ -442,6 +450,7 @@ const ResourceTableContainer = <T extends RowData,>({
         </DataTable.Root>
       </div>
       </RowActionsScope>
+      </TableRecordsContext.Provider>
       </SimpleTooltipScope>
     </TableDrawerContext.Provider>
   );
@@ -451,4 +460,13 @@ const ResourceTableContainer = <T extends RowData,>({
 ResourceTableContainer.displayName = 'ResourceTableContainer';
 ResourceTableContainer.whyDidYouRender = true;
 
-export default ResourceTableContainer;
+/** Reads the host drawer and activity contexts once for the whole table; see `TableActions`. */
+const ResourceTable = <T extends RowData,>(props: Props<T>) => (
+  <TableActionsScope>
+    <ResourceTableContainer<T> {...props} />
+  </TableActionsScope>
+);
+
+ResourceTable.displayName = 'ResourceTable';
+
+export default ResourceTable;

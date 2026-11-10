@@ -1,10 +1,14 @@
 import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import { Subscribe, type CellContext, type ColumnDef, type HeaderContext } from '@tanstack/react-table';
 
+import { DATA_ONLY_CELL_META } from '../../../../shared/table/types';
 import { SelectCell } from '../cells/SelectCell';
 import { SelectBoxHeader } from '../headers/SelectHeader';
 
-/** Subscribe explicitly because TanStack keeps row and table references stable. */
+/**
+ * The cell subscribes to its own row's selection, so it needs no table-state render. Subscribe
+ * explicitly because TanStack keeps row and table references stable.
+ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const SelectCellWrapper = ({ row, table }: CellContext<DataTableFeatures, any, unknown>) => {
   return (
@@ -37,6 +41,7 @@ export const selectColumn = <T extends { metadata?: { name?: string } }>(): Colu
   enableResizing: false,
   enableSorting: false,
   enableHiding: false,
+  meta: DATA_ONLY_CELL_META,
 });
 
 export default selectColumn;

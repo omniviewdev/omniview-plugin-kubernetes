@@ -15,7 +15,7 @@ import { LuEllipsis, LuTrash } from 'react-icons/lu';
 import { PLUGIN_ID } from '@/pluginId';
 
 import { drawerActionDepsStore } from '../../../../shared/drawer/actionDeps';
-import { useTableDrawer } from '../../../../shared/table/TableDrawerContext';
+import { useTableDrawer, useTableRecords } from '../../../../shared/table/TableDrawerContext';
 
 const triggerButtonStyle = { flex: 'none', minHeight: 28, minWidth: 28 } as const;
 
@@ -203,9 +203,8 @@ const ActiveRowActions: React.FC<Props> = ({
   data,
   namespace,
 }) => {
-  const tableContext = useTableDrawer();
-  const drawer = tableContext?.drawer;
-  const record = tableContext?.recordsByBody.get(data as object);
+  const drawer = useTableDrawer()?.drawer;
+  const record = useTableRecords()?.get(data as object);
   const { show } = useConfirmationModal();
   const notifications = useNotifications();
   const invoke = (callback: NonNullable<ContextMenuItem['onClick']>) => {
@@ -262,11 +261,13 @@ const ActiveRowActions: React.FC<Props> = ({
   </Menu.Portal>;
 };
 
+/**
+ * One trigger per row. It reads no table state: the open menu alone resolves its row's record
+ * from the current snapshot, so an update that leaves this row alone leaves its trigger alone.
+ */
 const ActionsCell: React.FC<Props> = (props) => {
   const handle = React.useContext(SharedRowMenu);
-  const tableContext = useTableDrawer();
   if (!handle) throw new Error('Row actions require RowActionsScope.');
-  if (!tableContext?.recordsByBody.get(props.data as object)) return null;
   return <Menu.Trigger
     handle={handle}
     payload={props}

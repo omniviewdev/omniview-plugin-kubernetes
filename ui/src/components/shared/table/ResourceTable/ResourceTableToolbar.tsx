@@ -12,7 +12,11 @@ import ResourceFilterSelect from '../../../tables/ResourceFilterSelect';
 
 import styles from './ResourceTable.module.css';
 
+import type { FilterOptions } from './filterOptions';
 import type { ToolbarFilterDef } from './index';
+
+const NO_VALUES: string[] = [];
+const NO_OPTIONS: readonly string[] = [];
 
 type ResourceTableToolbarProps<T extends RowData> = {
   connectionID: string;
@@ -27,8 +31,8 @@ type ResourceTableToolbarProps<T extends RowData> = {
   hideNamespaceSelector?: boolean;
   sharedNamespaces: string[];
   setSharedNamespaces: (namespaces: string[]) => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  data: any[];
+  /** Options of the non-namespace filters, derived from the table's complete collection. */
+  filterOptions: FilterOptions;
   extraFilterValues: Record<string, string[]>;
   setExtraFilterValues: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
   hasResizedColumns: boolean;
@@ -58,7 +62,7 @@ const ResourceTableToolbar = <T extends RowData,>({
   hideNamespaceSelector,
   sharedNamespaces,
   setSharedNamespaces,
-  data,
+  filterOptions,
   extraFilterValues,
   setExtraFilterValues,
   hasResizedColumns,
@@ -100,9 +104,8 @@ const ResourceTableToolbar = <T extends RowData,>({
             ) : (
               <ResourceFilterSelect
                 key={filter.columnId}
-                data={data}
-                accessor={filter.accessor}
-                value={extraFilterValues[filter.columnId] ?? []}
+                options={filterOptions[filter.columnId] ?? NO_OPTIONS}
+                value={extraFilterValues[filter.columnId] ?? NO_VALUES}
                 onChange={(values: string[]) =>
                   setExtraFilterValues((prev: Record<string, string[]>) => ({ ...prev, [filter.columnId]: values }))
                 }

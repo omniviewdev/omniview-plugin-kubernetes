@@ -1,6 +1,7 @@
 import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import { ColumnDef } from '@tanstack/react-table';
 
+import { DATA_ONLY_CELL_META } from '../../../../shared/table/types';
 import AgeCell from '../cells/AgeCell';
 
 export const ageColumn = <
@@ -13,6 +14,7 @@ export const ageColumn = <
   size: 100,
   minSize: 60,
   maxSize: 200,
+  meta: DATA_ONLY_CELL_META,
 });
 
 export default ageColumn;

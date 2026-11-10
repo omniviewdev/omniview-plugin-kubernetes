@@ -18,11 +18,14 @@
   min-width: 0;
 }
 
+/* The copy and filter controls mount on the first pointer entry; their width (16px + 2px + 10px) is
+   reserved so the namespace text never moves when they do. */
 .namespaceActions {
   display: inline-flex;
   gap: 2px;
   align-items: center;
   flex-shrink: 0;
+  min-width: 28px;
   visibility: hidden;
 }
 

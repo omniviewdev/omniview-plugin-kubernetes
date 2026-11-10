@@ -5,6 +5,7 @@ import React from 'react';
 import { LuTag, LuStickyNote } from 'react-icons/lu';
 
 import { type KubernetesResourceObject } from '../../../types/resource';
+import { DATA_ONLY_CELL_META } from '../../shared/table/types';
 
 import { useStoredState } from '@/hooks/useStoredState';
 
@@ -13,7 +14,14 @@ type Args = {
   resourceKey: string;
 };
 
-/** Discovers label and annotation columns from the table's unfiltered collection. */
+/**
+ * Discovers label and annotation columns from the table's unfiltered collection.
+ *
+ * Row bodies are immutable and a source view retains the body of every unchanged record, so a
+ * body that was read once never has to be read again. A sparse update therefore reads only the
+ * bodies it brought, while discovery still covers every row, offscreen ones included. Keys are
+ * only ever added, so the keys of a body that has left the collection stay available.
+ */
 export const useDynamicResourceColumns = <T extends RowData>({
   rows,
   resourceKey,
@@ -26,7 +34,7 @@ export const useDynamicResourceColumns = <T extends RowData>({
     `kubernetes-${resourceKey}-annotation-cols`,
     {},
   );
-
+  const scannedBodies = React.useRef<WeakSet<object> | null>(null);
 
   React.useEffect(() => {
     if (!rows?.length) {
@@ -34,22 +42,31 @@ export const useDynamicResourceColumns = <T extends RowData>({
       return;
     }
 
-    const discoveredLabels: Record<string, boolean> = {};
-    const discoveredAnnotations: Record<string, boolean> = {};
+    const scanned = (scannedBodies.current ??= new WeakSet<object>());
+    let discoveredLabels: Record<string, boolean> | undefined;
+    let discoveredAnnotations: Record<string, boolean> | undefined;
 
     /**
      * Doing this all inline for performance reasons to prevent large object copying
      */
     for (let i = 0; i < rows.length; i++) {
-      const labels = Object.keys(rows[i].metadata?.labels || {});
-      const annotations = Object.keys(rows[i].metadata?.annotations || {});
+      const row = rows[i];
+      if (typeof row !== 'object' || row === null || scanned.has(row)) {
+        continue;
+      }
+      scanned.add(row);
+
+      const labels = Object.keys(row.metadata?.labels || {});
+      const annotations = Object.keys(row.metadata?.annotations || {});
 
       for (let l = 0; l < labels.length; l++) {
+        discoveredLabels ??= {};
         if (!Object.hasOwn(discoveredLabels, labels[l])) {
           discoveredLabels[labels[l]] = false;
         }
       }
       for (let a = 0; a < annotations.length; a++) {
+        discoveredAnnotations ??= {};
         if (!Object.hasOwn(discoveredAnnotations, annotations[a])) {
           discoveredAnnotations[annotations[a]] = false;
         }
@@ -60,17 +77,23 @@ export const useDynamicResourceColumns = <T extends RowData>({
      * Set labels and annotations that have not been defined, with priority going to
      * already existing ones.
      */
-    setLabels((prev) =>
-      Object.keys(discoveredLabels).some((key) => !Object.hasOwn(prev, key))
-        ? { ...discoveredLabels, ...prev }
-        : prev,
-    );
+    const newLabels = discoveredLabels;
+    if (newLabels) {
+      setLabels((prev) =>
+        Object.keys(newLabels).some((key) => !Object.hasOwn(prev, key))
+          ? { ...newLabels, ...prev }
+          : prev,
+      );
+    }
 
-    setAnnotations((prev) =>
-      Object.keys(discoveredAnnotations).some((key) => !Object.hasOwn(prev, key))
-        ? { ...discoveredAnnotations, ...prev }
-        : prev,
-    );
+    const newAnnotations = discoveredAnnotations;
+    if (newAnnotations) {
+      setAnnotations((prev) =>
+        Object.keys(newAnnotations).some((key) => !Object.hasOwn(prev, key))
+          ? { ...newAnnotations, ...prev }
+          : prev,
+      );
+    }
   }, [rows, setAnnotations, setLabels]);
 
   // Extract only the enabled keys
@@ -109,6 +132,7 @@ export const useDynamicResourceColumns = <T extends RowData>({
       size: Math.max(100, key.length * 7 + 50),
       enableHiding: false,
       meta: {
+        ...DATA_ONLY_CELL_META,
         flex: 1,
         sortAriaLabel: key,
       },
@@ -125,6 +149,7 @@ export const useDynamicResourceColumns = <T extends RowData>({
       size: Math.max(100, key.length * 7 + 50),
       enableHiding: false,
       meta: {
+        ...DATA_ONLY_CELL_META,
         flex: 1,
         sortAriaLabel: key,
       },
