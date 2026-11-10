@@ -214,34 +214,55 @@ func TestSourceSnapshotAndOrderedChanges(t *testing.T) {
 	require.Equal(t, "11", *third.changes[0].SourceRevision)
 }
 
-func TestSourceOverflowResets(t *testing.T) {
-	objects := make([]runtime.Object, 4097)
+func TestSourceInitialInventoryExceedsLiveQueue(t *testing.T) {
+	objects := make([]runtime.Object, 20000)
+	want := make(map[string]bool, len(objects))
+	namespaces := []string{"default", "other"}
 	for i := range objects {
-		objects[i] = newTestPod(fmt.Sprintf("pod-%05d", i), "default")
+		name := fmt.Sprintf("pod-%05d", i)
+		objects[i] = newTestPod(name, namespaces[i%len(namespaces)])
+		want[name] = true
 	}
 	cs := newFakeClientSet(defaultGVRListKinds(), objects...)
 	emitter := &sourceTestEmitter{events: make(chan sourceTestEvent, 32)}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 	done := make(chan error, 1)
+	target := testWatchTarget()
+	target.Scope = resource.QueryScope{{Dimension: "namespace", Match: resource.ScopeOneOf, Values: &namespaces}}
 	go func() {
-		done <- newBaseResourcer().Source(ctx, cs, resource.SourceRequest{Target: testWatchTarget(), Representation: testWatchRepresentation(), Limits: resource.SourceLimits{MaxBatchItems: resource.MaxSourceBatchItems}}, emitter)
+		done <- newBaseResourcer().Source(ctx, cs, resource.SourceRequest{Target: target, Representation: testWatchRepresentation(), Limits: resource.SourceLimits{MaxBatchItems: resource.MaxSourceBatchItems}}, emitter)
 	}()
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(10 * time.Second):
+			t.Error("source did not stop")
+		}
+	})
 	for {
 		event := nextSourceTestEvent(t, emitter)
-		if event.reset != nil {
-			require.Equal(t, resource.SourceResetOverflow, event.reset.Reason)
-			require.Equal(t, "informer event queue exceeded 4096 items", event.reset.Message)
+		require.Nil(t, event.reset, "initial inventory must not consume live-change queue capacity")
+		for _, item := range event.observations {
+			name := item.Record.Reference.Address.ID
+			require.True(t, want[name], "unexpected or repeated Pod %q", name)
+			delete(want, name)
+		}
+		if event.boundary {
+			require.Empty(t, want, "snapshot must include every initial Pod exactly once")
+			require.Equal(t, resource.EnumerationExhausted, event.coverage.Enumeration)
 			break
 		}
-		require.False(t, event.boundary, "overflow must reset before snapshot boundary")
 	}
-	select {
-	case err := <-done:
-		require.NoError(t, err)
-	case <-ctx.Done():
-		t.Fatal("source did not stop after reset")
-	}
+	created := newTestPod("after-snapshot", "default")
+	created.SetResourceVersion("2")
+	_, err := cs.DynamicClient.Resource(testGVR).Namespace("default").Create(ctx, created, metav1.CreateOptions{})
+	require.NoError(t, err)
+	event := nextSourceTestEvent(t, emitter)
+	require.Nil(t, event.reset)
+	require.Len(t, event.changes, 1)
+	require.Equal(t, resource.SourceChangeUpsert, event.changes[0].Kind)
+	require.Equal(t, "after-snapshot", event.changes[0].Observation.Record.Reference.Address.ID)
 }
 
 func TestSourceForbidden(t *testing.T) {
