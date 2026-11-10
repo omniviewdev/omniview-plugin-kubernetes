@@ -20,6 +20,28 @@ vi.mock('@omniviewdev/runtime', () => ({
 }));
 vi.mock('@omniviewdev/runtime/api', () => ({ ResourceClient: {} }));
 
+/** Match the resource table: only the active popup reads each snapshot's records. */
+function Table({ drawer, records, children }: React.PropsWithChildren<{
+  drawer: DrawerComponent;
+  records: WeakMap<object, HostRecord>;
+}>) {
+  const value = React.useMemo(() => ({ drawer }), [drawer]);
+  return <TableDrawerContext.Provider value={value}>
+    <RowActionsScope recordsByBody={records}>{children}</RowActionsScope>
+  </TableDrawerContext.Provider>;
+}
+
+function recordFor(name: string, key = `host-${name}`): HostRecord {
+  return {
+    key, targetId: 'table', addressKey: name, route: { connection: 'cluster' },
+    record: {
+      reference: { address: { provider: 'kubernetes', authority: 'cluster', type: 'k8s:/pods', scope: [], id: name } },
+      representation: { id: 'json', revision: '1', schema: { state: 'absent' } },
+      body: { kind: 'map', value: {} }, coverage: { kind: 'complete', paths: [] },
+    },
+  } as unknown as HostRecord;
+}
+
 it('updates an already-rendered Pod row when native capability and pending registry state change', async () => {
   const user = userEvent.setup();
   const data = {
@@ -51,10 +73,7 @@ it('updates an already-rendered Pod row when native capability and pending regis
   } as HostRecord;
   const recordsByBody = new WeakMap<object, HostRecord>([[data, record]]);
   const view = render(
-    <TableDrawerContext.Provider
-      value={{ drawer: { actions: drawerActions } as DrawerComponent, recordsByBody }}
-    >
-      <RowActionsScope>
+    <Table drawer={{ actions: drawerActions } as DrawerComponent} records={recordsByBody}>
       <ActionsCell
         connectionID="cluster"
         resourceKey="k8s:/pods"
@@ -62,8 +81,7 @@ it('updates an already-rendered Pod row when native capability and pending regis
         namespace="apps"
         data={data}
       />
-      </RowActionsScope>
-    </TableDrawerContext.Provider>,
+    </Table>,
   );
   await user.click(screen.getByRole('button', { name: 'Row actions' }));
   await user.hover(await screen.findByRole('menuitem', { name: /^Exec\b/ }));
@@ -123,14 +141,41 @@ it('binds shared menu actions to the selected row rather than the previous trigg
   }]));
   const selected: string[] = [];
   const drawer = { actions: [{ title: 'Inspect', action: (ctx) => { selected.push(ctx.resource!.key!); } }] } as DrawerComponent;
-  const view = render(<TableDrawerContext.Provider value={{ drawer, recordsByBody }}>
-    <RowActionsScope>{bodies.map((data) => <ActionsCell key={data.metadata.name} data={data}
-      connectionID="cluster" resourceKey="k8s:/pods" resourceID={data.metadata.name} namespace="" />)}</RowActionsScope>
-  </TableDrawerContext.Provider>);
+  const view = render(<Table drawer={drawer} records={recordsByBody}>
+    {bodies.map((data) => <ActionsCell key={data.metadata.name} data={data}
+      connectionID="cluster" resourceKey="k8s:/pods" resourceID={data.metadata.name} namespace="" />)}
+  </Table>);
   await user.click(screen.getAllByRole('button', { name: 'Row actions' })[0]);
   await user.click(await screen.findByRole('menuitem', { name: 'Inspect' }));
   await user.click(screen.getAllByRole('button', { name: 'Row actions' })[1]);
   await user.click(await screen.findByRole('menuitem', { name: 'Inspect' }));
   expect(selected).toEqual(['host-first', 'host-second']);
+  view.unmount();
+});
+
+it('uses the current admitted record in an open menu and removes actions after admission ends', async () => {
+  const user = userEvent.setup();
+  const data = { metadata: { name: 'first' } };
+  const selected: string[] = [];
+  const drawer = { actions: [{ title: 'Inspect', action: (ctx) => { selected.push(ctx.resource!.key!); } }] } as DrawerComponent;
+  const trigger = <ActionsCell data={data} connectionID="cluster" resourceKey="k8s:/pods" resourceID="first" namespace="" />;
+  const view = render(<Table drawer={drawer} records={new WeakMap([[data, recordFor('first')]])}>
+    {trigger}
+  </Table>);
+  await user.click(screen.getByRole('button', { name: 'Row actions' }));
+  expect(await screen.findByRole('menuitem', { name: 'Inspect' })).toBeTruthy();
+  view.rerender(<Table drawer={drawer} records={new WeakMap([[data, recordFor('first', 'host-first-next')]])}>
+    {trigger}
+  </Table>);
+  await user.click(await screen.findByRole('menuitem', { name: 'Inspect' }));
+  expect(selected).toEqual(['host-first-next']);
+  await user.click(screen.getByRole('button', { name: 'Row actions' }));
+  expect(await screen.findByRole('menuitem', { name: 'Inspect' })).toBeTruthy();
+  view.rerender(<Table drawer={drawer} records={new WeakMap()}>
+    {trigger}
+  </Table>);
+  expect(screen.queryByRole('menuitem', { name: 'Inspect' })).toBeNull();
+  await user.keyboard('{Enter}');
+  expect(selected).toEqual(['host-first-next']);
   view.unmount();
 });

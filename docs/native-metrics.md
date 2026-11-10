@@ -148,8 +148,15 @@ continuous scrolling. It deduplicates per-cell registrations, pauses hidden-docu
 collection, and indexes results by admitted host token and metric ID. Per-cell
 loading distinguishes pending demand from settled unavailable results; background
 refresh does not restart settled cells' loading animations. Unavailable values
-render a static gap. Ordinary resource rows retain decoded body identity across
-sparse source updates; editing drafts must not mutate those shared bodies.
+render a static gap. The table provider shares the observation through context.
+Cells register their body in an effect and read their own sample and loading
+state during the same React update. The experimental per-cell store was removed:
+publishing from a layout effect forced another synchronous commit after sample
+delivery. Metric columns still declare data-only cells for the virtual body, so
+selection, sorting, filtering and search leave their row-data renderers alone.
+Ordinary resource rows retain decoded
+body identity across sparse source updates; editing drafts must not mutate those
+shared bodies.
 Secret drafts reset when the admitted resource, connection, or incarnation changes;
 same-resource updates preserve in-progress edits.
 Tables share one tooltip popup and one row-action menu; action lists and dependency
@@ -161,8 +168,9 @@ Pod/Node physical bounds, and rendering. The shared batching hook contains no
 Kubernetes IDs or table-framework dependency. Native endpoint failure cooldowns
 remain in the Kubernetes provider, not in this frontend hook or the Go SDK.
 
-The consumer requires published `@omniviewdev/runtime` and `@omniviewdev/vite-plugin`
-0.34.x, which contain `useTableMetricObservation` and its matching generated shim.
+The consumer uses the released `useTableMetricObservation` API and its matching
+generated shim in runtime/Vite 0.34.x. It does not require the removed experimental
+per-cell subscription.
 Distribute this plugin only with a compatible desktop host containing that runtime;
 publishing npm packages does not update an installed desktop application. A managed
 source build verifies the local contract, not availability in an older host.

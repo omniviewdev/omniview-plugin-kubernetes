@@ -1,10 +1,5 @@
 import { Chip, type ComponentColor } from '@omniviewdev/base-ui';
-import {
-  useRightDrawer,
-  useNotifications,
-  parseAppError,
-  useResourceType,
-} from '@omniviewdev/runtime';
+import { parseAppError, useResourceType } from '@omniviewdev/runtime';
 import { ResourceClient } from '@omniviewdev/runtime/api';
 import type { GraphNode } from '@omniviewdev/runtime/models';
 import type { OwnerReference } from 'kubernetes-types/meta/v1';
@@ -15,6 +10,9 @@ import { PLUGIN_ID } from '@/pluginId';
 
 import { resolveKubernetesReference } from '../../utils/kubernetesReference';
 import { templateIdentity } from '../kubernetes/actions/create/templates';
+
+import { TableActionsContext, useTableActions } from './table/TableActionsContext';
+import { TableActionsScope } from './table/TableActionsScope';
 
 type KindConfig = {
   color: ComponentColor;
@@ -65,13 +63,9 @@ type Props =
     }
   | { target: GraphNode; resourceName?: string };
 
-/**
- * A clickable chip that opens the referenced resource's sidebar.
- * Shared between table cells and sidebar sections.
- */
-const ResourceLinkChip: React.FC<Props> = (props) => {
-  const { showResourceSidebar } = useRightDrawer();
-  const notifications = useNotifications();
+/** The chip itself. It reaches the host only from its click handler, through the table's actions. */
+const ResourceLinkView: React.FC<Props> = (props) => {
+  const { showResourceSidebar, notify } = useTableActions();
   const canonical = 'target' in props ? props.target : undefined;
   const native = 'resourceKey' in props ? props : undefined;
   const owner = 'ownerReference' in props ? props.ownerReference : undefined;
@@ -144,7 +138,7 @@ const ResourceLinkChip: React.FC<Props> = (props) => {
         resourceName: resourceID,
       });
     } catch (error) {
-      void notifications.notify({ title: parseAppError(error).detail, severity: 'error' });
+      void notify({ title: parseAppError(error).detail, severity: 'error' });
     }
   };
 
@@ -169,6 +163,20 @@ const ResourceLinkChip: React.FC<Props> = (props) => {
       {resourceName}
     </Chip>
   );
+};
+
+/**
+ * A clickable chip that opens the referenced resource's sidebar.
+ * Shared between table cells and sidebar sections.
+ *
+ * Inside a table the chip uses the table's shared actions, so rows do not each subscribe to the
+ * host's drawer and activity contexts. Anywhere else it opens a scope of its own.
+ */
+const ResourceLinkChip: React.FC<Props> = (props) => {
+  const inTable = React.useContext(TableActionsContext) !== undefined;
+  return inTable
+    ? <ResourceLinkView {...props} />
+    : <TableActionsScope><ResourceLinkView {...props} /></TableActionsScope>;
 };
 
 export default ResourceLinkChip;

@@ -14,7 +14,8 @@ import { useParams } from 'react-router'
 
 import ResourceLinkChip from '../../../../shared/ResourceLinkChip';
 import { createStandardViews } from '../../../../shared/sidebar/createDrawerViews';
-import ResourceTable from '../../../../shared/table/ResourceTable';
+import ResourceTable, { type ToolbarFilterDef } from '../../../../shared/table/ResourceTable';
+import { DATA_ONLY_CELL_META } from '../../../../shared/table/types';
 import ColumnPicker from '../../../../tables/ColumnFilter/ColumnPicker';
 import PodSidebar from '../../../sidebar/Pod';
 import { podMetricPresentation } from '../../../sidebar/Pod/podMetricBound';
@@ -39,6 +40,13 @@ const defaultMetrics = {
   'kubernetes.pod.cpu.usage': 'cpuUsage',
   'kubernetes.pod.memory.working_set': 'memUsage',
 };
+
+/** The toolbar's value filters. One module-level list keeps the table's filter inputs stable. */
+const toolbarFilters: ToolbarFilterDef[] = [
+  { columnId: 'node', placeholder: 'All Nodes', accessor: (r: Pod) => r?.spec?.nodeName },
+  { columnId: 'controlledBy', placeholder: 'All Controllers', accessor: (r: Pod) => r?.metadata?.ownerReferences?.[0]?.name },
+  { columnId: 'namespace', placeholder: 'All Namespaces', accessor: (r: Pod) => r?.metadata?.namespace },
+];
 
 
 
@@ -75,6 +83,7 @@ const PodTable: React.FC = () => {
             header: 'Containers',
             accessorFn: (row) => row,
             size: 150,
+            meta: DATA_ONLY_CELL_META,
             cell: ({ getValue }) => {
               const pod = getValue() as Pod;
               return (
@@ -106,6 +115,7 @@ const PodTable: React.FC = () => {
               );
             },
             size: 120,
+            meta: DATA_ONLY_CELL_META,
           },
           {
             id: 'node',
@@ -113,6 +123,7 @@ const PodTable: React.FC = () => {
             accessorKey: 'spec.nodeName',
             filterFn: inclusionFilter as FilterFn<DataTableFeatures, Pod>,
             size: 150,
+            meta: DATA_ONLY_CELL_META,
             cell: ({ getValue }) => (
               <ResourceLinkCell
                 pluginID={PLUGIN_ID}
@@ -130,6 +141,7 @@ const PodTable: React.FC = () => {
             size: 120,
             cell: CopyableCell,
             meta: {
+              ...DATA_ONLY_CELL_META,
               defaultHidden: true,
             },
           },
@@ -139,12 +151,14 @@ const PodTable: React.FC = () => {
             accessorKey: 'status.podIP',
             size: 120,
             cell: CopyableCell,
+            meta: DATA_ONLY_CELL_META,
           },
           {
             id: 'qos',
             header: 'QoS',
             accessorKey: 'status.qosClass',
             size: 100,
+            meta: DATA_ONLY_CELL_META,
           },
           {
             id: 'dnsPolicy',
@@ -152,6 +166,7 @@ const PodTable: React.FC = () => {
             accessorKey: 'spec.dnsPolicy',
             size: 100,
             meta: {
+              ...DATA_ONLY_CELL_META,
               defaultHidden: true,
             },
           },
@@ -171,6 +186,7 @@ const PodTable: React.FC = () => {
               />
             ),
             meta: {
+              ...DATA_ONLY_CELL_META,
               defaultHidden: true,
             },
           },
@@ -181,6 +197,7 @@ const PodTable: React.FC = () => {
             size: 200,
             cell: CopyableCell,
             meta: {
+              ...DATA_ONLY_CELL_META,
               defaultHidden: true,
             },
           },
@@ -190,6 +207,7 @@ const PodTable: React.FC = () => {
             accessorKey: 'spec.priority',
             size: 100,
             meta: {
+              ...DATA_ONLY_CELL_META,
               defaultHidden: true,
             },
           },
@@ -200,6 +218,7 @@ const PodTable: React.FC = () => {
             size: 150,
             cell: CopyableCell,
             meta: {
+              ...DATA_ONLY_CELL_META,
               defaultHidden: true,
             },
           },
@@ -210,6 +229,7 @@ const PodTable: React.FC = () => {
             size: 150,
             cell: CopyableCell,
             meta: {
+              ...DATA_ONLY_CELL_META,
               defaultHidden: true,
             },
           },
@@ -224,6 +244,7 @@ const PodTable: React.FC = () => {
             },
             size: 80,
             meta: {
+              ...DATA_ONLY_CELL_META,
               defaultHidden: false,
             },
           },
@@ -240,6 +261,7 @@ const PodTable: React.FC = () => {
             ),
             size: 250,
             meta: {
+              ...DATA_ONLY_CELL_META,
               defaultHidden: true,
             },
           },
@@ -252,6 +274,7 @@ const PodTable: React.FC = () => {
             cell: ({ getValue }) => <ContainerPhaseCell value={getValue() as string} />,
             size: 100,
             meta: {
+              ...DATA_ONLY_CELL_META,
               defaultHidden: false,
             },
           },
@@ -281,11 +304,7 @@ const PodTable: React.FC = () => {
         drawer={drawer}
         contentWrapper={TableMetricsProvider}
         columnPicker={ColumnPicker}
-        toolbarFilters={[
-          { columnId: 'node', placeholder: 'All Nodes', accessor: (r: Pod) => r?.spec?.nodeName },
-          { columnId: 'controlledBy', placeholder: 'All Controllers', accessor: (r: Pod) => r?.metadata?.ownerReferences?.[0]?.name },
-          { columnId: 'namespace', placeholder: 'All Namespaces', accessor: (r: Pod) => r?.metadata?.namespace },
-        ]}
+        toolbarFilters={toolbarFilters}
       />
     </TableMetricsScope>
   );

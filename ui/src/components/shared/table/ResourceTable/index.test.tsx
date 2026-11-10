@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => {
   const second = { key: 'host-second', record: { body: { name: 'Second row' } } };
   return {
     resources: vi.fn(),
+    toolbar: vi.fn(),
     loading: false,
     sourceError: false,
     firstData: { records: [first, second] },
@@ -39,13 +40,15 @@ vi.mock('@omniviewdev/runtime', () => ({
   useResources: mocks.resources,
   usePluginRouter: () => ({ location: { search: '', key: 'location', pathname: '/' } }),
   useRightDrawer: () => ({ openDrawer: vi.fn() }),
+  useNotifications: () => ({ notify: vi.fn() }),
 }));
 vi.mock('../../../tables/ColumnFilter/useDynamicResourceColumns', () => ({ useDynamicResourceColumns: () => ({ labels: {}, annotations: {}, columnDefs: [], setLabels: vi.fn(), setAnnotations: vi.fn() }) }));
 vi.mock('@/hooks/useConnectionNamespaces', () => ({ useConnectionNamespaces: () => ({ namespaces: [], setNamespaces: vi.fn() }) }));
 vi.mock('../../drawer/DrawerActionsBridge', () => ({ default: () => null }));
-vi.mock('./ResourceTableToolbar', () => ({ default: ({ allFlatColumns }: { allFlatColumns: Array<{ id: string; toggleVisibility: (visible: boolean) => void }> }) => (
-  <button onClick={() => allFlatColumns.find((column) => column.id === 'cpuUsage')?.toggleVisibility(true)}>Show CPU</button>
-) }));
+vi.mock('./ResourceTableToolbar', () => ({ default: ({ allFlatColumns, filterOptions }: { allFlatColumns: Array<{ id: string; toggleVisibility: (visible: boolean) => void }>; filterOptions: unknown }) => {
+  mocks.toolbar(filterOptions);
+  return <button onClick={() => allFlatColumns.find((column) => column.id === 'cpuUsage')?.toggleVisibility(true)}>Show CPU</button>;
+} }));
 vi.mock('./ResourceTableErrorState', () => ({ default: () => <div>Collection failed</div> }));
 vi.mock('./rows', () => ({ decodeResourceTableRows: (records: Array<{ key: string; record: { body: { name: string } } }>) => ({
   rows: records.map(({ record }) => record.body),
@@ -61,6 +64,8 @@ const columns: Array<ColumnDef<BaseUI.DataTableFeatures, { name: string }>> = [
 
 beforeEach(() => {
   mocks.loading = false;
+  mocks.toolbar.mockReset();
+  mocks.firstData = { records: [{ key: 'host-first', record: { body: { name: 'First row' } } }, { key: 'host-second', record: { body: { name: 'Second row' } } }] };
   mocks.sourceError = false;
   mocks.targetId = 'host-target';
   mocks.resources.mockReset();
@@ -148,4 +153,34 @@ it('applies defaults to late catalog columns without resetting row selection or 
   expect(screen.queryByRole('columnheader', { name: 'CPU' })).toBeNull();
   expect(screen.getByRole('button', { name: 'host-first' })).toBe(row);
   expect(row).toHaveAttribute('aria-pressed', 'true');
+});
+
+describe('toolbar filter options', () => {
+  const named = (name: string, key: string) => ({ key, record: { body: { name } } });
+  const filters = [{ columnId: 'name', placeholder: 'All names', accessor: (row: { name: string }) => row.name }];
+  const filterColumns = [{
+    id: 'name', accessorKey: 'name', header: 'Name',
+    filterFn: (row: { getValue: (id: string) => unknown }, columnId: string, value: string[]) => value.includes(row.getValue(columnId) as string),
+  }];
+  const renderTable = () => render(<ResourceTable connectionID="connection" resourceKey="helm:charts" columns={filterColumns} toolbarFilters={filters} />);
+  const lastOptions = () => mocks.toolbar.mock.lastCall![0] as Record<string, string[]>;
+
+  it('lists the values of every row, not only the rows a column filter keeps', () => {
+    localStorage.setItem('kubernetes-connection-helm:charts-column-filters', JSON.stringify([{ id: 'name', value: ['First row'] }]));
+    renderTable();
+    expect(screen.queryByRole('button', { name: 'host-second' })).toBeNull();
+    expect(lastOptions()).toEqual({ name: ['First row', 'Second row'] });
+  });
+
+  it('keeps the same options through a status-only update and follows membership changes', () => {
+    const view = renderTable();
+    const initial = lastOptions();
+    // New records and bodies, as a status-only update delivers them, with the same values.
+    mocks.firstData = { records: [named('First row', 'host-first'), named('Second row', 'host-second')] };
+    view.rerender(<ResourceTable connectionID="connection" resourceKey="helm:charts" columns={filterColumns} toolbarFilters={filters} />);
+    expect(lastOptions()).toBe(initial);
+    mocks.firstData = { records: [named('Second row', 'host-second'), named('Third row', 'host-third')] };
+    view.rerender(<ResourceTable connectionID="connection" resourceKey="helm:charts" columns={filterColumns} toolbarFilters={filters} />);
+    expect(lastOptions()).toEqual({ name: ['Second row', 'Third row'] });
+  });
 });

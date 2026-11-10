@@ -1,6 +1,7 @@
 import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import { ColumnDef } from '@tanstack/react-table';
 
+import { DATA_ONLY_CELL_META } from '../../../../shared/table/types';
 import { NamespaceCell } from '../cells/NamespaceCell';
 import { inclusionFilter } from '../filters';
 
@@ -17,6 +18,7 @@ export const namespaceColumn = <
   minSize: 80,
   maxSize: 400,
   cell: NamespaceCell,
+  meta: DATA_ONLY_CELL_META,
 });
 
 export default namespaceColumn;

@@ -4,12 +4,11 @@ import React from 'react';
 import styles from './toolbarInputs.module.css';
 
 type Props = {
-  /** Raw table data used to derive the set of available options. */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  data: any[];
-  /** Extracts the filterable string value from a single data row. */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  accessor: (row: any) => string | undefined;
+  /**
+   * Selectable values, derived from the table's complete collection. The owner keeps this array
+   * for as long as its members are the same, so a status-only update does not render the list.
+   */
+  options: readonly string[];
   /** Currently selected filter values. */
   value: string[];
   /** Called when the selection changes. */
@@ -19,36 +18,22 @@ type Props = {
 };
 
 /**
- * Generic multi-select dropdown that derives its option list from the live
- * table data via the provided accessor. Matches the same compact style as
+ * Generic multi-select dropdown over a ready option list. Matches the same compact style as
  * NamespaceSelect so the toolbar dropdowns look uniform.
  */
-const ResourceFilterSelect: React.FC<Props> = ({ data, accessor, value, onChange, placeholder }) => {
-  const options = React.useMemo(() => {
-    const set = new Set<string>();
-    for (const row of data) {
-      const v = accessor(row);
-      if (v) {
-        set.add(v);
-      }
-    }
-    return [...set].sort();
-  }, [data, accessor]);
-
-  return (
-    <MultiSelect
-      size="sm"
-      variant="outline"
-      items={options}
-      value={value}
-      onValueChange={(values) => onChange(values)}
-      placeholder={placeholder}
-      triggerLabel={placeholder}
-      maxVisibleChips={2}
-      clearable
-      className={styles.filterSelect}
-    />
-  );
-};
+const ResourceFilterSelect: React.FC<Props> = ({ options, value, onChange, placeholder }) => (
+  <MultiSelect
+    size="sm"
+    variant="outline"
+    items={options}
+    value={value}
+    onValueChange={(values) => onChange(values)}
+    placeholder={placeholder}
+    triggerLabel={placeholder}
+    maxVisibleChips={2}
+    clearable
+    className={styles.filterSelect}
+  />
+);
 
 export default ResourceFilterSelect;

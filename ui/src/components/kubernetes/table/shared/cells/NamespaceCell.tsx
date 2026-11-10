@@ -1,8 +1,7 @@
 import type { DataTableFeatures } from '@omniviewdev/base-ui';
-import { IconButton } from '@omniviewdev/base-ui';
-import type { CellContext, RowData } from '@tanstack/react-table';
-import { useState } from 'react';
-import { LuCheck, LuCopy, LuFilter } from 'react-icons/lu';
+import { Subscribe, type CellContext, type ColumnFiltersState, type RowData } from '@tanstack/react-table';
+import { useEffect, useState } from 'react';
+import { LuCheck, LuCopy, LuFilter, LuX } from 'react-icons/lu';
 
 import styles from './cells.module.css';
 
@@ -19,73 +18,98 @@ const filterInactiveStyle = { ...filterBaseStyle, color: 'var(--ov-color-fg-mute
 
 const stopPropagation = (e: React.SyntheticEvent) => e.stopPropagation();
 
-/**
- * NamespaceCell renders the namespace value with hover actions:
- * - Copy to clipboard
- * - Filter table to show only this namespace
- */
-export const NamespaceCell = <T extends RowData,>({ getValue, table, column }: CellContext<DataTableFeatures, T, unknown>) => {
-  const val = getValue() as string | undefined;
-  const [copied, setCopied] = useState(false);
+type Context<T extends RowData> = CellContext<DataTableFeatures, T, unknown>;
 
-  if (!val) return null;
-
-  const handleFilter = (e: React.SyntheticEvent) => {
-    e.stopPropagation();
-    const current = (column.getFilterValue() as string[]) ?? [];
-    if (current.includes(val)) {
-      // Already filtering by this namespace — remove it
-      column.setFilterValue(current.filter((ns: string) => ns !== val));
-    } else {
-      // Add this namespace to the filter
-      column.setFilterValue([...current, val]);
+/** Keep the keyboard entry point mounted, but defer its glyph until interaction. */
+function NamespaceCopy({ value, revealed, onReveal }: {
+  value: string;
+  revealed: boolean;
+  onReveal: () => void;
+}) {
+  const [status, setStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+  useEffect(() => {
+    if (status !== 'copied') return;
+    const timer = window.setTimeout(() => setStatus('idle'), 1500);
+    return () => window.clearTimeout(timer);
+  }, [status]);
+  const handleCopy = async (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(value);
+      setStatus('copied');
+    } catch {
+      setStatus('failed');
     }
   };
-
-  const handleCopy = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    void navigator.clipboard.writeText(val).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
-  };
-
-  const isFiltered = ((table.getColumn('namespace')?.getFilterValue() as string[]) ?? []).includes(
-    val,
-  );
-
-  return (
-    <span className={styles.namespaceCell}>
-      <span style={namespaceTextStyle}>{val}</span>
-      {/* eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/no-static-element-interactions */}
-      <span className={styles.namespaceActions} onClick={stopPropagation}>
-        <IconButton
-          size="xs"
-          variant="ghost"
-          aria-label="Copy namespace"
-          onClick={handleCopy}
-          style={copyButtonStyle}
-        >
-          {copied ? <LuCheck size={10} /> : <LuCopy size={10} />}
-        </IconButton>
-        <span
-          role="button"
-          tabIndex={0}
-          onClick={handleFilter}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              handleFilter(e);
-            }
-          }}
-          title={isFiltered ? 'Remove namespace filter' : 'Filter by this namespace'}
-          style={isFiltered ? filterActiveStyle : filterInactiveStyle}
-        >
-          <LuFilter size={10} />
-        </span>
-      </span>
+  return <>
+    <button
+      type="button"
+      className={styles.namespaceAction}
+      aria-label="Copy namespace"
+      title={status === 'failed' ? 'Unable to copy namespace' : status === 'copied' ? 'Copied' : 'Copy namespace'}
+      onFocus={onReveal}
+      onClick={(event) => void handleCopy(event)}
+      style={copyButtonStyle}
+    >
+      {(revealed || status !== 'idle') && (status === 'copied'
+        ? <LuCheck size={10} /> : status === 'failed' ? <LuX size={10} /> : <LuCopy size={10} />)}
+    </button>
+    <span role="status" className={styles.namespaceStatus}>
+      {status === 'failed' ? 'Unable to copy namespace' : status === 'copied' ? 'Namespace copied' : ''}
     </span>
-  );
+  </>;
+}
+
+/** The filter subscription mounts only after pointer entry or keyboard focus. */
+const NamespaceFilter = <T extends RowData,>({ value, table, column }: {
+  value: string;
+  table: Context<T>['table'];
+  column: Context<T>['column'];
+}) => {
+  const handleFilter = (event: React.SyntheticEvent) => {
+    event.stopPropagation();
+    const raw = column.getFilterValue();
+    const current: unknown[] = Array.isArray(raw) ? raw : [];
+    if (current.includes(value)) {
+      column.setFilterValue(current.filter((namespace) => namespace !== value));
+    } else {
+      column.setFilterValue([...current, value]);
+    }
+  };
+  const isFilteredBy = (filters: ColumnFiltersState) => {
+    const selected = filters.find((filter) => filter.id === column.id)?.value;
+    return Array.isArray(selected) && selected.includes(value);
+  };
+  return <Subscribe source={table.atoms.columnFilters} selector={isFilteredBy}>
+    {(isFiltered) => (
+      <button
+        type="button"
+        className={styles.namespaceAction}
+        onClick={handleFilter}
+        title={isFiltered ? 'Remove namespace filter' : 'Filter by this namespace'}
+        aria-label={isFiltered ? 'Remove namespace filter' : 'Filter by this namespace'}
+        style={isFiltered ? filterActiveStyle : filterInactiveStyle}
+      >
+        <LuFilter size={10} />
+      </button>
+    )}
+  </Subscribe>;
+};
+
+/** Namespace value with keyboard-accessible copy and deferred filter controls. */
+export const NamespaceCell = <T extends RowData,>({ getValue, table, column }: Context<T>) => {
+  const value = getValue() as string | undefined;
+  const [engaged, setEngaged] = useState(false);
+  if (!value) return null;
+  const reveal = () => setEngaged(true);
+  return <span className={styles.namespaceCell} onPointerEnter={reveal}>
+    <span style={namespaceTextStyle}>{value}</span>
+    {/* eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/no-static-element-interactions */}
+    <span className={styles.namespaceActions} onClick={stopPropagation}>
+      <NamespaceCopy value={value} revealed={engaged} onReveal={reveal} />
+      {engaged && <NamespaceFilter value={value} table={table} column={column} />}
+    </span>
+  </span>;
 };
 
 export default NamespaceCell;

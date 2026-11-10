@@ -1,14 +1,17 @@
 import type { DataTableFeatures } from '@omniviewdev/base-ui';
 import { MetricCell, type CapacityBound, type MetricReference, type MetricThreshold } from '@omniviewdev/base-ui/metrics';
-import { parseAppError, useMetricCatalog, useTableMetricObservation, useMetricViewSourceSelection, type HostRecord, type TableMetricObservation, type UseMetricObservationOptions } from '@omniviewdev/runtime';
+import { parseAppError, useMetricCatalog, useTableMetricObservation, useMetricViewSourceSelection, type HostRecord, type PreparedMetricResult, type TableMetricObservation, type UseMetricObservationOptions } from '@omniviewdev/runtime';
 import type { ColumnDef } from '@tanstack/react-table';
-import { createContext, useContext, useEffect, useMemo, type PropsWithChildren } from 'react';
+import { createContext, memo, useContext, useEffect, useMemo, type PropsWithChildren } from 'react';
+
+import { DATA_ONLY_CELL_META } from '../../../shared/table/types';
 
 import { PLUGIN_ID } from '@/pluginId';
 
 type Scope = Pick<UseMetricObservationOptions, 'ownerConnectionID' | 'resourceKey' | 'bindingID' | 'source'>;
 type MetricColumn = { id: string; metricID: string };
 const ScopeContext = createContext<(Scope & { columns: MetricColumn[]; ready: boolean; loading?: boolean; error?: unknown }) | null>(null);
+/** Keep sample delivery in the table's React update rather than publishing after its commit. */
 const ValuesContext = createContext<TableMetricObservation | null>(null);
 
 /** Resource owners supply scope and default columns; generic tables only compose typed slots. */
@@ -36,7 +39,8 @@ export function useTableMetrics<T extends object>(scope: Scope, defaults: Readon
     enableSorting: false,
     enableColumnFilter: false,
     size: 168,
-    meta: { defaultHidden: !defaults[column.metricID] },
+    meta: { ...DATA_ONLY_CELL_META, defaultHidden: !defaults[column.metricID] },
+    // Metric samples reach the cell through its own subscription; its row data is all it renders from.
     cell: ({ row }) => <TableMetricCell body={row.original} metricID={column.metricID} {...presentation?.cell?.(row.original, column.metricID)} />,
   })), [metricColumns, descriptors, defaults, presentation]);
   const value = useMemo(() => ({ ownerConnectionID: scope.ownerConnectionID, resourceKey: scope.resourceKey,
@@ -56,10 +60,10 @@ export function TableMetricsProvider({ columnVisibility, recordsByBody, children
   const scope = useContext(ScopeContext);
   if (!scope) throw new Error('Metric table requires TableMetricsScope.');
   const metricIDs = useMemo(() => scope.columns.filter(column => columnVisibility[column.id] === true).map(column => column.metricID), [scope.columns, columnVisibility]);
-  const value = useTableMetricObservation({ ownerPluginID: PLUGIN_ID, ownerConnectionID: scope.ownerConnectionID,
+  const observation = useTableMetricObservation({ ownerPluginID: PLUGIN_ID, ownerConnectionID: scope.ownerConnectionID,
     resourceKey: scope.resourceKey, bindingID: scope.bindingID, source: scope.source, recordsByBody, metricIDs,
     enabled: scope.ready, loading: scope.loading, error: scope.error });
-  return <ValuesContext.Provider value={value}>{children}</ValuesContext.Provider>;
+  return <ValuesContext.Provider value={observation}>{children}</ValuesContext.Provider>;
 }
 
 /**
@@ -67,16 +71,32 @@ export function TableMetricsProvider({ columnVisibility, recordsByBody, children
  * placeholder only while its own sample is pending. A failure, or a sample that settled without
  * data, leaves a static gap; a failure also puts its detail in the tooltip.
  */
-export function TableMetricCell({ body, metricID, bound, references, thresholds }: { body: object; metricID: string; bound?: CapacityBound; references?: readonly MetricReference[]; thresholds?: readonly MetricThreshold[] }) {
-  const context = useContext(ValuesContext);
-  if (!context) throw new Error('Metric cells require TableMetricsProvider.');
-  const { register, tokenFor, metrics, error, isLoadingFor } = context;
-  useEffect(() => register(body), [register, body]);
-  const token = tokenFor(body);
-  const result = token ? metrics.get(token)?.get(metricID) : undefined;
+type MetricValueProps = {
+  metricID: string;
+  result: PreparedMetricResult | undefined;
+  isLoading: boolean;
+  error: unknown;
+  bound?: CapacityBound;
+  references?: readonly MetricReference[];
+  thresholds?: readonly MetricThreshold[];
+};
+
+// Context reads stay cheap. Only changed answers or presentation inputs format and render again.
+const TableMetricValue = memo(function TableMetricValue({ metricID, result, isLoading, error, bound, references, thresholds }: MetricValueProps) {
   const title = error ? parseAppError(error).detail : result?.status === 'ok'
     ? (result.observedAt == null ? undefined : `Observed ${new Date(result.observedAt).toLocaleString()}`) : result?.status;
   return <div title={title} style={{ width: '100%', minWidth: 0 }}>{result?.unit
     ? <MetricCell label={metricID} value={result.status === 'ok' ? result.value : null} unit={result.unit} bound={bound} references={references} thresholds={thresholds} />
-    : !error && isLoadingFor(body, metricID) ? <MetricCell label={metricID} loading /> : '—'}</div>;
+    : !error && isLoading ? <MetricCell label={metricID} loading /> : '—'}</div>;
+});
+
+export function TableMetricCell({ body, metricID, bound, references, thresholds }: { body: object; metricID: string; bound?: CapacityBound; references?: readonly MetricReference[]; thresholds?: readonly MetricThreshold[] }) {
+  const observation = useContext(ValuesContext);
+  if (!observation) throw new Error('Metric cells require TableMetricsProvider.');
+  const { register, tokenFor, metrics, error, isLoadingFor } = observation;
+  useEffect(() => register(body), [register, body]);
+  const token = tokenFor(body);
+  const result = token ? metrics.get(token)?.get(metricID) : undefined;
+  return <TableMetricValue metricID={metricID} result={result} isLoading={isLoadingFor(body, metricID)} error={error}
+    bound={bound} references={references} thresholds={thresholds} />;
 }
