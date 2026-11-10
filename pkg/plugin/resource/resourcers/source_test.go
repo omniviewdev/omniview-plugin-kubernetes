@@ -11,6 +11,9 @@ import (
 
 	resource "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -88,6 +91,51 @@ func TestCompactWatchRecordRequiresFullBinding(t *testing.T) {
 	changed.Schema.State = "different"
 	_, err = compactWatchRecord(record, changed)
 	require.ErrorIs(t, err, errSourceBindingChanged)
+}
+func TestSourceSnapshotSpanEndsBeforeLiveStream(t *testing.T) {
+	previous := otel.GetTracerProvider()
+	exporter := tracetest.NewInMemoryExporter()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
+	otel.SetTracerProvider(provider)
+	t.Cleanup(func() {
+		otel.SetTracerProvider(previous)
+		require.NoError(t, provider.Shutdown(context.Background()))
+	})
+
+	client := newFakeClientSet(defaultGVRListKinds(), newTestPod("initial", "default"))
+	emitter := &sourceTestEmitter{events: make(chan sourceTestEvent, 32)}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- newBaseResourcer().Source(ctx, client, resource.SourceRequest{
+			Target: testWatchTarget(), Representation: testWatchRepresentation(),
+			Limits: resource.SourceLimits{MaxBatchItems: resource.MaxSourceBatchItems},
+		}, emitter)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(10 * time.Second):
+			t.Error("source did not stop")
+		}
+	})
+
+	for !nextSourceTestEvent(t, emitter).boundary {
+	}
+	require.Eventually(t, func() bool {
+		for _, span := range exporter.GetSpans() {
+			if span.Name == "kubernetes.source.snapshot" {
+				return true
+			}
+		}
+		return false
+	}, time.Second, time.Millisecond)
+	select {
+	case <-done:
+		t.Fatal("source ended before snapshot span was exported")
+	default:
+	}
 }
 
 func TestSourceSnapshotAndOrderedChanges(t *testing.T) {

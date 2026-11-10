@@ -533,6 +533,11 @@ Profiling is off by default. In Omniview 0.15.0 or later, enable plugin profilin
 
 The SDK serves profiling on a loopback-only endpoint. Treat profile files as sensitive process data; do not expose the endpoint or publish captures containing private data.
 
+When host telemetry is enabled, each Kubernetes informer source emits a
+`kubernetes.source.snapshot` span. The span ends when its initial snapshot
+finishes; it does not remain open for the lifetime of the watch. The
+`k8s.resource` attribute identifies the resource type, not a cluster or object.
+
 ## Connection/server metadata
 
 The resource provider publishes core server facts through the optional SDK `connectionMetadata` trait:
