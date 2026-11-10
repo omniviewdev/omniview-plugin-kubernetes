@@ -149,7 +149,7 @@ The [parity evidence index](docs/images/cluster-explorer-parity/index.json) link
 
 The published Kubernetes plugin 0.19.1 requires Omniview 0.32.1 or newer, runtime/Vite 0.32.1, Base UI 0.17.0, and Editors 6.2.2. This cohort includes shared in-flow Card actions, outline status indicators, compact in-picker upload metadata, and correctly layered rule dropdowns. Upgrade the desktop before installing the plugin; runtime packages with a Base UI `~0.16.0` peer are incompatible with this cohort even if local source links resolve imports.
 
-The unreleased source candidate uses runtime/Vite 0.34.x, Base UI 0.17.1, and Editors 6.2.3. It requires a desktop containing `useTableMetricObservation` and per-cell loading from [host PR457](https://github.com/omniviewdev/omniview/pull/457), merged at `358c2d36655faedf4dfe233696f6088bcbcc46b1`. It uses the released table-observation API; the renderer sprint's experimental per-cell subscription was removed because it forced an extra synchronous React commit. The published 0.19.1 compatibility notice above does not apply to this candidate. No minimum desktop release version is declared for it yet: npm publication alone does not establish desktop availability. Do not distribute the candidate until a compatible desktop release is verified and its actual minimum version is documented.
+Kubernetes 0.20.0 requires Omniview 0.35.0 or newer, runtime/Vite 0.35.0, Base UI 0.17.2, and Editors 6.2.4. Upgrade the desktop before installing this plugin. This cohort includes `useTableMetricObservation`, per-cell loading, and the shared renderer improvements; npm publication alone does not update an installed desktop. The experimental per-cell subscription was removed because it forced an extra synchronous React commit. The published 0.19.1 compatibility notice above does not apply to 0.20.0. See the [0.20.0 release notes](docs/releases/0.20.0.md) for measured gains, tradeoffs, and remaining frame stalls. Publish and verify the compatible desktop and npm cohort before distributing this plugin.
 
 Container log requests with an explicit `SinceTime` use that timestamp instead
 of `SinceSeconds`. Kubernetes accepts only one time filter per log request.
@@ -1109,9 +1109,9 @@ SDK/runtime release; restarting an old executable alone does not migrate it.
 
 The plugin manifest schema has no minimum-host-version field. Marketplace
 publication uses the release workflow's supported `min-ide-version` input,
-set to `0.33.0` for the coverage-aware metrics cohort. Keep the host, backend SDK,
-runtime, and Vite plugin coordinated rather than adding unsupported manifest
-fields. Do not package this candidate before that host/runtime cohort is published.
+set to `0.35.0` for Kubernetes 0.20.0. Keep the host, backend SDK, runtime, and
+Vite plugin coordinated rather than adding unsupported manifest fields. Publish
+and verify the host desktop and npm cohort before packaging and distributing this plugin.
 
 ### Prerequisites
 
