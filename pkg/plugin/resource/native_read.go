@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
+	"go.opentelemetry.io/otel/attribute"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -28,7 +29,9 @@ const (
 
 // NativeGet reads directly from the API server. The caller resolves the opaque
 // resource type to a discovered GVR and supplies its catalog representation.
-func NativeGet(ctx context.Context, client dynamic.Interface, gvr schema.GroupVersionResource, namespaced bool, request resourcev2.GetRequest, representation resourcev2.Representation) (resourcev2.Record, error) {
+func NativeGet(ctx context.Context, client dynamic.Interface, gvr schema.GroupVersionResource, namespaced bool, request resourcev2.GetRequest, representation resourcev2.Representation) (result resourcev2.Record, retErr error) {
+	ctx, crud := startNativeCRUD(ctx, "get", request.Reference.Address.Type, nativeScopeNamespace(request.Reference.Address.Scope), request.Reference.Address.ID)
+	defer func() { crud.end(retErr) }()
 	if err := ctx.Err(); err != nil {
 		return resourcev2.Record{}, err
 	}
@@ -101,7 +104,11 @@ func NativeQuery(ctx context.Context, client dynamic.Interface, gvr schema.Group
 	}, representation, selector.String())
 }
 
-func nativeEnumerate(ctx context.Context, client dynamic.Interface, gvr schema.GroupVersionResource, namespaced bool, request resourcev2.EnumerateRequest, representation resourcev2.Representation, selector string) (resourcev2.SourcePage, error) {
+func nativeEnumerate(ctx context.Context, client dynamic.Interface, gvr schema.GroupVersionResource, namespaced bool, request resourcev2.EnumerateRequest, representation resourcev2.Representation, selector string) (result resourcev2.SourcePage, retErr error) {
+	ctx, crud := startNativeCRUD(ctx, "list", request.Target.Type, "", "")
+	defer func() {
+		crud.end(retErr, attribute.Int("items", len(result.Records)), attribute.Bool("selector", selector != ""), attribute.Bool("continued", request.Cursor != nil))
+	}()
 	if err := ctx.Err(); err != nil {
 		return resourcev2.SourcePage{}, err
 	}
@@ -115,6 +122,7 @@ func nativeEnumerate(ctx context.Context, client dynamic.Interface, gvr schema.G
 	if err != nil {
 		return resourcev2.SourcePage{}, err
 	}
+	crud.span.SetAttributes(attribute.Int("namespaces", len(namespaces)))
 	binding, err := nativeCursorBinding(request, gvr, namespaced, namespaces, selector)
 	if err != nil {
 		return resourcev2.SourcePage{}, err

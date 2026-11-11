@@ -13,10 +13,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/omniview/kubernetes/pkg/diag"
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	resource "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -157,6 +158,7 @@ type sourceEvent struct {
 
 func makeSourceHandler(ctx context.Context, events chan<- sourceEvent, overflow *atomic.Bool) cache.ResourceEventHandlerFuncs {
 	enqueue := func(obj interface{}, kind string) {
+		// Events after cancellation or overflow are intentionally dropped: the session is ending or already resetting.
 		if ctx.Err() != nil || overflow.Load() {
 			return
 		}
@@ -164,10 +166,12 @@ func makeSourceHandler(ctx context.Context, events chan<- sourceEvent, overflow 
 		if !ok || u == nil {
 			tombstone, found := obj.(cache.DeletedFinalStateUnknown)
 			if !found {
+				zap.S().Named("source").Debugw("source event ignored", "reason", "unexpected_object_type", "kind", kind)
 				return
 			}
 			u, ok = tombstone.Obj.(*unstructured.Unstructured)
 			if !ok || u == nil {
+				zap.S().Named("source").Debugw("source event ignored", "reason", "unexpected_tombstone_type", "kind", kind)
 				return
 			}
 		}
@@ -175,6 +179,7 @@ func makeSourceHandler(ctx context.Context, events chan<- sourceEvent, overflow 
 		case events <- sourceEvent{kind: kind, object: u}:
 		default:
 			overflow.Store(true)
+			zap.S().Named("source").Debugw("source event queue full", "reason", "queue_overflow", "kind", kind)
 		}
 	}
 	return cache.ResourceEventHandlerFuncs{
@@ -182,6 +187,7 @@ func makeSourceHandler(ctx context.Context, events chan<- sourceEvent, overflow 
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			u, ok := newObj.(*unstructured.Unstructured)
 			if !ok || u == nil {
+				zap.S().Named("source").Debugw("source update ignored", "reason", "unexpected_object_type")
 				return
 			}
 			// Informer resyncs can replay the same version without changing the object.
@@ -321,6 +327,8 @@ func runSourceHealth(ctx context.Context, client *clients.ClientSet, monitor *so
 			continue
 		}
 		failures++
+		c := diag.ClassifyError(err, false)
+		zap.S().Named("source_health").Debugw("source health probe failed", append([]any{"consecutive_failures", failures}, c.LogFields()...)...)
 		if failures == 2 {
 			close(monitor.unhealthy)
 			// Keep the monitor until all subscribers have released it.
@@ -364,10 +372,44 @@ func newSourceHealthProbe(client *clients.ClientSet) (func(context.Context) erro
 }
 
 // Source leases informer handlers for one source session.
-func (s *KubernetesResourcerBase[T]) Source(ctx context.Context, client *clients.ClientSet, request resource.SourceRequest, emit resource.SourceEmitter) error {
-	_, snapshotSpan := otel.Tracer("omniview.plugin.kubernetes").Start(ctx, "kubernetes.source.snapshot")
-	defer snapshotSpan.End()
+func (s *KubernetesResourcerBase[T]) Source(ctx context.Context, client *clients.ClientSet, request resource.SourceRequest, emit resource.SourceEmitter) (retErr error) {
+	_, snapshotSpan := diag.Tracer().Start(ctx, "kubernetes.source.snapshot")
 	snapshotSpan.SetAttributes(attribute.String("k8s.resource", s.resourceType.Resource))
+	sourceLog := s.log.With("resource_type", s.resourceType.Resource)
+	snapshotStart := time.Now()
+	snapshotEnded, snapshotCompleted := false, false
+	// failureCause keeps the native error whose class the resource.NewError returned to the host hides.
+	var failureCause error
+	finishSnapshot := func(err error) {
+		if snapshotEnded {
+			return
+		}
+		snapshotEnded = true
+		if failureCause != nil {
+			err = failureCause
+		}
+		elapsed := time.Since(snapshotStart)
+		snapshotSpan.SetAttributes(attribute.Int64("sync_ms", elapsed.Milliseconds()))
+		c := diag.EndSpan(snapshotSpan, err, false)
+		diag.SourceSync(elapsed, c.Outcome)
+		if c.Outcome == "failure" {
+			sourceLog.Warnw("source snapshot failed", append([]any{"sync_ms", elapsed.Milliseconds()}, c.LogFields()...)...)
+		} else if c.Outcome == "canceled" {
+			sourceLog.Debugw("source snapshot canceled", append([]any{"sync_ms", elapsed.Milliseconds()}, c.LogFields()...)...)
+		}
+	}
+	defer func() {
+		finishSnapshot(retErr)
+		if snapshotCompleted {
+			// Session ended after a delivered snapshot: cancellation is the normal close.
+			c := diag.ClassifyError(retErr, false)
+			if c.Outcome == "failure" {
+				sourceLog.Warnw("source session ended with error", c.LogFields()...)
+			} else {
+				sourceLog.Debugw("source session ended", c.LogFields()...)
+			}
+		}
+	}()
 	if client == nil || client.DynamicClient == nil || emit == nil {
 		return fmt.Errorf("client and source emitter are required")
 	}
@@ -416,7 +458,7 @@ func (s *KubernetesResourcerBase[T]) Source(ctx context.Context, client *clients
 	defer func() {
 		for _, lease := range leases {
 			if err := lease.Close(); err != nil {
-				s.log.Warnw("failed to retire watch source", "error", err)
+				s.log.Warnw("failed to retire watch source", diag.ClassifyError(err, false).LogFields()...)
 			}
 		}
 	}()
@@ -432,14 +474,20 @@ func (s *KubernetesResourcerBase[T]) Source(ctx context.Context, client *clients
 	for _, namespace := range namespaces {
 		err = probe(ctx, namespace)
 		if err != nil {
+			failureCause = err
 			if errors.Is(err, context.Canceled) {
 				return err
 			}
 			classified := classifyWatchError(err)
+			c := diag.ClassifyError(err, false)
+			snapshotSpan.AddEvent("probe_failed", trace.WithAttributes(attribute.String("error.class", c.Class), attribute.String("k8s.reason", c.Reason), attribute.String("watch.code", classified.code)))
+			sourceLog.Warnw("source probe failed", append([]any{"watch_code", classified.code}, c.LogFields()...)...)
 			return resource.NewError(classified.code, classified.message)
 		}
 		lease, err := client.AcquireInformer(ctx, namespace, s.resourceType, initialHandler)
 		if err != nil {
+			failureCause = err
+			sourceLog.Warnw("source informer acquisition failed", diag.ClassifyError(err, false).LogFields()...)
 			return err
 		}
 		leases = append(leases, lease)
@@ -451,10 +499,14 @@ func (s *KubernetesResourcerBase[T]) Source(ctx context.Context, client *clients
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
+			snapshotSpan.AddEvent("sync_timeout", trace.WithAttributes(attribute.Int64("timeout_ms", 30000)))
+			sourceLog.Warnw("informer cache sync timed out", "reason", "sync_timeout", "timeout_ms", 30000)
 			return resource.NewError("UNAVAILABLE", "informer cache sync timed out")
 		}
 	}
 	reset := func() error {
+		snapshotSpan.AddEvent("overflow")
+		sourceLog.Warnw("source event queue overflowed; requesting reset", "reason", "queue_overflow", "capacity", sourceQueueCapacity)
 		return emit.Reset(ctx, resource.SourceResetOverflow, "informer event queue exceeded 4096 items")
 	}
 	if overflow.Load() {
@@ -528,7 +580,9 @@ func (s *KubernetesResourcerBase[T]) Source(ctx context.Context, client *clients
 	if err := emit.EndSnapshot(ctx, coverage, resource.ContinuityBestEffort); err != nil {
 		return err
 	}
-	snapshotSpan.End()
+	finishSnapshot(nil)
+	snapshotCompleted = true
+	sourceLog.Debugw("source snapshot delivered", "sync_ms", time.Since(snapshotStart).Milliseconds(), "namespaces", len(namespaces))
 	unhealthy, releaseHealth, err := acquireSourceHealth(ctx, client)
 	if err != nil {
 		return err
@@ -542,6 +596,8 @@ func (s *KubernetesResourcerBase[T]) Source(ctx context.Context, client *clients
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-unhealthy:
+			snapshotSpan.AddEvent("source.continuity_lost")
+			sourceLog.Warnw("source continuity lost; Kubernetes API health probe failed twice", "reason", "health_probe_failed")
 			return emit.Reset(ctx, resource.SourceResetContinuityLost, "Kubernetes API is unreachable; informer events are not being delivered")
 		case first := <-events:
 			item, err := observation(first.object)

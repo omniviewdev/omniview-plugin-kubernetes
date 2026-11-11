@@ -7,7 +7,11 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/omniview/kubernetes/pkg/diag"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -59,6 +63,17 @@ func discoverNativeTypes(ctx context.Context, client discovery.DiscoveryInterfac
 		}
 		coverage.Kind = "partial"
 		coverage.Reason = "Some Kubernetes API groups could not be discovered"
+		failedGroups, budgetReason := 0, nativeBudgetReason(discoveryErr)
+		if failed != nil {
+			failedGroups = len(failed.Groups)
+			for _, cause := range failed.Groups {
+				if r := nativeBudgetReason(cause); r != "" {
+					budgetReason = r
+				}
+			}
+		}
+		trace.SpanFromContext(ctx).AddEvent("discovery.partial", trace.WithAttributes(attribute.Int("failed_groups", failedGroups), attribute.Int("discovered_lists", len(lists)), attribute.String("budget_reason", budgetReason)))
+		zap.S().Named("catalog").Warnw("native discovery partial", "failed_groups", failedGroups, "discovered_lists", len(lists), "budget_reason", budgetReason, "error_class", diag.ClassifyError(discoveryErr, false).Class)
 	}
 
 	preferred := map[string]string{"": "v1"}
@@ -200,6 +215,11 @@ func nativeClusterIdentity(ctx context.Context, client kubernetes.Interface) (*s
 		return nil, err
 	}
 	if err != nil || namespace.UID == "" {
+		reason := "uid_empty"
+		if err != nil {
+			reason = diag.ClassifyError(err, false).Class
+		}
+		zap.S().Named("catalog").Debugw("native cluster identity unavailable", "reason", reason)
 		return nil, nil
 	}
 	identity := string(namespace.UID)

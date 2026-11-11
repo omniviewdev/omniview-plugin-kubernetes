@@ -5,8 +5,12 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/omniview/kubernetes/pkg/diag"
+	"go.opentelemetry.io/otel/attribute"
+	"go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
@@ -42,6 +46,7 @@ type informerKey struct {
 }
 
 type informerSource struct {
+	key      informerKey
 	factory  dynamicinformer.DynamicSharedInformerFactory
 	informer cache.SharedIndexInformer
 	stopCh   chan struct{}
@@ -51,11 +56,41 @@ type informerSource struct {
 	retiring bool
 }
 
+// activeInformerSources counts native sources across every ClientSet in the
+// process so the informer.sources gauge never reflects a single connection.
+var activeInformerSources atomic.Int64
+
+func informerLog() *zap.SugaredLogger { return zap.S().Named("informers") }
+
+func informerLogFields(key informerKey, extra ...any) []any {
+	return append([]any{"resource_type", key.resource.Resource, "api_group", key.resource.Group, "namespace", key.namespace}, extra...)
+}
+
+// retireSpan covers one wait for a native LIST/WATCH to stop. trigger is one of
+// last_lease, reacquire_wait or shutdown.
+func retireSpan(ctx context.Context, key informerKey, trigger string, leases int) (context.Context, func(error)) {
+	ctx, span := diag.Tracer().Start(ctx, "kubernetes.informer.retire")
+	span.SetAttributes(
+		attribute.String("resource.type", key.resource.Resource),
+		attribute.String("resource.namespace", key.namespace),
+		attribute.String("trigger", trigger),
+		attribute.Int("leases", leases),
+	)
+	started := time.Now()
+	return ctx, func(err error) {
+		span.SetAttributes(attribute.Int64("wait_ms", time.Since(started).Milliseconds()))
+		c := diag.EndSpan(span, err, false)
+		informerLog().Debugw("informer source retire wait finished", informerLogFields(key, append([]any{"trigger", trigger, "wait_ms", time.Since(started).Milliseconds()}, c.LogFields()...)...)...)
+	}
+}
+
 func (s *informerSource) stop() {
 	s.stopOnce.Do(func() {
 		// The caller closes stopCh under informersMu before waiting here.
 		s.factory.Shutdown()
 		close(s.done)
+		diag.InformerSources(int(activeInformerSources.Add(-1)))
+		informerLog().Debugw("informer source stopped", informerLogFields(s.key)...)
 	})
 }
 
@@ -77,17 +112,24 @@ func (l *InformerLease) HasSynced() bool { return l.registration.HasSynced() }
 func (l *InformerLease) Close() error {
 	l.once.Do(func() {
 		l.err = l.Informer.RemoveEventHandler(l.registration)
+		if l.err != nil {
+			informerLog().Warnw("informer handler removal failed", informerLogFields(l.key, diag.ClassifyError(l.err, false).LogFields()...)...)
+		}
 		cs := l.client
 		cs.informersMu.Lock()
 		l.source.leases--
+		remaining := l.source.leases
 		last := l.source.leases == 0
 		if last && !l.source.retiring {
 			l.source.retiring = true
 			close(l.source.stopCh)
 		}
 		cs.informersMu.Unlock()
+		informerLog().Debugw("informer lease closed", informerLogFields(l.key, "leases", remaining)...)
 		if last {
+			_, end := retireSpan(context.Background(), l.key, "last_lease", remaining)
 			l.source.stop()
+			end(nil)
 			cs.informersMu.Lock()
 			if cs.informers[l.key] == l.source {
 				delete(cs.informers, l.key)
@@ -120,7 +162,9 @@ func (cs *ClientSet) AcquireInformer(ctx context.Context, namespace string, gvr 
 			return nil, err
 		}
 		if cs.informersClosed || cs.DynamicClient == nil {
+			closed := cs.informersClosed
 			cs.informersMu.Unlock()
+			informerLog().Warnw("informer acquisition rejected", informerLogFields(key, "reason", map[bool]string{true: "shutdown", false: "no_dynamic_client"}[closed])...)
 			return nil, fmt.Errorf("native informer client is unavailable")
 		}
 		if cs.informers == nil {
@@ -130,11 +174,14 @@ func (cs *ClientSet) AcquireInformer(ctx context.Context, namespace string, gvr 
 		if source != nil && source.retiring {
 			done := source.done
 			cs.informersMu.Unlock()
+			_, end := retireSpan(ctx, key, "reacquire_wait", 0)
 			select {
 			case <-ctx.Done():
+				end(ctx.Err())
 				return nil, ctx.Err()
 			case <-done:
 			}
+			end(nil)
 			cs.informersMu.Lock()
 			if cs.informers[key] == source {
 				delete(cs.informers, key)
@@ -144,8 +191,10 @@ func (cs *ClientSet) AcquireInformer(ctx context.Context, namespace string, gvr 
 		}
 		if source == nil {
 			factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(cs.DynamicClient, DefaultResyncPeriod, namespace, nil)
-			source = &informerSource{factory: factory, informer: factory.ForResource(gvr).Informer(), stopCh: make(chan struct{}), done: make(chan struct{})}
+			source = &informerSource{key: key, factory: factory, informer: factory.ForResource(gvr).Informer(), stopCh: make(chan struct{}), done: make(chan struct{})}
 			cs.informers[key] = source
+			diag.InformerSources(int(activeInformerSources.Add(1)))
+			informerLog().Debugw("informer source created", informerLogFields(key)...)
 		}
 		registration, err := source.informer.AddEventHandler(handler)
 		if err != nil {
@@ -159,11 +208,14 @@ func (cs *ClientSet) AcquireInformer(ctx context.Context, namespace string, gvr 
 			if unused {
 				source.stop()
 			}
+			informerLog().Warnw("informer handler registration failed", informerLogFields(key, diag.ClassifyError(err, false).LogFields()...)...)
 			return nil, err
 		}
 		source.leases++
+		leases := source.leases
 		source.factory.Start(source.stopCh)
 		cs.informersMu.Unlock()
+		informerLog().Debugw("informer lease acquired", informerLogFields(key, "leases", leases)...)
 		return &InformerLease{Informer: source.informer, registration: registration, client: cs, key: key, source: source}, nil
 	}
 }
@@ -182,6 +234,7 @@ func (cs *ClientSet) ShutdownInformers() {
 	type stoppedSource struct {
 		key    informerKey
 		source *informerSource
+		leases int
 	}
 	sources := make([]stoppedSource, 0, len(cs.informers))
 	for key, source := range cs.informers {
@@ -189,11 +242,14 @@ func (cs *ClientSet) ShutdownInformers() {
 			source.retiring = true
 			close(source.stopCh)
 		}
-		sources = append(sources, stoppedSource{key: key, source: source})
+		sources = append(sources, stoppedSource{key: key, source: source, leases: source.leases})
 	}
 	cs.informersMu.Unlock()
+	informerLog().Debugw("informer shutdown started", "sources", len(sources))
 	for _, stopped := range sources {
+		_, end := retireSpan(context.Background(), stopped.key, "shutdown", stopped.leases)
 		stopped.source.stop()
+		end(nil)
 	}
 	cs.informersMu.Lock()
 	for _, stopped := range sources {
@@ -211,4 +267,5 @@ func (cs *ClientSet) ResetInformerLifecycle() {
 	defer cs.informersMu.Unlock()
 	cs.informersClosed = false
 	cs.informerStop = nil
+	informerLog().Debugw("informer lifecycle reset")
 }

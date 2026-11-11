@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
+	"go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
 )
@@ -86,7 +87,7 @@ func (b *nativeSchemaBudget) retain(data json.RawMessage, revision string, lease
 			limit = maxNativeRetainedSchemaBytes
 		}
 		if len(data) > limit-b.used {
-			return nil, fmt.Errorf("native OpenAPI retained schema budget exhausted (%d bytes)", limit)
+			return nil, &nativeBudgetError{reason: "schema_retained_budget", text: fmt.Sprintf("native OpenAPI retained schema budget exhausted (%d bytes)", limit)}
 		}
 		if cap(data) != len(data) {
 			exact := make([]byte, len(data))
@@ -253,6 +254,7 @@ func fetchNativeSchemas(ctx context.Context, client rest.Interface, bindings map
 		revision := hex.EncodeToString(digest[:])
 		roots := make(map[schema.GroupVersionKind]string)
 		ambiguous := make(map[schema.GroupVersionKind]bool)
+		skippedComponents := 0
 		for name, body := range document.Components.Schemas {
 			var descriptor struct {
 				Kinds []struct {
@@ -262,6 +264,7 @@ func fetchNativeSchemas(ctx context.Context, client rest.Interface, bindings map
 				} `json:"x-kubernetes-group-version-kind"`
 			}
 			if err := json.Unmarshal(body, &descriptor); err != nil {
+				skippedComponents++
 				continue
 			}
 			root := "#/components/schemas/" + escapeJSONPointer(name)
@@ -272,6 +275,9 @@ func fetchNativeSchemas(ctx context.Context, client rest.Interface, bindings map
 				}
 				roots[key] = root
 			}
+		}
+		if skippedComponents > 0 {
+			zap.S().Named("catalog").Debugw("native schema components skipped", "reason", "invalid_component", "components", skippedComponents, "api_version", gv.String())
 		}
 		retained := false
 		for _, token := range tokens {
@@ -406,7 +412,7 @@ func correctNativeTimeSchemas(data []byte) ([]byte, error) {
 		size += len(r.body) - (r.end - r.start)
 	}
 	if size > maxNativeSchemaBytes {
-		return nil, fmt.Errorf("native OpenAPI document exceeds %d bytes", maxNativeSchemaBytes)
+		return nil, &nativeBudgetError{reason: "schema_document_size", text: fmt.Sprintf("native OpenAPI document exceeds %d bytes", maxNativeSchemaBytes)}
 	}
 	result := make([]byte, 0, size)
 	last := 0
@@ -431,7 +437,7 @@ func readNativeSchema(ctx context.Context, client rest.Interface, path string) (
 		return nil, err
 	}
 	if len(data) > limit {
-		return nil, fmt.Errorf("native OpenAPI document exceeds %d bytes", maxNativeSchemaBytes)
+		return nil, &nativeBudgetError{reason: "schema_document_size", text: fmt.Sprintf("native OpenAPI document exceeds %d bytes", maxNativeSchemaBytes)}
 	}
 	return data, ctx.Err()
 }

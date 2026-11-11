@@ -7,8 +7,11 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/omniview/kubernetes/pkg/diag"
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const nativeCatalogRefreshInterval = 30 * time.Second
@@ -30,6 +33,7 @@ func (p *kubernetesProvider) refreshNativeCatalog(ctx context.Context, connectio
 	}
 	if refresh := p.catalogRefreshes[connectionID]; refresh != nil {
 		p.mu.Unlock()
+		providerLog(p).Debugw("native catalog refresh joined in-flight acquisition")
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -40,6 +44,7 @@ func (p *kubernetesProvider) refreshNativeCatalog(ctx context.Context, connectio
 	if time.Now().Before(previous.nextRefresh) {
 		err := previous.refreshError
 		p.mu.Unlock()
+		providerLog(p).Debugw("native catalog refresh throttled", diag.ClassifyError(err, false).LogFields()...)
 		return err
 	}
 	refresh := &nativeCatalogRefresh{done: make(chan struct{})}
@@ -51,6 +56,8 @@ func (p *kubernetesProvider) refreshNativeCatalog(ctx context.Context, connectio
 
 	var snapshot *nativeCatalogSnapshot
 	var changed bool
+	refreshStarted := time.Now()
+	ctx, span := diag.Tracer().Start(ctx, "kubernetes.catalog.refresh")
 	timeout, err := resourcev2.ConnectionAcquisitionTimeout(ctx)
 	if err == nil {
 		acquisition, cancel := context.WithTimeout(ctx, timeout)
@@ -76,6 +83,17 @@ func (p *kubernetesProvider) refreshNativeCatalog(ctx context.Context, connectio
 	refresh.err = err
 	close(refresh.done)
 	p.mu.Unlock()
+	if snapshot != nil {
+		span.SetAttributes(attribute.Int("served_types", len(snapshot.bindings)))
+	}
+	span.SetAttributes(attribute.Bool("changed", changed), attribute.Int64("duration_ms", time.Since(refreshStarted).Milliseconds()))
+	class := diag.EndSpan(span, err, false)
+	diag.CatalogRefresh(class.Outcome)
+	if class.Outcome == "failure" {
+		providerLog(p).Warnw("native catalog refresh failed", append([]any{"changed", changed, "duration_ms", time.Since(refreshStarted).Milliseconds()}, class.LogFields()...)...)
+	} else {
+		providerLog(p).Debugw("native catalog refresh finished", append([]any{"changed", changed, "duration_ms", time.Since(refreshStarted).Milliseconds()}, class.LogFields()...)...)
+	}
 	if changed {
 		if err != nil {
 			snapshot.schemaLease.Release()
@@ -118,6 +136,8 @@ func (p *kubernetesProvider) acquireNativeCatalog(ctx context.Context, connectio
 	digest := sha256.Sum256(encoded)
 	revision := hex.EncodeToString(digest[:])
 	schemas, failures, lease := fetchNativeSchemas(ctx, client.DiscoveryClient.RESTClient(), nativeSchemaBindings(bindings), &p.schemaBudget)
+	trace.SpanFromContext(ctx).SetAttributes(attribute.Int("served_types", len(bindings)), attribute.Int("schema_failures", len(failures)))
+	p.logNativeSchemaFailures(failures)
 	if err := ctx.Err(); err != nil {
 		lease.Release()
 		return nil, false, err
