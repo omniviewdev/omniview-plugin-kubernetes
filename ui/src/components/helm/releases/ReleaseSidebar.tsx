@@ -182,7 +182,11 @@ function parseManifestResources(
  */
 export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => (
   <ReleaseSidebarContent
-    key={JSON.stringify([ctx.resource?.key ?? '', String(ctx.data?.version ?? 0n)])}
+    key={JSON.stringify([
+      ctx.resource?.pluginID, ctx.resource?.targetId, ctx.resource?.key, ctx.resource?.route,
+      ctx.resource?.reference, ctx.resource?.representation, ctx.resource?.record?.record.sourceRevision,
+      String(ctx.data?.version ?? 0n),
+    ])}
     ctx={ctx}
   />
 );
@@ -213,9 +217,11 @@ const ReleaseSidebarContent: React.FC<Props> = ({ ctx }) => {
     request: schemaRequest, modelURI: valuesPath, enabled: activeTab === '0' && !!resource,
   });
   const { executeAction, isExecuting } = useExecuteAction({ pluginID: PLUGIN_ID });
-  const runAction = React.useCallback((action: string, input = jsonToValue({})) => {
+  const runAction = React.useCallback((action: string, input: Record<string, unknown> = {}) => {
     if (!resource) return Promise.reject(new Error('Release reference is unavailable'));
-    return executeAction({ route: resource.route, reference: resource.reference, action, input });
+    const revision = resource.record?.record.sourceRevision;
+    const params = action === 'get-values' && revision ? { ...input, expectedSourceRevision: revision } : input;
+    return executeAction({ route: resource.route, reference: resource.reference, action, input: jsonToValue(params) });
   }, [executeAction, resource]);
   const { showResourceSidebar } = useRightDrawer();
   const executeReleaseRead = React.useEffectEvent(runAction);
@@ -255,7 +261,7 @@ const ReleaseSidebarContent: React.FC<Props> = ({ ctx }) => {
     const revision = ctx.data?.version ?? 0n;
     if (revision <= 1) return;
     try {
-      const result = await runAction('get-manifest', jsonToValue({ revision: revision - 1n }));
+      const result = await runAction('get-manifest', { revision: revision - 1n });
       const manifestData = helmActionData(result) as ManifestActionData | undefined;
       setPrevManifest(manifestData?.manifest ?? '');
     } catch {
@@ -333,7 +339,7 @@ const ReleaseSidebarContent: React.FC<Props> = ({ ctx }) => {
             color="warning"
             disabled={isExecuting}
             onClick={() =>
-              void runAction('rollback', jsonToValue({ revision: revision - 1n }))
+              void runAction('rollback', { revision: revision - 1n })
             }
             title="Rollback Release"
             aria-label="Rollback Release"
@@ -466,7 +472,7 @@ const ReleaseSidebarContent: React.FC<Props> = ({ ctx }) => {
                     color="warning"
                     disabled={isExecuting}
                     onClick={() =>
-                      void runAction('rollback', jsonToValue({ revision: rev.version }))
+                      void runAction('rollback', { revision: rev.version })
                     }
                     title={`Rollback to revision ${rev.version}`}
                     aria-label={`Rollback to revision ${rev.version}`}

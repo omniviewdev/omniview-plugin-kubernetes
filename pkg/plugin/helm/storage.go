@@ -1,13 +1,19 @@
 package helm
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
+	"database/sql"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -19,7 +25,9 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"helm.sh/helm/v3/pkg/action"
+	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/release"
+	"helm.sh/helm/v3/pkg/storage/driver"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -200,11 +208,18 @@ type namedReleaseSnapshot struct {
 
 // getNamedRelease shares one native lookup across reads and schema acquisition.
 // Kubernetes drivers use bounded named metadata before a single versioned GET.
-// Other drivers use Helm's named Last API, never a route-wide release listing.
+// SQL uses request-bound database/sql reads; other drivers use Helm's named Last.
 func getNamedRelease(ctx context.Context, c *clients.ClientSet, cfg *action.Configuration, namespace, name string, expected *string) (namedReleaseSnapshot, error) {
 	var snapshot namedReleaseSnapshot
-	get := action.NewGet(cfg)
-	if supportsBoundedReleaseEnumeration() {
+	if err := ctx.Err(); err != nil {
+		return snapshot, err
+	}
+	connector := namedReleaseSQLConnector(cfg)
+	var get *action.Get
+	if connector == nil {
+		get = action.NewGet(cfg)
+	}
+	if connector == nil && supportsBoundedReleaseEnumeration() {
 		identity, err := latestReleaseIdentity(ctx, c, namespace, name)
 		if err != nil {
 			return snapshot, err
@@ -218,7 +233,19 @@ func getNamedRelease(ctx context.Context, c *clients.ClientSet, cfg *action.Conf
 			}
 		}
 	}
-	rel, err := get.Run(name)
+	var rel *release.Release
+	var err error
+	if connector != nil {
+		if err := cfg.KubeClient.IsReachable(); err != nil {
+			return snapshot, err
+		}
+		if err := chartutil.ValidateReleaseName(name); err != nil {
+			return snapshot, err
+		}
+		rel, err = getSQLNamedRelease(ctx, connector, namespace, name)
+	} else {
+		rel, err = get.Run(name)
+	}
 	if err != nil {
 		return snapshot, err
 	}
@@ -237,6 +264,9 @@ func getNamedRelease(ctx context.Context, c *clients.ClientSet, cfg *action.Conf
 
 // verifyCurrent brackets the release body read with current named evidence.
 func (snapshot namedReleaseSnapshot) verifyCurrent(ctx context.Context, c *clients.ClientSet, cfg *action.Configuration) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	rel := snapshot.release
 	if snapshot.identity.version != 0 {
 		current, err := latestReleaseIdentity(ctx, c, rel.Namespace, rel.Name)
@@ -248,7 +278,13 @@ func (snapshot namedReleaseSnapshot) verifyCurrent(ctx context.Context, c *clien
 		}
 		return nil
 	}
-	current, err := cfg.Releases.Last(rel.Name)
+	var current *release.Release
+	var err error
+	if connector := namedReleaseSQLConnector(cfg); connector != nil {
+		current, err = getSQLNamedRelease(ctx, connector, rel.Namespace, rel.Name)
+	} else {
+		current, err = cfg.Releases.Last(rel.Name)
+	}
 	if err != nil {
 		return err
 	}
@@ -258,6 +294,91 @@ func (snapshot namedReleaseSnapshot) verifyCurrent(ctx context.Context, c *clien
 		return resource.NewError("RESET_REQUIRED", "The installed Helm release revision changed")
 	}
 	return nil
+}
+
+func namedReleaseSQLConnector(cfg *action.Configuration) *helmSQLConnector {
+	if getter, ok := cfg.RESTClientGetter.(*restClientGetter); ok {
+		return getter.sqlConnector
+	}
+	return nil
+}
+
+// getSQLNamedRelease reads Helm's existing SQL tables under the configured
+// PostgreSQL identity and RLS policies. It never migrates or enumerates storage.
+func getSQLNamedRelease(ctx context.Context, connector *helmSQLConnector, namespace, name string) (_ *release.Release, resultErr error) {
+	defer func() {
+		if resultErr != nil && ctx.Err() != nil {
+			resultErr = ctx.Err()
+		}
+	}()
+	db := sql.OpenDB(connector)
+	defer db.Close()
+	var key, body string
+	var version int
+	err := db.QueryRowContext(ctx, `SELECT key, body, version FROM releases_v1
+		WHERE namespace = $1 AND name = $2 AND owner = 'helm'
+		ORDER BY version DESC LIMIT 1`, namespace, name).Scan(&key, &body, &version)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, driver.ErrReleaseNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	rel, err := decodeHelmSQLRelease(body)
+	if err != nil {
+		return nil, err
+	}
+	if rel.Name != name || rel.Namespace != namespace || rel.Version != version {
+		return nil, resource.NewError("RESET_REQUIRED", "The installed Helm release target changed")
+	}
+	rows, err := db.QueryContext(ctx, `SELECT key, value FROM custom_labels_v1
+		WHERE releaseKey = $1 AND releaseNamespace = $2`, key, namespace)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	rel.Labels = make(map[string]string)
+	for rows.Next() {
+		var label, value string
+		if err := rows.Scan(&label, &value); err != nil {
+			return nil, err
+		}
+		if !slices.Contains(driver.GetSystemLabels(), label) {
+			rel.Labels[label] = value
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return rel, nil
+}
+
+// Helm stores base64 JSON, with gzip used by current versions. Retain support
+// for the uncompressed records accepted by Helm's SQL driver.
+func decodeHelmSQLRelease(body string) (*release.Release, error) {
+	data, err := base64.StdEncoding.DecodeString(body)
+	if err != nil {
+		return nil, err
+	}
+	if bytes.HasPrefix(data, []byte{0x1f, 0x8b, 0x08}) {
+		reader, err := gzip.NewReader(bytes.NewReader(data))
+		if err != nil {
+			return nil, err
+		}
+		defer reader.Close()
+		data, err = io.ReadAll(reader)
+		if err != nil {
+			return nil, err
+		}
+	}
+	var rel release.Release
+	if err := json.Unmarshal(data, &rel); err != nil {
+		return nil, err
+	}
+	return &rel, nil
 }
 
 // latestReleaseIdentity scans native metadata pages, never release bodies.

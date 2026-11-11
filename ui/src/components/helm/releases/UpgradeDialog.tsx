@@ -58,6 +58,8 @@ const UpgradeForm: React.FC<Props> = ({
   connectionID,
   resource,
 }) => {
+  // Record refreshes must not rebase values already authored for this open target.
+  const [sourceRevision] = React.useState(resource.record?.record.sourceRevision);
   const [valuesDraft, setValues] = React.useState<string>();
   const [reuseValues, setReuseValues] = React.useState(true);
   const [dryRunManifest, setDryRunManifest] = React.useState<string | null>(null);
@@ -73,17 +75,18 @@ const UpgradeForm: React.FC<Props> = ({
     target: { auxiliary: { key: 'values', reference: resource.reference } }, name: `${editorID}/upgrade-values`,
   });
   const { executeAction, isExecuting } = useExecuteAction({ pluginID: PLUGIN_ID });
-  const runAction = async (action: string, input = jsonToValue({})) => {
+  const runAction = async (action: string, input: Record<string, unknown> = {}) => {
     const epoch = actionEpochRef.current;
     const resolved = await ResourceClient.ResolveReference(PLUGIN_ID, {
       route: { connection: connectionID }, type: 'helm:releases', id: releaseName,
       scope: [{ dimension: 'namespace', value: namespace }],
     });
     if (epoch !== actionEpochRef.current) return;
-    return executeAction({ route: resolved.route, reference: resolved.reference, action, input });
+    const params = sourceRevision ? { ...input, expectedSourceRevision: sourceRevision } : input;
+    return executeAction({ route: resolved.route, reference: resolved.reference, action, input: jsonToValue(params) });
   };
 
-  const loadCurrentValues = React.useEffectEvent(() => runAction('get-values', jsonToValue({ all: true })));
+  const loadCurrentValues = React.useEffectEvent(() => runAction('get-values', { all: true }));
 
   React.useEffect(() => {
     const epoch = actionEpochRef.current;
@@ -104,9 +107,9 @@ const UpgradeForm: React.FC<Props> = ({
   const handleDryRun = async () => {
     const epoch = actionEpochRef.current;
     try {
-      const result = await runAction('dry-run-upgrade', jsonToValue({
+      const result = await runAction('dry-run-upgrade', {
         chart: chartRef, reuse_values: reuseValues, values: helmValues(values),
-      }));
+      });
       if (epoch !== actionEpochRef.current || result === undefined) return;
       const dryRunData = helmActionData(result) as DryRunUpgradeData | undefined;
       setDryRunManifest(dryRunData?.manifest ?? 'No manifest generated');
@@ -120,9 +123,9 @@ const UpgradeForm: React.FC<Props> = ({
   const handleUpgrade = async () => {
     const epoch = actionEpochRef.current;
     try {
-      await runAction('upgrade', jsonToValue({
+      await runAction('upgrade', {
         chart: chartRef, reuse_values: reuseValues, values: helmValues(values),
-      }));
+      });
       if (epoch === actionEpochRef.current) handleClose();
     } catch (error: unknown) {
       if (epoch !== actionEpochRef.current) return;
@@ -158,6 +161,7 @@ const UpgradeForm: React.FC<Props> = ({
             </Text>
             <Text size="xs" role="status">The selected upgrade chart schema is unavailable. The installed release schema is not used.</Text>
             {valuesError && <Text size="xs" tone="danger" role="alert">{valuesError}</Text>}
+            {!sourceRevision && <Text size="xs" tone="danger" role="alert">The installed release revision is unavailable. Refresh the release and reopen this dialog before upgrading.</Text>}
             <div style={valuesEditorStyle}>
               <CodeEditor
                 filename="values.yaml"
@@ -199,7 +203,7 @@ const UpgradeForm: React.FC<Props> = ({
           size="sm"
           variant="outline"
           color="neutral"
-          disabled={isExecuting}
+          disabled={isExecuting || !sourceRevision}
           onClick={() => void handleDryRun()}
         >
           Dry Run
@@ -208,7 +212,7 @@ const UpgradeForm: React.FC<Props> = ({
           size="sm"
           variant="solid"
           color="brand"
-          disabled={isExecuting}
+          disabled={isExecuting || !sourceRevision}
           onClick={() => void handleUpgrade()}
         >
           Upgrade

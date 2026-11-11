@@ -22,7 +22,7 @@ func (h *HelmAncillary) Get(ctx context.Context, client *clients.ClientSet, requ
 	}
 	switch request.Reference.Address.Type {
 	case ReleaseType:
-		cfg, err := h.release.getConfig(ctx, client, namespaceOf(request.Reference))
+		cfg, err := h.release.getReadConfig(ctx, client, namespaceOf(request.Reference))
 		if err != nil {
 			return resource.Record{}, err
 		}

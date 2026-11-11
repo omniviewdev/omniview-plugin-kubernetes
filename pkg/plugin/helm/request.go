@@ -36,6 +36,22 @@ func actionParams(request resource.ActionRequest) (map[string]interface{}, error
 	return nativeObject(request.Input)
 }
 
+func releaseActionSourceRevision(request resource.ActionRequest) (*string, error) {
+	params, err := actionParams(request)
+	if err != nil {
+		return nil, err
+	}
+	value, present := params["expectedSourceRevision"]
+	if !present && request.Action == "get-values" {
+		return nil, nil
+	}
+	revision, ok := value.(string)
+	if !ok || revision == "" {
+		return nil, resource.NewError("INVALID_REQUEST", "An observed installed Helm release source revision is required")
+	}
+	return &revision, nil
+}
+
 func actionNamespace(request resource.ActionRequest) (string, error) {
 	if request.TypeTarget == nil {
 		return namespaceOf(request.Reference), nil

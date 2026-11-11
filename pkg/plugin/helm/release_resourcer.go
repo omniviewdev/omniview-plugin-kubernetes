@@ -46,6 +46,18 @@ func (r *ReleaseResourcer) getConfig(
 	return newActionConfig(ctx, client.RESTConfig, client.HTTPClient, namespace)
 }
 
+func (r *ReleaseResourcer) getReadConfig(
+	ctx context.Context,
+	client *clients.ClientSet,
+	namespace string,
+) (*action.Configuration, error) {
+	session, _ := resource.SessionFromContext(ctx)
+	if session.Connection == nil || client == nil || client.RESTConfig == nil {
+		return nil, fmt.Errorf("no connection in context")
+	}
+	return newNamedReleaseConfig(ctx, client.RESTConfig, client.HTTPClient, namespace)
+}
+
 // releaseToMap converts a Helm release to a map for the SDK.
 func releaseToMap(rel *release.Release) map[string]interface{} {
 	data, err := json.Marshal(rel)
@@ -72,12 +84,13 @@ func (r *ReleaseResourcer) GetActions(
 ) ([]resource.ActionDescriptor, error) {
 	chartVersionParams := &resource.Schema{
 		Properties: map[string]resource.SchemaProperty{
-			"chart":        {Type: resource.SchemaString, Description: "Chart reference (e.g. repo/chart)"},
-			"values":       {Type: resource.SchemaObject, Description: "Override values"},
-			"version":      {Type: resource.SchemaString, Description: "Chart version constraint"},
-			"reuse_values": {Type: resource.SchemaBoolean, Description: "Reuse existing values from the release"},
+			"chart":                  {Type: resource.SchemaString, Description: "Chart reference (e.g. repo/chart)"},
+			"values":                 {Type: resource.SchemaObject, Description: "Override values"},
+			"version":                {Type: resource.SchemaString, Description: "Chart version constraint"},
+			"reuse_values":           {Type: resource.SchemaBoolean, Description: "Reuse existing values from the release"},
+			"expectedSourceRevision": {Type: resource.SchemaString, Description: "Opaque source revision observed when the upgrade draft was opened"},
 		},
-		Required: []string{"chart"},
+		Required: []string{"chart", "expectedSourceRevision"},
 	}
 
 	installParams := &resource.Schema{
@@ -131,7 +144,8 @@ func (r *ReleaseResourcer) GetActions(
 			Scope:       resource.ActionScopeInstance,
 			ParamsSchema: &resource.Schema{
 				Properties: map[string]resource.SchemaProperty{
-					"all": {Type: resource.SchemaBoolean, Description: "Return all computed values (including defaults)"},
+					"all":                    {Type: resource.SchemaBoolean, Description: "Return all computed values (including defaults)"},
+					"expectedSourceRevision": {Type: resource.SchemaString, Description: "Require values from this observed installed release source revision"},
 				},
 			},
 		},
@@ -233,21 +247,45 @@ func (r *ReleaseResourcer) Action(
 	if err != nil {
 		return resource.Value{}, err
 	}
+	fenced := input.Action == "get-values" || input.Action == "upgrade" || input.Action == "dry-run-upgrade"
+	var expectedRevision *string
+	if fenced {
+		expectedRevision, err = releaseActionSourceRevision(input)
+		if err != nil {
+			return resource.Value{}, err
+		}
+	}
 	trace.SpanFromContext(ctx).AddEvent("configure")
-	cfg, err := r.getConfig(ctx, client, namespace)
+	var cfg *action.Configuration
+	if fenced {
+		cfg, err = r.getReadConfig(ctx, client, namespace)
+	} else {
+		cfg, err = r.getConfig(ctx, client, namespace)
+	}
 	if err != nil {
 		return resource.Value{}, err
+	}
+	var snapshot namedReleaseSnapshot
+	if fenced {
+		snapshot, err = getNamedRelease(ctx, client, cfg, namespace, input.Reference.Address.ID, expectedRevision)
+		if err != nil {
+			return resource.Value{}, err
+		}
 	}
 	trace.SpanFromContext(ctx).AddEvent("run")
 
 	var run func(context.Context) (resource.Value, error)
 	switch input.Action {
 	case "upgrade":
-		run = func(ctx context.Context) (resource.Value, error) { return r.executeUpgrade(ctx, cfg, input) }
+		run = func(ctx context.Context) (resource.Value, error) {
+			return r.executeUpgrade(ctx, client, cfg, input, snapshot)
+		}
 	case "rollback":
 		run = func(context.Context) (resource.Value, error) { return r.executeRollback(cfg, input) }
 	case "get-values":
-		run = func(context.Context) (resource.Value, error) { return r.executeGetValues(cfg, input) }
+		run = func(ctx context.Context) (resource.Value, error) {
+			return r.executeGetValues(ctx, client, cfg, input, snapshot)
+		}
 	case "get-manifest":
 		run = func(context.Context) (resource.Value, error) { return r.executeGetManifest(cfg, input) }
 	case "get-notes":
@@ -261,7 +299,9 @@ func (r *ReleaseResourcer) Action(
 	case "dry-run-install":
 		run = func(ctx context.Context) (resource.Value, error) { return r.executeDryRunInstall(ctx, cfg, input) }
 	case "dry-run-upgrade":
-		run = func(ctx context.Context) (resource.Value, error) { return r.executeDryRunUpgrade(ctx, cfg, input) }
+		run = func(ctx context.Context) (resource.Value, error) {
+			return r.executeDryRunUpgrade(ctx, client, cfg, input, snapshot)
+		}
 	case "diff-revisions":
 		run = func(context.Context) (resource.Value, error) { return r.executeDiffRevisions(cfg, input) }
 	case "test":
@@ -307,7 +347,7 @@ func (r *ReleaseResourcer) ResolveSchema(ctx context.Context, client *clients.Cl
 	if chartutil.ValidateReleaseName(name) != nil || len(validation.IsDNS1123Label(namespace)) != 0 {
 		return resource.SchemaBinding{}, resource.NewError("INVALID_REQUEST", "Invalid native Helm release identity")
 	}
-	cfg, err := r.getConfig(ctx, client, namespace)
+	cfg, err := r.getReadConfig(ctx, client, namespace)
 	if err != nil {
 		return resource.SchemaBinding{}, err
 	}
@@ -346,8 +386,10 @@ func resolveNamedReleaseSchema(ctx context.Context, client *clients.ClientSet, c
 
 func (r *ReleaseResourcer) executeUpgrade(
 	ctx context.Context,
+	client *clients.ClientSet,
 	cfg *action.Configuration,
 	input resource.ActionRequest,
+	snapshot namedReleaseSnapshot,
 ) (resource.Value, error) {
 	params, err := actionParams(input)
 	if err != nil {
@@ -370,11 +412,26 @@ func (r *ReleaseResourcer) executeUpgrade(
 		return resource.Value{}, err
 	}
 
-	upgrade := action.NewUpgrade(cfg)
+	nativeConfig := cfg
+	if nativeConfig.Releases == nil {
+		nativeConfig, err = r.getConfig(ctx, client, namespaceOf(input.Reference))
+		if err != nil {
+			return resource.Value{}, err
+		}
+	}
+	// Helm exposes no revision-conditioned upgrade. Recheck after chart and
+	// native configuration acquisition, immediately before entering Helm.
+	if err := snapshot.verifyCurrent(ctx, client, cfg); err != nil {
+		return resource.Value{}, err
+	}
+	if err := ctx.Err(); err != nil {
+		return resource.Value{}, err
+	}
+	upgrade := action.NewUpgrade(nativeConfig)
 	upgrade.Namespace = namespaceOf(input.Reference)
 	upgrade.ReuseValues = reuseValues
 
-	rel, err := upgrade.Run(input.Reference.Address.ID, chart, values)
+	rel, err := upgrade.RunWithContext(ctx, input.Reference.Address.ID, chart, values)
 	if err != nil {
 		return resource.Value{}, fmt.Errorf("failed to upgrade release: %w", err)
 	}
@@ -411,20 +468,30 @@ func (r *ReleaseResourcer) executeRollback(
 }
 
 func (r *ReleaseResourcer) executeGetValues(
+	ctx context.Context,
+	client *clients.ClientSet,
 	cfg *action.Configuration,
 	input resource.ActionRequest,
+	snapshot namedReleaseSnapshot,
 ) (resource.Value, error) {
 	params, err := actionParams(input)
 	if err != nil {
 		return resource.Value{}, err
 	}
-	getValues := action.NewGetValues(cfg)
-	allValues, _ := params["all"].(bool)
-	getValues.AllValues = allValues
-
-	values, err := getValues.Run(input.Reference.Address.ID)
-	if err != nil {
-		return resource.Value{}, fmt.Errorf("failed to get values: %w", err)
+	values := snapshot.release.Config
+	if allValues, _ := params["all"].(bool); allValues {
+		values, err = chartutil.CoalesceValues(snapshot.release.Chart, values)
+		if err != nil {
+			return resource.Value{}, fmt.Errorf("failed to get values: %w", err)
+		}
+	}
+	if snapshot.sourceRevision() != nil {
+		if err := snapshot.verifyCurrent(ctx, client, cfg); err != nil {
+			return resource.Value{}, err
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return resource.Value{}, err
 	}
 
 	return resource.ValueFromNative(map[string]interface{}{
@@ -674,8 +741,10 @@ func (r *ReleaseResourcer) executeDryRunInstall(
 
 func (r *ReleaseResourcer) executeDryRunUpgrade(
 	ctx context.Context,
+	client *clients.ClientSet,
 	cfg *action.Configuration,
 	input resource.ActionRequest,
+	snapshot namedReleaseSnapshot,
 ) (resource.Value, error) {
 	params, err := actionParams(input)
 	if err != nil {
@@ -698,12 +767,25 @@ func (r *ReleaseResourcer) executeDryRunUpgrade(
 		return resource.Value{}, err
 	}
 
-	upgrade := action.NewUpgrade(cfg)
+	nativeConfig := cfg
+	if nativeConfig.Releases == nil {
+		nativeConfig, err = r.getConfig(ctx, client, namespaceOf(input.Reference))
+		if err != nil {
+			return resource.Value{}, err
+		}
+	}
+	if err := snapshot.verifyCurrent(ctx, client, cfg); err != nil {
+		return resource.Value{}, err
+	}
+	if err := ctx.Err(); err != nil {
+		return resource.Value{}, err
+	}
+	upgrade := action.NewUpgrade(nativeConfig)
 	upgrade.Namespace = namespaceOf(input.Reference)
 	upgrade.DryRun = true
 	upgrade.ReuseValues = reuseValues
 
-	rel, err := upgrade.Run(input.Reference.Address.ID, chart, values)
+	rel, err := upgrade.RunWithContext(ctx, input.Reference.Address.ID, chart, values)
 	if err != nil {
 		return resource.Value{}, fmt.Errorf("dry-run upgrade failed: %w", err)
 	}
