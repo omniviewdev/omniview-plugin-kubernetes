@@ -11,6 +11,7 @@ import ResourceMetricPanels from '../../shared/ResourceMetricPanels';
 import MetadataSection from '../../shared/sidebar/pages/overview/sections/MetadataSection';
 
 import NodeImagesSection from './Node/NodeImagesSection';
+import NodePodsSection from './Node/NodePodsSection';
 import NodeResourcesSection from './Node/NodeResourcesSection';
 import NodeStatusSection from './Node/NodeStatusSection';
 import NodeSystemSection from './Node/NodeSystemSection';
@@ -123,6 +124,8 @@ export const NodeSidebar: React.FC<Props> = ({ ctx }) => {
 
       {/* Topology + Karpenter */}
       <NodeTopologySection node={node} />
+
+      <NodePodsSection connectionID={connectionID} nodeName={node.metadata?.name} />
 
       {/* Images */}
       <NodeImagesSection node={node} />

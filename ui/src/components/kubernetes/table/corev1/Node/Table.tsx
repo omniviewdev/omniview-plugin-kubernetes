@@ -3,7 +3,6 @@ import type { MetricThreshold } from '@omniviewdev/base-ui/metrics';
 import { DrawerComponent } from '@omniviewdev/runtime';
 import { ColumnDef } from '@tanstack/react-table';
 import { Node } from 'kubernetes-types/core/v1';
-import { Condition } from 'kubernetes-types/meta/v1';
 import React from 'react';
 import { LuBox } from 'react-icons/lu';
 import { useParams } from 'react-router'
@@ -13,12 +12,12 @@ import { createStandardViews } from '../../../../shared/sidebar/createDrawerView
 import ResourceTable from '../../../../shared/table/ResourceTable';
 import ColumnPicker from '../../../../tables/ColumnFilter/ColumnPicker';
 import NodeSidebar, { NodeMetricsView } from '../../../sidebar/NodeSidebar';
-import ConditionsCell from '../../shared/cells/ConditionsCell';
 import { CopyableCell } from '../../shared/cells/CopyableCell';
 import { withClusterResourceColumns } from '../../shared/columns';
 import { TableMetricsProvider, TableMetricsScope, useTableMetrics } from '../../shared/TableMetrics';
 
 import { drawerActions } from './actions';
+import NodeConditionsCell from './NodeConditionsCell';
 
 import { parseResourceQuantity } from '@/utils/convert';
 
@@ -133,9 +132,7 @@ const NodeTable: React.FC = () => {
             id: 'conditions',
             header: 'Conditions',
             accessorFn: (row) => row?.status?.conditions,
-            cell: ({ getValue }) => (
-              <ConditionsCell conditions={getValue() as Condition[] | undefined} />
-            ),
+            cell: ({ row }) => <NodeConditionsCell node={row.original} />,
             size: 250,
           },
         ],

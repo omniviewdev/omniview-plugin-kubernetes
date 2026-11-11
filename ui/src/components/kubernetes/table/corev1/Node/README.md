@@ -19,6 +19,9 @@ Pods
 Dynamic Labels
 Dynamic Annotations
 
+The Conditions column shows node readiness, active conditions, and Cordoned when
+the node is unschedulable.
+
 # Sidebar
 Capacity
 Allocatable
