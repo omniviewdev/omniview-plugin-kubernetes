@@ -286,6 +286,8 @@ github.com/omniviewdev/grpc-go v1.85.1-0.20261107225428-6ba964c95af2 h1:76h5GwBR
 github.com/omniviewdev/grpc-go v1.85.1-0.20261107225428-6ba964c95af2/go.mod h1:0rQrOD58yjal/0EaVbGBANindixsCZNQPDV3VKtaKuQ=
 github.com/omniviewdev/plugin-sdk v0.19.2 h1:ICMYJwjGttuM+UJ3w+s+bN2PeoBYEpHxM6Za37m0Z9s=
 github.com/omniviewdev/plugin-sdk v0.19.2/go.mod h1:7ZjIDHv7L0YEHsy3Ld2CHKGr/HHTNY4wUrzVyfYRR8E=
+github.com/omniviewdev/plugin-sdk v0.19.3 h1:6Y3ut87FraEeB+bvTL4/AT4VCxsFLKtZJSeAOnHeCfc=
+github.com/omniviewdev/plugin-sdk v0.19.3/go.mod h1:4y3rIPpRzF3N1SvC73cjJX1jcp+cnJ4dikaXuKlZs7E=
 github.com/onsi/ginkgo/v2 v2.33.1 h1:62XfWJbEIjPSCSDYrsCPP/SHcmH7O0M8ne8zfqQ2iz4=
 github.com/onsi/ginkgo/v2 v2.33.1/go.mod h1:+aXOY+vzZ5mu2iI2HpTZUPmM//oQfsNFX6gU9kNcA44=
 github.com/onsi/gomega v1.44.0 h1:eAiGl3Pw5jz5GQdDff0BcxYpAX1JxW8xD7mFUuwNfZQ=
