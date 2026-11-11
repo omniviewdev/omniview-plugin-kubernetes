@@ -19,6 +19,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"helm.sh/helm/v3/pkg/action"
+	"helm.sh/helm/v3/pkg/release"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -161,21 +162,15 @@ func (h *HelmAncillary) enumerateReleases(ctx context.Context, c *clients.Client
 		if err != nil {
 			return resource.SourcePage{}, err
 		}
-		version, err := latestReleaseVersion(ctx, c, namespace, name)
+		snapshot, err := getNamedRelease(ctx, c, cfg, namespace, name, nil)
 		if err != nil {
 			return resource.SourcePage{}, err
 		}
-		get := action.NewGet(cfg)
-		get.Version = version
-		rel, err := get.Run(name)
-		if err != nil {
-			return resource.SourcePage{}, err
-		}
-		if strconv.Itoa(rel.Version) != item.Labels["version"] {
+		if strconv.Itoa(snapshot.release.Version) != item.Labels["version"] || (item.UID != "" && string(item.UID) != snapshot.identity.uid) {
 			continue
 		}
 		identityScope := []resource.ScopeEntry{{Dimension: "namespace", Value: namespace}}
-		record, err := helmRecord(targetReference(r.Target, name, identityScope), releaseToMap(rel))
+		record, err := helmReleaseRecord(targetReference(r.Target, name, identityScope), snapshot)
 		if err != nil {
 			return resource.SourcePage{}, err
 		}
@@ -192,24 +187,98 @@ func (h *HelmAncillary) enumerateReleases(ctx context.Context, c *clients.Client
 	return page, nil
 }
 
-// latestReleaseVersion scans native metadata pages, never a materialized history.
-func latestReleaseVersion(ctx context.Context, c *clients.ClientSet, namespace, name string) (int, error) {
+type releaseStorageIdentity struct {
+	version int
+	uid     string
+}
+
+type namedReleaseSnapshot struct {
+	release  *release.Release
+	identity releaseStorageIdentity
+	revision *string
+}
+
+// getNamedRelease shares one native lookup across reads and schema acquisition.
+// Kubernetes drivers use bounded named metadata before a single versioned GET.
+// Other drivers use Helm's named Last API, never a route-wide release listing.
+func getNamedRelease(ctx context.Context, c *clients.ClientSet, cfg *action.Configuration, namespace, name string, expected *string) (namedReleaseSnapshot, error) {
+	var snapshot namedReleaseSnapshot
+	get := action.NewGet(cfg)
+	if supportsBoundedReleaseEnumeration() {
+		identity, err := latestReleaseIdentity(ctx, c, namespace, name)
+		if err != nil {
+			return snapshot, err
+		}
+		snapshot.identity = identity
+		get.Version = identity.version
+		if expected != nil && identity.uid != "" {
+			snapshot.revision = helmReleaseSourceRevision(identity.version, identity.uid, time.Time{})
+			if snapshot.revision == nil || *snapshot.revision != *expected {
+				return snapshot, resource.NewError("RESET_REQUIRED", "The installed Helm release revision changed")
+			}
+		}
+	}
+	rel, err := get.Run(name)
+	if err != nil {
+		return snapshot, err
+	}
+	if rel.Name != name || rel.Namespace != namespace || (snapshot.identity.version != 0 && rel.Version != snapshot.identity.version) {
+		return snapshot, resource.NewError("RESET_REQUIRED", "The installed Helm release target changed")
+	}
+	snapshot.release = rel
+	if expected != nil {
+		revision := snapshot.sourceRevision()
+		if revision == nil || *revision != *expected {
+			return snapshot, resource.NewError("RESET_REQUIRED", "The installed Helm release revision changed")
+		}
+	}
+	return snapshot, nil
+}
+
+// verifyCurrent brackets the release body read with current named evidence.
+func (snapshot namedReleaseSnapshot) verifyCurrent(ctx context.Context, c *clients.ClientSet, cfg *action.Configuration) error {
+	rel := snapshot.release
+	if snapshot.identity.version != 0 {
+		current, err := latestReleaseIdentity(ctx, c, rel.Namespace, rel.Name)
+		if err != nil {
+			return err
+		}
+		if current != snapshot.identity {
+			return resource.NewError("RESET_REQUIRED", "The installed Helm release revision changed")
+		}
+		return nil
+	}
+	current, err := cfg.Releases.Last(rel.Name)
+	if err != nil {
+		return err
+	}
+	latest := namedReleaseSnapshot{release: current}
+	expected, revision := snapshot.sourceRevision(), latest.sourceRevision()
+	if current.Name != rel.Name || current.Namespace != rel.Namespace || expected == nil || revision == nil || *expected != *revision {
+		return resource.NewError("RESET_REQUIRED", "The installed Helm release revision changed")
+	}
+	return nil
+}
+
+// latestReleaseIdentity scans native metadata pages, never release bodies.
+func latestReleaseIdentity(ctx context.Context, c *clients.ClientSet, namespace, name string) (releaseStorageIdentity, error) {
 	var cursor *string
-	latest, pages, items := 0, 0, 0
+	var latest releaseStorageIdentity
+	pages, items := 0, 0
 	for {
 		page, err := namedReleaseMetadata(ctx, c, namespace, 256, cursor, name)
 		if err != nil {
-			return 0, err
+			return releaseStorageIdentity{}, err
 		}
 		pages++
 		items += len(page.Items)
 		for _, entry := range page.Items {
 			version, err := strconv.Atoi(entry.Labels["version"])
 			if err != nil || version < 1 {
-				return 0, fmt.Errorf("invalid native Helm revision")
+				return releaseStorageIdentity{}, fmt.Errorf("invalid native Helm revision")
 			}
-			if version > latest {
-				latest = version
+			if version > latest.version {
+				latest = releaseStorageIdentity{version: version, uid: string(entry.UID)}
 			}
 		}
 		if page.Continue == "" {
@@ -218,10 +287,10 @@ func latestReleaseVersion(ctx context.Context, c *clients.ClientSet, namespace, 
 		cursor = &page.Continue
 	}
 	trace.SpanFromContext(ctx).AddEvent("helm.release.latest_version", trace.WithAttributes(
-		attribute.Int("pages", pages), attribute.Int("items", items), attribute.Int("latest", latest),
+		attribute.Int("pages", pages), attribute.Int("items", items), attribute.Int("latest", latest.version),
 	))
-	if latest == 0 {
-		return 0, fmt.Errorf("Helm release not found")
+	if latest.version == 0 {
+		return releaseStorageIdentity{}, fmt.Errorf("Helm release not found")
 	}
 	return latest, nil
 }

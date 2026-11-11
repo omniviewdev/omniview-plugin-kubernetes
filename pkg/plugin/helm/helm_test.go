@@ -6,6 +6,7 @@ import (
 	"go.uber.org/zap"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,6 +14,7 @@ import (
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/repo"
+	helmtime "helm.sh/helm/v3/pkg/time"
 )
 
 // ---------------------------------------------------------------------------
@@ -521,6 +523,47 @@ func TestCanonicalReleaseIntegerIntent(t *testing.T) {
 	assert.Equal(t, "3", record.Body.Map["version"].Int)
 	assert.Equal(t, "uint64", record.Body.Map["config"].Map["large"].Kind)
 	assert.Equal(t, "18446744073709551615", record.Body.Map["config"].Map["large"].Uint)
+}
+
+func TestHelmReleaseSourceRevisionTracksGeneration(t *testing.T) {
+	ref := resource.ResourceReference{Address: resource.ResourceAddress{Type: ReleaseType, ID: "installed", Scope: []resource.ScopeEntry{{Dimension: "namespace", Value: "selected"}}}}
+	installed := &release.Release{
+		Name: "installed", Namespace: "selected", Version: 1,
+		Info: &release.Info{FirstDeployed: helmtime.Date(2026, time.November, 1, 10, 0, 0, 123, time.UTC)},
+	}
+	first, err := helmReleaseRecord(ref, namedReleaseSnapshot{release: installed})
+	require.NoError(t, err)
+	require.NotNil(t, first.SourceRevision)
+	repeated, err := helmReleaseRecord(ref, namedReleaseSnapshot{release: installed})
+	require.NoError(t, err)
+	require.Equal(t, first.SourceRevision, repeated.SourceRevision)
+
+	installed.Info.FirstDeployed = installed.Info.FirstDeployed.Add(time.Nanosecond)
+	precise, err := helmReleaseRecord(ref, namedReleaseSnapshot{release: installed})
+	require.NoError(t, err)
+	require.NotNil(t, precise.SourceRevision)
+	assert.NotEqual(t, *first.SourceRevision, *precise.SourceRevision, "retain native Helm serialized nanosecond precision")
+	installed.Info.FirstDeployed = installed.Info.FirstDeployed.In(time.FixedZone("fixture-offset", 3600))
+	sameInstant, err := helmReleaseRecord(ref, namedReleaseSnapshot{release: installed})
+	require.NoError(t, err)
+	assert.Equal(t, precise.SourceRevision, sameInstant.SourceRevision, "time zone spelling must not create another generation")
+
+	installed.Info.FirstDeployed = installed.Info.FirstDeployed.Add(time.Hour)
+	reinstalled, err := helmReleaseRecord(ref, namedReleaseSnapshot{release: installed})
+	require.NoError(t, err)
+	require.NotNil(t, reinstalled.SourceRevision)
+	assert.NotEqual(t, *first.SourceRevision, *reinstalled.SourceRevision, "purge/reinstall must not reuse version 1 evidence")
+
+	installed.Version = 2
+	upgraded, err := helmReleaseRecord(ref, namedReleaseSnapshot{release: installed})
+	require.NoError(t, err)
+	require.NotNil(t, upgraded.SourceRevision)
+	assert.NotEqual(t, *reinstalled.SourceRevision, *upgraded.SourceRevision)
+
+	installed.Info = nil
+	unverifiable, err := helmReleaseRecord(ref, namedReleaseSnapshot{release: installed})
+	require.NoError(t, err)
+	assert.Nil(t, unverifiable.SourceRevision, "missing native deployment generation cannot produce trusted revision evidence")
 }
 
 func TestCanonicalHelmFinitePagePolicy(t *testing.T) {

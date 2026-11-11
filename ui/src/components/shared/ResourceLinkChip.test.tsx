@@ -78,22 +78,7 @@ describe('ResourceLinkChip', () => {
     mocks.drawer.mockResolvedValue(undefined);
     mocks.target.mockResolvedValue({ target: { route: { connection: 'conn-1' }, provider: 'kubernetes', authority: 'host-authority', scope: [] } });
     setManifestMode('form');
-    mocks.action.mockResolvedValue({ kind: 'map', value: {
-      kind: { kind: 'string', value: 'APIGroupDiscoveryList' },
-      apiVersion: { kind: 'string', value: 'apidiscovery.k8s.io/v2' },
-      items: { kind: 'list', value: [{ kind: 'map', value: {
-        metadata: { kind: 'map', value: { name: { kind: 'string', value: 'apps' } } },
-        versions: { kind: 'list', value: [{ kind: 'map', value: {
-          version: { kind: 'string', value: 'v1' }, freshness: { kind: 'string', value: 'Current' },
-          resources: { kind: 'list', value: [{ kind: 'map', value: {
-            resource: { kind: 'string', value: 'deployments' }, scope: { kind: 'string', value: 'Namespaced' },
-            responseKind: { kind: 'map', value: {
-              group: { kind: 'string', value: 'apps' }, version: { kind: 'string', value: 'v1' }, kind: { kind: 'string', value: 'Deployment' },
-            } },
-          } }] },
-        } }] },
-      } }] },
-    } });
+    mocks.action.mockRejectedValue(new Error('Aggregated discovery negotiation unavailable'));
   });
   it.each(['uid-1', undefined])(
     'resolves native name with optional incarnation %s',
@@ -179,6 +164,56 @@ describe('ResourceLinkChip', () => {
     );
   });
   it.each([
+    { discovery: 'v2beta1-only', apiVersion: 'apps/v1', kind: 'Deployment', type: 'k8s:apps/deployments', namespace: 'team' },
+    { discovery: 'unaggregated-only', apiVersion: 'v1', kind: 'Node', type: 'k8s:/nodes', namespace: undefined },
+    { discovery: 'retired owner version', apiVersion: 'apps/v1beta1', kind: 'Deployment', type: 'k8s:apps/deployments', namespace: 'team' },
+  ])('opens the exact catalog owner on $discovery discovery without extra discovery or OpenAPI', async ({ apiVersion, kind, type, namespace }) => {
+    const group = apiVersion.includes('/') ? apiVersion.slice(0, apiVersion.lastIndexOf('/')) : '';
+    const dimensions = namespace ? [{ name: 'namespace' }] : [];
+    const descriptor = { type, displayName: kind, identityDimensions: dimensions,
+      representations: [{ id: `kubernetes.object.v1/${group ? `${group}/` : ''}v1`, revision: 'format-1' }] };
+    mocks.catalog.mockResolvedValue({ types: [
+      { ...descriptor, type: 'k8s:other.example/owners' },
+      { ...descriptor, type: `k8s:${group}/other-kind`, displayName: 'OtherKind' },
+      { ...descriptor, type: `${type}/status` },
+      descriptor,
+    ] });
+    const scope = namespace ? [{ dimension: 'namespace', value: namespace }] : [];
+    const ownerReference = { address: { provider: 'kubernetes', authority: 'owner-authority', type, id: 'owner', scope },
+      incarnation: 'owner-uid' };
+    mocks.resolve.mockResolvedValue({ ...resolved, reference: ownerReference });
+    render(<ResourceLinkChip connectionID="conn-1" namespace={namespace}
+      ownerReference={{ apiVersion, kind, name: 'owner', uid: 'owner-uid' }} resourceName={`${kind}/owner`} />);
+    fireEvent.click(screen.getByRole('button', { name: `${kind}/owner` }));
+    await waitFor(() => expect(mocks.drawer).toHaveBeenCalledWith(expect.objectContaining({
+      reference: ownerReference, route: resolved.route, targetId: resolved.targetId,
+    })));
+    expect(mocks.resolve).toHaveBeenCalledWith('kubernetes', {
+      route: resolved.route, type, scope, id: 'owner', incarnation: 'owner-uid',
+    });
+    expect(mocks.action).not.toHaveBeenCalled();
+    expect(mocks.schema).not.toHaveBeenCalled();
+    expect(mocks.snackbar).not.toHaveBeenCalled();
+  });
+  it.each(['absent', 'ambiguous'] as const)('rejects an %s catalog owner instead of guessing a resource type', async (availability) => {
+    const descriptor = { type: 'k8s:apps/deployments', displayName: 'Deployment',
+      identityDimensions: [{ name: 'namespace' }] };
+    mocks.catalog.mockResolvedValue({ types: availability === 'absent'
+      ? [{ ...descriptor, type: 'k8s:other.example/deployments' }]
+      : [descriptor, { ...descriptor, type: 'k8s:apps/other-deployments' }] });
+    render(<ResourceLinkChip connectionID="conn-1" namespace="team"
+      ownerReference={{ apiVersion: 'apps/v1', kind: 'Deployment', name: 'owner', uid: 'owner-uid' }}
+      resourceName="Deployment/owner" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Deployment/owner' }));
+    await waitFor(() => expect(mocks.snackbar).toHaveBeenCalledWith(expect.objectContaining({
+      severity: 'error',
+    })));
+    expect(mocks.resolve).not.toHaveBeenCalled();
+    expect(mocks.drawer).not.toHaveBeenCalled();
+    expect(mocks.action).not.toHaveBeenCalled();
+    expect(mocks.schema).not.toHaveBeenCalled();
+  });
+  it.each([
     { namespace: 'application', writable: true },
     { namespace: 'kube-system', writable: false },
   ])('opens the discovered $namespace owner through the actual editor and respects its authoring policy', async ({ namespace, writable }) => {
@@ -186,7 +221,7 @@ describe('ResourceLinkChip', () => {
       id: 'owner', scope: [{ dimension: 'namespace', value: namespace }] }, incarnation: 'owner-uid' };
     mocks.resolve.mockResolvedValue({ ...resolved, reference: ownerReference, representation: 'kubernetes.object.v1/apps/v1' });
     mocks.catalog.mockResolvedValue({ types: [
-      { type: 'k8s:apps/deployments', identityDimensions: [{ name: 'namespace' }],
+      { type: 'k8s:apps/deployments', displayName: 'Deployment', identityDimensions: [{ name: 'namespace' }],
         representations: [{ id: 'kubernetes.object.v1/apps/v1', revision: 'format-1' }] },
     ] });
     const body = { apiVersion: 'apps/v1', kind: 'Deployment', metadata: { name: 'owner', namespace, uid: 'owner-uid' },

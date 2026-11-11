@@ -307,36 +307,39 @@ func (r *ReleaseResourcer) ResolveSchema(ctx context.Context, client *clients.Cl
 	if chartutil.ValidateReleaseName(name) != nil || len(validation.IsDNS1123Label(namespace)) != 0 {
 		return resource.SchemaBinding{}, resource.NewError("INVALID_REQUEST", "Invalid native Helm release identity")
 	}
-	version, err := latestReleaseVersion(ctx, client, namespace, name)
-	if err != nil {
-		return resource.SchemaBinding{}, err
-	}
-	if target.SourceRevision != nil && *target.SourceRevision != fmt.Sprint(version) {
-		return resource.SchemaBinding{}, resource.NewError("RESET_REQUIRED", "The installed Helm release revision changed")
-	}
 	cfg, err := r.getConfig(ctx, client, namespace)
 	if err != nil {
 		return resource.SchemaBinding{}, err
 	}
-	get := action.NewGet(cfg)
-	get.Version = version
-	rel, err := get.Run(name)
+	return resolveNamedReleaseSchema(ctx, client, cfg, target)
+}
+
+func resolveNamedReleaseSchema(ctx context.Context, client *clients.ClientSet, cfg *action.Configuration, target resource.AuxiliarySchemaTarget) (resource.SchemaBinding, error) {
+	snapshot, err := getNamedRelease(ctx, client, cfg, namespaceOf(target.Reference), target.Reference.Address.ID, target.SourceRevision)
 	if err != nil {
 		return resource.SchemaBinding{}, err
-	}
-	if rel.Name != name || rel.Namespace != namespace || rel.Version != version {
-		return resource.SchemaBinding{}, resource.NewError("RESET_REQUIRED", "The installed Helm release target changed")
 	}
 	if err := ctx.Err(); err != nil {
 		return resource.SchemaBinding{}, err
 	}
-	if rel.Chart == nil {
+	if snapshot.sourceRevision() == nil {
 		return resource.SchemaBinding{State: "unavailable"}, nil
 	}
-	if len(rel.Chart.Schema) == 0 {
-		return resource.SchemaBinding{State: "absent"}, nil
+	binding := resource.SchemaBinding{State: "unavailable"}
+	if rel := snapshot.release; rel.Chart != nil {
+		if len(rel.Chart.Schema) == 0 {
+			binding.State = "absent"
+		} else {
+			binding, err = helmSchemaBinding(rel.Chart.Schema)
+		}
 	}
-	return helmSchemaBinding(rel.Chart.Schema)
+	if currentErr := snapshot.verifyCurrent(ctx, client, cfg); currentErr != nil {
+		return resource.SchemaBinding{}, currentErr
+	}
+	if err := ctx.Err(); err != nil {
+		return resource.SchemaBinding{}, err
+	}
+	return binding, err
 }
 
 // ================================= ACTION IMPLEMENTATIONS ================================= //

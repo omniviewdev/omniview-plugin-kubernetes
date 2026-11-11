@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	resource "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
-	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/repo"
 	"os"
@@ -27,19 +26,11 @@ func (h *HelmAncillary) Get(ctx context.Context, client *clients.ClientSet, requ
 		if err != nil {
 			return resource.Record{}, err
 		}
-		get := action.NewGet(cfg)
-		if supportsBoundedReleaseEnumeration() {
-			version, err := latestReleaseVersion(ctx, client, namespaceOf(request.Reference), request.Reference.Address.ID)
-			if err != nil {
-				return resource.Record{}, err
-			}
-			get.Version = version
-		}
-		rel, err := get.Run(request.Reference.Address.ID)
+		snapshot, err := getNamedRelease(ctx, client, cfg, namespaceOf(request.Reference), request.Reference.Address.ID, nil)
 		if err != nil {
 			return resource.Record{}, err
 		}
-		return helmRecord(request.Reference, releaseToMap(rel))
+		return helmReleaseRecord(request.Reference, snapshot)
 	case RepositoryType:
 		file, err := loadRepoFile()
 		if err != nil {

@@ -210,6 +210,7 @@ func BenchmarkNativeRetention(b *testing.B) {
 	})
 	b.ReportAllocs()
 	b.ResetTimer()
+	var totals nativeRetentionResult
 	for range b.N {
 		result := runNativeRetention(b, fixture)
 		encoded, err := json.Marshal(result)
@@ -217,15 +218,24 @@ func BenchmarkNativeRetention(b *testing.B) {
 			b.Fatal(err)
 		}
 		b.Logf("NATIVE_RETENTION %s", encoded)
-		b.ReportMetric(result.AcquireMS, "acquire-ms/op")
-		b.ReportMetric(result.SnapshotMS, "snapshot-ms/op")
-		b.ReportMetric(result.LiveMS, "live-ms/op")
-		b.ReportMetric(float64(result.AllocatedBytes), "snapshot-alloc-B/op")
-		b.ReportMetric(float64(result.Allocations), "snapshot-allocs/op")
-		b.ReportMetric(float64(result.GCCycles), "snapshot-GC/op")
-		b.ReportMetric(result.GCCPUSeconds, "snapshot-GC-cpu-s/op")
-		b.ReportMetric(float64(result.RetainedBytes)/(1<<20), "retained-MiB")
+		totals.AcquireMS += result.AcquireMS
+		totals.SnapshotMS += result.SnapshotMS
+		totals.LiveMS += result.LiveMS
+		totals.AllocatedBytes += result.AllocatedBytes
+		totals.Allocations += result.Allocations
+		totals.GCCycles += result.GCCycles
+		totals.GCCPUSeconds += result.GCCPUSeconds
+		totals.RetainedBytes += result.RetainedBytes
 	}
+	n := float64(b.N)
+	b.ReportMetric(totals.AcquireMS/n, "acquire-ms/op")
+	b.ReportMetric(totals.SnapshotMS/n, "snapshot-ms/op")
+	b.ReportMetric(totals.LiveMS/n, "live-ms/op")
+	b.ReportMetric(float64(totals.AllocatedBytes)/n, "snapshot-alloc-B/op")
+	b.ReportMetric(float64(totals.Allocations)/n, "snapshot-allocs/op")
+	b.ReportMetric(float64(totals.GCCycles)/n, "snapshot-GC/op")
+	b.ReportMetric(totals.GCCPUSeconds/n, "snapshot-GC-cpu-s/op")
+	b.ReportMetric(float64(totals.RetainedBytes)/n/(1<<20), "retained-MiB")
 }
 
 func nativeRetentionGCCPU() float64 {

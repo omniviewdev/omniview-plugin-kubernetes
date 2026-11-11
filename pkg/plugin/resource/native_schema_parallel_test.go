@@ -2,6 +2,8 @@ package resource
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"strings"
@@ -369,6 +371,68 @@ func TestNativeSchemaRetentionPressureIsRetryableNotCached(t *testing.T) {
 	require.NotEqual(t, first.Revision, recovered.Revision)
 	require.Equal(t, 3, schemaReadinessOpenAPIRequests(f), "retry must not wait through negative schema freshness")
 	require.Equal(t, len(document), p.schemaBudget.used)
+}
+
+func TestNativeSchemaCrossGroupPressurePreservesReferenceUntilWithdrawal(t *testing.T) {
+	f, p, route := newSchemaReadinessProvider(t)
+	f.setVersions(t, "v1")
+	widgetDocument := `{"components":{"schemas":{"native.Widget":{"type":"object","x-kubernetes-group-version-kind":[{"group":"refresh.example","version":"v1","kind":"Widget"}]}}}}`
+	podDocument := schemaBudgetFixture("")
+	p.schemaBudget.limit = max(len(widgetDocument), len(podDocument))
+	f.mu.Lock()
+	f.documents["/openapi/v3/apis/refresh.example/v1"] = widgetDocument
+	f.documents["/openapi/v3/api/v1"] = podDocument
+	f.mu.Unlock()
+	_, err := p.StartConnection(context.Background(), route.Connection)
+	require.NoError(t, err)
+	require.Zero(t, schemaReadinessOpenAPIRequests(f))
+	widgetRequest := schemaDemandRequest(t, p, route, "k8s:refresh.example/widgets")
+	podRequest := schemaDemandRequest(t, p, route, "k8s:/pods")
+	widget, err := p.ResolveSchema(context.Background(), widgetRequest)
+	require.NoError(t, err)
+	require.Equal(t, "available", widget.State)
+	require.NotNil(t, widget.DocumentRef)
+
+	// Expired freshness does not prove that a published reference is unused.
+	expireDemandedSchema(p, route)
+	pressured, err := p.ResolveSchema(context.Background(), podRequest)
+	require.Equal(t, "RESOURCE_LIMIT", resourcev2.ErrorCode(err))
+	require.Empty(t, pressured.State)
+	held, err := p.GetSchemaDocument(context.Background(), route, *widget.DocumentRef)
+	require.NoError(t, err, "cross-group pressure must preserve the outstanding exact reference")
+	require.Equal(t, *widget.DocumentRef, held.Reference)
+	require.Equal(t, widgetDocument, string(held.Document))
+	digest := sha256.Sum256(held.Document)
+	require.Equal(t, widget.DocumentRef.Revision, hex.EncodeToString(digest[:]))
+	require.Equal(t, len(widgetDocument), p.schemaBudget.used)
+	require.Equal(t, 2, schemaReadinessOpenAPIRequests(f), "held reference lookup must not refetch an expired document")
+
+	// Complete discovery can prove withdrawal without guessing editor lifetime.
+	f.setVersions(t, "v2")
+	f.mu.Lock()
+	f.documents["/openapi/v3/api/v1"] = podDocument
+	f.mu.Unlock()
+	expireRefresh(p, route.Connection)
+	_, err = p.Catalog(context.Background(), resourcev2.CatalogRequest{Route: route, Refresh: true})
+	require.NoError(t, err)
+	require.Zero(t, p.schemaBudget.used, "withdrawal must release the removed group's retained bytes")
+	require.Equal(t, 2, schemaReadinessOpenAPIRequests(f), "support refresh must not acquire schemas")
+	_, err = p.GetSchemaDocument(context.Background(), route, *widget.DocumentRef)
+	require.Equal(t, "RESET_REQUIRED", resourcev2.ErrorCode(err))
+	require.Equal(t, widgetDocument, string(held.Document), "retirement must not mutate an already returned document")
+
+	pod, err := p.ResolveSchema(context.Background(), podRequest)
+	require.NoError(t, err, "released capacity must admit another group without a negative-cache delay")
+	require.Equal(t, "available", pod.State)
+	require.NotNil(t, pod.DocumentRef)
+	recovered, err := p.GetSchemaDocument(context.Background(), route, *pod.DocumentRef)
+	require.NoError(t, err)
+	require.Equal(t, *pod.DocumentRef, recovered.Reference)
+	require.Equal(t, podDocument, string(recovered.Document))
+	digest = sha256.Sum256(recovered.Document)
+	require.Equal(t, pod.DocumentRef.Revision, hex.EncodeToString(digest[:]))
+	require.Equal(t, len(podDocument), p.schemaBudget.used)
+	require.Equal(t, 3, schemaReadinessOpenAPIRequests(f))
 }
 
 func TestNativeSchemaSupportRefreshPreservesAndRetiresExactDemand(t *testing.T) {

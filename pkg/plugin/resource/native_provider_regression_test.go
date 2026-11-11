@@ -154,11 +154,10 @@ func TestNativeRelationshipsAdmitWholeRouteCatalog(t *testing.T) {
 }
 
 func helmValuesSchemaRequest(route resourcev2.AccessRoute) resourcev2.SchemaRequest {
-	revision := "1"
 	return resourcev2.SchemaRequest{
 		Route: route, Type: helm.ReleaseType,
 		Target: resourcev2.SchemaTarget{Auxiliary: &resourcev2.AuxiliarySchemaTarget{
-			Key: "values", SourceRevision: &revision,
+			Key: "values",
 			Reference: resourcev2.ResourceReference{Address: resourcev2.ResourceAddress{
 				Provider: "kubernetes", Authority: "fixture-authority", Type: helm.ReleaseType,
 				ID: "installed", Scope: []resourcev2.ScopeEntry{{Dimension: "namespace", Value: "selected"}},
@@ -178,7 +177,7 @@ func TestNativeTargetSchemaIncludesSelectedHelmValuesSchema(t *testing.T) {
 	_, err = compressor.Write(raw)
 	require.NoError(t, err)
 	require.NoError(t, compressor.Close())
-	secret := &corev1.Secret{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Secret"}, ObjectMeta: metav1.ObjectMeta{Name: "sh.helm.release.v1.installed.v1", Namespace: "selected", Labels: map[string]string{"owner": "helm", "name": "installed", "version": "1", "status": "deployed"}}, Type: "helm.sh/release.v1", Data: map[string][]byte{"release": []byte(base64.StdEncoding.EncodeToString(compressed.Bytes()))}}
+	secret := &corev1.Secret{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Secret"}, ObjectMeta: metav1.ObjectMeta{Name: "sh.helm.release.v1.installed.v1", Namespace: "selected", UID: "fixture-release-storage-uid", Labels: map[string]string{"owner": "helm", "name": "installed", "version": "1", "status": "deployed"}}, Type: "helm.sh/release.v1", Data: map[string][]byte{"release": []byte(base64.StdEncoding.EncodeToString(compressed.Bytes()))}}
 	var nativeGets atomic.Int32
 	var oversized atomic.Bool
 	var oversizedGets atomic.Int32

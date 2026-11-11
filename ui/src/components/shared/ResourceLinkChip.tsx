@@ -9,9 +9,6 @@ import { LuCopy, LuLayers, LuDatabase, LuPlay, LuClock, LuServer, LuUser } from 
 import { PLUGIN_ID } from '@/pluginId';
 
 import { resolveKubernetesReference } from '../../utils/kubernetesReference';
-import { createEditorContext } from '../kubernetes/manifest/resourceEditorContext';
-import { createResourceEditorServices } from '../kubernetes/manifest/resourceEditorServices';
-import { inspectDiscovery } from '../kubernetes/manifest/providers/issue-289/discovery';
 
 import { TableActionsContext, useTableActions } from './table/TableActionsContext';
 import { TableActionsScope } from './table/TableActionsScope';
@@ -92,29 +89,16 @@ const ResourceLinkView: React.FC<Props> = (props) => {
       let ownerType: string | undefined;
       if (owner) {
         const catalog = await ResourceClient.Catalog(pluginID, { route });
+        if (controller.signal.aborted) return;
         const ownerGroup = owner.apiVersion.includes('/')
           ? owner.apiVersion.slice(0, owner.apiVersion.lastIndexOf('/')) : '';
-        const context = createEditorContext('', 'kubernetes:editor-queries', route.connection, 'inspect', { resource: '' });
-        const result = await createResourceEditorServices(context).actions.execute({
-          protocol: 'kubernetes.discovery.v1', input: { endpoint: ownerGroup ? '/apis' : '/api', version: 'v2' },
-          sessionID: `owner/${owner.uid ?? owner.name}`, generation: 0, signal: controller.signal,
-        });
-        if (controller.signal.aborted) return;
-        if (result.status !== 'ready') throw new Error('Kubernetes discovery is unavailable for owner navigation.');
-        const discovery = inspectDiscovery(result.output);
-        if (!discovery.valid) throw new Error('Kubernetes discovery did not provide an owner resource type.');
+        const typePrefix = `k8s:${ownerGroup}/`;
         const matches = new Set<string>();
-        for (const group of discovery.groups) {
-          if (group.name !== ownerGroup) continue;
-          for (const version of group.versions) {
-            if (version.freshness !== 'Current') continue;
-            for (const resource of version.resources) {
-              const kind = resource.responseKind;
-              const type = `k8s:${group.name}/${resource.resource}`;
-              if (!resource.resource.includes('/') && kind?.group === ownerGroup && kind.kind === owner.kind
-                && catalog.types.some((descriptor) => descriptor.type === type)) matches.add(type);
-            }
-          }
+        // Native catalog display names are discovery Kind values; logical Types do not include API versions.
+        for (const descriptor of catalog.types) {
+          if (descriptor.displayName !== owner.kind || !descriptor.type.startsWith(typePrefix)) continue;
+          const resource = descriptor.type.slice(typePrefix.length);
+          if (resource && !resource.includes('/')) matches.add(descriptor.type);
         }
         if (matches.size !== 1)
           throw new Error(`Owner resource type is unavailable or ambiguous: ${owner.kind}`);

@@ -357,7 +357,7 @@ function ResourceManifestSession(props: ResourceManifestEditorProps) {
   };
   const compatible = contributions.filter((entry) => matchesResourceEditor(entry.value, effectiveContext));
   return <div className={styles.editor} data-read-only={readOnly || undefined}>
-    {fieldConsumer && props.schemaRequest && preferredMode === 'form' && !keepYAML && <FormSchemaEvidence
+    {fieldConsumer && props.schemaRequest && (preferredMode === 'form' && !keepYAML || !!demanded?.value.validateSubmission) && <FormSchemaEvidence
       key={schemaPlan} request={props.schemaRequest} path={fieldPath} onResult={receiveSchemaEvidence} />}
     <div className={styles.toolbar}>
       <span className={styles.context}>{connectionID || context || filename}{admittedContext.scope === 'Namespaced' && <> / {admittedContext.namespace || 'Choose namespace'}</>}</span>

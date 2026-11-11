@@ -26,9 +26,15 @@ import (
 	"go.uber.org/zap"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
+	kubefake "helm.sh/helm/v3/pkg/kube/fake"
 	helmrelease "helm.sh/helm/v3/pkg/release"
+	"helm.sh/helm/v3/pkg/storage"
+	"helm.sh/helm/v3/pkg/storage/driver"
+	helmtime "helm.sh/helm/v3/pkg/time"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8stypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/rest"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
@@ -175,7 +181,11 @@ func TestHelmTargetSchemaReusesExistingMetadataAuthLimitsAndLifetimes(t *testing
 	testCtx, finish := context.WithTimeout(context.Background(), 20*time.Second)
 	t.Cleanup(finish)
 	document := []byte(`{"$schema":"http://json-schema.org/draft-07/schema#","type":"object","properties":{"replicas":{"type":"integer"}}}`)
-	installed := &helmrelease.Release{Name: "installed", Namespace: "selected", Version: 1, Chart: &chart.Chart{Metadata: &chart.Metadata{Name: "installed-chart", Version: "1.0.0"}, Schema: document}}
+	installed := &helmrelease.Release{
+		Name: "installed", Namespace: "selected", Version: 1,
+		Info:  &helmrelease.Info{FirstDeployed: helmtime.Date(2026, time.November, 1, 10, 0, 0, 123, time.UTC)},
+		Chart: &chart.Chart{Metadata: &chart.Metadata{Name: "installed-chart", Version: "1.0.0"}, Schema: document},
+	}
 	raw, err := json.Marshal(installed)
 	require.NoError(t, err)
 	var compressed bytes.Buffer
@@ -184,7 +194,7 @@ func TestHelmTargetSchemaReusesExistingMetadataAuthLimitsAndLifetimes(t *testing
 	require.NoError(t, err)
 	require.NoError(t, compressor.Close())
 	labels := map[string]string{"owner": "helm", "name": "installed", "version": "1", "status": "deployed"}
-	metadata := metav1.ObjectMeta{Name: "sh.helm.release.v1.installed.v1", Namespace: "selected", Labels: labels}
+	metadata := metav1.ObjectMeta{Name: "sh.helm.release.v1.installed.v1", Namespace: "selected", UID: "installed-storage-uid", Labels: labels}
 	secret := corev1.Secret{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Secret"}, ObjectMeta: metadata, Type: "helm.sh/release.v1", Data: map[string][]byte{"release": []byte(base64.StdEncoding.EncodeToString(compressed.Bytes()))}}
 	var metadataCalls, namedMetadataCalls, storageGets, requests atomic.Int64
 	var holdNext, oversizeNext atomic.Bool
@@ -257,11 +267,11 @@ func TestHelmTargetSchemaReusesExistingMetadataAuthLimitsAndLifetimes(t *testing
 	client := makeClient(lifetime)
 	ancillary := NewHelmAncillary(zap.NewNop().Sugar())
 	session := sdkresource.Session{Connection: &types.Connection{ID: "owned-cluster"}}
-	revision := "1"
+	revision := helmReleaseSourceRevision(installed.Version, string(metadata.UID), installed.Info.FirstDeployed.Time)
 	target := sdkresource.SchemaRequest{
 		Route: sdkresource.AccessRoute{Connection: session.Connection.ID}, Type: ReleaseType,
 		Target: sdkresource.SchemaTarget{Auxiliary: &sdkresource.AuxiliarySchemaTarget{
-			Key: "values", SourceRevision: &revision,
+			Key: "values", SourceRevision: revision,
 			Reference: sdkresource.ResourceReference{Address: sdkresource.ResourceAddress{Provider: "kubernetes", Authority: "fixture-authority", Type: ReleaseType, ID: "installed", Scope: []sdkresource.ScopeEntry{{Dimension: "namespace", Value: "selected"}}}},
 		}},
 	}
@@ -283,8 +293,8 @@ func TestHelmTargetSchemaReusesExistingMetadataAuthLimitsAndLifetimes(t *testing
 		}
 	}
 	assertInstalled(client)
-	require.Equal(t, int64(1), metadataCalls.Load(), "one selected release must require only named latest-version metadata")
-	require.Equal(t, int64(1), namedMetadataCalls.Load())
+	require.Equal(t, int64(2), metadataCalls.Load(), "named metadata must bracket the single selected release GET")
+	require.Equal(t, int64(2), namedMetadataCalls.Load())
 	require.Equal(t, int64(1), storageGets.Load())
 
 	wrong := target
@@ -301,8 +311,8 @@ func TestHelmTargetSchemaReusesExistingMetadataAuthLimitsAndLifetimes(t *testing
 	require.Equal(t, "INVALID_REQUEST", sdkresource.ErrorCode(err))
 	require.Equal(t, beforeInvalid, requests.Load(), "an exact release target cannot become a broader native label selector")
 	auxiliary.Reference = target.Target.Auxiliary.Reference
-	staleRevision := "2"
-	auxiliary.SourceRevision = &staleRevision
+	staleRevision := helmReleaseSourceRevision(2, string(metadata.UID), installed.Info.FirstDeployed.Time)
+	auxiliary.SourceRevision = staleRevision
 	_, err = ancillary.ResolveSchema(sdkresource.WithSession(testCtx, session), client, wrong)
 	require.Equal(t, "RESET_REQUIRED", sdkresource.ErrorCode(err))
 	require.Equal(t, int64(1), storageGets.Load(), "wrong source revision must fail before storage payload access")
@@ -349,4 +359,184 @@ func TestHelmTargetSchemaReusesExistingMetadataAuthLimitsAndLifetimes(t *testing
 	require.Error(t, err)
 	require.Equal(t, beforeRequests, requests.Load(), "retired source issued additional metadata HTTP")
 	assertInstalled(makeClient(testCtx)) // A distinct source lifetime remains usable.
+}
+
+func TestHelmTargetSchemaRejectsChangedRelease(t *testing.T) {
+	for _, change := range []string{"upgrade during get", "reinstall during get", "reinstall before request", "storage replacement before request"} {
+		t.Run(change, func(t *testing.T) {
+			t.Setenv("HELM_DRIVER", "secrets")
+			firstDeployed := helmtime.Date(2026, time.November, 1, 10, 0, 0, 123, time.UTC)
+			installed := &helmrelease.Release{
+				Name: "installed", Namespace: "selected", Version: 1,
+				Info:  &helmrelease.Info{FirstDeployed: firstDeployed},
+				Chart: &chart.Chart{Schema: []byte(`{"type":"object","properties":{"old":{"type":"string"}}}`)},
+			}
+			next := *installed
+			next.Info = &helmrelease.Info{FirstDeployed: firstDeployed}
+			next.Chart = &chart.Chart{Schema: []byte(`{"type":"object","properties":{"new":{"type":"integer"}}}`)}
+			if change == "upgrade during get" {
+				next.Version = 2
+			} else if change != "storage replacement before request" {
+				next.Info.FirstDeployed = firstDeployed.Add(time.Hour)
+			}
+			type snapshot struct {
+				metadata metav1.ObjectMeta
+				secret   corev1.Secret
+			}
+			store := func(rel *helmrelease.Release, uid string) *snapshot {
+				raw, err := json.Marshal(rel)
+				require.NoError(t, err)
+				var compressed bytes.Buffer
+				compressor := gzip.NewWriter(&compressed)
+				_, err = compressor.Write(raw)
+				require.NoError(t, err)
+				require.NoError(t, compressor.Close())
+				metadata := metav1.ObjectMeta{
+					Name: fmt.Sprintf("sh.helm.release.v1.%s.v%d", rel.Name, rel.Version), Namespace: rel.Namespace, UID: k8stypes.UID(uid),
+					Labels: map[string]string{"owner": "helm", "name": rel.Name, "version": fmt.Sprint(rel.Version), "status": "deployed"},
+				}
+				return &snapshot{metadata: metadata, secret: corev1.Secret{
+					TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Secret"}, ObjectMeta: metadata,
+					Type: "helm.sh/release.v1", Data: map[string][]byte{"release": []byte(base64.StdEncoding.EncodeToString(compressed.Bytes()))},
+				}}
+			}
+			before, after := store(installed, "original-storage-uid"), store(&next, "replacement-storage-uid")
+			var current atomic.Pointer[snapshot]
+			current.Store(before)
+			var metadataCalls, storageGets atomic.Int64
+			var changeOnGet atomic.Bool
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				switch {
+				case r.URL.Path == "/version":
+					fmt.Fprint(w, `{"major":"1","minor":"35","gitVersion":"v1.35.0"}`)
+				case r.URL.Path == "/api/v1/namespaces/selected/secrets" && strings.Contains(r.Header.Get("Accept"), "as=PartialObjectMetadataList"):
+					metadataCalls.Add(1)
+					require.Contains(t, []string{"owner=helm", "owner=helm,name=installed"}, r.URL.Query().Get("labelSelector"))
+					require.Equal(t, "256", r.URL.Query().Get("limit"))
+					json.NewEncoder(w).Encode(metav1.PartialObjectMetadataList{
+						TypeMeta: metav1.TypeMeta{APIVersion: "meta.k8s.io/v1", Kind: "PartialObjectMetadataList"},
+						Items:    []metav1.PartialObjectMetadata{{ObjectMeta: current.Load().metadata}},
+					})
+				case strings.HasPrefix(r.URL.Path, "/api/v1/namespaces/selected/secrets/sh.helm.release.v1.installed.v"):
+					storageGets.Add(1)
+					fetched := current.Load()
+					if changeOnGet.CompareAndSwap(true, false) {
+						current.Store(after)
+					}
+					json.NewEncoder(w).Encode(fetched.secret)
+				default:
+					http.Error(w, "unexpected named-release endpoint: "+r.URL.Path, http.StatusNotFound)
+				}
+			}))
+			t.Cleanup(server.Close)
+			client := &clients.ClientSet{RESTConfig: &rest.Config{Host: server.URL}, HTTPClient: &http.Client{Transport: http.DefaultTransport}}
+			ref := sdkresource.ResourceReference{Address: sdkresource.ResourceAddress{
+				Provider: "kubernetes", Authority: "fixture-authority", Type: ReleaseType, ID: "installed",
+				Scope: []sdkresource.ScopeEntry{{Dimension: "namespace", Value: "selected"}},
+			}}
+			session := sdkresource.Session{Connection: &types.Connection{ID: "owned-cluster"}}
+			ctx := sdkresource.WithSession(context.Background(), session)
+			ancillary := NewHelmAncillary(zap.NewNop().Sugar())
+			record, err := ancillary.Get(ctx, client, sdkresource.GetRequest{Reference: ref})
+			require.NoError(t, err)
+			require.NotNil(t, record.SourceRevision)
+			namespaces := []string{"selected"}
+			page, err := ancillary.Enumerate(ctx, client, sdkresource.EnumerateRequest{
+				Target: sdkresource.ReadTarget{
+					Provider: ref.Address.Provider, Authority: ref.Address.Authority, Type: ReleaseType,
+					Scope: []sdkresource.ScopeConstraint{{Dimension: "namespace", Match: sdkresource.ScopeOneOf, Values: &namespaces}},
+				},
+			})
+			require.NoError(t, err)
+			require.Len(t, page.Records, 1)
+			require.Equal(t, record.SourceRevision, page.Records[0].SourceRevision, "Get and enumeration must share release revision evidence")
+			if change == "reinstall before request" || change == "storage replacement before request" {
+				current.Store(after)
+			} else {
+				changeOnGet.Store(true)
+			}
+			beforeMetadata, beforeStorage := metadataCalls.Load(), storageGets.Load()
+			_, err = NewReleaseResourcer(zap.NewNop().Sugar()).ResolveSchema(ctx, client, sdkresource.AuxiliarySchemaTarget{
+				Key: "values", Reference: ref, SourceRevision: record.SourceRevision,
+			})
+			require.Equal(t, "RESET_REQUIRED", sdkresource.ErrorCode(err), "changed release must not return another revision's schema: %v", err)
+			if change == "upgrade during get" || change == "reinstall during get" {
+				require.Equal(t, beforeStorage+1, storageGets.Load(), "only the selected release body may be read")
+				require.Equal(t, beforeMetadata+2, metadataCalls.Load(), "named metadata must bracket the fixed-version GET")
+			} else {
+				require.Equal(t, beforeStorage, storageGets.Load(), "stale storage identity must fail before release payload access")
+			}
+		})
+	}
+}
+
+func TestHelmTargetSchemaNativeNamedLookup(t *testing.T) {
+	t.Setenv("HELM_DRIVER", "memory")
+	memory := driver.NewMemory()
+	memory.SetNamespace("selected")
+	cfg := &action.Configuration{Releases: storage.Init(memory), KubeClient: &kubefake.PrintingKubeClient{Out: io.Discard}}
+	deployed := helmtime.Date(2026, time.November, 1, 10, 0, 0, 123, time.UTC)
+	firstDocument := []byte(`{"type":"object","properties":{"old":{"type":"string"}}}`)
+	nextDocument := []byte(`{"type":"object","properties":{"new":{"type":"integer"}}}`)
+	installed := &helmrelease.Release{
+		Name: "installed", Namespace: "selected", Version: 1,
+		Info: &helmrelease.Info{FirstDeployed: deployed}, Chart: &chart.Chart{Schema: firstDocument},
+	}
+	require.NoError(t, cfg.Releases.Create(installed))
+	require.NoError(t, cfg.Releases.Create(&helmrelease.Release{
+		Name: "unrelated", Namespace: "selected", Version: 99,
+		Info: &helmrelease.Info{FirstDeployed: deployed}, Chart: &chart.Chart{Schema: []byte(`{`)},
+	}))
+	target := sdkresource.AuxiliarySchemaTarget{
+		Key: "values",
+		Reference: sdkresource.ResourceReference{Address: sdkresource.ResourceAddress{
+			Provider: "kubernetes", Authority: "fixture-authority", Type: ReleaseType, ID: "installed",
+			Scope: []sdkresource.ScopeEntry{{Dimension: "namespace", Value: "selected"}},
+		}},
+	}
+	ctx := context.Background()
+	assertCurrent := func(document []byte) *string {
+		t.Helper()
+		snapshot, err := getNamedRelease(ctx, nil, cfg, "selected", "installed", nil)
+		require.NoError(t, err)
+		record, err := helmReleaseRecord(target.Reference, snapshot)
+		require.NoError(t, err)
+		require.NotNil(t, record.SourceRevision)
+		target.SourceRevision = record.SourceRevision
+		binding, err := resolveNamedReleaseSchema(ctx, nil, cfg, target)
+		require.NoError(t, err)
+		require.Equal(t, "available", binding.State)
+		require.JSONEq(t, string(document), string(binding.Document))
+		return record.SourceRevision
+	}
+	firstRevision := assertCurrent(firstDocument)
+
+	upgraded := *installed
+	upgraded.Version = 2
+	upgraded.Chart = &chart.Chart{Schema: nextDocument}
+	require.NoError(t, cfg.Releases.Create(&upgraded))
+	_, err := resolveNamedReleaseSchema(ctx, nil, cfg, target)
+	require.Equal(t, "RESET_REQUIRED", sdkresource.ErrorCode(err))
+	assertCurrent(nextDocument)
+
+	_, err = cfg.Releases.Delete("installed", 1)
+	require.NoError(t, err)
+	_, err = cfg.Releases.Delete("installed", 2)
+	require.NoError(t, err)
+	reinstalled := *installed
+	reinstalled.Info = &helmrelease.Info{FirstDeployed: deployed.Add(time.Hour)}
+	reinstalled.Chart = &chart.Chart{Schema: nextDocument}
+	require.NoError(t, cfg.Releases.Create(&reinstalled))
+	target.SourceRevision = firstRevision
+	_, err = resolveNamedReleaseSchema(ctx, nil, cfg, target)
+	require.Equal(t, "RESET_REQUIRED", sdkresource.ErrorCode(err), "native driver reinstall must not reuse version 1 evidence")
+	assertCurrent(nextDocument)
+
+	reinstalled.Info = &helmrelease.Info{}
+	require.NoError(t, cfg.Releases.Update(&reinstalled))
+	target.SourceRevision = nil
+	binding, err := resolveNamedReleaseSchema(ctx, nil, cfg, target)
+	require.NoError(t, err)
+	require.Equal(t, "unavailable", binding.State, "missing native generation cannot become schema evidence")
 }

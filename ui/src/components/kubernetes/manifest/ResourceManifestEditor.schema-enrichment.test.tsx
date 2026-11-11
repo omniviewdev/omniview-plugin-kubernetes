@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import React, { createRef, useState } from 'react';
+import { act, cleanup, fireEvent, render, screen, waitFor, type RenderResult } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { FieldInfo, ResourceEditorContext, ResourceEditorContribution, SchemaFieldsResult, SchemaRequest } from '@omniviewdev/runtime';
+import type { FieldInfo, ResourceEditorContext, ResourceEditorContribution, ResourceEditorReferenceResult, ResourceEditorReferenceService, SchemaFieldsResult, SchemaRequest } from '@omniviewdev/runtime';
 import type * as Runtime from '@omniviewdev/runtime';
 import ResourceManifestEditor from './ResourceManifestEditor';
 import { setManifestMode } from './useManifestMode';
+import type { ResourceEditorSubmissionHandle } from './resourceEditorSubmission';
+import { resourceEditors as coreResourceEditors } from './providers/issue-265';
+import EndpointsForm from './providers/issue-265/EndpointsForm';
 
 const live = vi.hoisted(() => ({ result: undefined as SchemaFieldsResult | undefined, generation: 7, rejected: false, error: null as Error | null }));
 const QueryUpdateContext = React.createContext(0);
@@ -124,4 +127,82 @@ it.each(['rejected', 'generation'] as const)('clears retained form admission on 
   view.rerender(liveFixture(source, vi.fn()));
   await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Pending form input' })).not.toBeInTheDocument());
   expect(screen.queryByLabelText('Projected image')).not.toBeInTheDocument();
+});
+
+const endpointsSource = 'apiVersion: v1\nkind: Endpoints\nmetadata: {name: manual, namespace: team}\nsubsets: [{addresses: [{ip: 10.0.0.8}], ports: [{port: 8080}]}]\n';
+const endpointsContext: ResourceEditorContext = { ...context, kind: 'Endpoints', resource: 'endpoints', name: 'manual', namespace: 'team' };
+const endpointsRequest: SchemaRequest = {
+  ...request, type: 'k8s:/endpoints', target: { representation: { id: 'kubernetes.object.v1/v1', revision: 'format-1' } },
+};
+const endpointsProvider = { ...coreResourceEditors.find(editor => editor.targets[0].kind === 'Endpoints')!, component: EndpointsForm };
+const selectorlessService: ResourceEditorReferenceResult = {
+  status: 'ready', items: [{ name: 'manual', namespace: 'team', serviceSelector: 'none' }],
+};
+function endpointsFixture(submissionRef: React.RefObject<ResourceEditorSubmissionHandle | null>, references: ResourceEditorReferenceService, value = endpointsSource) {
+  live.result = live.result && { ...live.result, type: endpointsRequest.type, target: endpointsRequest.target,
+    fields: [{ ...specField, Segment: { Kind: 'field', Name: 'subsets' }, Types: ['array'] }] };
+  return <QueryUpdateContext.Provider value={++queryVersion}>
+    <ResourceManifestEditor resourceKey={endpointsRequest.type} connectionID="fixture" editing baseline={endpointsSource}
+      value={value} onChange={vi.fn()} contribution={endpointsProvider} editorContext={endpointsContext}
+      schemaRequest={endpointsRequest} references={references} actions={{ execute: async () => ({ status: 'unavailable', message: 'Fixture-only transport.' }) }}
+      submissionRef={submissionRef} />
+  </QueryUpdateContext.Provider>;
+}
+
+it.each(['form', 'yaml'] as const)('admits manual Endpoints YAML from %s mode without mounted form controls', async (mode) => {
+  setManifestMode(mode);
+  live.result = available;
+  const list = vi.fn<ResourceEditorReferenceService['list']>().mockResolvedValue(selectorlessService);
+  const submission = createRef<ResourceEditorSubmissionHandle>();
+  await act(async () => { render(endpointsFixture(submission, { list })); });
+  if (mode === 'form') {
+    expect(await screen.findByLabelText('Ready IP 1')).toBeEnabled();
+    fireEvent.click(screen.getByRole('radio', { name: 'YAML' }));
+  }
+  expect(screen.queryByLabelText('Ready IP 1')).not.toBeInTheDocument();
+  expect(screen.getByLabelText('Manifest source')).toHaveValue(endpointsSource);
+  list.mockClear();
+  const prepared = await submission.current!.prepare(new AbortController().signal);
+  expect(prepared).toMatchObject({ status: 'ready', source: endpointsSource });
+  expect(list).toHaveBeenCalledWith(expect.objectContaining({ resource: 'services', namespace: 'team', projection: 'servicePorts' }));
+});
+
+it('rejects denied Service ownership and invalid endpoint values after switching to YAML', async () => {
+  live.result = available;
+  const list = vi.fn<ResourceEditorReferenceService['list']>().mockResolvedValue(selectorlessService);
+  const submission = createRef<ResourceEditorSubmissionHandle>();
+  let view: RenderResult;
+  await act(async () => { view = render(endpointsFixture(submission, { list })); });
+  expect(await screen.findByLabelText('Ready IP 1')).toBeEnabled();
+  fireEvent.click(screen.getByRole('radio', { name: 'YAML' }));
+  list.mockResolvedValue({ status: 'denied', message: 'Fixture Service lookup denied.' });
+  list.mockClear();
+  expect((await submission.current!.prepare(new AbortController().signal)).status).toBe('invalid');
+  expect(list).toHaveBeenCalledTimes(1);
+  expect(list.mock.lastCall?.[0]).toMatchObject({ resource: 'services', namespace: 'team', projection: 'servicePorts' });
+  list.mockResolvedValue(selectorlessService);
+  await act(async () => { view!.rerender(endpointsFixture(submission, { list }, endpointsSource.replace('10.0.0.8', '127.0.0.1'))); });
+  list.mockClear();
+  expect((await submission.current!.prepare(new AbortController().signal)).status).toBe('invalid');
+  expect(list).not.toHaveBeenCalled();
+});
+
+it.each(['source', 'generation'] as const)('rejects manual Endpoints admission when %s changes during its Service lookup', async (change) => {
+  live.result = available;
+  const list = vi.fn<ResourceEditorReferenceService['list']>().mockResolvedValue(selectorlessService);
+  const submission = createRef<ResourceEditorSubmissionHandle>();
+  let view: RenderResult;
+  await act(async () => { view = render(endpointsFixture(submission, { list })); });
+  expect(await screen.findByLabelText('Ready IP 1')).toBeEnabled();
+  fireEvent.click(screen.getByRole('radio', { name: 'YAML' }));
+  const gate = Promise.withResolvers<ResourceEditorReferenceResult>();
+  list.mockReturnValue(gate.promise);
+  list.mockClear();
+  const prepared = submission.current!.prepare(new AbortController().signal);
+  expect(list).toHaveBeenCalledTimes(1);
+  expect(list.mock.lastCall?.[0]).toMatchObject({ resource: 'services', projection: 'servicePorts' });
+  if (change === 'generation') { live.generation++; live.result = undefined; }
+  view!.rerender(endpointsFixture(submission, { list }, change === 'source' ? endpointsSource.replace('10.0.0.8', '10.0.0.9') : endpointsSource));
+  await act(async () => { gate.resolve(selectorlessService); });
+  expect((await prepared).status).toBe('stale');
 });
