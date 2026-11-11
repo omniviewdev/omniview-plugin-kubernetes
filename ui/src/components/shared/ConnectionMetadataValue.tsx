@@ -1,6 +1,6 @@
 import { Skeleton, Text } from '@omniviewdev/base-ui';
 import type { ConnectionMetadataSnapshot } from '@omniviewdev/runtime';
-import { LuCircleSlash, LuClock, LuHistory, LuInfo } from 'react-icons/lu';
+import { LuCircleSlash, LuClock, LuHistory, LuInfo, LuSettings } from 'react-icons/lu';
 import { connectionMetadataDisplay } from '../../hooks/connectionMetadataDisplay';
 import SimpleTooltip from './SimpleTooltip';
 
@@ -12,16 +12,19 @@ interface Props {
   label: string;
   size?: 'xs' | 'sm' | 'lg';
   mono?: boolean;
+  provenance?: 'observed' | 'configured';
 }
 
 /** Values stay scannable; observation provenance remains available on focus or hover. */
-export default function ConnectionMetadataValue({ snapshot, transportAvailable, isLoading, metadataKey, label, size = 'xs', mono = false }: Props) {
+export default function ConnectionMetadataValue({ snapshot, transportAvailable, isLoading, metadataKey, label, size = 'xs', mono = false, provenance = 'observed' }: Props) {
   if (isLoading && !snapshot?.entries[metadataKey]) {
     return <span aria-label={`Loading ${label}`} aria-busy="true"><Skeleton variant="text" width={100} /></span>;
   }
-  const fact = connectionMetadataDisplay(snapshot, transportAvailable, metadataKey);
-  const Icon = fact.state === 'stale' ? LuHistory : fact.state === 'unavailable' ? LuCircleSlash : fact.state === 'unobserved' ? LuInfo : LuClock;
-  const status = fact.state === 'stale' ? 'Saved observation' : fact.state === 'unavailable' ? 'Unavailable' : fact.state === 'unobserved' ? 'Not observed' : 'Observation details';
+  const fact = connectionMetadataDisplay(snapshot, transportAvailable, metadataKey, provenance);
+  const configured = provenance === 'configured';
+  const Icon = fact.state === 'stale' ? LuHistory : fact.state === 'unavailable' ? LuCircleSlash : fact.state === 'unobserved' ? LuInfo : configured ? LuSettings : LuClock;
+  const savedStatus = configured ? 'Saved configured endpoint' : 'Saved observation';
+  const status = fact.state === 'stale' ? savedStatus : fact.state === 'unavailable' ? 'Unavailable' : fact.state === 'unobserved' ? 'Not observed' : configured ? 'Configured endpoint' : 'Observation details';
   const warning = fact.state === 'stale';
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0, maxWidth: '100%' }}>
