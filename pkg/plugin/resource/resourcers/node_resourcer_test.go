@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -195,6 +196,87 @@ func TestNodeResourcer_Uncordon(t *testing.T) {
 }
 
 // ===================== Drain =====================
+
+func TestNodeDrainTelemetryFailures(t *testing.T) {
+	for _, tc := range []struct {
+		name, verb, resource, stage, operation string
+		cancel, invalid, pod                   bool
+	}{
+		{name: "validation", invalid: true, stage: "validation", operation: "validate"},
+		{name: "canceled", cancel: true, stage: "validation", operation: "validate"},
+		{name: "patch", verb: "patch", resource: "nodes", stage: "cordoning", operation: "patch_node"},
+		{name: "list", verb: "list", resource: "pods", stage: "selecting", operation: "list_pods"},
+		{name: "eviction", verb: "create", resource: "pods", pod: true, stage: "evicting", operation: "evict_pod"},
+		{name: "force delete", verb: "delete", resource: "pods", pod: true, stage: "evicting", operation: "delete_pod"},
+		{name: "observe", verb: "get", resource: "pods", pod: true, stage: "observing", operation: "get_pod"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			core, logs := observer.New(zap.InfoLevel)
+			r := NewNodeResourcer(zap.New(core).Sugar())
+			objects := []runtime.Object{testNode("worker")}
+			if tc.pod {
+				objects = append(objects, testPodOnNode("private-pod", "default", "worker"))
+			}
+			cs := newNodeClientSet(objects...)
+			client := cs.KubeClient.(*fake.Clientset)
+			if tc.verb != "" {
+				client.PrependReactor(tc.verb, tc.resource, func(action k8stesting.Action) (bool, runtime.Object, error) {
+					if tc.name == "eviction" && action.GetSubresource() != "eviction" {
+						return false, nil, nil
+					}
+					return true, nil, apierrors.NewForbidden(schema.GroupResource{Resource: tc.resource}, "private-pod", errors.New("secret-api-message"))
+				})
+			}
+			if tc.name == "force delete" {
+				client.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, runtime.Object, error) {
+					return true, nil, apierrors.NewForbidden(schema.GroupResource{Resource: "pods"}, "private-pod", errors.New("secret-api-message"))
+				})
+			}
+			request := workloadActionRequest("drain", "worker", "", nil)
+			request.Route.Connection = "cluster"
+			if tc.invalid {
+				request.Input = resource.Value{Kind: "map", Map: map[string]resource.Value{"secret-input": {Kind: "string", String: "secret-value"}}}
+			}
+			if tc.name == "force delete" {
+				request.Input = resource.Value{Kind: "map", Map: map[string]resource.Value{"force": {Kind: "bool", Bool: true}}}
+			}
+			ctx := context.Background()
+			if tc.cancel {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithCancel(ctx)
+				cancel()
+			}
+			err := r.StreamAction(ctx, cs, request, make(chan resource.ActionEvent, 32))
+			require.Error(t, err)
+			require.Equal(t, 1, logs.Len())
+			entry := logs.All()[0]
+			fields := entry.ContextMap()
+			assert.Equal(t, tc.stage, fields["stage"])
+			assert.Equal(t, tc.operation, fields["operation"])
+			assert.Equal(t, "worker", fields["resource_id"])
+			assert.Equal(t, "cluster", fields["connection"])
+			if tc.verb != "" {
+				assert.Equal(t, "kubernetes", fields["error_class"])
+				assert.Equal(t, "Forbidden", fields["k8s_reason"])
+				assert.EqualValues(t, 403, fields["k8s_status_code"])
+			}
+			if tc.name == "list" || tc.pod {
+				assert.Equal(t, true, fields["cordon_known"])
+				assert.Equal(t, true, fields["cordon_succeeded"])
+			}
+			if tc.pod {
+				assert.Equal(t, "private-pod", fields["pod_name"])
+				assert.Equal(t, "default", fields["pod_namespace"])
+			} else {
+				assert.NotContains(t, fields, "pod_name")
+				assert.NotContains(t, fields, "pod_namespace")
+			}
+			encoded, err := json.Marshal(fields)
+			require.NoError(t, err)
+			assert.NotContains(t, string(encoded), "secret-")
+		})
+	}
+}
 
 func TestNodeResourcer_Drain_ReadyBeforeProgressAndMutation(t *testing.T) {
 	cs := newNodeClientSet(testNode("worker"))

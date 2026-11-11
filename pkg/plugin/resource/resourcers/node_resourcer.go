@@ -3,12 +3,16 @@ package resourcers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"time"
 
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	resource "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
@@ -201,9 +205,6 @@ func (n *NodeResourcer) StreamAction(
 	if input.Action != "drain" {
 		return resource.NewError("UNSUPPORTED", "Only drain supports streaming execution")
 	}
-	if _, err := nativeRequestNamespace(input.Reference.Address.Scope); err != nil {
-		return err
-	}
 	return n.executeDrain(ctx, client, input, stream)
 }
 
@@ -241,7 +242,83 @@ func (n *NodeResourcer) executeDrain(
 	client *clients.ClientSet,
 	input resource.ActionRequest,
 	stream chan<- resource.ActionEvent,
-) error {
+) (resultErr error) {
+	ctx, span := otel.Tracer("omniview.plugin.kubernetes").Start(ctx, "kubernetes.node.drain")
+	defer span.End()
+	stage, operation := "validation", "validate"
+	failedPodName, failedPodNamespace := "", ""
+	total, drained, skipped := 0, 0, 0
+	selectionKnown, cordonKnown, cordoned := false, false, false
+	defer func() {
+		outcome, classification, reason, status := "success", "", "", 0
+		if resultErr != nil {
+			outcome = "failure"
+			classification = "other"
+			switch {
+			case errors.Is(resultErr, context.Canceled):
+				outcome, classification = "canceled", "canceled"
+			case errors.Is(resultErr, context.DeadlineExceeded):
+				outcome, classification = "canceled", "deadline_exceeded"
+			case stage == "validation":
+				classification = "validation"
+			default:
+				var apiStatus apierrors.APIStatus
+				if errors.As(resultErr, &apiStatus) {
+					classification = "kubernetes"
+					s := apiStatus.Status()
+					status = int(s.Code)
+					switch s.Reason {
+					case metav1.StatusReasonUnauthorized, metav1.StatusReasonForbidden, metav1.StatusReasonNotFound,
+						metav1.StatusReasonAlreadyExists, metav1.StatusReasonConflict, metav1.StatusReasonInvalid,
+						metav1.StatusReasonTooManyRequests, metav1.StatusReasonTimeout, metav1.StatusReasonServerTimeout,
+						metav1.StatusReasonServiceUnavailable, metav1.StatusReasonInternalError, metav1.StatusReasonBadRequest,
+						metav1.StatusReasonMethodNotAllowed, metav1.StatusReasonGone, metav1.StatusReasonExpired:
+						reason = string(s.Reason)
+					default:
+						reason = "Other"
+					}
+				}
+			}
+			span.SetStatus(codes.Error, classification)
+		}
+		attrs := []attribute.KeyValue{
+			attribute.String("action", "drain"), attribute.String("plugin", "kubernetes"),
+			attribute.String("connection", input.Route.Connection), attribute.String("resource.type", "k8s:/nodes"),
+			attribute.String("resource.id", input.Reference.Address.ID), attribute.String("stage", stage),
+			attribute.String("operation", operation), attribute.String("outcome", outcome),
+			attribute.Bool("selection.known", selectionKnown), attribute.Int("pods.selected", total),
+			attribute.Int("pods.skipped", skipped), attribute.Int("pods.removed", drained),
+			attribute.Bool("cordon.known", cordonKnown),
+		}
+		fields := []interface{}{"action", "drain", "plugin", "kubernetes", "connection", input.Route.Connection,
+			"resource_type", "k8s:/nodes", "resource_id", input.Reference.Address.ID, "stage", stage,
+			"operation", operation, "outcome", outcome, "selection_known", selectionKnown,
+			"selected", total, "skipped", skipped, "removed", drained, "cordon_known", cordonKnown}
+		if cordonKnown {
+			attrs = append(attrs, attribute.Bool("cordon.succeeded", cordoned))
+			fields = append(fields, "cordon_succeeded", cordoned)
+		}
+		if resultErr != nil {
+			attrs = append(attrs, attribute.String("error.class", classification))
+			fields = append(fields, "error_class", classification)
+			if failedPodName != "" {
+				attrs = append(attrs, attribute.String("pod.name", failedPodName), attribute.String("pod.namespace", failedPodNamespace))
+				fields = append(fields, "pod_name", failedPodName, "pod_namespace", failedPodNamespace)
+			}
+			if classification == "kubernetes" {
+				attrs = append(attrs, attribute.Int("k8s.status_code", status), attribute.String("k8s.reason", reason))
+				fields = append(fields, "k8s_status_code", status, "k8s_reason", reason)
+			}
+		}
+		span.SetAttributes(attrs...)
+		if span.SpanContext().IsValid() {
+			fields = append(fields, "trace_id", span.SpanContext().TraceID().String(), "span_id", span.SpanContext().SpanID().String())
+		}
+		n.log.Infow("Node drain finished", fields...)
+	}()
+	if _, err := nativeRequestNamespace(input.Reference.Address.Scope); err != nil {
+		return err
+	}
 	params, err := nativeActionParams(input.Input)
 	if err != nil {
 		return err
@@ -295,8 +372,7 @@ func (n *NodeResourcer) executeDrain(
 	case <-ctx.Done():
 		return ctx.Err()
 	}
-	total, drained, skipped := 0, 0, 0
-	selectionKnown := false
+	stage, operation = "cordoning", "emit_progress"
 	emit := func(eventType, stage, message string) error {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -332,12 +408,15 @@ func (n *NodeResourcer) executeDrain(
 	if err := emit("progress", "cordoning", "Cordoning node"); err != nil {
 		return err
 	}
+	operation = "patch_node"
 	node, err := client.KubeClient.CoreV1().Nodes().Patch(ctx, input.Reference.Address.ID,
 		k8stypes.StrategicMergePatchType, nativeActionPatch(input, `{"spec":{"unschedulable":true}}`), metav1.PatchOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to cordon node %s: %w", input.Reference.Address.ID, err)
 	}
+	cordonKnown, cordoned = true, node.Spec.Unschedulable
 	checkNode := func() error {
+		operation = "get_node"
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -346,19 +425,23 @@ func (n *NodeResourcer) executeDrain(
 			return fmt.Errorf("failed to check drained node: %w", err)
 		}
 		if current.UID != node.UID {
+			operation = "check_node_incarnation"
 			return fmt.Errorf("node %s incarnation changed during drain", node.Name)
 		}
 		return nil
 	}
+	stage, operation = "selecting", "emit_progress"
 	if err := emit("progress", "selecting", "Selecting pods on cordoned node"); err != nil {
 		return err
 	}
+	operation = "list_pods"
 	pods, err := client.KubeClient.CoreV1().Pods("").List(ctx, metav1.ListOptions{
 		FieldSelector: fields.OneTermEqualSelector("spec.nodeName", node.Name).String(),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to list pods on node %s: %w", node.Name, err)
 	}
+	operation = "select_pods"
 	selected := make([]*corev1.Pod, 0, len(pods.Items))
 	for i := range pods.Items {
 		pod := &pods.Items[i]
@@ -376,13 +459,16 @@ func (n *NodeResourcer) executeDrain(
 			}
 		}
 		selected = append(selected, pod)
+		total = len(selected)
 	}
 	total = len(selected)
 	selectionKnown = true
+	stage = "evicting"
 	for _, pod := range selected {
 		if err := checkNode(); err != nil {
 			return err
 		}
+		operation = "emit_progress"
 		if err := emit("progress", "evicting", "Evicting selected pods"); err != nil {
 			return err
 		}
@@ -390,21 +476,26 @@ func (n *NodeResourcer) executeDrain(
 			ObjectMeta:    metav1.ObjectMeta{Name: pod.Name, Namespace: pod.Namespace},
 			DeleteOptions: &metav1.DeleteOptions{GracePeriodSeconds: nativeGracePeriod, Preconditions: nativePodUIDPreconditions(pod)},
 		}
+		operation = "evict_pod"
 		if err := client.KubeClient.PolicyV1().Evictions(pod.Namespace).Evict(ctx, eviction); err != nil && !apierrors.IsNotFound(err) {
 			if !force {
+				failedPodName, failedPodNamespace = pod.Name, pod.Namespace
 				return fmt.Errorf("failed to evict pod %s/%s: %w", pod.Namespace, pod.Name, err)
 			}
 			if err := checkNode(); err != nil {
 				return err
 			}
+			operation = "delete_pod"
 			zero := int64(0)
 			if err := client.KubeClient.CoreV1().Pods(pod.Namespace).Delete(ctx, pod.Name, metav1.DeleteOptions{
 				GracePeriodSeconds: &zero, Preconditions: nativePodUIDPreconditions(pod),
 			}); err != nil && !apierrors.IsNotFound(err) {
+				failedPodName, failedPodNamespace = pod.Name, pod.Namespace
 				return fmt.Errorf("failed to force-delete pod %s/%s: %w", pod.Namespace, pod.Name, err)
 			}
 		}
 	}
+	stage, operation = "observing", "emit_progress"
 	if err := emit("progress", "waiting", "Waiting for selected pods to terminate"); err != nil {
 		return err
 	}
@@ -413,6 +504,7 @@ func (n *NodeResourcer) executeDrain(
 		if err := checkNode(); err != nil {
 			return false, err
 		}
+		operation = "get_pod"
 		previousDrained := drained
 		remaining := pending[:0]
 		for _, pod := range pending {
@@ -422,12 +514,14 @@ func (n *NodeResourcer) executeDrain(
 				continue
 			}
 			if err != nil {
+				failedPodName, failedPodNamespace = pod.Name, pod.Namespace
 				return false, fmt.Errorf("failed to observe pod %s/%s termination: %w", pod.Namespace, pod.Name, err)
 			}
 			remaining = append(remaining, pod)
 		}
 		pending = remaining
 		if drained != previousDrained {
+			operation = "emit_progress"
 			if err := emit("progress", "waiting", "Waiting for selected pods to terminate"); err != nil {
 				return false, err
 			}
@@ -437,6 +531,7 @@ func (n *NodeResourcer) executeDrain(
 	if err != nil {
 		return err
 	}
+	stage, operation = "complete", "emit_complete"
 	return emit("complete", "complete", fmt.Sprintf("Node %s drained: %d pods removed", node.Name, drained))
 }
 

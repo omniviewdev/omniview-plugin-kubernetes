@@ -185,6 +185,11 @@ Grace defaults to 30 seconds; -1 preserves each pod's native termination grace p
 Eviction rejection fails the activity unless explicit force deletion succeeds. Drain does not
 retry PDB rejection. Cancellation and observation errors fail without uncordoning or rollback.
 Node replacement stops execution; pod UID preconditions protect replacement pods from mutation.
+Drain diagnostics emit a structured completion log and trace with the node, connection, stage,
+operation, outcome, pod counts, and cordon state when known. Eviction, force-deletion, and
+observation failures identify the affected pod by namespace and name. Kubernetes failures include
+a status code and recognized reason without API error messages or pod contents. Preflight failures
+are reported separately before drain execution. Observation does not log each poll.
 
 Pods expose a one-shot, non-TTY `exec` action. Its input contains a command array, an optional
 container and a timeout from 1 to 100 seconds (30 seconds by default). Each output stream keeps
