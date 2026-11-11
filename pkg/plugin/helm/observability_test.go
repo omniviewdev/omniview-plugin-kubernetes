@@ -34,7 +34,7 @@ func captureHelmSpans(t *testing.T) *tracetest.InMemoryExporter {
 func spanText(attrs []attribute.KeyValue) string {
 	var b strings.Builder
 	for _, a := range attrs {
-		b.WriteString(string(a.Key) + "=" + a.Value.Emit() + ";")
+		b.WriteString(string(a.Key) + "=" + a.Value.String() + ";")
 	}
 	return b.String()
 }

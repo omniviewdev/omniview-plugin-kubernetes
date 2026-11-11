@@ -47,7 +47,7 @@ func TestSourceProbeFailureIsClassifiedInSpanAndLogs(t *testing.T) {
 	assert.Equal(t, "kubernetes.source.snapshot", spans[0].Name)
 	attributes := map[string]string{}
 	for _, attr := range spans[0].Attributes {
-		attributes[string(attr.Key)] = attr.Value.Emit()
+		attributes[string(attr.Key)] = attr.Value.String()
 	}
 	assert.Equal(t, "failure", attributes["outcome"])
 	assert.Equal(t, "kubernetes", attributes["error.class"])

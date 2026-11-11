@@ -131,7 +131,7 @@ func TestRelistPodsFailureEmitsClassifiedSpanAndLog(t *testing.T) {
 	assert.Equal(t, "kubernetes.logs.watch", spans[0].Name)
 	attrs := map[string]string{}
 	for _, attr := range spans[0].Attributes {
-		attrs[string(attr.Key)] = attr.Value.Emit()
+		attrs[string(attr.Key)] = attr.Value.String()
 	}
 	assert.Equal(t, "relist", attrs["phase"])
 	assert.Equal(t, "failure", attrs["outcome"])
@@ -143,7 +143,7 @@ func TestRelistPodsFailureEmitsClassifiedSpanAndLog(t *testing.T) {
 	assert.NotContains(t, text, "secret-list-denied")
 	for _, span := range spans {
 		for _, attr := range span.Attributes {
-			assert.NotContains(t, attr.Value.Emit(), "secret-list-denied")
+			assert.NotContains(t, attr.Value.String(), "secret-list-denied")
 		}
 		assert.NotContains(t, span.Status.Description, "secret-list-denied")
 	}

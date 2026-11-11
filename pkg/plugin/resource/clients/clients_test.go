@@ -362,7 +362,7 @@ func TestLastLeaseCloseEmitsRetireSpan(t *testing.T) {
 		found = true
 		attributes := map[string]string{}
 		for _, attr := range span.Attributes {
-			attributes[string(attr.Key)] = attr.Value.Emit()
+			attributes[string(attr.Key)] = attr.Value.String()
 		}
 		require.Equal(t, "last_lease", attributes["trigger"])
 		require.Equal(t, "pods", attributes["resource.type"])

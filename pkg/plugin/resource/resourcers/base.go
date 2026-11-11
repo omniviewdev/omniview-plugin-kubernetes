@@ -392,9 +392,10 @@ func (s *KubernetesResourcerBase[T]) Source(ctx context.Context, client *clients
 		snapshotSpan.SetAttributes(attribute.Int64("sync_ms", elapsed.Milliseconds()))
 		c := diag.EndSpan(snapshotSpan, err, false)
 		diag.SourceSync(elapsed, c.Outcome)
-		if c.Outcome == "failure" {
+		switch c.Outcome {
+		case "failure":
 			sourceLog.Warnw("source snapshot failed", append([]any{"sync_ms", elapsed.Milliseconds()}, c.LogFields()...)...)
-		} else if c.Outcome == "canceled" {
+		case "canceled":
 			sourceLog.Debugw("source snapshot canceled", append([]any{"sync_ms", elapsed.Milliseconds()}, c.LogFields()...)...)
 		}
 	}

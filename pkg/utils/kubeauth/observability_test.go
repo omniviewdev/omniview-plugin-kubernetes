@@ -62,7 +62,7 @@ func assertNoSecret(t *testing.T, exporter *tracetest.InMemoryExporter, sink *lo
 func spanAttr(attrs []attribute.KeyValue, key string) string {
 	for _, a := range attrs {
 		if string(a.Key) == key {
-			return a.Value.Emit()
+			return a.Value.String()
 		}
 	}
 	return ""

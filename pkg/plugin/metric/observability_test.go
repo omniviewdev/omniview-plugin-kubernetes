@@ -67,7 +67,8 @@ func metricRecordText(sink *logtest.RecordingSink) string {
 func TestCompositeQueryEmitsClassifiedSpan(t *testing.T) {
 	exporter := captureMetricSpans(t)
 	sink := captureMetricLogs(t)
-	_, err := compositeQuery(nil, nil, sdkmetric.QueryRequest{ResourceKey: "k8s:/nodes", MetricIDs: []string{"cpu_usage"}})
+	const arbitraryMetricID = "prom_private_metric_identifier"
+	_, err := compositeQuery(nil, nil, sdkmetric.QueryRequest{ResourceKey: "k8s:/nodes", MetricIDs: []string{arbitraryMetricID}})
 	require.Error(t, err)
 
 	spans := exporter.GetSpans()
@@ -75,14 +76,18 @@ func TestCompositeQueryEmitsClassifiedSpan(t *testing.T) {
 	assert.Equal(t, "kubernetes.metric.query", spans[0].Name)
 	attrs := map[string]string{}
 	for _, attr := range spans[0].Attributes {
-		attrs[string(attr.Key)] = attr.Value.Emit()
+		attrs[string(attr.Key)] = attr.Value.String()
 	}
-	assert.Equal(t, "native", attrs["source"])
+	assert.Equal(t, "prometheus", attrs["source"])
 	assert.Equal(t, "k8s:/nodes", attrs["resource.type"])
 	assert.Equal(t, "current", attrs["shape"])
 	assert.Equal(t, "failure", attrs["outcome"])
 	assert.Equal(t, "other", attrs["error.class"])
 	assert.Contains(t, metricRecordText(sink), "metric query finished")
+	assert.NotContains(t, metricRecordText(sink), arbitraryMetricID)
+	for _, attr := range spans[0].Attributes {
+		assert.NotContains(t, attr.Value.String(), arbitraryMetricID)
+	}
 
 	exporter.Reset()
 	_, _ = compositeQuery(nil, nil, sdkmetric.QueryRequest{ResourceKey: "cluster::metrics"})
@@ -149,12 +154,12 @@ func TestServiceProbeFailureIsLoggedAsClassWithoutProviderText(t *testing.T) {
 
 func TestPromMetricQueryFailedDoesNotLeakErrorText(t *testing.T) {
 	sink := captureMetricLogs(t)
-	promMetricQueryFailed(context.Background(), "instant", "prom_cpu", errors.New("prometheus query error: secret-promql-error"))
+	promMetricQueryFailed(context.Background(), "instant", errors.New("prometheus query error: secret-promql-error"))
 	records := sink.Records()
 	require.Len(t, records, 1)
 	assert.Equal(t, logging.LevelDebug, records[0].Level)
 	fields := records[0].ToMap()
-	assert.Equal(t, "prom_cpu", fields["metric_id"])
+	assert.NotContains(t, fields, "metric_id")
 	assert.Equal(t, "other", fields["error_class"])
 	assert.NotContains(t, metricRecordText(sink), "secret-promql-error")
 }

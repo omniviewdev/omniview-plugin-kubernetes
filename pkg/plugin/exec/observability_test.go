@@ -78,8 +78,8 @@ func TestExecBuildFailedEmitsClassifiedSpanEventAndWarn(t *testing.T) {
 	assert.Equal(t, "executor_build_failed", event.Name)
 	attrs := map[string]string{}
 	for _, attr := range event.Attributes {
-		attrs[string(attr.Key)] = attr.Value.Emit()
-		assert.NotContains(t, attr.Value.Emit(), "secret-executor-error")
+		attrs[string(attr.Key)] = attr.Value.String()
+		assert.NotContains(t, attr.Value.String(), "secret-executor-error")
 	}
 	assert.Equal(t, "spdy", attrs["transport"])
 	assert.Equal(t, "failure", attrs["outcome"])
@@ -116,8 +116,8 @@ func TestWaitForDebugContainerRecordsWaitEventWithoutContainerMessage(t *testing
 	assert.Equal(t, "debug_container_wait", spans[0].Events[0].Name)
 	attrs := map[string]string{}
 	for _, attr := range spans[0].Events[0].Attributes {
-		attrs[string(attr.Key)] = attr.Value.Emit()
-		assert.NotContains(t, attr.Value.Emit(), "secret-terminated-message")
+		attrs[string(attr.Key)] = attr.Value.String()
+		assert.NotContains(t, attr.Value.String(), "secret-terminated-message")
 	}
 	assert.Equal(t, "failure", attrs["outcome"])
 	assert.Contains(t, attrs, "wait_ms")

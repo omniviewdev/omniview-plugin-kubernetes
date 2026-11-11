@@ -35,7 +35,7 @@ func captureSpans(t *testing.T) *tracetest.InMemoryExporter {
 func spanAttributes(span tracetest.SpanStub) map[string]string {
 	attributes := make(map[string]string)
 	for _, attr := range span.Attributes {
-		attributes[string(attr.Key)] = attr.Value.Emit()
+		attributes[string(attr.Key)] = attr.Value.String()
 	}
 	return attributes
 }

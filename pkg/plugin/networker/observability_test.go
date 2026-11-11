@@ -67,8 +67,8 @@ func TestForwardSetupFailureIsClassifiedAndDoesNotLeakKubeconfigPath(t *testing.
 			spans := []tracetest.SpanStub{open}
 			attrs := map[string]string{}
 			for _, attr := range spans[0].Attributes {
-				attrs[string(attr.Key)] = attr.Value.Emit()
-				assert.NotContains(t, attr.Value.Emit(), "/secret/kube")
+				attrs[string(attr.Key)] = attr.Value.String()
+				assert.NotContains(t, attr.Value.String(), "/secret/kube")
 			}
 			assert.Equal(t, "failure", attrs["outcome"])
 			assert.Equal(t, "other", attrs["error.class"])
