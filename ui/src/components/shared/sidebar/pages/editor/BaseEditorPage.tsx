@@ -29,9 +29,9 @@ const ResourceEditor: React.FC<{ data: KubernetesResourceObject; resource: Resou
   const editorID = React.useId();
   const format = resource.record?.record.representation
     ?? descriptor?.representations.find((entry) => entry.id === resource.representation);
-  const schemaRequest = React.useMemo<SchemaRequest | undefined>(() => format ? {
+  const schemaRequest: SchemaRequest | undefined = format ? {
     route: resource.route, type: resource.reference.address.type, target: { representation: format },
-  } : undefined, [format, resource.route, resource.reference.address.type]);
+  } : undefined;
   const editorPath = resourceEditorModelURI({
     pluginID: resource.pluginID, route: resource.route, type: resource.reference.address.type,
     target: { representation: { id: resource.representation, revision: '' } },

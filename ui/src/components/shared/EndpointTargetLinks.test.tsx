@@ -24,17 +24,9 @@ vi.mock('@omniviewdev/runtime/api', () => ({
 function descriptor(type: string, group: string) {
   return {
     type,
+    displayName: 'Pod',
     identityDimensions: [{ name: 'namespace' }],
-    representations: [
-      {
-        schema: {
-          root: '#',
-          document: {
-            'x-kubernetes-group-version-kind': [{ group, version: 'v1', kind: 'Pod' }],
-          },
-        },
-      },
-    ],
+    representations: [{ id: `kubernetes.object.v1/${group}/v1`, revision: '1' }],
   };
 }
 const route = { connection: 'cluster-1' };
@@ -129,7 +121,7 @@ for (const [name, section] of sections) {
       },
     );
 
-    it('uses the custom group schema binding instead of treating every Pod kind as core', async () => {
+    it('resolves a custom-group Pod without confusing it with a core Pod', async () => {
       const customReference = {
         ...reference,
         address: { ...reference.address, type: 'k8s:example.io/workloads' },

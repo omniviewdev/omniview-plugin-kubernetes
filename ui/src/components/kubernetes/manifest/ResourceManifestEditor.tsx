@@ -1,5 +1,5 @@
 import { Button, SegmentedControl } from '@omniviewdev/base-ui';
-import { RESOURCE_EDITOR_EXTENSION_POINT, selectResourceEditor, matchesResourceEditor, useExtensionPointSnapshot, useSchemaFields, type ResourceEditorContext, type ResourceEditorContribution, type ResourceEditorReferenceService, type ResourceEditorActionService, type ResourceEditorActionResult, type ResourceEditorPath, type SchemaRequest, type SchemaFieldsResult, type PathSegment } from '@omniviewdev/runtime';
+import { RESOURCE_EDITOR_EXTENSION_POINT, selectResourceEditor, matchesResourceEditor, useExtensionPointSnapshot, useSchemaFields, type ResourceEditorContext, type ResourceEditorContribution, type ResourceEditorDraft, type ResourceEditorReferenceService, type ResourceEditorActionService, type ResourceEditorActionResult, type ResourceEditorPath, type SchemaRequest, type SchemaFieldsResult, type PathSegment } from '@omniviewdev/runtime';
 import { Component, Suspense, useCallback, useContext, useEffect, useImperativeHandle, useLayoutEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type Ref } from 'react';
 import { LuFileCode2, LuSlidersHorizontal } from 'react-icons/lu';
 import CodeEditor from '../../shared/CodeEditor';
@@ -127,18 +127,19 @@ function ResourceManifestSession(props: ResourceManifestEditorProps) {
   const schemaRejected = fieldConsumer && schemaEvidence?.plan === schemaPlan && schemaEvidence.rejected;
   const admissionOwner = !fieldConsumer || schemaEvidence?.plan === schemaPlan && schemaEvidence.generation !== undefined && !schemaEvidence.rejected
     ? JSON.stringify([schemaPlan, fieldConsumer ? schemaEvidence?.generation : null]) : undefined;
-  const lastSelection = useRef<{ owner: string; selected: NonNullable<typeof currentSelected>; inspection: boolean } | undefined>(undefined);
-  const previousSelection = lastSelection.current?.owner === admissionOwner ? lastSelection.current : undefined;
-  const retainSelection = !currentSelected && previousSelection
+  // Keep admitted render data in state; owner and contribution identity retire it.
+  const [admittedEditor, setAdmittedEditor] = useState<{
+    owner: string; selected: NonNullable<typeof currentSelected>; inspection: boolean;
+    form?: { schemaAvailable: boolean; draft: ResourceEditorDraft; baseline: ResourceEditorDraft | undefined; context: ResourceEditorContext };
+  }>();
+  const previousSelection = admittedEditor?.owner === admissionOwner ? admittedEditor : undefined;
+  const retainSelection = previousSelection
     && contributions.some((entry) => entry.id === previousSelection.selected.id && entry.value === previousSelection.selected.value)
     && candidates.some((entry) => entry.id === previousSelection.selected.id && matchesResourceEditor(entry.value,
       previousSelection.inspection ? { ...admittedContext, intent: 'inspect' } : admittedContext));
   const selected = currentSelected ?? (retainSelection ? previousSelection?.selected : undefined);
   const inspectionFallback = currentSelected ? currentInspection : !!retainSelection && !!previousSelection?.inspection;
   const provider = selected?.value;
-  useLayoutEffect(() => {
-    if (lastSelection.current?.owner !== admissionOwner) lastSelection.current = undefined;
-  }, [admissionOwner]);
   const sourceOwnership = useMemo(() => editorOwnership(editing && baseline !== undefined ? baseline : value, admittedContext, provider), [admittedContext, provider, value, baseline, editing]);
   const exactTargets = contributions.filter((entry) => entry.value.targets.some((target) => target.group === admittedContext.group && target.version === admittedContext.version && target.kind === admittedContext.kind && target.resource === admittedContext.resource && target.scope === admittedContext.scope));
   const inspectOnlyTarget = exactTargets.length > 0 && !exactTargets.some((entry) => entry.value.intents.includes(admittedContext.intent));
@@ -192,10 +193,9 @@ function ResourceManifestSession(props: ResourceManifestEditorProps) {
   } }), [controller, serviceRevision, services.references]);
   const providerPaths = provider?.sensitivePaths ?? emptyPaths;
   const maskedPaths = useMemo(() => [...controllerState.protectedPaths, ...providerPaths.filter((path) => !controllerState.protectedPaths.some((saved) => saved.length === path.length && saved.every((segment, index) => segment === path[index])))], [controllerState.protectedPaths, providerPaths]);
-  const publicDraft = controllerState.source === value ? controller.draft(maskedPaths) : createResourceEditorDraft(value, controller.sessionID, currentRevision, maskedPaths);
+  const publicDraft = useMemo(() => controllerState.source === value ? controller.draft(maskedPaths) : createResourceEditorDraft(value, controller.sessionID, currentRevision, maskedPaths), [controller, controllerState.source, value, currentRevision, maskedPaths]);
   const publicBaseline = useMemo(() => baseline === undefined ? undefined : new ResourceEditorController(baseline).draft(maskedPaths), [baseline, maskedPaths]);
-  const lastForm = useRef<{ owner: string; provider: ResourceEditorContribution; schemaAvailable: boolean; draft: typeof publicDraft; baseline: typeof publicBaseline; context: ResourceEditorContext } | undefined>(undefined);
-  const heldProjection = lastForm.current?.owner === admissionOwner ? lastForm.current : undefined;
+  const heldProjection = previousSelection && previousSelection.selected.value === provider ? previousSelection.form : undefined;
   const secret = resourceKey === 'k8s:/secrets' || readManifestValue(draft, ['kind']) === 'Secret';
   const quarantinedCurrent = !!provider && quarantined === provider;
   const projection = useMemo(() => inspectResourceEditorProjection(value, maskedPaths), [value, maskedPaths]);
@@ -220,13 +220,9 @@ function ResourceManifestSession(props: ResourceManifestEditorProps) {
   const hasAdmissionPolicy = !!provider || exactTargets.length > 0;
   useLayoutEffect(() => { controller.commitSafety(observedSensitive, hasAdmissionPolicy ? readOnly : undefined, providerPaths, fallback); }, [controller, observedSensitive, hasAdmissionPolicy, readOnly, providerPaths, fallback]);
   const formAvailable = !!currentSelected && !schemaRejected && !unavailable && !quarantinedCurrent;
-  const retainedForm = heldProjection && heldProjection.provider === provider && heldProjection.schemaAvailable
+  const retainedForm = heldProjection && heldProjection.schemaAvailable
     && (admittedContext.schema.status !== 'available' || !currentSelected || schemaEvidence?.result?.truncated) ? heldProjection : undefined;
-  useLayoutEffect(() => {
-    formAdmission.current = formAvailable;
-    if (lastForm.current?.owner !== admissionOwner) lastForm.current = undefined;
-    if (formAvailable && currentSelected && admissionOwner) lastSelection.current = { owner: admissionOwner, selected: currentSelected, inspection: currentInspection };
-  }, [admissionOwner, currentInspection, currentSelected, formAvailable]);
+  useLayoutEffect(() => { formAdmission.current = formAvailable; }, [formAvailable]);
   const sections = provider?.sections ?? [];
   const activeSection = sections.some((entry) => entry.id === section) ? section : sections[0]?.id ?? 'basics';
   const localIdentity = useMemo(() => ({}), [snapshot.store, snapshot.version, preferences, props.preferredProviderID, props.contribution, preferredMode, section, diff, baseline, disabled, readOnly, requestPending]);
@@ -234,14 +230,14 @@ function ResourceManifestSession(props: ResourceManifestEditorProps) {
   const currentDisclosure = disclosure?.identity === localIdentity && disclosure.source === value ? disclosure : null;
   const raw = currentDisclosure?.mode === 'raw' && !diff && !readOnly && !disabled && !requestPending;
   const showForm = (formAvailable || !!retainedForm) && !!provider && !diff && preferredMode === 'form' && !raw && !keepYAML;
-  const codeSeen = useRef(false);
+  const [codeSeen, setCodeSeen] = useState(false);
   const sourceAdmission = useRef({ controller, readOnly, disabled, requestPending, diff, sensitive, raw, identity: localIdentity });
   useLayoutEffect(() => { sourceAdmission.current = { controller, readOnly, disabled, requestPending, diff, sensitive, raw, identity: localIdentity }; }, [controller, readOnly, disabled, requestPending, diff, sensitive, raw, localIdentity]);
   const changeYAML = useCallback((next: string) => {
     const current = sourceAdmission.current;
     if (current.controller !== controller || !controller.isActive() || current.readOnly || current.disabled || current.requestPending || current.diff || current.sensitive && !current.raw) return;
     if (current.sensitive && current.raw) setDisclosure({ identity: current.identity, source: next, mode: 'raw' });
-    if (next !== controller.getSource()) codeSeen.current = true;
+    if (next !== controller.getSource()) setCodeSeen(true);
     controller.syncSource(next); changeSource.current(next);
   }, [controller, setDisclosure]);
   const container = useContext(ResourcePortalContext);
@@ -263,12 +259,19 @@ function ResourceManifestSession(props: ResourceManifestEditorProps) {
   const codeValue = sensitive ? secret ? redactSecretManifest(value) : fullPreview ? projection.preview : resourceEditorPreview(value) : value;
   const original = sensitive && baseline !== undefined ? secret ? redactSecretManifest(baseline) : fullPreview ? baselineProjection?.preview : resourceEditorPreview(baseline) : baseline;
   const publicContext = useMemo(() => projectResourceEditorValue(effectiveContext) as ResourceEditorContext, [effectiveContext]);
-  useLayoutEffect(() => {
-    if (showForm && formAvailable && provider && admissionOwner) lastForm.current = {
-      owner: admissionOwner, provider, schemaAvailable: admittedContext.schema.status === 'available',
-      draft: publicDraft, baseline: publicBaseline, context: publicContext,
-    };
-  }, [admissionOwner, admittedContext.schema.status, formAvailable, provider, publicBaseline, publicContext, publicDraft, showForm]);
+  if (formAvailable && currentSelected && admissionOwner) {
+    const schemaAvailable = admittedContext.schema.status === 'available';
+    if (!previousSelection || previousSelection.selected.id !== currentSelected.id || previousSelection.selected.value !== provider
+      || previousSelection.inspection !== currentInspection || showForm && (!heldProjection || heldProjection.schemaAvailable !== schemaAvailable
+        || heldProjection.draft !== publicDraft || heldProjection.baseline !== publicBaseline || heldProjection.context !== publicContext)) {
+      setAdmittedEditor({
+        owner: admissionOwner, selected: currentSelected, inspection: currentInspection,
+        form: showForm ? { schemaAvailable, draft: publicDraft, baseline: publicBaseline, context: publicContext } : heldProjection,
+      });
+    }
+  } else if (admittedEditor && !retainSelection) {
+    setAdmittedEditor(undefined);
+  }
   const patchIdentity = useMemo(() => ({}), [controller, provider, currentRevision, disabled, requestPending, quarantinedCurrent, readOnly, effectiveContext, formAvailable]);
   const currentPatchIdentity = useRef(patchIdentity);
   useLayoutEffect(() => { currentPatchIdentity.current = patchIdentity; }, [patchIdentity]);
@@ -386,8 +389,8 @@ function ResourceManifestSession(props: ResourceManifestEditorProps) {
         <ResourceSchemaContext.Provider value={props.schemaRequest}><NativeResourceEditorContext.Provider value={nativeProps}><ProviderBoundary key={`${controller.sessionID}/${selected?.id}/${quarantinedCurrent}`} onFailure={() => { controller.invalidate(); setDisclosure(null); setQuarantined(provider); setAbandonedInputs(!!formError); setFormError(null); }}><Suspense fallback={<div role="status">Loading resource editor…</div>}><provider.component {...formProps} /></Suspense></ProviderBoundary></NativeResourceEditorContext.Provider></ResourceSchemaContext.Provider>
       </div>
     </div> : null}
-    {(!showForm || codeSeen.current) && <div className={styles.code} style={showForm ? { display: 'none' } : undefined}
-      onFocusCapture={() => { codeSeen.current = true; if (!formAvailable) setKeepYAML(true); }}>
+    {(!showForm || codeSeen) && <div className={styles.code} style={showForm ? { display: 'none' } : undefined}
+      onFocusCapture={() => { setCodeSeen(true); if (!formAvailable) setKeepYAML(true); }}>
       {props.schemaRequest && <SourceSchemaOwner request={props.schemaRequest} modelURI={modelURI} />}
       <CodeEditor key={`${sensitive ? raw ? 'raw' : 'preview' : 'source'}/${diff ? 'diff' : 'editor'}`} filename={sensitive ? `redacted/${filename}` : filename} path={modelURI} language="yaml" value={raw ? value : codeValue} onChange={sensitive && !raw || readOnly || diff ? undefined : changeYAML} readOnly={disabled || requestPending || readOnly || diff || sensitive && !raw} diff={diff} original={original} height="100%" /></div>}
     {provider?.request && <div className={styles.toolbar}><Button size="sm" disabled={!formAvailable || disabled || requestPending || !!formError || !!providerError || quarantinedCurrent || abandonedInputs} onClick={() => void runRequest()}>{requestPending ? 'Running…' : 'Run request'}</Button>{requestPending && <Button size="sm" variant="ghost" onClick={() => { pendingRequest.current?.abort(); setRequestPending(false); }}>Cancel request</Button>}{visibleRequestResult && <span role="status">{visibleRequestResult.status === 'ready' ? 'Request complete' : 'Request unavailable. Check target, permissions and server policy.'}</span>}</div>}

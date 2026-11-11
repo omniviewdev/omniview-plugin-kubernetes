@@ -38,7 +38,18 @@ interface DryRunUpgradeData {
   manifest?: string;
 }
 
-const UpgradeDialog: React.FC<Props> = ({
+type ReleaseValuesResult = { status: 'ready'; values: string } | { status: 'error' };
+
+// Drafts, load errors, and pending actions belong to one open upgrade target.
+const UpgradeDialog: React.FC<Props> = (props) => props.open ? (
+  <UpgradeForm key={JSON.stringify([
+    props.resource.pluginID, props.resource.targetId, props.resource.route,
+    props.resource.reference, props.resource.representation,
+    props.connectionID, props.namespace, props.releaseName, props.chartRef,
+  ])} {...props} />
+) : null;
+
+const UpgradeForm: React.FC<Props> = ({
   open,
   onClose,
   releaseName,
@@ -47,12 +58,14 @@ const UpgradeDialog: React.FC<Props> = ({
   connectionID,
   resource,
 }) => {
-  const [values, setValues] = React.useState('');
+  const [valuesDraft, setValues] = React.useState<string>();
   const [reuseValues, setReuseValues] = React.useState(true);
   const [dryRunManifest, setDryRunManifest] = React.useState<string | null>(null);
-  const [valuesLoaded, setValuesLoaded] = React.useState(false);
-  const [valuesError, setValuesError] = React.useState<string>();
-  const edited = React.useRef(false);
+  const [valuesResult, setValuesResult] = React.useState<ReleaseValuesResult>();
+  const values = valuesDraft ?? (valuesResult?.status === 'ready' ? valuesResult.values : '');
+  const valuesError = valuesResult?.status === 'error'
+    ? 'Current release values are unavailable. Authored values remain usable.' : undefined;
+  const actionEpochRef = React.useRef(0);
   const editorID = React.useId();
 
   const editorPath = resourceEditorModelURI({
@@ -61,64 +74,64 @@ const UpgradeDialog: React.FC<Props> = ({
   });
   const { executeAction, isExecuting } = useExecuteAction({ pluginID: PLUGIN_ID });
   const runAction = async (action: string, input = jsonToValue({})) => {
+    const epoch = actionEpochRef.current;
     const resolved = await ResourceClient.ResolveReference(PLUGIN_ID, {
       route: { connection: connectionID }, type: 'helm:releases', id: releaseName,
       scope: [{ dimension: 'namespace', value: namespace }],
     });
+    if (epoch !== actionEpochRef.current) return;
     return executeAction({ route: resolved.route, reference: resolved.reference, action, input });
   };
 
-  // Load current values on open
-  React.useEffect(() => {
-    if (!open || !releaseName || valuesLoaded) return;
-    let active = true;
-    setValuesError(undefined);
+  const loadCurrentValues = React.useEffectEvent(() => runAction('get-values', jsonToValue({ all: true })));
 
-    void runAction('get-values', jsonToValue({ all: true }))
-      .then((result) => {
-        if (!active) return;
-        const data = helmActionData(result) as { values?: unknown } | undefined;
-        if (!edited.current) setValues(data?.values ? stringify(data.values) : '');
-        setValuesLoaded(true);
-      })
-      .catch(() => {
-        if (!active) return;
-        setValuesError('Current release values are unavailable. Authored values remain usable.');
-        setValuesLoaded(true);
-      });
-    return () => { active = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, releaseName]);
+  React.useEffect(() => {
+    const epoch = actionEpochRef.current;
+    if (releaseName) {
+      void loadCurrentValues()
+        .then((result) => {
+          if (epoch !== actionEpochRef.current || result === undefined) return;
+          const data = helmActionData(result) as { values?: unknown } | undefined;
+          setValuesResult({ status: 'ready', values: data?.values ? stringify(data.values) : '' });
+        })
+        .catch(() => {
+          if (epoch === actionEpochRef.current) setValuesResult({ status: 'error' });
+        });
+    }
+    return () => { actionEpochRef.current += 1; };
+  }, [releaseName]);
 
   const handleDryRun = async () => {
+    const epoch = actionEpochRef.current;
     try {
       const result = await runAction('dry-run-upgrade', jsonToValue({
         chart: chartRef, reuse_values: reuseValues, values: helmValues(values),
       }));
+      if (epoch !== actionEpochRef.current || result === undefined) return;
       const dryRunData = helmActionData(result) as DryRunUpgradeData | undefined;
       setDryRunManifest(dryRunData?.manifest ?? 'No manifest generated');
     } catch (err: unknown) {
+      if (epoch !== actionEpochRef.current) return;
       const message = err instanceof Error ? err.message : 'Dry run failed';
       setDryRunManifest(`Error: ${message}`);
     }
   };
 
   const handleUpgrade = async () => {
+    const epoch = actionEpochRef.current;
     try {
       await runAction('upgrade', jsonToValue({
         chart: chartRef, reuse_values: reuseValues, values: helmValues(values),
       }));
-      onClose();
+      if (epoch === actionEpochRef.current) handleClose();
     } catch (error: unknown) {
+      if (epoch !== actionEpochRef.current) return;
       setDryRunManifest(`Error: ${error instanceof Error ? error.message : 'Upgrade failed'}`);
     }
   };
 
   const handleClose = () => {
-    setDryRunManifest(null);
-    setValuesLoaded(false);
-    edited.current = false;
-    setValuesError(undefined);
+    actionEpochRef.current += 1;
     onClose();
   };
 
@@ -151,7 +164,7 @@ const UpgradeDialog: React.FC<Props> = ({
                 path={editorPath}
                 language="yaml"
                 value={values}
-                onChange={(next) => { edited.current = true; setValues(next); }}
+                onChange={setValues}
                 height={250}
               />
             </div>
