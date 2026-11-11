@@ -13,7 +13,7 @@ const target = { route: { connection: 'prod' }, provider: 'kubernetes', authorit
 const type: Extract<SearchScopeV1, {kind: 'resource-type'}> = { kind: 'resource-type', pluginId: 'kubernetes', target, targetId: 'host-target', label: 'Pods' };
 function record(namespace: string, uid: string) {
   return { key: `host-key-${namespace}`, addressKey: `host-address-${namespace}`, targetId: type.targetId, route: target.route,
-    record: { reference: { address: { provider: target.provider, authority: target.authority, type: target.type, scope: [{ dimension: 'namespace', value: namespace }], id: 'api' }, incarnation: uid }, body: jsonToValue({ metadata: { name: 'api', namespace, uid } }), representation: { id: 'native', revision: '', schema: {} }, coverage: { kind: 'complete', paths: [] } } };
+    record: { reference: { address: { provider: target.provider, authority: target.authority, type: target.type, scope: [{ dimension: 'namespace', value: namespace }], id: 'api' }, incarnation: uid }, body: jsonToValue({ metadata: { name: 'api', namespace, uid } }), representation: { id: 'native', revision: 'format-1' }, coverage: { kind: 'complete', paths: [] } } };
 }
 function request(scope: SearchScopeV1, query = '') { return { scopes: [connection, scope], query, limit: 20, generation: 1, signal: new AbortController().signal }; }
 const context = (): SearchExecutionContextV1 => ({ signal: new AbortController().signal, generation: 1, navigate: vi.fn(), openResource: vi.fn() });

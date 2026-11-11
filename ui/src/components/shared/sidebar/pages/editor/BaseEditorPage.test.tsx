@@ -15,8 +15,9 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock('@omniviewdev/runtime', () => ({
   useResourceMutations: () => ({ mutate: mocks.mutate }),
-  useResourceEditorModelPath: () => undefined,
-  useResourceTypes: () => ({ resourceTypes: { data: [{ type: 'k8s:/pods', capabilities: mocks.capabilities, identityDimensions: [{ name: 'namespace' }], representations: [{ id: 'kubernetes.object.v1/v1', schema: { state: 'absent' } }] }] } }),
+  resourceEditorModelURI: () => 'inmemory://fixture/resource.yaml',
+  useEditorSchema: () => ({ result: undefined, error: null }),
+  useResourceTypes: () => ({ resourceTypes: { data: [{ type: 'k8s:/pods', capabilities: mocks.capabilities, identityDimensions: [{ name: 'namespace' }], representations: [{ id: 'kubernetes.object.v1/v1', revision: 'v1' }] }] } }),
   jsonToValue: mocks.encode,
   valueToJSON: (value: unknown) => value,
   parseAppError: (error: Error) => ({ detail: error.message }),

@@ -153,7 +153,21 @@ func TestNativeRelationshipsAdmitWholeRouteCatalog(t *testing.T) {
 	require.Error(t, err, "catalog membership must not bypass the connection lease")
 }
 
-func TestNativeEditorSchemasIncludeInstalledHelmValuesSchema(t *testing.T) {
+func helmValuesSchemaRequest(route resourcev2.AccessRoute) resourcev2.SchemaRequest {
+	revision := "1"
+	return resourcev2.SchemaRequest{
+		Route: route, Type: helm.ReleaseType,
+		Target: resourcev2.SchemaTarget{Auxiliary: &resourcev2.AuxiliarySchemaTarget{
+			Key: "values", SourceRevision: &revision,
+			Reference: resourcev2.ResourceReference{Address: resourcev2.ResourceAddress{
+				Provider: "kubernetes", Authority: "fixture-authority", Type: helm.ReleaseType,
+				ID: "installed", Scope: []resourcev2.ScopeEntry{{Dimension: "namespace", Value: "selected"}},
+			}},
+		}},
+	}
+}
+
+func TestNativeTargetSchemaIncludesSelectedHelmValuesSchema(t *testing.T) {
 	t.Setenv("HELM_DRIVER", "secrets")
 	schema := []byte(`{"$schema":"http://json-schema.org/draft-07/schema#","type":"object","properties":{"replicas":{"type":"integer"}}}`)
 	installed := &release.Release{Name: "installed", Namespace: "selected", Version: 1, Chart: &chart.Chart{Metadata: &chart.Metadata{Name: "fixture-chart", Version: "1.0.0"}, Schema: schema}}
@@ -213,7 +227,7 @@ func TestNativeEditorSchemasIncludeInstalledHelmValuesSchema(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config")
 	config := fmt.Sprintf("apiVersion: v1\nkind: Config\nclusters:\n- name: owned\n  cluster:\n    server: %s\n    insecure-skip-tls-verify: true\ncontexts:\n- name: owned-cluster\n  context:\n    cluster: owned\n    user: owned\ncurrent-context: owned-cluster\nusers:\n- name: owned\n  user:\n    token: owned-schema-fixture\n", server.URL)
 	require.NoError(t, os.WriteFile(configPath, []byte(config), 0600))
-	p := &kubernetesProvider{catalogs: map[string]*nativeCatalogSnapshot{route.Connection: {catalog: resourcev2.Catalog{Provider: "kubernetes", Revision: "editor-catalog", Coverage: resourcev2.Coverage{Kind: "complete"}, Types: []resourcev2.ResourceType{{Type: "k8s:/pods", DefaultRepresentation: boundaryRepresentation().ID, Representations: []resourcev2.Representation{boundaryRepresentation()}}}}}}, helmAncillary: helm.NewHelmAncillary(zap.NewNop().Sugar())}
+	p := &kubernetesProvider{catalogs: map[string]*nativeCatalogSnapshot{route.Connection: {catalog: resourcev2.Catalog{Provider: "kubernetes", Revision: "editor-catalog", Coverage: resourcev2.Coverage{Kind: "complete"}, Types: helm.HelmResourceTypes()}}}, helmAncillary: helm.NewHelmAncillary(zap.NewNop().Sugar())}
 	controller, err := resourcev2.NewController(resourcev2.Config[clients.ClientSet]{Catalog: p.catalog, Lifecycle: &resourcev2.Lifecycle[clients.ClientSet]{
 		LoadConnections: func(context.Context) ([]types.Connection, error) {
 			return []types.Connection{{ID: route.Connection, Name: "Owned cluster"}}, nil
@@ -240,26 +254,22 @@ func TestNativeEditorSchemasIncludeInstalledHelmValuesSchema(t *testing.T) {
 	require.NoError(t, err)
 	_, err = controller.StartConnection(context.Background(), route.Connection)
 	require.NoError(t, err)
-	schemas, err := p.GetEditorSchemas(context.Background(), route)
+	binding, err := p.ResolveSchema(context.Background(), helmValuesSchemaRequest(route))
 	require.NoError(t, err)
 	require.Equal(t, int32(1), nativeGets.Load())
-	require.Len(t, schemas, 1, "catalog types are host-derived; the provider returns only Helm auxiliary schemas")
-	require.Equal(t, "helm:releases", schemas[0].Type)
-	require.Equal(t, "selected/installed", schemas[0].Key)
-	require.Equal(t, "yaml", schemas[0].Language)
-	require.Equal(t, "available", schemas[0].Binding.State)
-	require.JSONEq(t, string(schema), string(schemas[0].Binding.Document))
+	require.Equal(t, "available", binding.State)
+	require.JSONEq(t, string(schema), string(binding.Document))
 	oversized.Store(true)
-	schemas, err = p.GetEditorSchemas(context.Background(), route)
+	binding, err = p.ResolveSchema(context.Background(), helmValuesSchemaRequest(route))
 	require.Equal(t, "RESOURCE_LIMIT", resourcev2.ErrorCode(err), "the Helm response guard failure is returned unchanged")
-	require.Empty(t, schemas)
+	require.Empty(t, binding.State)
 	require.Equal(t, int32(1), oversizedGets.Load(), "oversized native payloads must not trigger retries or an unbounded fallback client")
 	oversized.Store(false)
 	blocked.Store(true)
 	requestCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	canceled := make(chan error, 1)
-	go func() { _, err := p.GetEditorSchemas(requestCtx, route); canceled <- err }()
+	go func() { _, err := p.ResolveSchema(requestCtx, helmValuesSchemaRequest(route)); canceled <- err }()
 	select {
 	case <-entered:
 	case <-time.After(3 * time.Second):
@@ -278,7 +288,7 @@ func TestNativeEditorSchemasIncludeInstalledHelmValuesSchema(t *testing.T) {
 		t.Fatal("native Helm HTTP request did not retire")
 	}
 	blocked.Store(false)
-	schemas, err = p.GetEditorSchemas(context.Background(), route)
+	binding, err = p.ResolveSchema(context.Background(), helmValuesSchemaRequest(route))
 	require.NoError(t, err, "one canceled request must not poison later Helm configurations")
-	require.Len(t, schemas, 1)
+	require.Equal(t, "available", binding.State)
 }

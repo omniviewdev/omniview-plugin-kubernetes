@@ -61,11 +61,10 @@ func validateActionInput(request resource.ActionRequest) error {
 	return nil
 }
 
-// helmEditorSchema preserves the raw native schema as an auxiliary editor
-// schema keyed by release. The host normalizes it and decides dialect support.
-func helmEditorSchema(document []byte, key string) (resource.EditorSchema, int, error) {
+// helmSchemaBinding preserves native bytes; the host owns dialect normalization.
+func helmSchemaBinding(document []byte) (resource.SchemaBinding, error) {
 	if err := resource.ValidateJSON(document); err != nil {
-		return resource.EditorSchema{}, 0, err
+		return resource.SchemaBinding{}, err
 	}
 	dialect := resource.DialectJSONSchemaDraft07
 	trimmed := bytes.TrimSpace(document)
@@ -74,30 +73,23 @@ func helmEditorSchema(document []byte, key string) (resource.EditorSchema, int, 
 			Dialect string `json:"$schema"`
 		}
 		if err := json.Unmarshal(document, &declaration); err != nil {
-			return resource.EditorSchema{}, 0, resource.NewError("INVALID_REQUEST", "invalid Helm schema declaration")
+			return resource.SchemaBinding{}, resource.NewError("INVALID_REQUEST", "invalid Helm schema declaration")
 		}
 		if declaration.Dialect != "" {
 			dialect = helmSchemaDialect(declaration.Dialect)
 		}
 	} else if !bytes.Equal(trimmed, []byte("true")) && !bytes.Equal(trimmed, []byte("false")) {
-		return resource.EditorSchema{}, 0, resource.NewError("INVALID_REQUEST", "Helm schema must be an object or boolean")
+		return resource.SchemaBinding{}, resource.NewError("INVALID_REQUEST", "Helm schema must be an object or boolean")
 	}
 	digest := sha256.Sum256(document)
 	revision := hex.EncodeToString(digest[:])
-	schema := resource.EditorSchema{
-		Type: ReleaseType, Key: key, Language: "yaml",
-		Binding: resource.SchemaBinding{
-			State: "available", Revision: &revision, Dialect: dialect, Root: "",
-			Document: document,
-		},
-	}
-	// Bound retained raw documents plus worst-case escaped metadata before the
-	// caller appends another schema. The fixed allowance covers field syntax.
-	metadataBytes := 1024 + 6*(len(schema.Type)+len(key)+len(schema.Language)+len(dialect)+len(revision))
+	metadataBytes := 1024 + 6*(len(dialect)+len(revision))
 	if metadataBytes > resource.MaxDocumentBytes || len(document) > resource.MaxDocumentBytes-metadataBytes {
-		return resource.EditorSchema{}, 0, resource.NewError("RESOURCE_LIMIT", "Helm editor schema exceeds presentation budget")
+		return resource.SchemaBinding{}, resource.NewError("RESOURCE_LIMIT", "Helm editor schema exceeds presentation budget")
 	}
-	return schema, metadataBytes + len(document), nil
+	return resource.SchemaBinding{
+		State: "available", Revision: &revision, Dialect: dialect, Document: document,
+	}, nil
 }
 
 // helmSchemaDialect maps a chart's $schema to the SDK dialect constant when it

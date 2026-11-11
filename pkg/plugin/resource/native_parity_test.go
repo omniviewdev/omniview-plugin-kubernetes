@@ -167,7 +167,7 @@ func TestNativeParityServedVersionsAndRequestedEndpoint(t *testing.T) {
 		assert.Equal(t, "widgets", served.API.Name)
 	}
 	provider := &kubernetesProvider{logger: zap.NewNop().Sugar()}
-	snapshot, err := provider.assembleNativeCatalog(context.Background(), "route", &clients.ClientSet{}, bindings, coverage, nil, nil, nil, nativeTestAny())
+	snapshot, err := provider.assembleNativeCatalog(context.Background(), "route", &clients.ClientSet{}, bindings, coverage, nil, nativeTestAny())
 	require.NoError(t, err)
 	binding = snapshot.bindings["k8s:sample.example/widgets"]
 	require.Len(t, binding.Descriptor.Representations, 4)
@@ -281,7 +281,7 @@ func TestNativeParityConfiguredNamespaceScopeBoundsFiniteAdmission(t *testing.T)
 	require.NoError(t, err)
 	provider := &kubernetesProvider{logger: zap.NewNop().Sugar()}
 	scope := nativeTestOneOf("selected")
-	snapshot, err := provider.assembleNativeCatalog(context.Background(), "route", &clients.ClientSet{}, bindings, coverage, nil, nil, nil, scope)
+	snapshot, err := provider.assembleNativeCatalog(context.Background(), "route", &clients.ClientSet{}, bindings, coverage, nil, scope)
 	require.NoError(t, err)
 	descriptor := snapshot.bindings["k8s:sample.example/widgets"].Descriptor
 	for _, capability := range descriptor.Capabilities {

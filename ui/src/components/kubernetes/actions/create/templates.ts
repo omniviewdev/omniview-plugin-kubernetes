@@ -6,25 +6,6 @@ export interface NativeTemplateIdentity {
   namespaced: boolean;
 }
 
-/** Read only the selected native schema root; opaque resource Types carry no GVK. */
-export function templateIdentity(document: unknown, root: string | undefined, namespaced: boolean): NativeTemplateIdentity | undefined {
-  let selected = document;
-  if (root && root !== '#') {
-    if (!root.startsWith('#/')) return undefined;
-    for (const segment of root.slice(2).split('/')) {
-      if (!selected || typeof selected !== 'object') return undefined;
-      selected = (selected as Record<string, unknown>)[segment.replace(/~1/g, '/').replace(/~0/g, '~')];
-    }
-  }
-  if (!selected || typeof selected !== 'object') return undefined;
-  const entries = (selected as Record<string, unknown>)['x-kubernetes-group-version-kind'];
-  if (!Array.isArray(entries) || entries.length !== 1) return undefined;
-  const entry = entries[0] as Record<string, unknown>;
-  if (typeof entry.group !== 'string' || typeof entry.version !== 'string' || !entry.version ||
-      typeof entry.kind !== 'string' || !entry.kind) return undefined;
-  return { apiVersion: entry.group ? `${entry.group}/${entry.version}` : entry.version, kind: entry.kind, namespaced };
-}
-
 /**
  * Hand-crafted YAML templates for common Kubernetes resource kinds.
  */
@@ -308,7 +289,7 @@ volumeBindingMode: WaitForFirstConsumer
 `,
 };
 
-/** Keep useful native examples, but take identity and namespace admission from the selected schema and catalog. */
+/** Keep useful native examples, but take identity from the selected editor target and catalog scope. */
 export const getTemplate = (identity?: NativeTemplateIdentity): string => {
   if (!identity) return '# Paste a complete Kubernetes YAML manifest, including apiVersion, kind, and metadata.name.\n';
   const { apiVersion, kind, namespaced } = identity;

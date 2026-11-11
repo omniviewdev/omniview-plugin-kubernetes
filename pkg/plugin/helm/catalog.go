@@ -10,7 +10,7 @@ func HelmResourceGroup() resource.ResourceGroup {
 	return resource.ResourceGroup{ID: "helm", Name: "Helm", Icon: "SiHelm", Resources: []string{ReleaseType, RepositoryType, ChartType}}
 }
 func helmRepresentationDescriptor() resource.Representation {
-	return resource.Representation{ID: helmRepresentation, Revision: "1", Schema: resource.SchemaBinding{State: "absent"}}
+	return resource.Representation{ID: helmRepresentation, Revision: "1"}
 }
 func HelmResourceTypes() []resource.ResourceType {
 	out := make([]resource.ResourceType, 0, 3)
@@ -48,8 +48,20 @@ func HelmResourceTypes() []resource.ResourceType {
 	return out
 }
 
-func (h *HelmAncillary) GetEditorSchemas(ctx context.Context, c *clients.ClientSet) ([]resource.EditorSchema, error) {
-	return h.release.GetEditorSchemas(ctx, c)
+func (h *HelmAncillary) ResolveSchema(ctx context.Context, c *clients.ClientSet, request resource.SchemaRequest) (resource.SchemaBinding, error) {
+	if err := resource.ValidateSchemaRequest(request); err != nil {
+		return resource.SchemaBinding{}, err
+	}
+	if request.Type != ReleaseType || request.Target.Auxiliary == nil || request.Target.Auxiliary.Key != "values" {
+		return resource.SchemaBinding{}, resource.NewError("UNSUPPORTED", "Helm provides only selected installed-release values schemas")
+	}
+	timeout, err := resource.ConnectionAcquisitionTimeout(ctx)
+	if err != nil {
+		return resource.SchemaBinding{}, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	return h.release.ResolveSchema(ctx, c, *request.Target.Auxiliary)
 }
 
 func HelmResourceDefinitions() map[string]resource.ResourceDefinition {

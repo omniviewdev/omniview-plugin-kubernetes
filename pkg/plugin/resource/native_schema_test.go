@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -33,6 +34,56 @@ func nativeSchemaRESTClient(t *testing.T, handler http.Handler) rest.Interface {
 	return client
 }
 
+// These correction/budget fixtures issue individual group/version demands.
+// Provider coalescing, admission and lifetime tests exercise ResolveSchema below.
+type schemaFixtureDocument struct {
+	nativeSchemaDocument
+	Root string
+}
+
+type schemaFixtureLeases []*nativeSchemaLease
+
+func (leases schemaFixtureLeases) Release() {
+	for _, lease := range leases {
+		lease.Release()
+	}
+}
+
+func fetchSchemaFixtures(ctx context.Context, client rest.Interface, bindings map[string]nativeType, budget *nativeSchemaBudget) (map[string]schemaFixtureDocument, map[string]error, schemaFixtureLeases) {
+	keys := make([]string, 0, len(bindings))
+	for key := range bindings {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	documents := make(map[schema.GroupVersion]nativeSchemaDocument)
+	failures := make(map[string]error)
+	result := make(map[string]schemaFixtureDocument)
+	var leases schemaFixtureLeases
+	for _, key := range keys {
+		binding := bindings[key]
+		gv := binding.GVR.GroupVersion()
+		document, exists := documents[gv]
+		if !exists {
+			var lease *nativeSchemaLease
+			var err error
+			document, lease, err = fetchNativeSchema(ctx, client, gv, budget)
+			leases = append(leases, lease)
+			if err != nil {
+				failures[key] = err
+				continue
+			}
+			documents[gv] = document
+		}
+		root := document.roots[gv.WithKind(binding.API.Kind)]
+		if root == "" {
+			failures[key] = fmt.Errorf("native OpenAPI root unavailable")
+			continue
+		}
+		result[key] = schemaFixtureDocument{nativeSchemaDocument: document, Root: root}
+	}
+	return result, failures, leases
+}
+
 func TestNativeSchemaKeepsExactDocumentAndRoot(t *testing.T) {
 	const document = `{"openapi":"3.0.0","components":{"schemas":{"native.Pod":{"x-kubernetes-group-version-kind":[{"group":"","version":"v1","kind":"Pod"}],"properties":{"spec":{"$ref":"#/components/schemas/native.Spec"}}},"native.Spec":{"type":"object"},"native.Node":{"x-kubernetes-group-version-kind":[{"group":"","version":"v1","kind":"Node"}],"type":"object"}}}}`
 	var calls atomic.Int32
@@ -47,7 +98,7 @@ func TestNativeSchemaKeepsExactDocumentAndRoot(t *testing.T) {
 		"core::v1::Node": {GVR: schema.GroupVersionResource{Version: "v1", Resource: "nodes"}, API: metav1.APIResource{Kind: "Node"}},
 	}
 	budget := &nativeSchemaBudget{}
-	result, failures, lease := fetchNativeSchemas(context.Background(), client, bindings, budget)
+	result, failures, lease := fetchSchemaFixtures(context.Background(), client, bindings, budget)
 	defer lease.Release()
 	require.Empty(t, failures)
 	require.Equal(t, int32(1), calls.Load(), "fetch each group/version only once")
@@ -94,14 +145,14 @@ func TestNativeSchemaPublishesCorrectedTimeAndSharesLeases(t *testing.T) {
 	}))
 	bindings := map[string]nativeType{"pod": schemaBudgetBinding("")}
 	budget := &nativeSchemaBudget{limit: len(corrected)}
-	first, failures, lease := fetchNativeSchemas(context.Background(), client, bindings, budget)
+	first, failures, lease := fetchSchemaFixtures(context.Background(), client, bindings, budget)
 	require.Empty(t, failures)
 	require.Equal(t, corrected, []byte(first["pod"].Document))
 	digest := sha256.Sum256(corrected)
 	rawDigest := sha256.Sum256(source)
 	require.Equal(t, hex.EncodeToString(digest[:]), first["pod"].Revision)
 	require.NotEqual(t, rawDigest, digest)
-	second, failures, secondLease := fetchNativeSchemas(context.Background(), client, bindings, budget)
+	second, failures, secondLease := fetchSchemaFixtures(context.Background(), client, bindings, budget)
 	require.Empty(t, failures)
 	require.Equal(t, first["pod"].Revision, second["pod"].Revision)
 	require.True(t, &first["pod"].Document[0] == &second["pod"].Document[0])
@@ -113,7 +164,7 @@ func TestNativeSchemaPublishesCorrectedTimeAndSharesLeases(t *testing.T) {
 	require.Equal(t, raw, string(source))
 
 	tooSmall := &nativeSchemaBudget{limit: len(corrected) - 1}
-	result, failures, failedLease := fetchNativeSchemas(context.Background(), client, bindings, tooSmall)
+	result, failures, failedLease := fetchSchemaFixtures(context.Background(), client, bindings, tooSmall)
 	require.Empty(t, result)
 	require.ErrorContains(t, failures["pod"], "budget exhausted")
 	require.Zero(t, tooSmall.used)
@@ -127,7 +178,7 @@ func TestNativeSchemaCorrectionUsesExactSchemasCase(t *testing.T) {
 	client := nativeSchemaRESTClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(raw))
 	}))
-	result, failures, lease := fetchNativeSchemas(context.Background(), client, map[string]nativeType{"pod": schemaBudgetBinding("")}, &nativeSchemaBudget{})
+	result, failures, lease := fetchSchemaFixtures(context.Background(), client, map[string]nativeType{"pod": schemaBudgetBinding("")}, &nativeSchemaBudget{})
 	defer lease.Release()
 	require.Empty(t, failures)
 	require.Equal(t, strings.Replace(raw, original, corrected, 1), string(result["pod"].Document))
@@ -142,7 +193,7 @@ func TestNativeSchemaCorrectionRejectsNonobjectContainers(t *testing.T) {
 			_, _ = w.Write([]byte(document))
 		}))
 		budget := &nativeSchemaBudget{}
-		result, failures, lease := fetchNativeSchemas(context.Background(), client, map[string]nativeType{"pod": schemaBudgetBinding("")}, budget)
+		result, failures, lease := fetchSchemaFixtures(context.Background(), client, map[string]nativeType{"pod": schemaBudgetBinding("")}, budget)
 		require.Empty(t, result)
 		require.ErrorContains(t, failures["pod"], "time component location is invalid")
 		require.Zero(t, budget.used)
@@ -158,7 +209,7 @@ func TestNativeSchemaCorrectionRespectsDocumentLimit(t *testing.T) {
 		_, _ = w.Write([]byte(document))
 	}))
 	budget := &nativeSchemaBudget{}
-	result, failures, lease := fetchNativeSchemas(context.Background(), client, map[string]nativeType{"pod": schemaBudgetBinding("")}, budget)
+	result, failures, lease := fetchSchemaFixtures(context.Background(), client, map[string]nativeType{"pod": schemaBudgetBinding("")}, budget)
 	defer lease.Release()
 	require.Empty(t, result)
 	require.ErrorContains(t, failures["pod"], "document exceeds")
@@ -170,7 +221,7 @@ func TestNativeSchemaFailureIsNotAbsence(t *testing.T) {
 		w.WriteHeader(http.StatusForbidden)
 	}))
 	bindings := map[string]nativeType{"pod": {GVR: schema.GroupVersionResource{Version: "v1", Resource: "pods"}, API: metav1.APIResource{Kind: "Pod"}}}
-	result, failures, lease := fetchNativeSchemas(context.Background(), client, bindings, &nativeSchemaBudget{})
+	result, failures, lease := fetchSchemaFixtures(context.Background(), client, bindings, &nativeSchemaBudget{})
 	defer lease.Release()
 	require.Empty(t, result)
 	require.Error(t, failures["pod"])
@@ -182,7 +233,7 @@ func TestNativeSchemaCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	bindings := map[string]nativeType{"pod": {GVR: schema.GroupVersionResource{Version: "v1", Resource: "pods"}, API: metav1.APIResource{Kind: "Pod"}}}
-	result, failures, lease := fetchNativeSchemas(ctx, client, bindings, &nativeSchemaBudget{})
+	result, failures, lease := fetchSchemaFixtures(ctx, client, bindings, &nativeSchemaBudget{})
 	defer lease.Release()
 	require.Empty(t, result)
 	require.ErrorIs(t, failures["pod"], context.Canceled)
@@ -212,7 +263,7 @@ func TestNativeSchemaBudgetAcrossGroupsAndConnections(t *testing.T) {
 		}
 	}))
 	budget := &nativeSchemaBudget{limit: len(first) + len(second) - 1}
-	result, failures, lease := fetchNativeSchemas(context.Background(), client, map[string]nativeType{
+	result, failures, lease := fetchSchemaFixtures(context.Background(), client, map[string]nativeType{
 		"a": schemaBudgetBinding("a"), "b": schemaBudgetBinding("b"),
 	}, budget)
 	require.Equal(t, first, string(result["a"].Document))
@@ -221,7 +272,7 @@ func TestNativeSchemaBudgetAcrossGroupsAndConnections(t *testing.T) {
 	require.Equal(t, len(first), budget.used)
 	require.Equal(t, int32(2), calls.Load())
 
-	other, otherFailures, otherLease := fetchNativeSchemas(context.Background(), client, map[string]nativeType{"b": schemaBudgetBinding("b")}, budget)
+	other, otherFailures, otherLease := fetchSchemaFixtures(context.Background(), client, map[string]nativeType{"b": schemaBudgetBinding("b")}, budget)
 	require.Empty(t, other, "another connection shares the provider budget")
 	require.ErrorContains(t, otherFailures["b"], "budget exhausted")
 	require.Equal(t, len(first), budget.used)
@@ -234,7 +285,7 @@ func TestNativeSchemaBudgetAcrossGroupsAndConnections(t *testing.T) {
 	lease.Release()
 	lease.Release()
 	require.Zero(t, budget.used, "release is idempotent")
-	replacement, replacementFailures, replacementLease := fetchNativeSchemas(context.Background(), client, map[string]nativeType{"b": schemaBudgetBinding("b")}, budget)
+	replacement, replacementFailures, replacementLease := fetchSchemaFixtures(context.Background(), client, map[string]nativeType{"b": schemaBudgetBinding("b")}, budget)
 	require.Empty(t, replacementFailures)
 	require.Equal(t, second, string(replacement["b"].Document))
 	require.Equal(t, len(second), budget.used)
@@ -259,19 +310,20 @@ func TestNativeSchemaBudgetExactBoundaryAndFailedReplacement(t *testing.T) {
 	}))
 	budget := &nativeSchemaBudget{limit: len(document)}
 	bindings := map[string]nativeType{"a": schemaBudgetBinding("a")}
-	result, failures, lease := fetchNativeSchemas(context.Background(), client, bindings, budget)
+	result, failures, lease := fetchSchemaFixtures(context.Background(), client, bindings, budget)
 	require.Empty(t, failures)
 	require.Len(t, result, 1)
 	require.Equal(t, budget.limit, budget.used)
-	duplicate, duplicateFailures, duplicateLease := fetchNativeSchemas(context.Background(), client, bindings, budget)
+	duplicate, duplicateFailures, duplicateLease := fetchSchemaFixtures(context.Background(), client, bindings, budget)
 	require.Empty(t, duplicateFailures)
 	require.Equal(t, document, string(duplicate["a"].Document))
 	require.True(t, &result["a"].Document[0] == &duplicate["a"].Document[0], "duplicate leases share cached allocation")
 	require.Equal(t, budget.limit, budget.used, "identical content must fit a full budget")
 	changed.Store(true)
-	blocked, blockedFailures, blockedLease := fetchNativeSchemas(context.Background(), client, bindings, budget)
+	blocked, blockedFailures, blockedLease := fetchSchemaFixtures(context.Background(), client, bindings, budget)
 	require.Empty(t, blocked)
-	require.ErrorContains(t, blockedFailures["a"], "budget exhausted")
+	require.ErrorIs(t, blockedFailures["a"], errNativeSchemaRetention)
+	require.Equal(t, "schema_retained_budget", nativeBudgetReason(blockedFailures["a"]))
 	blockedLease.Release()
 	blockedLease.Release()
 	require.Equal(t, budget.limit, budget.used, "failed leases cannot release cached content")
@@ -280,9 +332,9 @@ func TestNativeSchemaBudgetExactBoundaryAndFailedReplacement(t *testing.T) {
 	lease.Release()
 	require.Equal(t, budget.limit, budget.used, "duplicate lease must retain cached bytes after original release")
 	require.Equal(t, document, string(duplicate["a"].Document))
-	stillBlocked, stillBlockedFailures, stillBlockedLease := fetchNativeSchemas(context.Background(), client, bindings, budget)
+	stillBlocked, stillBlockedFailures, stillBlockedLease := fetchSchemaFixtures(context.Background(), client, bindings, budget)
 	require.Empty(t, stillBlocked)
-	require.ErrorContains(t, stillBlockedFailures["a"], "budget exhausted")
+	require.ErrorIs(t, stillBlockedFailures["a"], errNativeSchemaRetention)
 	stillBlockedLease.Release()
 	duplicate = nil
 	duplicateLease.Release()
@@ -290,13 +342,13 @@ func TestNativeSchemaBudgetExactBoundaryAndFailedReplacement(t *testing.T) {
 	require.Zero(t, budget.used, "only the final lease releases cached bytes; release is idempotent")
 	changed.Store(false)
 	invalid.Store(true)
-	failed, failedErrors, failedLease := fetchNativeSchemas(context.Background(), client, bindings, budget)
+	failed, failedErrors, failedLease := fetchSchemaFixtures(context.Background(), client, bindings, budget)
 	require.Empty(t, failed)
 	require.Error(t, failedErrors["a"], "duplicate JSON keys stay invalid")
 	failedLease.Release()
 	require.Zero(t, budget.used, "failed replacement must not retain bytes")
 	invalid.Store(false)
-	recovered, recoveredErrors, recoveredLease := fetchNativeSchemas(context.Background(), client, bindings, budget)
+	recovered, recoveredErrors, recoveredLease := fetchSchemaFixtures(context.Background(), client, bindings, budget)
 	require.Len(t, recovered, 1)
 	require.Empty(t, recoveredErrors)
 	recoveredLease.Release()
@@ -308,7 +360,7 @@ func TestNativeSchemaUnmappedDocumentDoesNotConsumeBudget(t *testing.T) {
 		_, _ = w.Write([]byte(document))
 	}))
 	budget := &nativeSchemaBudget{limit: len(document)}
-	result, failures, lease := fetchNativeSchemas(context.Background(), client, map[string]nativeType{"a": schemaBudgetBinding("a")}, budget)
+	result, failures, lease := fetchSchemaFixtures(context.Background(), client, map[string]nativeType{"a": schemaBudgetBinding("a")}, budget)
 	defer lease.Release()
 	require.Empty(t, result)
 	require.ErrorContains(t, failures["a"], "root unavailable")
@@ -320,7 +372,7 @@ func TestNativeSchemaDocumentLimitSurvivesAggregateBudget(t *testing.T) {
 		_, _ = w.Write([]byte(strings.Repeat(" ", maxNativeSchemaBytes+1)))
 	}))
 	budget := &nativeSchemaBudget{}
-	result, failures, lease := fetchNativeSchemas(context.Background(), client, map[string]nativeType{"a": schemaBudgetBinding("a")}, budget)
+	result, failures, lease := fetchSchemaFixtures(context.Background(), client, map[string]nativeType{"a": schemaBudgetBinding("a")}, budget)
 	defer lease.Release()
 	require.Empty(t, result)
 	require.ErrorContains(t, failures["a"], "document exceeds")
@@ -347,8 +399,8 @@ func TestNativeSchemaReleaseAndQueuedCancellationDuringFetch(t *testing.T) {
 		}
 		_, _ = w.Write([]byte(document))
 	}))
-	budget := &nativeSchemaBudget{limit: 2 * len(document)}
-	result, failures, firstLease := fetchNativeSchemas(context.Background(), client, map[string]nativeType{"a": schemaBudgetBinding("a")}, budget)
+	budget := &nativeSchemaBudget{limit: 2 * len(document), staging: make(chan struct{}, 1)}
+	result, failures, firstLease := fetchSchemaFixtures(context.Background(), client, map[string]nativeType{"a": schemaBudgetBinding("a")}, budget)
 	require.Empty(t, failures)
 	require.Len(t, result, 1)
 	defer firstLease.Release()
@@ -358,7 +410,7 @@ func TestNativeSchemaReleaseAndQueuedCancellationDuringFetch(t *testing.T) {
 	heldCtx, cancelHeld := context.WithCancel(context.Background())
 	go func() {
 		defer close(fetchDone)
-		_, _, lease := fetchNativeSchemas(heldCtx, client, map[string]nativeType{"b": schemaBudgetBinding("b")}, budget)
+		_, _, lease := fetchSchemaFixtures(heldCtx, client, map[string]nativeType{"b": schemaBudgetBinding("b")}, budget)
 		lease.Release()
 	}()
 	defer func() {
@@ -393,7 +445,7 @@ func TestNativeSchemaReleaseAndQueuedCancellationDuringFetch(t *testing.T) {
 	cancelResult := make(chan error, 1)
 	go func() {
 		close(queued)
-		_, failures, lease := fetchNativeSchemas(queuedCtx, client, map[string]nativeType{"c": schemaBudgetBinding("c")}, budget)
+		_, failures, lease := fetchSchemaFixtures(queuedCtx, client, map[string]nativeType{"c": schemaBudgetBinding("c")}, budget)
 		lease.Release()
 		cancelResult <- failures["c"]
 	}()

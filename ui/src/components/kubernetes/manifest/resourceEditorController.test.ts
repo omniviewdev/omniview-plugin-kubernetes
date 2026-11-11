@@ -24,6 +24,17 @@ describe('canonical resource editor controller', () => {
     expect(payload).toMatchObject({ kind: 'map', value: { spec: { kind: 'map', value: { unknown: { kind: 'int64', value: '9007199254740993' } } }, advanced: { kind: 'bool', value: true } } });
   });
 
+  it('does not reinterpret finite dynamic-field claims as a whole-format control allowlist', () => {
+    const controller = new ResourceEditorController(source, 'session');
+    const finiteClaims: ResourceEditorContext = { ...context, schema: { status: 'available', paths: [['spec', 'optionalFeature']] } };
+    const result = controller.patch({ sessionID: 'session', expectedRevision: 0,
+      operations: [{ op: 'set', path: ['spec', 'message'], value: 'new' }] }, contribution, finiteClaims);
+    expect(result.status).toBe('accepted');
+    expect(controller.draft().get(['spec', 'message'])).toBe('new');
+    expect(controller.getSource()).toContain('# keep field comment');
+    expect(controller.getSource()).toContain('9007199254740993');
+  });
+
   it('publishes coherent external snapshots and retains protected paths across provider fallback', () => {
     const controller = new ResourceEditorController('apiVersion: demo.example/v1\nkind: Demo\nspec: {token: fixture-only-secret}\n');
     const listener = vi.fn();

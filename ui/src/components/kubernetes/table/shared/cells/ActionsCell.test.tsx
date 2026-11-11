@@ -36,7 +36,7 @@ function recordFor(name: string, key = `host-${name}`): HostRecord {
     key, targetId: 'table', addressKey: name, route: { connection: 'cluster' },
     record: {
       reference: { address: { provider: 'kubernetes', authority: 'cluster', type: 'k8s:/pods', scope: [], id: name } },
-      representation: { id: 'json', revision: '1', schema: { state: 'absent' } },
+      representation: { id: 'json', revision: '1' },
       body: { kind: 'map', value: {} }, coverage: { kind: 'complete', paths: [] },
     },
   } as unknown as HostRecord;
@@ -135,7 +135,7 @@ it('binds shared menu actions to the selected row rather than the previous trigg
     route: { connection: 'cluster' },
     record: {
       reference: { address: { provider: 'kubernetes', authority: 'cluster', type: 'k8s:/pods', scope: [], id: data.metadata.name } },
-      representation: { id: 'json', revision: '1', schema: { state: 'absent' } },
+      representation: { id: 'json', revision: '1' },
       body: { kind: 'map', value: {} }, coverage: { kind: 'complete', paths: [] },
     },
   }]));

@@ -64,7 +64,7 @@ func openEnvtestSource(t *testing.T, config *rest.Config, start chan<- struct{},
 	base := NewKubernetesResourcerBase[*corev1.ConfigMap](zap.NewNop().Sugar(), envtestConfigMaps)
 	namespaces := []string{envtestNamespace}
 	scope := resource.QueryScope{{Dimension: "namespace", Match: resource.ScopeOneOf, Values: &namespaces}}
-	representation := resource.Representation{ID: "native", Revision: "envtest", Schema: resource.SchemaBinding{State: "absent"}}
+	representation := resource.Representation{ID: "native", Revision: "envtest"}
 	controller, err := resource.NewController(resource.Config[struct{}]{
 		Catalog: func(context.Context, resource.CatalogRequest) (resource.Catalog, error) {
 			return resource.Catalog{Provider: "kubernetes", Revision: "envtest", Coverage: resource.Coverage{Kind: "complete", Paths: []string{}}, Types: []resource.ResourceType{{Type: "k8s:/configmaps", IdentityDimensions: []resource.Dimension{{Name: "namespace"}}, QueryDimensions: []resource.Dimension{{Name: "namespace"}}, Representations: []resource.Representation{representation}, DefaultRepresentation: "native", Capabilities: []resource.Capability{{Operation: resource.OperationEnumerate, Scope: scope}, {Operation: resource.OperationSourceUpdates, Scope: scope, Guarantee: resource.ContinuityBestEffort}}}}}, nil

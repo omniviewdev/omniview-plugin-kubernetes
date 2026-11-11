@@ -1,12 +1,12 @@
 import { Button, Stack } from '@omniviewdev/base-ui';
-import { jsonToValue, valueToJSON, useResourceEditorModelPath, useResourceMutations, useResourceTypes, type DrawerContext } from '@omniviewdev/runtime';
+import { jsonToValue, valueToJSON, resourceEditorModelURI, useResourceMutations, useResourceTypes, type DrawerContext, type SchemaRequest } from '@omniviewdev/runtime';
 import React from 'react';
 import { LuFileCode, LuSave, LuX } from 'react-icons/lu';
 import { stringify, parse } from 'yaml';
 
 import { KubernetesResourceObject } from '../../../../../types/resource';
 import ResourceManifestEditor, { type ResourceManifestEditorProps } from '../../../../kubernetes/manifest/ResourceManifestEditor';
-import { useCatalogEditorContext } from '../../../../kubernetes/manifest/useCatalogEditorContext';
+import { catalogEditorContext } from '../../../../kubernetes/manifest/resourceEditorContext';
 import type { ResourceEditorSubmissionHandle } from '../../../../kubernetes/manifest/resourceEditorSubmission';
 
 const outerStackStyle: React.CSSProperties = { flex: 1, minHeight: 0, overflow: 'hidden' };
@@ -25,11 +25,18 @@ export const BaseEditorPage: React.FC<Props> = ({ ctx }) => {
 const ResourceEditor: React.FC<{ data: KubernetesResourceObject; resource: Resource }> = ({ data, resource }) => {
   const { mutate } = useResourceMutations({ pluginID: resource.pluginID });
   const { resourceTypes } = useResourceTypes({ pluginID: resource.pluginID, route: resource.route });
-  const editorPath = useResourceEditorModelPath({
-    pluginID: resource.pluginID, route: resource.route, type: resource.reference.address.type,
-    representation: resource.representation, name: 'draft',
-  });
   const descriptor = resourceTypes.data?.find((type) => type.type === resource.reference.address.type);
+  const editorID = React.useId();
+  const format = resource.record?.record.representation
+    ?? descriptor?.representations.find((entry) => entry.id === resource.representation);
+  const schemaRequest = React.useMemo<SchemaRequest | undefined>(() => format ? {
+    route: resource.route, type: resource.reference.address.type, target: { representation: format },
+  } : undefined, [format, resource.route, resource.reference.address.type]);
+  const editorPath = resourceEditorModelURI({
+    pluginID: resource.pluginID, route: resource.route, type: resource.reference.address.type,
+    target: { representation: { id: resource.representation, revision: '' } },
+    name: JSON.stringify([resource.reference, editorID, 'draft']),
+  });
   const canUpdate = descriptor?.capabilities.some((capability) => capability.operation === 'mutationUpdate'
     && capability.scope.every((constraint) => constraint.match === 'any'
       || resource.reference.address.scope.some((entry) => entry.dimension === constraint.dimension && constraint.values.includes(entry.value))));
@@ -48,7 +55,7 @@ const ResourceEditor: React.FC<{ data: KubernetesResourceObject; resource: Resou
   const preparation = React.useRef<AbortController | null>(null);
   const submission = React.useRef<ResourceEditorSubmissionHandle | null>(null);
   const changed = value !== baseline;
-  const catalogContext = useCatalogEditorContext(value, resource.reference.address.type, resource.route.connection, 'edit', descriptor);
+  const catalogContext = catalogEditorContext(value, resource.reference.address.type, resource.route.connection, 'edit', descriptor);
   const jobs = resourceTypes.data?.find((entry) => entry.type === 'k8s:batch/jobs');
   const canReviewJob = catalogContext.group === 'batch' && catalogContext.kind === 'CronJob' && catalogContext.capabilities.get === 'available' && jobs?.capabilities.some((entry) => entry.operation === 'create' && entry.scope.every((scope) => scope.match === 'any' || scope.dimension === 'namespace' && !!catalogContext.namespace && scope.values.includes(catalogContext.namespace)));
   const editorContext = canReviewJob ? { ...catalogContext, capabilities: { ...catalogContext.capabilities, actions: { ...catalogContext.capabilities.actions, 'kubernetes.cronjob-run-now.v1': 'available' as const } } } : catalogContext;
@@ -124,7 +131,7 @@ const ResourceEditor: React.FC<{ data: KubernetesResourceObject; resource: Resou
       : !canUpdate ? 'This resource does not advertise update support for this scope.' : undefined;
 
   return <ResourceEditorFrame editorKey={editorRevision}
-    editor={{ submissionRef: submission, connectionID: resource.route.connection, onValidityChange: setFormError, editorContext, onAdmissionChange: setReadOnly, value, baseline, diff: usingDiff, editing: true, disabled: pending, resourceKey: resource.reference.address.type, context: resource.reference.address.id, filename: `${resource.reference.address.id}/spec.yaml`, path: editorPath, onChange: (next) => { if (!busy.current) { setValue(next); setError(undefined); } } }}
+    editor={{ schemaRequest, submissionRef: submission, connectionID: resource.route.connection, onValidityChange: setFormError, editorContext, onAdmissionChange: setReadOnly, value, baseline, diff: usingDiff, editing: true, disabled: pending, resourceKey: resource.reference.address.type, context: resource.reference.address.id, filename: `${resource.reference.address.id}/spec.yaml`, path: editorPath, onChange: (next) => { if (!busy.current) { setValue(next); setError(undefined); } } }}
     pending={pending} canUpdate={!!canUpdate} readOnly={readOnly} formError={formError} changed={changed} error={error} unavailable={unavailable}
     onInteraction={() => { interacted.current = true; }}
     onToggleDiff={() => setUsingDiff((previous) => !previous)}

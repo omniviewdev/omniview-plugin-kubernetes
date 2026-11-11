@@ -168,10 +168,9 @@ func (helmMetadataFill) Read(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// This enters through the actual ancillary API, including both native metadata
-// enumerations and Helm's Secrets storage Get, rather than testing a helper or
-// substituting an action engine.
-func TestHelmEditorSchemasReuseExistingMetadataAuthLimitsAndLifetimes(t *testing.T) {
+// This enters through the actual targeted ancillary API and Helm Secrets storage.
+// Only release-qualified metadata is read; no whole-route release scan occurs.
+func TestHelmTargetSchemaReusesExistingMetadataAuthLimitsAndLifetimes(t *testing.T) {
 	t.Setenv("HELM_DRIVER", "secrets")
 	testCtx, finish := context.WithTimeout(context.Background(), 20*time.Second)
 	t.Cleanup(finish)
@@ -202,6 +201,8 @@ func TestHelmEditorSchemasReuseExistingMetadataAuthLimitsAndLifetimes(t *testing
 			fmt.Fprint(w, `{"major":"1","minor":"35","gitVersion":"v1.35.0"}`)
 		case (r.URL.Path == "/api/v1/secrets" || r.URL.Path == "/api/v1/namespaces/selected/secrets") && strings.Contains(r.Header.Get("Accept"), "as=PartialObjectMetadataList"):
 			metadataCalls.Add(1)
+			require.Equal(t, "/api/v1/namespaces/selected/secrets", r.URL.Path, "target schema must never enumerate all releases")
+			require.Contains(t, r.URL.Query().Get("labelSelector"), "name=installed")
 			if strings.Contains(r.URL.Query().Get("labelSelector"), "name=installed") {
 				namedMetadataCalls.Add(1)
 			}
@@ -256,19 +257,23 @@ func TestHelmEditorSchemasReuseExistingMetadataAuthLimitsAndLifetimes(t *testing
 	client := makeClient(lifetime)
 	ancillary := NewHelmAncillary(zap.NewNop().Sugar())
 	session := sdkresource.Session{Connection: &types.Connection{ID: "owned-cluster"}}
-	acquire := func(ctx context.Context, client *clients.ClientSet) ([]sdkresource.EditorSchema, error) {
-		return ancillary.GetEditorSchemas(sdkresource.WithSession(ctx, session), client)
+	revision := "1"
+	target := sdkresource.SchemaRequest{
+		Route: sdkresource.AccessRoute{Connection: session.Connection.ID}, Type: ReleaseType,
+		Target: sdkresource.SchemaTarget{Auxiliary: &sdkresource.AuxiliarySchemaTarget{
+			Key: "values", SourceRevision: &revision,
+			Reference: sdkresource.ResourceReference{Address: sdkresource.ResourceAddress{Provider: "kubernetes", Authority: "fixture-authority", Type: ReleaseType, ID: "installed", Scope: []sdkresource.ScopeEntry{{Dimension: "namespace", Value: "selected"}}}},
+		}},
+	}
+	acquire := func(ctx context.Context, client *clients.ClientSet) (sdkresource.SchemaBinding, error) {
+		return ancillary.ResolveSchema(sdkresource.WithSession(ctx, session), client, target)
 	}
 	assertInstalled := func(client *clients.ClientSet) {
-		schemas, err := acquire(testCtx, client)
+		binding, err := acquire(testCtx, client)
 		require.NoError(t, err)
-		require.Len(t, schemas, 1)
-		require.Equal(t, "helm:releases", schemas[0].Type)
-		require.Equal(t, "available", schemas[0].Binding.State)
-		require.Equal(t, sdkresource.DialectJSONSchemaDraft07, schemas[0].Binding.Dialect)
-		require.JSONEq(t, string(document), string(schemas[0].Binding.Document))
-		require.Equal(t, "selected/installed", schemas[0].Key)
-		require.Equal(t, "yaml", schemas[0].Language)
+		require.Equal(t, "available", binding.State)
+		require.Equal(t, sdkresource.DialectJSONSchemaDraft07, binding.Dialect)
+		require.JSONEq(t, string(document), string(binding.Document))
 	}
 	wait := func(event <-chan struct{}, description string) {
 		select {
@@ -278,9 +283,29 @@ func TestHelmEditorSchemasReuseExistingMetadataAuthLimitsAndLifetimes(t *testing
 		}
 	}
 	assertInstalled(client)
-	require.Equal(t, int64(2), metadataCalls.Load(), "initial metadata plus exact latest-version metadata must reach native HTTP")
+	require.Equal(t, int64(1), metadataCalls.Load(), "one selected release must require only named latest-version metadata")
 	require.Equal(t, int64(1), namedMetadataCalls.Load())
 	require.Equal(t, int64(1), storageGets.Load())
+
+	wrong := target
+	auxiliary := *target.Target.Auxiliary
+	wrong.Target.Auxiliary = &auxiliary
+	beforeInvalid := requests.Load()
+	auxiliary.Key = "another-role"
+	_, err = ancillary.ResolveSchema(sdkresource.WithSession(testCtx, session), client, wrong)
+	require.Equal(t, "UNSUPPORTED", sdkresource.ErrorCode(err))
+	require.Equal(t, beforeInvalid, requests.Load())
+	auxiliary.Key = "values"
+	auxiliary.Reference.Address.ID = "installed,owner=another"
+	_, err = ancillary.ResolveSchema(sdkresource.WithSession(testCtx, session), client, wrong)
+	require.Equal(t, "INVALID_REQUEST", sdkresource.ErrorCode(err))
+	require.Equal(t, beforeInvalid, requests.Load(), "an exact release target cannot become a broader native label selector")
+	auxiliary.Reference = target.Target.Auxiliary.Reference
+	staleRevision := "2"
+	auxiliary.SourceRevision = &staleRevision
+	_, err = ancillary.ResolveSchema(sdkresource.WithSession(testCtx, session), client, wrong)
+	require.Equal(t, "RESET_REQUIRED", sdkresource.ErrorCode(err))
+	require.Equal(t, int64(1), storageGets.Load(), "wrong source revision must fail before storage payload access")
 
 	// Hold the metadata LIST itself, not the subsequent action.Get storage GET.
 	holdNext.Store(true)

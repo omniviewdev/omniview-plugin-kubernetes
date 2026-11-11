@@ -1,6 +1,6 @@
 import type { ResourceEditorContext, ResourceEditorTarget, ResourceEditorAvailability } from '@omniviewdev/runtime';
 import { inspectManifest, readManifestValue, supportedManifestKind } from './manifestDraft';
-import type { ResourceType } from '@omniviewdev/runtime';
+import type { ResourceType, SchemaFieldsResult, ResourceEditorPath, PathSegment } from '@omniviewdev/runtime';
 import { validateImmutableEditorFields } from './resourceEditorPolicy';
 
 export function createEditorContext(source: string, resourceKey: string, connectionID: string, intent: ResourceEditorContext['intent'], admitted?: Partial<ResourceEditorContext>): ResourceEditorContext {
@@ -52,6 +52,21 @@ export function catalogEditorContext(source: string, resourceKey: string, connec
     scope: descriptor.identityDimensions.some((entry) => entry.name === 'namespace') ? 'Namespaced' : 'Cluster',
     discovery: { status: representation ? 'available' : 'unknown', features: {} },
     capabilities: { create: advertised('create'), update: advertised('mutationUpdate'), delete: advertised('delete'), list: advertised('enumerate'), get: advertised('get'), actions: {} },
-    schema: { status: representation?.schema.state === 'available' ? 'available' : representation?.schema.state === 'absent' ? 'absent' : representation?.schema.state === 'unavailable' ? 'unavailable' : 'unknown', identity: representation?.schema.documentRef?.id },
+    schema: { status: 'unknown' },
   };
+}
+
+/** Immediate normalized fields are finite claims, never a whole-format write allowlist. */
+export function installedEditorSchemaEvidence(result: SchemaFieldsResult | undefined, parent: readonly PathSegment[] = []): ResourceEditorContext['schema'] {
+  if (!result) return { status: 'unknown', paths: [] };
+  if (result.schemaState === 'absent') return { status: 'absent', paths: [] };
+  if (result.schemaState !== 'available') return { status: 'unavailable', paths: [] };
+  const prefix = parent.map((segment) => segment.Kind === 'field' ? segment.Name! : '*');
+  const paths: ResourceEditorPath[] = [];
+  if (!result.truncated) for (const field of result.fields) {
+    if (field.Applicability !== 'unconditional' || field.Conditions?.length
+      || field.Segment.Kind === 'field' && !field.Segment.Name) continue;
+    paths.push([...prefix, field.Segment.Kind === 'field' ? field.Segment.Name! : '*']);
+  }
+  return { status: 'available', identity: result.schemaRevision, paths };
 }

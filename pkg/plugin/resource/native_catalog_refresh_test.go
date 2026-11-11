@@ -228,85 +228,34 @@ func TestNativeHTTPRefreshObservesServedVersionsOnlyWhenEligible(t *testing.T) {
 	openAPI := f.count("/openapi/v3/apis/refresh.example/v2")
 	expireRefresh(p, connection.ID)
 	require.NoError(t, p.refreshNativeCatalog(ctx, connection.ID, client))
-	require.Same(t, updated, p.catalogs[connection.ID], "unchanged discovery and schemas must reuse snapshot")
+	require.Same(t, updated, p.catalogs[connection.ID], "unchanged support must reuse snapshot")
 	require.Equal(t, updated.catalog.Revision, p.catalogs[connection.ID].catalog.Revision)
-	require.Greater(t, f.count("/openapi/v3/apis/refresh.example/v2"), openAPI, "every eligible refresh must revalidate schemas")
+	require.Equal(t, openAPI, f.count("/openapi/v3/apis/refresh.example/v2"), "discovery refresh must not acquire optional schemas")
 }
 
-func TestNativeHTTPRefreshSchemaOnlyCRDRevisionAndRecovery(t *testing.T) {
-	for _, initiallyAvailable := range []bool{false, true} {
-		t.Run(fmt.Sprintf("initiallyAvailable=%t", initiallyAvailable), func(t *testing.T) {
-			f, client := newRefreshHTTPFixture(t)
-			f.setVersions(t, "v1")
-			setSchema := func(root, fieldType string) string {
-				document := fmt.Sprintf(`{"openapi":"3.0.0","components":{"schemas":{%q:{"type":"object","x-kubernetes-group-version-kind":[{"group":"refresh.example","version":"v1","kind":"Widget"}],"properties":{"spec":{"type":"object","properties":{"value":{"type":%q}}}}}}}}`, root, fieldType)
-				f.mu.Lock()
-				f.documents["/openapi/v3/apis/refresh.example/v1"] = document
-				f.mu.Unlock()
-				return document
-			}
-			if initiallyAvailable {
-				setSchema("native.Widget", "string")
-			}
-			p := refreshTestProvider()
-			ctx, connection := refreshTestContext("schema-cluster")
-			require.NoError(t, p.startNativeConnection(ctx, connection, client))
-			t.Cleanup(func() { p.retireNativeCatalog(connection.ID) })
-			original := p.catalogs[connection.ID]
-			schemaBinding := func(snapshot *nativeCatalogSnapshot) resourcev2.SchemaBinding {
-				return snapshot.bindings["k8s:refresh.example/widgets"].Descriptor.Representations[0].Schema
-			}
-			if initiallyAvailable {
-				require.Equal(t, "available", schemaBinding(original).State)
-			} else {
-				require.Equal(t, "unavailable", schemaBinding(original).State)
-			}
-			document := setSchema("native.WidgetRevised", "integer")
-			expireRefresh(p, connection.ID)
-			require.NoError(t, p.refreshNativeCatalog(ctx, connection.ID, client))
-			revised := p.catalogs[connection.ID]
-			require.NotSame(t, original, revised)
-			require.Equal(t, original.discoveryRevision, revised.discoveryRevision)
-			require.Equal(t, original.identityHint, revised.identityHint, "schema-only changes must not change native authority")
-			require.NotEqual(t, original.catalog.Revision, revised.catalog.Revision)
-			binding := schemaBinding(revised)
-			require.Equal(t, "available", binding.State)
-			require.Equal(t, "#/components/schemas/native.WidgetRevised", binding.Root)
-			require.NotNil(t, binding.DocumentRef)
-			require.Equal(t, document, string(revised.documents[*binding.DocumentRef].Document))
-			if initiallyAvailable {
-				require.NotEqual(t, schemaBinding(original).Revision, binding.Revision)
-			}
-			retained := p.schemaBudget.used
-			expireRefresh(p, connection.ID)
-			require.NoError(t, p.refreshNativeCatalog(ctx, connection.ID, client))
-			require.Same(t, revised, p.catalogs[connection.ID], "identical schema revalidation must retain snapshot")
-			require.Equal(t, retained, p.schemaBudget.used, "discarded staged lease must not retain bytes")
-
-			f.mu.Lock()
-			delete(f.documents, "/openapi/v3/apis/refresh.example/v1")
-			f.mu.Unlock()
-			expireRefresh(p, connection.ID)
-			require.NoError(t, p.refreshNativeCatalog(ctx, connection.ID, client))
-			unavailable := p.catalogs[connection.ID]
-			require.Equal(t, "unavailable", schemaBinding(unavailable).State)
-			require.Equal(t, revised.discoveryRevision, unavailable.discoveryRevision)
-			require.Equal(t, revised.identityHint, unavailable.identityHint)
-			require.NotEqual(t, revised.catalog.Revision, unavailable.catalog.Revision)
-			require.Zero(t, p.schemaBudget.used)
-
-			setSchema("native.WidgetRevised", "integer")
-			expireRefresh(p, connection.ID)
-			require.NoError(t, p.refreshNativeCatalog(ctx, connection.ID, client))
-			recovered := p.catalogs[connection.ID]
-			require.Equal(t, "available", schemaBinding(recovered).State)
-			require.Equal(t, revised.catalog.Revision, recovered.catalog.Revision)
-			require.NotEqual(t, unavailable.catalog.Revision, recovered.catalog.Revision)
-			require.Equal(t, original.discoveryRevision, recovered.discoveryRevision)
-			require.Equal(t, original.identityHint, recovered.identityHint)
-			require.Equal(t, retained, p.schemaBudget.used)
-		})
-	}
+func TestNativeCatalogObservationDoesNotRefreshOrInheritRefreshErrors(t *testing.T) {
+	f, p, route := newSchemaReadinessProvider(t)
+	_, err := p.StartConnection(context.Background(), route.Connection)
+	require.NoError(t, err)
+	original, err := p.Catalog(context.Background(), resourcev2.CatalogRequest{Route: route})
+	require.NoError(t, err)
+	expireRefresh(p, route.Connection)
+	f.mu.Lock()
+	f.fail = "/api"
+	f.mu.Unlock()
+	before := f.count("")
+	observed, err := p.Catalog(context.Background(), resourcev2.CatalogRequest{Route: route})
+	require.NoError(t, err)
+	require.Equal(t, original, observed)
+	require.Equal(t, before, f.count(""), "default observation must not request eligible discovery")
+	_, err = p.Catalog(context.Background(), resourcev2.CatalogRequest{Route: route, Refresh: true})
+	require.Error(t, err, "explicit refresh owns discovery failure")
+	after := f.count("")
+	observed, err = p.Catalog(context.Background(), resourcev2.CatalogRequest{Route: route})
+	require.NoError(t, err, "failed refresh cannot poison an installed valid snapshot")
+	require.Equal(t, original, observed)
+	require.Equal(t, after, f.count(""))
+	require.Zero(t, schemaReadinessOpenAPIRequests(f))
 }
 
 func TestNativeHTTPRefreshClustersRemainIndependent(t *testing.T) {

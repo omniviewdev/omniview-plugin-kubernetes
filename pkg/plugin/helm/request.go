@@ -84,7 +84,14 @@ func helmRecord(ref resource.ResourceReference, body map[string]interface{}) (re
 	if e != nil {
 		return resource.Record{}, e
 	}
-	return resource.Record{Reference: ref, Body: v, Representation: helmRepresentationDescriptor(), Coverage: resource.Coverage{Kind: "complete"}}, nil
+	record := resource.Record{Reference: ref, Body: v, Representation: helmRepresentationDescriptor(), Coverage: resource.Coverage{Kind: "complete"}}
+	if ref.Address.Type == ReleaseType {
+		if version, ok := body["version"].(int64); ok {
+			revision := strconv.FormatInt(version, 10)
+			record.SourceRevision = &revision
+		}
+	}
+	return record, nil
 }
 func pageBounds(request resource.EnumerateRequest) (int, int, error) {
 	size := int(request.PageSize)

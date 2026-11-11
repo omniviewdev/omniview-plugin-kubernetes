@@ -92,9 +92,6 @@ interface SyncProgressDialogProps {
 
 type ResourceItem = { key: string; kind: string; state: SourceSessionState; count?: Count };
 
-const isTerminal = (s: SourceSessionState) =>
-  s === 'following' || s === 'finished' || s === 'failed' || s === 'closed';
-
 function StateIcon({ state }: { state: SourceSessionState }) {
   switch (state) {
     case 'opening':
@@ -103,7 +100,6 @@ function StateIcon({ state }: { state: SourceSessionState }) {
       return <Spinner size="xs" color="brand" style={spinnerStyle} />;
     case 'following':
     case 'finished':
-    case 'closed':
       return <LuCircleCheck size={14} color="var(--ov-color-success)" />;
     case 'failed':
       return <LuCircleAlert size={14} color="var(--ov-color-danger)" />;
@@ -115,7 +111,7 @@ function StateIcon({ state }: { state: SourceSessionState }) {
 /** Per-group progress summary */
 const GroupProgress = React.memo(function GroupProgress({ items }: { items: ResourceItem[] }) {
   const total = items.length;
-  const done = items.filter((i) => isTerminal(i.state)).length;
+  const done = items.filter(({ state }) => state === 'following' || state === 'finished').length;
   const allDone = total > 0 && done === total;
   const hasError = items.some((i) => i.state === 'failed');
   const percent = total > 0 ? Math.round((done / total) * 100) : 0;
@@ -156,11 +152,13 @@ function SyncProgressDialogInner({
   const { groups: resourceGroups } = useResourceGroups({ pluginID, route });
 
   const resources = useStableObject(summary?.types ?? {});
-  const { watchedTotal, watchedDone } = React.useMemo(() => {
+  const { watchedTotal, watchedDone, hasError, hasClosed } = React.useMemo(() => {
     const statuses = Object.values(resources);
     return {
       watchedTotal: statuses.length,
-      watchedDone: statuses.filter((status) => isTerminal(status.state)).length,
+      watchedDone: statuses.filter(({ state }) => state === 'following' || state === 'finished').length,
+      hasError: statuses.some((status) => status.state === 'failed'),
+      hasClosed: statuses.some((status) => status.state === 'closed'),
     };
   }, [resources]);
 
@@ -207,10 +205,15 @@ function SyncProgressDialogInner({
       {/* Header */}
       <div style={headerStyle}>
         <div style={headerLeftStyle}>
-          {!watchedAllDone && <Spinner size="sm" color="brand" style={headerSpinnerStyle} />}
-          {watchedAllDone && <LuCircleCheck size={16} color="var(--ov-color-success)" />}
+          {hasError ? <LuCircleAlert size={16} color="var(--ov-color-danger)" />
+            : hasClosed ? <LuCircleSlash size={16} color="var(--ov-color-fg-subtle)" />
+              : watchedAllDone ? <LuCircleCheck size={16} color="var(--ov-color-success)" />
+                : watchedTotal > 0 ? <Spinner size="sm" color="brand" style={headerSpinnerStyle} /> : null}
           <Text weight="semibold" size="sm">
-            {watchedAllDone ? `Synced "${clusterName}"` : `Syncing "${clusterName}"`}
+            {hasError ? `Source errors in "${clusterName}"`
+              : hasClosed ? `Sources closed in "${clusterName}"`
+                : watchedAllDone ? `Synced "${clusterName}"`
+                  : watchedTotal > 0 ? `Syncing "${clusterName}"` : `No requested sources for "${clusterName}"`}
           </Text>
         </div>
         <IconButton size="sm" variant="ghost" color="neutral" aria-label="Close" onClick={onClose}>
@@ -224,7 +227,7 @@ function SyncProgressDialogInner({
           <Progress
             value={percent}
             size="sm"
-            color={watchedAllDone ? 'success' : 'brand'}
+            color={hasError ? 'danger' : watchedAllDone ? 'success' : 'brand'}
             style={progressBarStyle}
           />
           <Text size="xs" tone="muted" style={progressPercentStyle}>
@@ -257,6 +260,9 @@ function SyncProgressDialogInner({
                 <Text size="xs" style={kindTextStyle}>
                   {kind}
                 </Text>
+                {(state === 'failed' || state === 'closed') && <Text size="xs" tone={state === 'failed' ? 'danger' : 'subtle'}>
+                  {state === 'failed' ? 'Failed' : 'Closed'}
+                </Text>}
                 {(state === 'following' || state === 'finished') && (
                   <Text size="xs" tone="subtle" style={countTextStyle}>
                     {count?.kind === 'exact' ? count.value : count?.kind === 'estimate' ? `~${count.value}` : 'Unknown'}

@@ -14,7 +14,7 @@ function record(key: string, namespace: string, targetId = 'table'): HostRecord 
         incarnation: 'native-uid',
       },
       body: { kind: 'map', value: {} },
-      representation: { id: 'native-json', revision: 'schema-revision', schema: { state: 'absent', validation: 'dynamic', unvalidated: [] } },
+      representation: { id: 'native-json', revision: 'format-1' },
       coverage: { kind: 'complete', paths: [] },
     },
   };

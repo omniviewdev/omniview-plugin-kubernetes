@@ -6,37 +6,45 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"sort"
 	"strings"
 	"sync"
+	"time"
 
+	"github.com/omniview/kubernetes/pkg/diag"
+	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
 )
 
-// nativeSchemaDocument keeps the adapter-corrected OpenAPI document and its native root.
-// It does not normalize dialects, rewrite references, or claim validation.
-// All types from one group/version share the same bounded document bytes.
+// nativeSchemaDocument keeps corrected native bytes and unambiguous GVK roots.
+// The host remains the sole dialect normalizer and validator.
 type nativeSchemaDocument struct {
 	Document json.RawMessage
-	Root     string
+	roots    map[schema.GroupVersionKind]string
 	Revision string
+}
+
+func (d nativeSchemaDocument) serves(gv schema.GroupVersion) bool {
+	for key, root := range d.roots {
+		if root != "" && key.GroupVersion() == gv {
+			return true
+		}
+	}
+	return false
 }
 
 const maxNativeSchemaBytes = 16 << 20
 const maxNativeRetainedSchemaBytes = 32 << 20
 
-// nativeSchemaBudget bounds retained document bytes across every connection on
-// one provider. Its staging gate admits one acquisition, with at most four
-// documents being fetched, buffered, or decoded, rather than the previous one.
-// Each schema read retains its 16 MiB cap. The resource response transport can
-// also buffer up to its separate 32 MiB wire cap and copy those bytes, so this
-// document count does not imply a whole-stack memory cap.
-// The zero value uses the production retained limit.
+// nativeSchemaBudget bounds provider-wide retained bytes and simultaneous
+// demanded reads/decodes. It never holds its mutex during network I/O.
 type nativeSchemaBudget struct {
 	// Accounting never holds mu during network reads or decoding.
 	mu        sync.Mutex
@@ -48,14 +56,15 @@ type nativeSchemaBudget struct {
 
 type nativeRetainedSchema struct {
 	data       json.RawMessage
+	roots      map[schema.GroupVersionKind]string
 	references int
 }
 
-// nativeSchemaLease belongs to one catalog snapshot. Release it on failed
-// publication, replacement, or connection teardown, after dropping its cache.
+// nativeSchemaLease belongs to one demanded group/version entry.
+// Release it on failed publication, replacement, or generation retirement.
 type nativeSchemaLease struct {
-	budget    *nativeSchemaBudget
-	documents map[string]struct{}
+	budget   *nativeSchemaBudget
+	revision string
 }
 
 func (l *nativeSchemaLease) Release() {
@@ -64,20 +73,20 @@ func (l *nativeSchemaLease) Release() {
 	}
 	l.budget.mu.Lock()
 	defer l.budget.mu.Unlock()
-	for revision := range l.documents {
-		document := l.budget.documents[revision]
+	if l.revision != "" {
+		document := l.budget.documents[l.revision]
 		document.references--
 		if document.references == 0 {
 			l.budget.used -= len(document.data)
-			delete(l.budget.documents, revision)
+			delete(l.budget.documents, l.revision)
 		}
+		l.revision = ""
 	}
-	l.documents = nil
 }
 
-// Identical schema content can be held by old and replacement snapshots without
-// double-charging the provider budget. Staging remains separately bounded.
-func (b *nativeSchemaBudget) retain(data json.RawMessage, revision string, lease *nativeSchemaLease) (json.RawMessage, error) {
+// Corrected content and its immutable root index share one retained owner.
+func (b *nativeSchemaBudget) retain(value nativeSchemaDocument, lease *nativeSchemaLease) (nativeSchemaDocument, error) {
+	data, revision := value.Document, value.Revision
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	document := b.documents[revision]
@@ -87,225 +96,339 @@ func (b *nativeSchemaBudget) retain(data json.RawMessage, revision string, lease
 			limit = maxNativeRetainedSchemaBytes
 		}
 		if len(data) > limit-b.used {
-			return nil, &nativeBudgetError{reason: "schema_retained_budget", text: fmt.Sprintf("native OpenAPI retained schema budget exhausted (%d bytes)", limit)}
+			return nativeSchemaDocument{}, fmt.Errorf("%w (%d bytes)", errNativeSchemaRetention, limit)
 		}
 		if cap(data) != len(data) {
 			exact := make([]byte, len(data))
 			copy(exact, data)
 			data = exact
 		}
-		document = &nativeRetainedSchema{data: data}
+		document = &nativeRetainedSchema{data: data, roots: value.roots}
 		if b.documents == nil {
 			b.documents = make(map[string]*nativeRetainedSchema)
 		}
 		b.documents[revision] = document
 		b.used += len(data)
 	}
-	if lease.documents == nil {
-		lease.documents = make(map[string]struct{})
-	}
-	if _, held := lease.documents[revision]; !held {
-		lease.documents[revision] = struct{}{}
-		document.references++
-	}
-	return document.data, nil
+	lease.revision = revision
+	document.references++
+	return nativeSchemaDocument{Document: document.data, roots: document.roots, Revision: revision}, nil
 }
 
-// Preferred-version schema keys retain the established token lookup. Other
-// served endpoints get distinct keys while retaining the same logical type.
-func nativeSchemaKey(token string, preferred, served schema.GroupVersionResource) string {
-	if preferred == served {
-		return token
+func (b *nativeSchemaBudget) reuse(revision string) (nativeSchemaDocument, *nativeSchemaLease) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	document := b.documents[revision]
+	if document == nil {
+		return nativeSchemaDocument{}, nil
 	}
-	return token + "@" + served.GroupVersion().String()
+	document.references++
+	return nativeSchemaDocument{Document: document.data, roots: document.roots, Revision: revision},
+		&nativeSchemaLease{budget: b, revision: revision}
 }
 
-func nativeSchemaBindings(bindings map[string]nativeType) map[string]nativeType {
-	result := make(map[string]nativeType)
-	for token, binding := range bindings {
-		for _, served := range nativeServedVersions(binding) {
-			result[nativeSchemaKey(token, binding.GVR, served.GVR)] = nativeType{GVR: served.GVR, API: served.API}
+const nativeSchemaRefreshInterval = 30 * time.Second
+const maxNativeSchemaEntries = 256
+
+// All mutable schema state uses the provider mutex. A generation owns entries;
+// entries own successful raw-byte leases and one waiter-counted acquisition.
+type nativeSchemaState struct {
+	ctx     context.Context
+	cancel  context.CancelFunc
+	entries map[schema.GroupVersion]*nativeSchemaEntry
+}
+
+type nativeSchemaEntry struct {
+	document    nativeSchemaDocument
+	lease       *nativeSchemaLease
+	nextRefresh time.Time
+	reason      string
+	fetch       *nativeSchemaFetch
+}
+
+type nativeSchemaFetch struct {
+	done    chan struct{}
+	cancel  context.CancelFunc
+	waiters int
+	err     error
+}
+
+func newNativeSchemaState(ctx context.Context) *nativeSchemaState {
+	ctx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	return &nativeSchemaState{ctx: ctx, cancel: cancel, entries: make(map[schema.GroupVersion]*nativeSchemaEntry)}
+}
+
+func (p *kubernetesProvider) retireNativeSchemas(state *nativeSchemaState) {
+	if state == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	state.cancel()
+	for _, entry := range state.entries {
+		if entry.fetch != nil {
+			entry.fetch.cancel()
+		}
+		entry.lease.Release()
+		entry.document = nativeSchemaDocument{}
+		entry.lease = nil
+	}
+	state.entries = nil
+}
+
+// Called under p.mu only after complete discovery proves served-GV removal.
+func pruneNativeSchemas(snapshot *nativeCatalogSnapshot) {
+	if snapshot.schemas == nil {
+		return
+	}
+	supported := make(map[schema.GroupVersion]bool)
+	for _, binding := range snapshot.bindings {
+		if len(binding.Served) == 0 {
+			supported[binding.GVR.GroupVersion()] = true
+		}
+		for _, served := range binding.Served {
+			supported[served.GVR.GroupVersion()] = true
 		}
 	}
-	return result
+	for gv, entry := range snapshot.schemas.entries {
+		if supported[gv] {
+			continue
+		}
+		if entry.fetch != nil {
+			entry.fetch.cancel()
+			entry.fetch = nil
+		}
+		entry.lease.Release()
+		entry.lease = nil
+		entry.document = nativeSchemaDocument{}
+		delete(snapshot.schemas.entries, gv)
+	}
 }
 
-func fetchNativeSchemas(ctx context.Context, client rest.Interface, bindings map[string]nativeType, budget *nativeSchemaBudget) (map[string]nativeSchemaDocument, map[string]error, *nativeSchemaLease) {
+func (p *kubernetesProvider) resolveNativeSchema(ctx context.Context, request resourcev2.SchemaRequest, served nativeServedType, state *nativeSchemaState) (resourcev2.SchemaBinding, error) {
+	gv := served.GVR.GroupVersion()
+	p.mu.Lock()
+	snapshot := p.catalogs[request.Route.Connection]
+	if snapshot == nil || snapshot.schemas != state || state == nil || state.ctx.Err() != nil {
+		p.mu.Unlock()
+		return resourcev2.SchemaBinding{}, resourcev2.NewError("RESET_REQUIRED", "Native schema generation was retired")
+	}
+	entry := state.entries[gv]
+	if entry == nil {
+		if len(state.entries) >= maxNativeSchemaEntries {
+			p.mu.Unlock()
+			return resourcev2.SchemaBinding{}, resourcev2.NewError("RESOURCE_LIMIT", "Native demanded schema entry budget is exhausted")
+		}
+		entry = &nativeSchemaEntry{}
+		state.entries[gv] = entry
+	}
+	if entry.fetch == nil && time.Now().Before(entry.nextRefresh) {
+		binding := nativeSchemaBinding(gv, served.API.Kind, entry)
+		p.mu.Unlock()
+		return binding, nil
+	}
+	fetch := entry.fetch
+	if fetch == nil {
+		work, cancel := context.WithCancel(state.ctx)
+		fetch = &nativeSchemaFetch{done: make(chan struct{}), cancel: cancel}
+		entry.fetch = fetch
+		go p.acquireDemandedSchema(work, request.Route, gv, state, entry, fetch)
+	}
+	fetch.waiters++
+	p.mu.Unlock()
+	defer func() {
+		p.mu.Lock()
+		fetch.waiters--
+		if fetch.waiters == 0 && entry.fetch == fetch {
+			entry.fetch = nil
+			fetch.cancel()
+			if entry.lease == nil {
+				delete(state.entries, gv)
+			}
+		}
+		p.mu.Unlock()
+	}()
+	select {
+	case <-ctx.Done():
+		return resourcev2.SchemaBinding{}, ctx.Err()
+	case <-fetch.done:
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return resourcev2.SchemaBinding{}, err
+	}
+	snapshot = p.catalogs[request.Route.Connection]
+	if snapshot == nil || snapshot.schemas != state || state.ctx.Err() != nil {
+		return resourcev2.SchemaBinding{}, resourcev2.NewError("RESET_REQUIRED", "Native schema generation was retired")
+	}
+	if fetch.err != nil {
+		return resourcev2.SchemaBinding{}, fetch.err
+	}
+	return nativeSchemaBinding(gv, served.API.Kind, entry), nil
+}
+
+func nativeSchemaBinding(gv schema.GroupVersion, kind string, entry *nativeSchemaEntry) resourcev2.SchemaBinding {
+	root := entry.document.roots[gv.WithKind(kind)]
+	if root == "" {
+		reason := entry.reason
+		if reason == "" {
+			reason = "UNAVAILABLE"
+		}
+		return resourcev2.SchemaBinding{State: "unavailable", UnavailableReason: &reason}
+	}
+	revision := entry.document.Revision
+	ref := resourcev2.SchemaDocumentReference{ID: "kubernetes.openapi.v3/" + gv.String(), Revision: revision}
+	return resourcev2.SchemaBinding{State: "available", Revision: &revision, Dialect: resourcev2.DialectOpenAPI30, Root: root, DocumentRef: &ref}
+}
+
+func (p *kubernetesProvider) acquireDemandedSchema(ctx context.Context, route resourcev2.AccessRoute, gv schema.GroupVersion, state *nativeSchemaState, entry *nativeSchemaEntry, fetch *nativeSchemaFetch) {
+	defer fetch.cancel()
+	ctx, span := diag.Tracer().Start(ctx, "kubernetes.schema.fetch", trace.WithAttributes(attribute.String("api_version", gv.String())))
+	var document nativeSchemaDocument
+	var lease *nativeSchemaLease
+	err := p.WithClient(ctx, route, func(ctx context.Context, client *clients.ClientSet) error {
+		timeout, err := resourcev2.ConnectionAcquisitionTimeout(ctx)
+		if err != nil {
+			return err
+		}
+		ctx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+		if client == nil || client.DiscoveryClient == nil {
+			return resourcev2.NewError("UNAVAILABLE", "Native schema client is unavailable")
+		}
+		document, lease, err = fetchNativeSchema(ctx, client.DiscoveryClient.RESTClient(), gv, &p.schemaBudget)
+		return err
+	})
+	diag.EndSpan(span, err, false)
+	if err != nil {
+		p.logNativeSchemaFailures(map[string]error{gv.String(): err})
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	current := p.catalogs[route.Connection]
+	if current == nil || current.schemas != state || state.ctx.Err() != nil || ctx.Err() != nil || entry.fetch != fetch {
+		lease.Release()
+		fetch.err = resourcev2.NewError("RESET_REQUIRED", "Native schema acquisition was retired")
+	} else if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		lease.Release()
+		fetch.err = err
+		entry.fetch = nil
+	} else if errors.Is(err, errNativeSchemaRetention) {
+		lease.Release()
+		entry.lease.Release()
+		entry.document, entry.lease, entry.fetch = nativeSchemaDocument{}, nil, nil
+		delete(state.entries, gv)
+		fetch.err = resourcev2.NewError("RESOURCE_LIMIT", "Native retained schema capacity is temporarily exhausted")
+	} else {
+		entry.lease.Release()
+		entry.document, entry.lease = document, lease
+		entry.reason = ""
+		entry.nextRefresh = time.Now().Add(nativeSchemaRefreshInterval)
+		if err != nil {
+			if classified := classifyResourceError(err); classified != nil {
+				entry.reason = resourcev2.ErrorCode(classified)
+			} else {
+				entry.reason = resourcev2.ErrorCode(err)
+			}
+			if entry.reason == "" {
+				entry.reason = "UNAVAILABLE"
+			}
+		}
+		entry.fetch = nil
+	}
+	close(fetch.done)
+}
+
+var errNativeSchemaRetention = &nativeBudgetError{reason: "schema_retained_budget", text: "native OpenAPI retained schema budget exhausted"}
+
+func fetchNativeSchema(ctx context.Context, client rest.Interface, gv schema.GroupVersion, budget *nativeSchemaBudget) (nativeSchemaDocument, *nativeSchemaLease, error) {
 	budget.mu.Lock()
 	if budget.staging == nil {
-		budget.staging = make(chan struct{}, 1)
+		budget.staging = make(chan struct{}, nativeCatalogRequestConcurrency)
 	}
 	staging := budget.staging
 	budget.mu.Unlock()
-	lease := &nativeSchemaLease{budget: budget}
 	select {
 	case staging <- struct{}{}:
 		defer func() { <-staging }()
 	case <-ctx.Done():
-		failures := make(map[string]error, len(bindings))
-		for token := range bindings {
-			failures[token] = ctx.Err()
+		return nativeSchemaDocument{}, nil, ctx.Err()
+	}
+	if err := ctx.Err(); err != nil {
+		return nativeSchemaDocument{}, nil, err
+	}
+	path := "/openapi/v3/apis/" + gv.Group + "/" + gv.Version
+	if gv.Group == "" {
+		path = "/openapi/v3/api/" + gv.Version
+	}
+	data, err := readNativeSchema(ctx, client, path)
+	if err != nil {
+		return nativeSchemaDocument{}, nil, err
+	}
+	if err := resourcev2.ValidateJSON(data); err != nil {
+		return nativeSchemaDocument{}, nil, err
+	}
+	data, err = correctNativeTimeSchemas(data)
+	if err != nil {
+		return nativeSchemaDocument{}, nil, err
+	}
+	if err := ctx.Err(); err != nil {
+		return nativeSchemaDocument{}, nil, err
+	}
+	digest := sha256.Sum256(data)
+	revision := hex.EncodeToString(digest[:])
+	if held, lease := budget.reuse(revision); lease != nil {
+		if held.serves(gv) {
+			return held, lease, nil
 		}
-		return map[string]nativeSchemaDocument{}, failures, lease
+		lease.Release()
+		return nativeSchemaDocument{}, nil, fmt.Errorf("native OpenAPI root unavailable or ambiguous for %q", gv)
 	}
-	byGroup := make(map[schema.GroupVersion][]string)
-	for token, binding := range bindings {
-		gv := binding.GVR.GroupVersion()
-		byGroup[gv] = append(byGroup[gv], token)
+	var document struct {
+		Components struct {
+			Schemas map[string]json.RawMessage `json:"schemas"`
+		} `json:"components"`
 	}
-	result := make(map[string]nativeSchemaDocument, len(bindings))
-	failures := make(map[string]error)
-	groups := make([]schema.GroupVersion, 0, len(byGroup))
-	for gv := range byGroup {
-		groups = append(groups, gv)
+	if err := json.Unmarshal(data, &document); err != nil {
+		return nativeSchemaDocument{}, nil, fmt.Errorf("invalid native OpenAPI document: %w", err)
 	}
-	sort.Slice(groups, func(i, j int) bool { return groups[i].String() < groups[j].String() })
-	type fetchedSchema struct {
-		data []byte
-		err  error
-	}
-	workerCount := min(nativeCatalogRequestConcurrency, len(groups))
-	jobs := make(chan int, workerCount)
-	prefetched := make([]chan fetchedSchema, workerCount)
-	var workers sync.WaitGroup
-	for i := range prefetched {
-		prefetched[i] = make(chan fetchedSchema, 1)
-	}
-	for range workerCount {
-		workers.Add(1)
-		go func() {
-			defer workers.Done()
-			for index := range jobs {
-				if ctx.Err() != nil {
-					return
-				}
-				gv := groups[index]
-				path := "/openapi/v3/apis/" + gv.Group + "/" + gv.Version
-				if gv.Group == "" {
-					path = "/openapi/v3/api/" + gv.Version
-				}
-				data, err := readNativeSchema(ctx, client, path)
-				// Each slot receives only one job until its prior document has
-				// been decoded. A canceled consumer can leave one result per
-				// slot without blocking workers or retaining further documents.
-				prefetched[index%workerCount] <- fetchedSchema{data: data, err: err}
-			}
-		}()
-	}
-	defer func() {
-		close(jobs)
-		workers.Wait()
-	}()
-	for index := range workerCount {
-		jobs <- index
-	}
-	for index, gv := range groups {
-		tokens := byGroup[gv]
-		if err := ctx.Err(); err != nil {
-			for _, token := range tokens {
-				failures[token] = err
-			}
+	roots := make(map[schema.GroupVersionKind]string)
+	skippedComponents := 0
+	for name, body := range document.Components.Schemas {
+		var descriptor struct {
+			Kinds []schema.GroupVersionKind `json:"x-kubernetes-group-version-kind"`
+		}
+		if err := json.Unmarshal(body, &descriptor); err != nil {
+			skippedComponents++
 			continue
 		}
-		// Refill only after the previous iteration finishes decoding and
-		// retaining its document. The rolling window includes that document,
-		// not just network requests, and retention stays in sorted GV order.
-		if next := index + workerCount - 1; index > 0 && next < len(groups) {
-			jobs <- next
-		}
-		var fetched fetchedSchema
-		select {
-		case fetched = <-prefetched[index%workerCount]:
-		case <-ctx.Done():
-			fetched.err = ctx.Err()
-		}
-		data, err := fetched.data, fetched.err
-		if err != nil {
-			for _, token := range tokens {
-				failures[token] = err
-			}
-			continue
-		}
-		if err := resourcev2.ValidateJSON(data); err != nil {
-			for _, token := range tokens {
-				failures[token] = err
-			}
-			continue
-		}
-		var document struct {
-			Components struct {
-				Schemas map[string]json.RawMessage `json:"schemas"`
-			} `json:"components"`
-		}
-		if err := json.Unmarshal(data, &document); err != nil {
-			for _, token := range tokens {
-				failures[token] = fmt.Errorf("invalid native OpenAPI document: %w", err)
-			}
-			continue
-		}
-		data, err = correctNativeTimeSchemas(data)
-		if err != nil {
-			for _, token := range tokens {
-				failures[token] = err
-			}
-			continue
-		}
-		digest := sha256.Sum256(data)
-		revision := hex.EncodeToString(digest[:])
-		roots := make(map[schema.GroupVersionKind]string)
-		ambiguous := make(map[schema.GroupVersionKind]bool)
-		skippedComponents := 0
-		for name, body := range document.Components.Schemas {
-			var descriptor struct {
-				Kinds []struct {
-					Group   string `json:"group"`
-					Version string `json:"version"`
-					Kind    string `json:"kind"`
-				} `json:"x-kubernetes-group-version-kind"`
-			}
-			if err := json.Unmarshal(body, &descriptor); err != nil {
-				skippedComponents++
-				continue
-			}
-			root := "#/components/schemas/" + escapeJSONPointer(name)
-			for _, kind := range descriptor.Kinds {
-				key := schema.GroupVersionKind{Group: kind.Group, Version: kind.Version, Kind: kind.Kind}
-				if prior, exists := roots[key]; exists && prior != root {
-					ambiguous[key] = true
-				}
+		root := "#/components/schemas/" + escapeJSONPointer(name)
+		for _, key := range descriptor.Kinds {
+			if prior, exists := roots[key]; exists && prior != root {
+				roots[key] = ""
+			} else if !exists {
 				roots[key] = root
 			}
 		}
-		if skippedComponents > 0 {
-			zap.S().Named("catalog").Debugw("native schema components skipped", "reason", "invalid_component", "components", skippedComponents, "api_version", gv.String())
-		}
-		retained := false
-		for _, token := range tokens {
-			binding := bindings[token]
-			key := gv.WithKind(binding.API.Kind)
-			if ambiguous[key] {
-				failures[token] = fmt.Errorf("ambiguous native OpenAPI root for %q", token)
-				continue
-			}
-			root := roots[key]
-			if root == "" {
-				failures[token] = fmt.Errorf("native OpenAPI root unavailable for %q", token)
-				continue
-			}
-			if !retained {
-				data, err = budget.retain(data, revision, lease)
-				if err != nil {
-					for _, token := range tokens {
-						failures[token] = err
-					}
-					break
-				}
-				retained = true
-			}
-			result[token] = nativeSchemaDocument{Document: data, Root: root, Revision: revision}
-		}
 	}
-	return result, failures, lease
+	if skippedComponents > 0 {
+		zap.S().Named("catalog").Debugw("native schema components skipped", "reason", "invalid_component", "components", skippedComponents, "api_version", gv.String())
+	}
+	value := nativeSchemaDocument{Document: data, roots: roots, Revision: revision}
+	if !value.serves(gv) {
+		return nativeSchemaDocument{}, nil, fmt.Errorf("native OpenAPI root unavailable or ambiguous for %q", gv)
+	}
+	if err := ctx.Err(); err != nil {
+		return nativeSchemaDocument{}, nil, err
+	}
+	lease := &nativeSchemaLease{budget: budget}
+	retained, err := budget.retain(value, lease)
+	if err != nil {
+		lease.Release()
+		return nativeSchemaDocument{}, nil, err
+	}
+	return retained, lease, nil
 }
 
 // correctNativeTimeSchemas changes only the two Kubernetes time components.

@@ -21,9 +21,8 @@ type nativeCatalogRefresh struct {
 	err  error
 }
 
-// Catalog acquisition is demand-driven, not a CRD watcher. Each active cluster
-// can perform one discovery acquisition per interval. Concurrent callers share
-// that acquisition; failures remain errors until the next permitted attempt.
+// Only explicit catalog refreshes enter this bounded discovery acquisition.
+// Failures belong to refresh callers, never ordinary snapshot observation.
 func (p *kubernetesProvider) refreshNativeCatalog(ctx context.Context, connectionID string, client *clients.ClientSet) error {
 	p.mu.Lock()
 	previous := p.catalogs[connectionID]
@@ -72,6 +71,7 @@ func (p *kubernetesProvider) refreshNativeCatalog(ctx context.Context, connectio
 	} else {
 		if err == nil && changed {
 			p.catalogs[connectionID] = snapshot
+			pruneNativeSchemas(snapshot)
 		}
 		current := p.catalogs[connectionID]
 		current.nextRefresh = time.Now().Add(nativeCatalogRefreshInterval)
@@ -93,13 +93,6 @@ func (p *kubernetesProvider) refreshNativeCatalog(ctx context.Context, connectio
 		providerLog(p).Warnw("native catalog refresh failed", append([]any{"changed", changed, "duration_ms", time.Since(refreshStarted).Milliseconds()}, class.LogFields()...)...)
 	} else {
 		providerLog(p).Debugw("native catalog refresh finished", append([]any{"changed", changed, "duration_ms", time.Since(refreshStarted).Milliseconds()}, class.LogFields()...)...)
-	}
-	if changed {
-		if err != nil {
-			snapshot.schemaLease.Release()
-		} else {
-			previous.schemaLease.Release()
-		}
 	}
 	return err
 }
@@ -124,6 +117,9 @@ func (p *kubernetesProvider) acquireNativeCatalog(ctx context.Context, connectio
 	if err != nil {
 		return nil, false, err
 	}
+	if previous != nil && coverage.Kind != "complete" {
+		return nil, false, resourcev2.NewError("UNAVAILABLE", "Partial discovery cannot replace installed native support")
+	}
 	encoded, err := json.Marshal(struct {
 		Bindings   map[string]nativeType
 		Coverage   resourcev2.Coverage
@@ -135,23 +131,20 @@ func (p *kubernetesProvider) acquireNativeCatalog(ctx context.Context, connectio
 	}
 	digest := sha256.Sum256(encoded)
 	revision := hex.EncodeToString(digest[:])
-	schemas, failures, lease := fetchNativeSchemas(ctx, client.DiscoveryClient.RESTClient(), nativeSchemaBindings(bindings), &p.schemaBudget)
-	trace.SpanFromContext(ctx).SetAttributes(attribute.Int("served_types", len(bindings)), attribute.Int("schema_failures", len(failures)))
-	p.logNativeSchemaFailures(failures)
+	trace.SpanFromContext(ctx).SetAttributes(attribute.Int("served_types", len(bindings)))
 	if err := ctx.Err(); err != nil {
-		lease.Release()
 		return nil, false, err
 	}
-	snapshot, err := p.assembleNativeCatalog(ctx, connectionID, client, bindings, coverage, schemas, failures, hint, watchScope)
+	snapshot, err := p.assembleNativeCatalog(ctx, connectionID, client, bindings, coverage, hint, watchScope)
 	if err != nil {
-		lease.Release()
 		return nil, false, err
 	}
-	if previous != nil && previous.discoveryRevision == revision && previous.catalog.Revision == snapshot.catalog.Revision {
-		lease.Release()
-		return previous, false, nil
+	if previous != nil {
+		if previous.discoveryRevision == revision && previous.catalog.Revision == snapshot.catalog.Revision {
+			return previous, false, nil
+		}
+		snapshot.schemas = previous.schemas
 	}
-	snapshot.schemaLease = lease
 	snapshot.discoveryRevision = revision
 	return snapshot, true, nil
 }

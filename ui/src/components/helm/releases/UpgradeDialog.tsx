@@ -1,5 +1,5 @@
 import { Button, Checkbox, Dialog, Stack, Text } from '@omniviewdev/base-ui';
-import { jsonToValue, useExecuteAction, useResourceEditorModelPath } from '@omniviewdev/runtime';
+import { jsonToValue, resourceEditorModelURI, useExecuteAction, type DrawerContext } from '@omniviewdev/runtime';
 import { ResourceClient } from '@omniviewdev/runtime/api';
 import React from 'react';
 import { stringify } from 'yaml';
@@ -30,6 +30,7 @@ interface Props {
   namespace: string;
   chartRef: string;
   connectionID: string;
+  resource: NonNullable<DrawerContext['resource']>;
 }
 
 /** Data returned by the `dry-run-upgrade` action. */
@@ -44,15 +45,19 @@ const UpgradeDialog: React.FC<Props> = ({
   namespace,
   chartRef,
   connectionID,
+  resource,
 }) => {
   const [values, setValues] = React.useState('');
   const [reuseValues, setReuseValues] = React.useState(true);
   const [dryRunManifest, setDryRunManifest] = React.useState<string | null>(null);
   const [valuesLoaded, setValuesLoaded] = React.useState(false);
+  const [valuesError, setValuesError] = React.useState<string>();
+  const edited = React.useRef(false);
+  const editorID = React.useId();
 
-  const editorPath = useResourceEditorModelPath({
-    pluginID: PLUGIN_ID, route: { connection: connectionID }, type: 'helm:releases',
-    key: `${namespace}/${releaseName}`, name: 'values',
+  const editorPath = resourceEditorModelURI({
+    pluginID: PLUGIN_ID, route: resource.route, type: resource.reference.address.type,
+    target: { auxiliary: { key: 'values', reference: resource.reference } }, name: `${editorID}/upgrade-values`,
   });
   const { executeAction, isExecuting } = useExecuteAction({ pluginID: PLUGIN_ID });
   const runAction = async (action: string, input = jsonToValue({})) => {
@@ -66,16 +71,22 @@ const UpgradeDialog: React.FC<Props> = ({
   // Load current values on open
   React.useEffect(() => {
     if (!open || !releaseName || valuesLoaded) return;
+    let active = true;
+    setValuesError(undefined);
 
     void runAction('get-values', jsonToValue({ all: true }))
       .then((result) => {
+        if (!active) return;
         const data = helmActionData(result) as { values?: unknown } | undefined;
-        setValues(data?.values ? stringify(data.values) : '');
+        if (!edited.current) setValues(data?.values ? stringify(data.values) : '');
         setValuesLoaded(true);
       })
       .catch(() => {
+        if (!active) return;
+        setValuesError('Current release values are unavailable. Authored values remain usable.');
         setValuesLoaded(true);
       });
+    return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, releaseName]);
 
@@ -106,6 +117,8 @@ const UpgradeDialog: React.FC<Props> = ({
   const handleClose = () => {
     setDryRunManifest(null);
     setValuesLoaded(false);
+    edited.current = false;
+    setValuesError(undefined);
     onClose();
   };
 
@@ -130,13 +143,15 @@ const UpgradeDialog: React.FC<Props> = ({
             <Text size="sm" tone="muted">
               Values (YAML)
             </Text>
+            <Text size="xs" role="status">The selected upgrade chart schema is unavailable. The installed release schema is not used.</Text>
+            {valuesError && <Text size="xs" tone="danger" role="alert">{valuesError}</Text>}
             <div style={valuesEditorStyle}>
               <CodeEditor
                 filename="values.yaml"
                 path={editorPath}
                 language="yaml"
                 value={values}
-                onChange={(v) => setValues(v)}
+                onChange={(next) => { edited.current = true; setValues(next); }}
                 height={250}
               />
             </div>

@@ -1,6 +1,5 @@
 import { Button } from '@omniviewdev/base-ui';
-import { jsonToValue, useResourceEditorModelPath, useResourceMutations, useResourceTypes, useExtensionPointSnapshot, RESOURCE_EDITOR_EXTENSION_POINT, type ResourceEditorContribution, type ResourceEditorContext } from '@omniviewdev/runtime';
-import { ResourceClient } from '@omniviewdev/runtime/api';
+import { jsonToValue, useResourceMutations, useResourceTypes, useExtensionPointSnapshot, RESOURCE_EDITOR_EXTENSION_POINT, type ResourceEditorContribution, type ResourceEditorContext, type ResourceType } from '@omniviewdev/runtime';
 import React from 'react';
 import { LuPlus } from 'react-icons/lu';
 import { parse } from 'yaml';
@@ -9,9 +8,9 @@ import { PLUGIN_ID } from '@/pluginId';
 import { resolveKubernetesReference } from '../../../../utils/kubernetesReference';
 import { inspectManifest, patchManifest, type ManifestChange } from '../../manifest/manifestDraft';
 import { catalogEditorContext } from '../../manifest/resourceEditorContext';
-import { useCatalogEditorContext } from '../../manifest/useCatalogEditorContext';
+import { builtinResourceEditors } from '../../manifest/resourceEditors';
 import CreateResourceModal from './CreateResourceModal';
-import { getTemplate, templateIdentity } from './templates';
+import { getTemplate } from './templates';
 import { validateEditorSource } from '../../manifest/resourceEditorSubmission';
 
 interface Props {
@@ -23,69 +22,65 @@ interface Props {
 const CreateResourceButton: React.FC<Props> = ({ connectionID, resourceKey, selectedNamespaces = [] }) => {
   const [open, setOpen] = React.useState(false);
   const [isCreating, setIsCreating] = React.useState(false);
-  const [isPreparing, setIsPreparing] = React.useState(false);
   const [template, setTemplate] = React.useState(getTemplate());
+  const [sessionDescriptor, setSessionDescriptor] = React.useState<ResourceType>();
   const route = { connection: connectionID };
-  const editorPath = useResourceEditorModelPath({ pluginID: PLUGIN_ID, route, type: resourceKey, name: 'create' });
   const { resourceTypes } = useResourceTypes({ pluginID: PLUGIN_ID, route });
   const descriptor = resourceTypes.data?.find((entry) => entry.type === resourceKey);
+  const selectedFormat = descriptor?.representations.find((entry) => entry.id === descriptor.defaultRepresentation);
   const label = descriptor?.displayName ?? resourceKey;
   const { mutate } = useResourceMutations({ pluginID: PLUGIN_ID });
   const editors = useExtensionPointSnapshot<ResourceEditorContribution, ResourceEditorContext>(RESOURCE_EDITOR_EXTENSION_POINT);
-  const matches = editors.contributions.filter((entry) => entry.value.targets.some((target) => `k8s:${target.group}/${target.resource}` === resourceKey));
-  const authorable = !matches.length || matches.some((entry) => entry.value.intents.includes('create') && entry.value.ownershipPolicy !== 'controller' && entry.value.ownershipPolicy !== 'system');
-  const editorContext = useCatalogEditorContext(template, resourceKey, connectionID, 'create', descriptor);
+  const contributions = editors.store ? editors.contributions.map((entry) => entry.value) : builtinResourceEditors;
+  const matches = contributions.filter((entry) => entry.targets.some((target) => `k8s:${target.group}/${target.resource}` === resourceKey));
+  const authorable = !matches.length || matches.some((entry) => entry.intents.includes('create') && entry.ownershipPolicy !== 'controller' && entry.ownershipPolicy !== 'system');
   const preparation = React.useRef<AbortController | null>(null);
   React.useEffect(() => () => preparation.current?.abort(), [connectionID, resourceKey]);
 
-  const handleOpen = async () => {
-    setIsPreparing(true);
-    let nextTemplate = getTemplate();
-    try {
-      const representation = descriptor?.representations.find((entry) => entry.id === descriptor.defaultRepresentation);
-      const binding = representation?.schema;
-      if (binding?.documentRef) {
-        const schema = await ResourceClient.GetSchemaDocument(PLUGIN_ID, route, binding.documentRef);
-        const identity = templateIdentity(schema.document, binding.root,
-          descriptor?.identityDimensions.some(({ name }) => name === 'namespace') ?? false);
-        nextTemplate = getTemplate(identity);
-        const draft = inspectManifest(nextTemplate, resourceKey);
-        const changes: ManifestChange[] = [];
-        if (identity?.namespaced) {
-          changes.push({ path: ['metadata', 'namespace'], value: selectedNamespaces.length === 1 ? selectedNamespaces[0] : '' });
-        }
-        if (identity) changes.push({ path: ['metadata', 'name'], value: '' });
-        if (draft.kind === 'Pod' || draft.kind === 'Deployment' || draft.kind === 'StatefulSet') {
-          changes.push({ path: ['metadata', 'labels', 'app'], value: '' });
-          const podPath = draft.kind === 'Pod' ? ['spec'] : ['spec', 'template', 'spec'];
-          changes.push(
-            { path: [...podPath, 'containers', 0, 'image'], value: '' },
-            { path: [...podPath, 'containers', 0, 'ports'], remove: true },
-          );
-          if (draft.kind !== 'Pod') {
-            changes.push(
-              { path: ['spec', 'selector', 'matchLabels', 'app'], value: '' },
-              { path: ['spec', 'template', 'metadata', 'labels', 'app'], value: '' },
-            );
-          }
-          if (draft.kind === 'StatefulSet') changes.push({ path: ['spec', 'serviceName'], value: '' });
-        }
-        if (draft.kind === 'Service') changes.push({ path: ['spec', 'selector'], remove: true });
-        if (draft.kind === 'Ingress') changes.push({ path: ['spec', 'rules'], remove: true });
-        if (draft.kind === 'ConfigMap') changes.push({ path: ['data'], remove: true });
-        if (draft.kind === 'Secret') changes.push(
-          { path: ['data'], remove: true }, { path: ['stringData'], remove: true },
-        );
-        if (draft.kind === 'PersistentVolumeClaim') changes.push({ path: ['spec', 'resources', 'requests', 'storage'], remove: true });
-        if (changes.length) nextTemplate = patchManifest(nextTemplate, changes);
-      }
-    } catch {
-      // Schema discovery is optional. Full native manifests remain creatable.
-    } finally {
-      setTemplate(nextTemplate);
-      setIsPreparing(false);
-      setOpen(true);
+  const handleOpen = () => {
+    const representation = selectedFormat;
+    const targets = matches.flatMap((entry) => entry.targets).filter((target) =>
+      `k8s:${target.group}/${target.resource}` === resourceKey
+      && `kubernetes.object.v1/${target.group ? `${target.group}/` : ''}${target.version}` === representation?.id);
+    const target = targets.length > 0 && targets.every((entry) => entry.kind === targets[0].kind) ? targets[0] : undefined;
+    const identity = target ? {
+      apiVersion: target.group ? `${target.group}/${target.version}` : target.version,
+      kind: target.kind,
+      namespaced: descriptor?.identityDimensions.some(({ name }) => name === 'namespace') ?? false,
+    } : undefined;
+    let nextTemplate = getTemplate(identity);
+    const draft = inspectManifest(nextTemplate, resourceKey);
+    const changes: ManifestChange[] = [];
+    if (identity?.namespaced) {
+      changes.push({ path: ['metadata', 'namespace'], value: selectedNamespaces.length === 1 ? selectedNamespaces[0] : '' });
     }
+    if (identity) changes.push({ path: ['metadata', 'name'], value: '' });
+    if (draft.kind === 'Pod' || draft.kind === 'Deployment' || draft.kind === 'StatefulSet') {
+      changes.push({ path: ['metadata', 'labels', 'app'], value: '' });
+      const podPath = draft.kind === 'Pod' ? ['spec'] : ['spec', 'template', 'spec'];
+      changes.push(
+        { path: [...podPath, 'containers', 0, 'image'], value: '' },
+        { path: [...podPath, 'containers', 0, 'ports'], remove: true },
+      );
+      if (draft.kind !== 'Pod') {
+        changes.push(
+          { path: ['spec', 'selector', 'matchLabels', 'app'], value: '' },
+          { path: ['spec', 'template', 'metadata', 'labels', 'app'], value: '' },
+        );
+      }
+      if (draft.kind === 'StatefulSet') changes.push({ path: ['spec', 'serviceName'], value: '' });
+    }
+    if (draft.kind === 'Service') changes.push({ path: ['spec', 'selector'], remove: true });
+    if (draft.kind === 'Ingress') changes.push({ path: ['spec', 'rules'], remove: true });
+    if (draft.kind === 'ConfigMap') changes.push({ path: ['data'], remove: true });
+    if (draft.kind === 'Secret') changes.push(
+      { path: ['data'], remove: true }, { path: ['stringData'], remove: true },
+    );
+    if (draft.kind === 'PersistentVolumeClaim') changes.push({ path: ['spec', 'resources', 'requests', 'storage'], remove: true });
+    if (changes.length) nextTemplate = patchManifest(nextTemplate, changes);
+    setTemplate(nextTemplate);
+    setSessionDescriptor(descriptor);
+    setOpen(true);
   };
 
   const handleCreate = async (yaml: string, isCurrent: () => boolean) => {
@@ -95,8 +90,7 @@ const CreateResourceButton: React.FC<Props> = ({ connectionID, resourceKey, sele
     try {
       const parsed = parse(yaml, { intAsBigInt: true }) as Record<string, unknown>;
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('YAML must be a Kubernetes resource object');
-      const sourceContext = catalogEditorContext(yaml, resourceKey, connectionID, 'create', descriptor);
-      const admission = inspectManifest(template).document ? { ...sourceContext, group: editorContext.group, version: editorContext.version, kind: editorContext.kind } : sourceContext;
+      const admission = catalogEditorContext(yaml, resourceKey, connectionID, 'create', descriptor);
       const admissionError = validateEditorSource(yaml, admission);
       if (admissionError) throw new Error(admissionError);
       const metadata = parsed.metadata as Record<string, unknown> | undefined;
@@ -121,20 +115,16 @@ const CreateResourceButton: React.FC<Props> = ({ connectionID, resourceKey, sele
 
   return (
     <>
-      <CreateResourceTrigger label={label} preparing={isPreparing} onOpen={() => void handleOpen()} />
+      <CreateResourceTrigger label={label} onOpen={handleOpen} />
       <CreateResourceModal key={JSON.stringify([connectionID, resourceKey])} open={open} onClose={() => { preparation.current?.abort(); setOpen(false); }} resourceKey={resourceKey}
-        resourceName={label} template={template} onCreate={handleCreate} isCreating={isCreating} context={connectionID} connectionID={connectionID} editorPath={editorPath}
-        editorContext={inspectManifest(template).document ? editorContext : undefined}
-        resolveContext={(source) => {
-          const actual = catalogEditorContext(source, resourceKey, connectionID, 'create', descriptor);
-          return inspectManifest(template).document ? { ...actual, group: editorContext.group, version: editorContext.version, kind: editorContext.kind } : actual;
-        }} />
+        resourceName={label} template={template} onCreate={handleCreate} isCreating={isCreating} context={connectionID} connectionID={connectionID}
+        descriptor={sessionDescriptor} />
     </>
   );
 };
 
-function CreateResourceTrigger({ label, preparing = false, disabled = false, onOpen }: { label: string; preparing?: boolean; disabled?: boolean; onOpen: () => void }) {
-  return <Button size="sm" variant="outline" color="neutral" startDecorator={<LuPlus size={13} />} disabled={disabled || preparing} onClick={onOpen}>{preparing ? 'Preparing...' : `Create ${label}`}</Button>;
+function CreateResourceTrigger({ label, onOpen }: { label: string; onOpen: () => void }) {
+  return <Button size="sm" variant="outline" color="neutral" startDecorator={<LuPlus size={13} />} onClick={onOpen}>{`Create ${label}`}</Button>;
 }
 
 export default CreateResourceButton;

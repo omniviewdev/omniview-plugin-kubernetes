@@ -1,5 +1,5 @@
 import { Button, Card, Chip, IconButton, Separator, Stack, Tabs, Text } from '@omniviewdev/base-ui';
-import { DrawerContext, jsonToValue, useExecuteAction, useResourceEditorModelPath, useRightDrawer } from '@omniviewdev/runtime';
+import { type DrawerContext, jsonToValue, resourceEditorModelURI, useExecuteAction, useRightDrawer, type SchemaRequest } from '@omniviewdev/runtime';
 import { ResourceClient } from '@omniviewdev/runtime/api';
 import React from 'react';
 import { LuCircleArrowUp, LuUndo2, LuGitCompare } from 'react-icons/lu';
@@ -13,6 +13,7 @@ import CodeEditor from '../../shared/CodeEditor';
 import styles from './ReleaseSidebar.module.css';
 import UpgradeDialog from './UpgradeDialog';
 import { helmActionData } from '../values';
+import { useEditorSchemaRegistration } from '../../../hooks/useEditorSchemaRegistration';
 
 const metaRowStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 2fr' };
 const metaValueStyle: React.CSSProperties = { fontWeight: 400 };
@@ -199,12 +200,19 @@ const ReleaseSidebarContent: React.FC<Props> = ({ ctx }) => {
   const connectionID = ctx.resource?.route.connection ?? '';
   const releaseName = ctx.resource?.reference.address.id ?? '';
   const namespace = ctx.resource?.reference.address.scope.find((entry) => entry.dimension === 'namespace')?.value ?? '';
-  const valuesPath = useResourceEditorModelPath({
-    pluginID: PLUGIN_ID, route: ctx.resource?.route ?? { connection: connectionID }, type: 'helm:releases',
-    key: `${namespace}/${releaseName}`, name: 'values-preview',
+  const resource = ctx.resource;
+  const editorID = React.useId();
+  const schemaRequest = React.useMemo<SchemaRequest | undefined>(() => resource ? {
+    route: resource.route, type: resource.reference.address.type,
+    target: { auxiliary: { key: 'values', reference: resource.reference, sourceRevision: resource.record?.record.sourceRevision } },
+  } : undefined, [resource]);
+  const valuesPath = schemaRequest ? resourceEditorModelURI({
+    pluginID: PLUGIN_ID, ...schemaRequest, name: `${editorID}/values-preview`,
+  }) : '';
+  const valuesSchema = useEditorSchemaRegistration({
+    request: schemaRequest, modelURI: valuesPath, enabled: activeTab === '0' && !!resource,
   });
   const { executeAction, isExecuting } = useExecuteAction({ pluginID: PLUGIN_ID });
-  const resource = ctx.resource;
   const runAction = React.useCallback((action: string, input = jsonToValue({})) => {
     if (!resource) return Promise.reject(new Error('Release reference is unavailable'));
     return executeAction({ route: resource.route, reference: resource.reference, action, input });
@@ -350,7 +358,10 @@ const ReleaseSidebarContent: React.FC<Props> = ({ ctx }) => {
 
       {/* Values - Monaco editor */}
       {activeTab === '0' && (
-        <div style={editorBoxStyle}>
+        <div>
+          {valuesSchema.error && <Text size="xs" role="status">Installed values schema is unavailable.</Text>}
+          {valuesSchema.result && valuesSchema.result.status !== 'available' && <Text size="xs" role="status">Installed values schema: {valuesSchema.result.status}.</Text>}
+          <div style={editorBoxStyle}>
           <CodeEditor
             filename="values.yaml"
             path={valuesPath}
@@ -359,6 +370,7 @@ const ReleaseSidebarContent: React.FC<Props> = ({ ctx }) => {
             readOnly
             height={400}
           />
+          </div>
         </div>
       )}
 
@@ -526,6 +538,7 @@ const ReleaseSidebarContent: React.FC<Props> = ({ ctx }) => {
         namespace={namespace}
         chartRef={`${chartName}`}
         connectionID={connectionID}
+        resource={ctx.resource}
       />
     </Stack>
   );

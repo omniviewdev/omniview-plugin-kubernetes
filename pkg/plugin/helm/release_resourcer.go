@@ -14,8 +14,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"helm.sh/helm/v3/pkg/action"
+	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/release"
+	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 // ReleaseResourcer supplies native release reads, actions, and editor schemas.
@@ -290,58 +292,51 @@ func (r *ReleaseResourcer) Action(
 
 // ================================= SCHEMA ================================= //
 
-// GetEditorSchemas extracts values.schema.json from installed Helm chart releases.
-// Schema discovery is finite and fails rather than returning silently truncated schemas.
-func (r *ReleaseResourcer) GetEditorSchemas(
-	ctx context.Context,
-	client *clients.ClientSet,
-) ([]resource.EditorSchema, error) {
-	metadata, err := releaseMetadata(ctx, client, "", 256, nil)
+// ResolveSchema reads one current installed release, never the route inventory.
+func (r *ReleaseResourcer) ResolveSchema(ctx context.Context, client *clients.ClientSet, target resource.AuxiliarySchemaTarget) (resource.SchemaBinding, error) {
+	if err := validateReference(target.Reference); err != nil {
+		return resource.SchemaBinding{}, resource.NewError("INVALID_REQUEST", "An exact Helm release namespace is required")
+	}
+	if target.Reference.Address.Type != ReleaseType || target.Key != "values" {
+		return resource.SchemaBinding{}, resource.NewError("UNSUPPORTED", "Unknown Helm auxiliary schema target")
+	}
+	if target.Reference.Incarnation != nil {
+		return resource.SchemaBinding{}, resource.NewError("RESET_REQUIRED", "Helm cannot verify a release incarnation")
+	}
+	namespace, name := namespaceOf(target.Reference), target.Reference.Address.ID
+	if chartutil.ValidateReleaseName(name) != nil || len(validation.IsDNS1123Label(namespace)) != 0 {
+		return resource.SchemaBinding{}, resource.NewError("INVALID_REQUEST", "Invalid native Helm release identity")
+	}
+	version, err := latestReleaseVersion(ctx, client, namespace, name)
 	if err != nil {
-		return nil, err
+		return resource.SchemaBinding{}, err
 	}
-	if metadata.Continue != "" {
-		return nil, resource.NewError("RESOURCE_LIMIT", "Helm schema discovery exceeds 256 storage entries")
+	if target.SourceRevision != nil && *target.SourceRevision != fmt.Sprint(version) {
+		return resource.SchemaBinding{}, resource.NewError("RESET_REQUIRED", "The installed Helm release revision changed")
 	}
-
-	var schemas []resource.EditorSchema
-	totalBytes := 0
-	for _, item := range metadata.Items {
-		version, err := latestReleaseVersion(ctx, client, item.Namespace, item.Labels["name"])
-		if err != nil {
-			return nil, err
-		}
-		if fmt.Sprint(version) != item.Labels["version"] {
-			continue
-		}
-		cfg, err := r.getConfig(ctx, client, item.Namespace)
-		if err != nil {
-			return nil, err
-		}
-		get := action.NewGet(cfg)
-		get.Version = version
-		rel, err := get.Run(item.Labels["name"])
-		if err != nil {
-			return nil, err
-		}
-		if rel.Chart == nil || rel.Chart.Metadata == nil {
-			continue
-		}
-		if len(rel.Chart.Schema) == 0 {
-			continue
-		}
-		schema, size, err := helmEditorSchema(rel.Chart.Schema, item.Namespace+"/"+rel.Name)
-		if err != nil {
-			return nil, err
-		}
-		if size > resource.MaxDocumentBytes-totalBytes {
-			return nil, resource.NewError("RESOURCE_LIMIT", "Helm editor schemas exceed presentation budget")
-		}
-		totalBytes += size
-		schemas = append(schemas, schema)
+	cfg, err := r.getConfig(ctx, client, namespace)
+	if err != nil {
+		return resource.SchemaBinding{}, err
 	}
-
-	return schemas, nil
+	get := action.NewGet(cfg)
+	get.Version = version
+	rel, err := get.Run(name)
+	if err != nil {
+		return resource.SchemaBinding{}, err
+	}
+	if rel.Name != name || rel.Namespace != namespace || rel.Version != version {
+		return resource.SchemaBinding{}, resource.NewError("RESET_REQUIRED", "The installed Helm release target changed")
+	}
+	if err := ctx.Err(); err != nil {
+		return resource.SchemaBinding{}, err
+	}
+	if rel.Chart == nil {
+		return resource.SchemaBinding{State: "unavailable"}, nil
+	}
+	if len(rel.Chart.Schema) == 0 {
+		return resource.SchemaBinding{State: "absent"}, nil
+	}
+	return helmSchemaBinding(rel.Chart.Schema)
 }
 
 // ================================= ACTION IMPLEMENTATIONS ================================= //

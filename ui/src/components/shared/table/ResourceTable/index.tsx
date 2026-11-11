@@ -444,7 +444,6 @@ const ResourceTableContainer = <T extends RowData,>({
                 className={styles.body}
                 estimateRowSize={ROW_HEIGHT}
                 fixedRowHeight
-                overscan={32}
                 onRowClick={onRowClick}
               />
             )}

@@ -9,7 +9,9 @@ import { LuCopy, LuLayers, LuDatabase, LuPlay, LuClock, LuServer, LuUser } from 
 import { PLUGIN_ID } from '@/pluginId';
 
 import { resolveKubernetesReference } from '../../utils/kubernetesReference';
-import { templateIdentity } from '../kubernetes/actions/create/templates';
+import { createEditorContext } from '../kubernetes/manifest/resourceEditorContext';
+import { createResourceEditorServices } from '../kubernetes/manifest/resourceEditorServices';
+import { inspectDiscovery } from '../kubernetes/manifest/providers/issue-289/discovery';
 
 import { TableActionsContext, useTableActions } from './table/TableActionsContext';
 import { TableActionsScope } from './table/TableActionsScope';
@@ -77,42 +79,46 @@ const ResourceLinkView: React.FC<Props> = (props) => {
     connection: 'connectionID' in props ? props.connectionID : '',
   };
   const { resourceType } = useResourceType({ pluginID, route, type: resourceKey ?? '' });
+  const pending = React.useRef<AbortController | null>(null);
+  React.useEffect(() => () => pending.current?.abort(), [pluginID, route.connection]);
 
   if (!resourceName || !resourceID || (!resourceKey && !owner)) return null;
 
   const handleClick = async () => {
+    pending.current?.abort();
+    const controller = new AbortController();
+    pending.current = controller;
     try {
       let ownerType: string | undefined;
       if (owner) {
-        // Native owner metadata selects a catalog Type; only the host assigns reference authority and keys.
         const catalog = await ResourceClient.Catalog(pluginID, { route });
-        const matches: string[] = [];
-        for (const descriptor of catalog.types) {
-          for (const representation of descriptor.representations) {
-            const binding = representation.schema;
-            const document =
-              binding.document ??
-              (binding.documentRef
-                ? (await ResourceClient.GetSchemaDocument(pluginID, route, binding.documentRef))
-                    .document
-                : undefined);
-            const identity = templateIdentity(document, binding.root, false);
-            // API version is representation metadata; the native group and kind identify the owner type.
-            const ownerGroup = owner.apiVersion.includes('/')
-              ? owner.apiVersion.slice(0, owner.apiVersion.lastIndexOf('/'))
-              : '';
-            const schemaGroup = identity?.apiVersion.includes('/')
-              ? identity.apiVersion.slice(0, identity.apiVersion.lastIndexOf('/'))
-              : '';
-            if (identity?.kind === owner.kind && schemaGroup === ownerGroup) {
-              matches.push(descriptor.type);
-              break;
+        const ownerGroup = owner.apiVersion.includes('/')
+          ? owner.apiVersion.slice(0, owner.apiVersion.lastIndexOf('/')) : '';
+        const context = createEditorContext('', 'kubernetes:editor-queries', route.connection, 'inspect', { resource: '' });
+        const result = await createResourceEditorServices(context).actions.execute({
+          protocol: 'kubernetes.discovery.v1', input: { endpoint: ownerGroup ? '/apis' : '/api', version: 'v2' },
+          sessionID: `owner/${owner.uid ?? owner.name}`, generation: 0, signal: controller.signal,
+        });
+        if (controller.signal.aborted) return;
+        if (result.status !== 'ready') throw new Error('Kubernetes discovery is unavailable for owner navigation.');
+        const discovery = inspectDiscovery(result.output);
+        if (!discovery.valid) throw new Error('Kubernetes discovery did not provide an owner resource type.');
+        const matches = new Set<string>();
+        for (const group of discovery.groups) {
+          if (group.name !== ownerGroup) continue;
+          for (const version of group.versions) {
+            if (version.freshness !== 'Current') continue;
+            for (const resource of version.resources) {
+              const kind = resource.responseKind;
+              const type = `k8s:${group.name}/${resource.resource}`;
+              if (!resource.resource.includes('/') && kind?.group === ownerGroup && kind.kind === owner.kind
+                && catalog.types.some((descriptor) => descriptor.type === type)) matches.add(type);
             }
           }
         }
-        if (matches.length !== 1)
+        if (matches.size !== 1)
           throw new Error(`Owner resource type is unavailable or ambiguous: ${owner.kind}`);
-        ownerType = matches[0];
+        ownerType = [...matches][0];
       }
       const resolved = canonical
         ? await ResourceClient.ResolveReference(pluginID, {
@@ -129,6 +135,7 @@ const ResourceLinkView: React.FC<Props> = (props) => {
             namespace: 'namespace' in props ? props.namespace : undefined,
             incarnation: owner?.uid || native?.incarnation || undefined,
           });
+      if (controller.signal.aborted) return;
       await showResourceSidebar({
         pluginID,
         reference: resolved.reference,
@@ -138,6 +145,7 @@ const ResourceLinkView: React.FC<Props> = (props) => {
         resourceName: resourceID,
       });
     } catch (error) {
+      if (controller.signal.aborted) return;
       void notify({ title: parseAppError(error).detail, severity: 'error' });
     }
   };

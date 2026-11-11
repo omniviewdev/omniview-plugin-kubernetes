@@ -579,22 +579,18 @@ func TestNativeActionConversionErrorsPropagate(t *testing.T) {
 
 func TestHelmEditorSchemaCanonicalBinding(t *testing.T) {
 	document := []byte(`{"$schema":"http://json-schema.org/draft-07/schema#","type":"object","properties":{"replicas":{"type":"integer"}}}`)
-	schema, size, err := helmEditorSchema(document, "default/release")
+	binding, err := helmSchemaBinding(document)
 	require.NoError(t, err)
-	assert.Equal(t, ReleaseType, schema.Type)
-	assert.Equal(t, "default/release", schema.Key)
-	assert.Equal(t, "yaml", schema.Language)
-	assert.Equal(t, "available", schema.Binding.State)
-	assert.Equal(t, resource.DialectJSONSchemaDraft07, schema.Binding.Dialect)
-	assert.Empty(t, schema.Binding.Root)
-	assert.Nil(t, schema.Binding.DocumentRef)
-	assert.Equal(t, document, []byte(schema.Binding.Document))
-	assert.Greater(t, size, len(document))
-	require.NotNil(t, schema.Binding.Revision)
-	same, _, err := helmEditorSchema(document, "other/release")
+	assert.Equal(t, "available", binding.State)
+	assert.Equal(t, resource.DialectJSONSchemaDraft07, binding.Dialect)
+	assert.Empty(t, binding.Root)
+	assert.Nil(t, binding.DocumentRef)
+	assert.Equal(t, document, []byte(binding.Document))
+	require.NotNil(t, binding.Revision)
+	same, err := helmSchemaBinding(document)
 	require.NoError(t, err)
-	assert.Equal(t, *schema.Binding.Revision, *same.Binding.Revision)
-	_, err = resource.ToProtoEditorSchema(schema)
+	assert.Equal(t, *binding.Revision, *same.Revision)
+	_, err = resource.ToProtoSchemaBinding(binding)
 	require.NoError(t, err)
 }
 
@@ -616,19 +612,19 @@ func TestHelmEditorSchemaDialectDerivation(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			schema, _, err := helmEditorSchema([]byte(tc.document), "ns/release")
+			binding, err := helmSchemaBinding([]byte(tc.document))
 			require.NoError(t, err)
-			assert.Equal(t, tc.dialect, schema.Binding.Dialect)
+			assert.Equal(t, tc.dialect, binding.Dialect)
 		})
 	}
 }
 
 func TestHelmEditorSchemaFiniteAndHonest(t *testing.T) {
-	_, _, err := helmEditorSchema([]byte(`{`), "ns/release")
+	_, err := helmSchemaBinding([]byte(`{`))
 	assert.Equal(t, "INVALID_REQUEST", resource.ErrorCode(err))
-	_, _, err = helmEditorSchema([]byte(`[]`), "ns/release")
+	_, err = helmSchemaBinding([]byte(`[]`))
 	assert.Equal(t, "INVALID_REQUEST", resource.ErrorCode(err))
-	_, _, err = helmEditorSchema([]byte(`{}`), strings.Repeat("x", resource.MaxDocumentBytes/6))
+	_, err = helmSchemaBinding([]byte(`{"padding":"` + strings.Repeat("x", resource.MaxDocumentBytes) + `"}`))
 	assert.Equal(t, "RESOURCE_LIMIT", resource.ErrorCode(err))
 }
 

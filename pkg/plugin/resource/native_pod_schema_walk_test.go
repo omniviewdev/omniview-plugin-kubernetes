@@ -94,12 +94,9 @@ func TestNativePodSchemaTraversalFromClusterOpenAPI(t *testing.T) {
 	route := resourcev2.AccessRoute{Connection: connection.ID}
 
 	descriptor := p.catalogs[connection.ID].bindings["k8s:/pods"].Descriptor
-	var binding resourcev2.SchemaBinding
-	for _, representation := range descriptor.Representations {
-		if representation.ID == descriptor.DefaultRepresentation {
-			binding = representation.Schema
-		}
-	}
+	representation := descriptor.Representations[0]
+	binding, err := p.ResolveSchema(ctx, resourcev2.SchemaRequest{Route: route, Type: descriptor.Type, Target: resourcev2.SchemaTarget{Representation: &representation}})
+	require.NoError(t, err)
 	require.Equal(t, "available", binding.State)
 	require.NotNil(t, binding.Revision)
 	require.NotNil(t, binding.DocumentRef)
