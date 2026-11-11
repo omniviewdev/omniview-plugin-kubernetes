@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	resource "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
@@ -21,6 +22,7 @@ import (
 	fakedynamic "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/rest"
 	k8stesting "k8s.io/client-go/testing"
+	"k8s.io/client-go/tools/cache"
 )
 
 type sourceTestEvent struct {
@@ -214,34 +216,163 @@ func TestSourceSnapshotAndOrderedChanges(t *testing.T) {
 	require.Equal(t, "11", *third.changes[0].SourceRevision)
 }
 
-func TestSourceOverflowResets(t *testing.T) {
-	objects := make([]runtime.Object, 4097)
+// TestSourceInitialInventoryExceedsLiveQueue verifies every initial Pod identity
+// survives the handoff without consuming live-change queue capacity.
+func TestSourceInitialInventoryExceedsLiveQueue(t *testing.T) {
+	objects := make([]runtime.Object, 20000)
+	want := make(map[string]string, len(objects))
+	namespaces := []string{"default", "other"}
 	for i := range objects {
-		objects[i] = newTestPod(fmt.Sprintf("pod-%05d", i), "default")
+		name := fmt.Sprintf("pod-%05d", i)
+		namespace := namespaces[i%len(namespaces)]
+		objects[i] = newTestPod(name, namespace)
+		want[name] = namespace
 	}
 	cs := newFakeClientSet(defaultGVRListKinds(), objects...)
 	emitter := &sourceTestEmitter{events: make(chan sourceTestEvent, 32)}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 	done := make(chan error, 1)
+	target := testWatchTarget()
+	target.Scope = resource.QueryScope{{Dimension: "namespace", Match: resource.ScopeOneOf, Values: &namespaces}}
 	go func() {
-		done <- newBaseResourcer().Source(ctx, cs, resource.SourceRequest{Target: testWatchTarget(), Representation: testWatchRepresentation(), Limits: resource.SourceLimits{MaxBatchItems: resource.MaxSourceBatchItems}}, emitter)
+		done <- newBaseResourcer().Source(ctx, cs, resource.SourceRequest{Target: target, Representation: testWatchRepresentation(), Limits: resource.SourceLimits{MaxBatchItems: resource.MaxSourceBatchItems}}, emitter)
 	}()
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(10 * time.Second):
+			t.Error("source did not stop")
+		}
+	})
 	for {
 		event := nextSourceTestEvent(t, emitter)
-		if event.reset != nil {
-			require.Equal(t, resource.SourceResetOverflow, event.reset.Reason)
-			require.Equal(t, "informer event queue exceeded 4096 items", event.reset.Message)
+		require.Nil(t, event.reset, "initial inventory must not consume live-change queue capacity")
+		for _, item := range event.observations {
+			name := item.Record.Reference.Address.ID
+			namespace, ok := want[name]
+			require.True(t, ok, "unexpected or repeated Pod %q", name)
+			require.Contains(t, item.Record.Reference.Address.Scope, resource.ScopeEntry{Dimension: "namespace", Value: namespace})
+			delete(want, name)
+		}
+		if event.boundary {
+			require.Empty(t, want, "snapshot must include every initial Pod exactly once")
+			require.Equal(t, resource.EnumerationExhausted, event.coverage.Enumeration)
 			break
 		}
-		require.False(t, event.boundary, "overflow must reset before snapshot boundary")
 	}
-	select {
-	case err := <-done:
+	created := newTestPod("after-snapshot", "default")
+	created.SetResourceVersion("2")
+	_, err := cs.DynamicClient.Resource(testGVR).Namespace("default").Create(ctx, created, metav1.CreateOptions{})
+	require.NoError(t, err)
+	event := nextSourceTestEvent(t, emitter)
+	require.Nil(t, event.reset)
+	require.Len(t, event.changes, 1)
+	require.Equal(t, resource.SourceChangeUpsert, event.changes[0].Kind)
+	require.Equal(t, "after-snapshot", event.changes[0].Observation.Record.Reference.Address.ID)
+}
+
+// TestSourceReconcilesQueuedStartupUpdate verifies that a queued informer update
+// replaces the initial snapshot value before later live changes are published.
+func TestSourceReconcilesQueuedStartupUpdate(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		initial := newTestPodWithLabels("initial", "default", map[string]string{"phase": "initial"})
+		initial.SetUID("initial-uid")
+		initial.SetResourceVersion("1")
+		cs := newFakeClientSet(defaultGVRListKinds(), initial)
+		native := cs.DynamicClient.(*fakedynamic.FakeDynamicClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		probeBlocked := make(chan struct{})
+		releaseProbe := make(chan struct{})
+		native.PrependReactor("list", "pods", func(action k8stesting.Action) (bool, runtime.Object, error) {
+			if action.GetNamespace() != "other" {
+				return false, nil, nil
+			}
+			select {
+			case <-releaseProbe:
+			default:
+				close(probeBlocked)
+				select {
+				case <-releaseProbe:
+				case <-ctx.Done():
+					return true, nil, ctx.Err()
+				}
+			}
+			return false, nil, nil
+		})
+
+		// Establish the first namespace's LIST/WATCH before the probe holds
+		// the fake client's action mutex.
+		lease, err := cs.AcquireInformer(ctx, "default", testGVR, cache.ResourceEventHandlerFuncs{})
 		require.NoError(t, err)
-	case <-ctx.Done():
-		t.Fatal("source did not stop after reset")
-	}
+		t.Cleanup(func() { require.NoError(t, lease.Close()) })
+		synctest.Wait()
+		require.True(t, lease.HasSynced())
+
+		emitter := &sourceTestEmitter{events: make(chan sourceTestEvent, 32)}
+		done := make(chan error, 1)
+		target := testWatchTarget()
+		namespaces := []string{"default", "other"}
+		target.Scope = resource.QueryScope{{Dimension: "namespace", Match: resource.ScopeOneOf, Values: &namespaces}}
+		go func() {
+			done <- newBaseResourcer().Source(ctx, cs, resource.SourceRequest{Target: target, Representation: testWatchRepresentation(), Limits: resource.SourceLimits{MaxBatchItems: resource.MaxSourceBatchItems}}, emitter)
+		}()
+		t.Cleanup(func() {
+			cancel()
+			select {
+			case <-done:
+			case <-time.After(10 * time.Second):
+				t.Error("source did not stop")
+			}
+		})
+
+		<-probeBlocked
+		// Source has registered its first handler. Quiescence completes that
+		// handler's initial ADD while the second probe prevents staging.
+		synctest.Wait()
+		require.Empty(t, emitter.events)
+		updated := initial.DeepCopy()
+		updated.SetResourceVersion("2")
+		updated.SetLabels(map[string]string{"phase": "updated"})
+		// Updating the tracker bypasses the blocked action mutex but still
+		// delivers through the real fake watch, informer, and Source handler.
+		require.NoError(t, native.Tracker().Update(testGVR, updated, "default"))
+		// All watch and handler goroutines are now idle, so the update is
+		// queued before Source can reach the staging drain.
+		synctest.Wait()
+		close(releaseProbe)
+
+		var snapshot []resource.SourceObservation
+		for {
+			event := nextSourceTestEvent(t, emitter)
+			require.Nil(t, event.reset)
+			require.Empty(t, event.changes, "startup update must be reconciled into the snapshot")
+			snapshot = append(snapshot, event.observations...)
+			if event.boundary {
+				require.Equal(t, resource.EnumerationExhausted, event.coverage.Enumeration)
+				break
+			}
+		}
+		require.Len(t, snapshot, 1)
+		expected, err := watchRecord(target, testWatchRepresentation(), updated)
+		require.NoError(t, err)
+		require.Equal(t, resource.CompactSourceRecord(expected), snapshot[0].Record)
+		require.NotNil(t, snapshot[0].Metadata)
+		require.Equal(t, updated.GetLabels(), snapshot[0].Metadata.Labels)
+
+		created := newTestPod("after-snapshot", "default")
+		created.SetResourceVersion("3")
+		_, err = cs.DynamicClient.Resource(testGVR).Namespace("default").Create(ctx, created, metav1.CreateOptions{})
+		require.NoError(t, err)
+		event := nextSourceTestEvent(t, emitter)
+		require.Nil(t, event.reset)
+		require.Len(t, event.changes, 1)
+		require.Equal(t, resource.SourceChangeUpsert, event.changes[0].Kind)
+		require.Equal(t, "after-snapshot", event.changes[0].Observation.Record.Reference.Address.ID)
+		require.Equal(t, "3", *event.changes[0].Observation.Record.SourceRevision)
+	})
 }
 
 func TestSourceForbidden(t *testing.T) {

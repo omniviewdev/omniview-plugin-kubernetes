@@ -16,7 +16,19 @@ The plugin reports a fixed set of measurements through plugin-sdk diagnostics (`
 | `omniview.plugin.self.native_scan.scans` | counter | `outcome` (ok, denied, budget, canceled, timeout, failed) |
 | `omniview.plugin.self.native_scan.cancellations` | counter | `reason` (caller, deadline, retired) |
 
-Attribute values come from these closed sets. Never record cluster, namespace, resource or path names, queries or error text. The plugin has no watch event queue of its own; open watch streams are reported instead. API calls are counted at the HTTP transport of the resource and legacy client bundles.
+Attribute values come from these closed sets. Never record cluster, namespace, resource or path names, queries or error text. Resource sources use a bounded live-change queue; this metric set reports open watch streams, not queue occupancy. API calls are counted at the HTTP transport of the resource and legacy client bundles.
+
+## Initial resource inventory
+
+Informer initial adds are accumulated by namespace/name until every source
+handler has synchronized. They retain pointers to informer-owned objects rather
+than copying bodies into the live-change queue. Initial inventories larger than
+4,096 objects therefore do not overflow that queue merely by loading.
+
+The 4,096-event limit still applies to live adds, updates, and deletes, including
+changes arriving during initial synchronization or snapshot delivery. Overflow
+still resets the source rather than publishing an incomplete snapshot. Initial
+delivery remains best-effort, not a point-in-time Kubernetes snapshot.
 
 ## Native metric scans
 

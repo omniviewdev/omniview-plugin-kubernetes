@@ -391,6 +391,27 @@ func (s *KubernetesResourcerBase[T]) Source(ctx context.Context, client *clients
 	events := make(chan sourceEvent, sourceQueueCapacity)
 	var overflow atomic.Bool
 	handler := makeSourceHandler(ctx, events, &overflow)
+	// Initial delivery can exceed the live-change queue. Retain its shared cache
+	// pointers directly; handler HasSynced guarantees all initial adds finished.
+	var initialMu sync.Mutex
+	initial := make(map[string]*unstructured.Unstructured)
+	initialHandler := cache.ResourceEventHandlerDetailedFuncs{
+		AddFunc: func(obj interface{}, isInitial bool) {
+			if !isInitial {
+				handler.AddFunc(obj)
+				return
+			}
+			u, ok := obj.(*unstructured.Unstructured)
+			if !ok || u == nil || ctx.Err() != nil {
+				return
+			}
+			initialMu.Lock()
+			initial[u.GetNamespace()+"/"+u.GetName()] = u
+			initialMu.Unlock()
+		},
+		UpdateFunc: handler.UpdateFunc,
+		DeleteFunc: handler.DeleteFunc,
+	}
 	leases := make([]*clients.InformerLease, 0, len(namespaces))
 	defer func() {
 		for _, lease := range leases {
@@ -417,7 +438,7 @@ func (s *KubernetesResourcerBase[T]) Source(ctx context.Context, client *clients
 			classified := classifyWatchError(err)
 			return resource.NewError(classified.code, classified.message)
 		}
-		lease, err := client.AcquireInformer(ctx, namespace, s.resourceType, handler)
+		lease, err := client.AcquireInformer(ctx, namespace, s.resourceType, initialHandler)
 		if err != nil {
 			return err
 		}
@@ -439,7 +460,10 @@ func (s *KubernetesResourcerBase[T]) Source(ctx context.Context, client *clients
 	if overflow.Load() {
 		return reset()
 	}
-	staging := make(map[string]*unstructured.Unstructured)
+	initialMu.Lock()
+	staging := initial
+	initial = nil
+	initialMu.Unlock()
 	for n := len(events); n > 0; n-- {
 		event := <-events
 		key := event.object.GetNamespace() + "/" + event.object.GetName()
