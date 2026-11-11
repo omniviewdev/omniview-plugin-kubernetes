@@ -14,11 +14,11 @@ import (
 // contexts carry no request-scoped logger.
 func promLog() logging.Logger { return logging.Default() }
 
-// promMetricQueryFailed records a tolerated per-metric query failure. The
-// metric ID comes from the plugin's own catalog; the error is only classified.
-func promMetricQueryFailed(ctx context.Context, operation, metricID string, err error) {
+// promMetricQueryFailed records a tolerated per-metric query failure without
+// exporting the metric identifier or error text.
+func promMetricQueryFailed(ctx context.Context, operation string, err error) {
 	promLog().Debugw(ctx, "prometheus metric query failed; metric skipped",
-		append([]any{"operation", operation, "metric_id", metricID}, diag.ClassifyError(err, false).LogFields()...)...)
+		append([]any{"operation", operation}, diag.ClassifyError(err, false).LogFields()...)...)
 }
 
 // metricShapeName maps a metric shape to a closed vocabulary.

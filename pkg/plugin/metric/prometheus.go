@@ -194,7 +194,7 @@ func (c *prometheusClient) query(
 	}
 
 	promLog().Debugw(ctx, "prometheus instant query",
-		"service", detection.Service, "resource_namespace", detection.Namespace, "port", detection.Port)
+		"service", detection.Service, "resource_namespace", detection.Namespace)
 
 	// Check if proxy already failed for this connection — skip straight to port-forward.
 	c.proxyFailedMu.RLock()
@@ -735,7 +735,7 @@ func (c *prometheusClient) queryPodPrometheus(
 		}
 		resp, err := c.query(ctx, qctx.ConnectionID, qctx.Connection, m.promql, req.Params)
 		if err != nil {
-			promMetricQueryFailed(ctx, "instant", m.id, err)
+			promMetricQueryFailed(ctx, "instant", err)
 			continue
 		}
 		results = append(results, sdkmetric.MetricResult{
@@ -804,7 +804,7 @@ func (c *prometheusClient) queryAllPodPrometheus(
 		}
 		resp, err := c.query(ctx, qctx.ConnectionID, qctx.Connection, q.promql, req.Params)
 		if err != nil {
-			promMetricQueryFailed(ctx, "batch", q.metricID, err)
+			promMetricQueryFailed(ctx, "batch", err)
 			continue
 		}
 		// Each result in the vector has {pod, namespace} labels — one per pod.
@@ -976,7 +976,7 @@ func (c *prometheusClient) queryPodPrometheusTimeseries(
 		}
 		resp, err := c.queryRange(ctx, qctx.ConnectionID, qctx.Connection, m.promql, req.Params, req.StartTime, req.EndTime, req.Step)
 		if err != nil {
-			promMetricQueryFailed(ctx, "range", m.id, err)
+			promMetricQueryFailed(ctx, "range", err)
 			continue
 		}
 		points := extractTimeSeries(resp)
@@ -1118,7 +1118,7 @@ func (c *prometheusClient) queryNodePrometheus(
 		}
 		resp, err := c.query(ctx, qctx.ConnectionID, qctx.Connection, m.promql, req.Params)
 		if err != nil {
-			promMetricQueryFailed(ctx, "instant", m.id, err)
+			promMetricQueryFailed(ctx, "instant", err)
 			continue
 		}
 		results = append(results, sdkmetric.MetricResult{
@@ -1224,7 +1224,7 @@ func (c *prometheusClient) queryNodePrometheusTimeseries(
 		}
 		resp, err := c.queryRange(ctx, qctx.ConnectionID, qctx.Connection, m.promql, req.Params, req.StartTime, req.EndTime, req.Step)
 		if err != nil {
-			promMetricQueryFailed(ctx, "range", m.id, err)
+			promMetricQueryFailed(ctx, "range", err)
 			continue
 		}
 		points := extractTimeSeries(resp)
@@ -1366,7 +1366,7 @@ func (c *prometheusClient) queryClusterPrometheus(
 		}
 		resp, err := c.query(ctx, qctx.ConnectionID, qctx.Connection, m.promql, req.Params)
 		if err != nil {
-			promMetricQueryFailed(ctx, "instant", m.id, err)
+			promMetricQueryFailed(ctx, "instant", err)
 			continue
 		}
 		results = append(results, sdkmetric.MetricResult{
@@ -1512,7 +1512,7 @@ func (c *prometheusClient) queryClusterPrometheusTimeseries(
 		}
 		resp, err := c.queryRange(ctx, qctx.ConnectionID, qctx.Connection, m.promql, req.Params, req.StartTime, req.EndTime, req.Step)
 		if err != nil {
-			promMetricQueryFailed(ctx, "range", m.id, err)
+			promMetricQueryFailed(ctx, "range", err)
 			continue
 		}
 		points := extractTimeSeries(resp)
