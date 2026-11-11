@@ -308,12 +308,23 @@ so these controls remain visible and interactive inside the browser's top layer.
 
 ## Frontend CI
 
-Every pull request installs UI dependencies from the frozen lockfile, then runs
-lint, native TypeScript checking, tests, the New York age-clock test, and the
-production UI build. Host application E2E and profiling instead use UI packages
-from the host lockfile and Kubernetes from the host's `plugins/kubernetes`
-gitlink. Their linked SDK checkout matches the commit resolved from the host
-`go.mod`.
+Every pull request checks out its exact Kubernetes source commit beside host
+`main` and the SDK commit resolved by the host's `e2e/scripts/sdk-source.mjs`.
+The existing `UI checks` job runs the host's owned source runner with
+`--full --kubernetes-checks`. Its managed dependency closure uses the host
+lockfile and selected sources, not a standalone install of published runtime
+packages into the untouched plugin checkout.
+
+The runner performs UI lint, native TypeScript checking, behavior tests, and
+the New York age-clock test once. It reuses the canonical production UI build
+for full application acceptance and export/browser/chunk-retirement contracts.
+Resolved source commits appear in workflow evidence; no published plugin or npm
+release is a prerequisite. Host application E2E and profiling also select
+Kubernetes `main` and the SDK declared by the selected host.
+
+Merge the host runner's `--kubernetes-checks` API into host `main` before merging
+the Kubernetes workflow change. Do not select an unmerged host SHA or branch to
+bypass that dependency.
 
 ## Resource v2 boundary
 
@@ -1135,9 +1146,11 @@ SDK/runtime release; restarting an old executable alone does not migrate it.
 
 The plugin manifest schema has no minimum-host-version field. Marketplace
 publication uses the release workflow's supported `min-ide-version` input,
-set to `0.35.0` for Kubernetes 0.20.0. Keep the host, backend SDK, runtime, and
-Vite plugin coordinated rather than adding unsupported manifest fields. Publish
-and verify the host desktop and npm cohort before packaging and distributing this plugin.
+set to `0.36.0` for Kubernetes 0.21.0. This is an explicit compatibility floor,
+not a test-cohort selector: archive smoke tests host `main` and records its
+resolved commit. Keep the host, backend SDK, runtime, and Vite plugin coordinated
+rather than adding unsupported manifest fields. Publish and verify the compatible
+host desktop and npm packages before distributing the plugin.
 
 ### Prerequisites
 
@@ -1308,17 +1321,26 @@ Commit curated notes in `docs/releases/X.Y.Z.md`, starting with
 `# Kubernetes X.Y.Z`, alongside the version bump. Include user-facing changes,
 linked feature PRs and real IDE screenshots. The workflow validates and publishes
 that file as the GitHub release body; it does not append generated notes.
-Kubernetes 0.16.2 requires IDE 0.30.2 or newer. Publish the Omniview 0.30.2
-desktop and matching npm release before publishing the plugin; npm publication alone is not a desktop release.
+Kubernetes 0.21.0 requires IDE 0.36.0 or newer. Publish compatible npm packages
+and the desktop before distributing the plugin; npm publication alone is not a
+desktop release. Keep already-published versions and tags unchanged.
 
-Before publication, `archive-smoke` passes the candidate `plugin-archives`
-artifact to Omniview's reusable production archive harness. It uses the host's
-production renderer, SystemJS loader, and actual shared exports, not a plugin
-source link. It checks the homepage, empty cluster route, search interaction,
-browser errors, and named shared imports from every shipped module, including
-lazy chunks. Marketplace publication depends on its success; dry runs also run
-the gate. Merge the host's `plugin-archive-smoke.yml` workflow into `main` before
-merging this caller.
+The existing packager builds five platform archives once, then generates
+`dist/checksums_sha256.txt` in the same build step. `archive-smoke` consumes that
+same-run `plugin-archives` artifact through Omniview's reusable workflow on
+`main`, with host `main`. It verifies the checksum manifest before extraction.
+The publisher verifies the same manifest before marketplace upload; GitHub
+releases include both archives and the generated checksum manifest. No manually
+maintained host SHA, npm cohort stamp, or public archive download selects this
+gate.
+
+The harness uses the host's production renderer, SystemJS loader, and actual
+shared exports, not a plugin source link. It checks the homepage, empty cluster
+route, search interaction, browser errors, named shared imports from every
+shipped module including lazy chunks, and installed-plugin chunk retirement.
+Marketplace publication depends on build → archive smoke → publish; dry runs
+also run the smoke. Merge the host's reusable workflow and source runner API
+into `main` before merging the Kubernetes workflow caller.
 
 The harness uses an in-page Wails fixture, not a real Kubernetes backend or
 WKWebView. Keep unit, connection/backend integration, and real application E2E
