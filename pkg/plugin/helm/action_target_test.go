@@ -2,12 +2,15 @@ package helm
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 
 	resource "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 	"helm.sh/helm/v3/pkg/action"
+	"helm.sh/helm/v3/pkg/repo"
 )
 
 func TestHelmRegisteredActionsMatchCatalog(t *testing.T) {
@@ -94,4 +97,45 @@ func TestHelmTypeActionInputCannotWidenNativeScope(t *testing.T) {
 			require.Empty(t, actualNamespace)
 		}
 	}
+}
+
+func TestHelmActionDiagnostics(t *testing.T) {
+	directory := chartPagingFixture(t)
+	require.NoError(t, repo.NewIndexFile().WriteFile(filepath.Join(directory, "z-selected-index.yaml"), 0600))
+	core, logs := observer.New(zap.InfoLevel)
+	h := NewHelmAncillary(zap.New(core).Sugar())
+	request := resource.ActionRequest{
+		Reference: resource.ResourceReference{Address: resource.ResourceAddress{
+			Type: RepositoryType, ID: "z-selected",
+			Scope: []resource.ScopeEntry{{Dimension: "domain", Value: helmLocalDomain}},
+		}},
+		Action: "list-charts", Input: resource.Value{Kind: "map"},
+	}
+	_, err := h.Action(context.Background(), nil, request)
+	require.NoError(t, err)
+	entry := logs.All()[0]
+	require.Equal(t, "Helm action finished", entry.Message)
+	require.Equal(t, "success", entry.ContextMap()["outcome"])
+	require.Equal(t, "execution", entry.ContextMap()["stage"])
+	require.Equal(t, "list-charts", entry.ContextMap()["action"])
+
+	request.Reference.Address.ID = "missing"
+	_, err = h.Action(context.Background(), nil, request)
+	require.Error(t, err)
+	entry = logs.All()[1]
+	require.Equal(t, "failure", entry.ContextMap()["outcome"])
+	require.Equal(t, "execution", entry.ContextMap()["stage"])
+	require.Equal(t, "other", entry.ContextMap()["error_class"])
+
+	request.Action = "secret-action"
+	request.Input = resource.Value{Kind: "string", String: "secret-payload"}
+	_, err = h.Action(context.Background(), nil, request)
+	require.Error(t, err)
+	entry = logs.All()[2]
+	require.Equal(t, "admission", entry.ContextMap()["stage"])
+	require.Equal(t, "validation", entry.ContextMap()["error_class"])
+	require.Equal(t, "unknown", entry.ContextMap()["action"])
+	require.NotContains(t, entry.ContextMap(), "error")
+	require.NotContains(t, entry.ContextMap(), "input")
+	require.NotContains(t, entry.Message, "secret")
 }

@@ -3,6 +3,7 @@ package resourcers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/util/exec"
 )
@@ -168,4 +170,25 @@ func TestPodExecRejectsInvalidParamsBeforeClientUse(t *testing.T) {
 	var opErr *resource.ResourceOperationError
 	require.True(t, errors.As(err, &opErr), "%v", err)
 	assert.Equal(t, "INVALID_REQUEST", opErr.Code)
+}
+
+func TestPodExecDiagnosticsDoNotLogCommand(t *testing.T) {
+	core, observed := observer.New(zap.InfoLevel)
+	request := workloadActionRequest("exec", "web", "default", map[string]any{"command": []any{"private-command"}, "timeoutSeconds": -1})
+	request.Reference.Address.Provider = "kubernetes"
+	request.Reference.Address.Type = "k8s:/pods"
+	request.Route.Connection = "cluster"
+	_, err := NewPodResourcer(zap.New(core).Sugar()).ExecuteAction(context.Background(), nil, request)
+	require.Error(t, err)
+	logs := observed.All()
+	require.Len(t, logs, 1)
+	fields := logs[0].ContextMap()
+	assert.Equal(t, "exec", fields["action"])
+	assert.Equal(t, "k8s:/pods", fields["resource_type"])
+	assert.Equal(t, "web", fields["resource_id"])
+	assert.Equal(t, "cluster", fields["connection"])
+	assert.Equal(t, "validation", fields["stage"])
+	assert.NotContains(t, logs[0].Message, "private-command")
+	assert.NotContains(t, fields, "command")
+	assert.NotContains(t, fmt.Sprint(fields), "private-command")
 }

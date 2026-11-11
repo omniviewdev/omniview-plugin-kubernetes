@@ -170,11 +170,14 @@ func (d *DaemonSetResourcer) executeRestart(
 	ctx context.Context,
 	client *clients.ClientSet,
 	input resource.ActionRequest,
-) (resource.Value, error) {
+) (result resource.Value, resultErr error) {
+	ctx, diagnostic := startRolloutDiagnostic(ctx, d.log, "daemonset", "restart", input)
+	defer func() { diagnostic.finish(resultErr) }()
 	namespace, scopeErr := nativeRequestNamespace(input.Reference.Address.Scope)
 	if scopeErr != nil {
 		return resource.Value{}, scopeErr
 	}
+	diagnostic.stage, diagnostic.operation = "execution", "patch"
 	patch := fmt.Sprintf(
 		`{"spec":{"template":{"metadata":{"annotations":{"kubectl.kubernetes.io/restartedAt":"%s"}}}}}`,
 		time.Now().Format(time.RFC3339),
@@ -199,10 +202,13 @@ func (d *DaemonSetResourcer) streamRestart(
 	input resource.ActionRequest,
 	stream chan<- resource.ActionEvent,
 ) (resultErr error) {
+	ctx, diagnostic := startRolloutDiagnostic(ctx, d.log, "daemonset", "restart", input)
+	defer func() { diagnostic.finish(resultErr) }()
 	namespace, scopeErr := nativeRequestNamespace(input.Reference.Address.Scope)
 	if scopeErr != nil {
 		return scopeErr
 	}
+	diagnostic.stage, diagnostic.operation = "execution", "patch"
 
 	patch := fmt.Sprintf(
 		`{"spec":{"template":{"metadata":{"annotations":{"kubectl.kubernetes.io/restartedAt":"%s"}}}}}`,
@@ -216,6 +222,7 @@ func (d *DaemonSetResourcer) streamRestart(
 		return err
 	}
 
+	diagnostic.stage, diagnostic.operation = "observation", "watch"
 	watcher, err := client.KubeClient.AppsV1().DaemonSets(namespace).Watch(
 		ctx, metav1.ListOptions{
 			FieldSelector:   fmt.Sprintf("metadata.name=%s", input.Reference.Address.ID),
@@ -227,6 +234,7 @@ func (d *DaemonSetResourcer) streamRestart(
 	}
 	defer watcher.Stop()
 	if input.Reference.Incarnation != nil {
+		diagnostic.operation = "get"
 		current, err := client.KubeClient.AppsV1().DaemonSets(namespace).Get(ctx, input.Reference.Address.ID, metav1.GetOptions{})
 		if err != nil {
 			return err
@@ -235,6 +243,7 @@ func (d *DaemonSetResourcer) streamRestart(
 			return err
 		}
 	}
+	diagnostic.operation = "emit_ready"
 	select {
 	case stream <- resource.ActionEvent{Type: "ready"}:
 	case <-ctx.Done():
@@ -249,6 +258,7 @@ func (d *DaemonSetResourcer) streamRestart(
 			resultErr = &resource.ResourceOperationError{Code: "TIMEOUT", Title: "Timed out", Message: "The rollout restart exceeded its deadline."}
 		}
 	}()
+	diagnostic.operation = "observe"
 	observations, stopObserving := rolloutObservations(ctx, watcher, time.Second, func(ctx context.Context) (*appsv1.DaemonSet, error) {
 		return client.KubeClient.AppsV1().DaemonSets(namespace).Get(ctx, input.Reference.Address.ID, metav1.GetOptions{})
 	})
@@ -291,13 +301,16 @@ func (d *DaemonSetResourcer) streamRestart(
 			}
 
 			desired := ds.Status.DesiredNumberScheduled
+			diagnostic.operation = "list_ready_pods"
 			readyPods, err := rolloutReadyPods(ctx, client.KubeClient, "DaemonSet", patched, patched.Spec.Template.Annotations["kubectl.kubernetes.io/restartedAt"])
 			if err != nil {
 				return err
 			}
+			diagnostic.operation = "observe"
 
 			snapshot := [5]int32{desired, readyPods, ds.Status.UpdatedNumberScheduled, ds.Status.NumberReady, ds.Status.CurrentNumberScheduled}
 			if !progressEmitted || snapshot != lastProgress {
+				diagnostic.operation = "emit_progress"
 				progress, err := nativeActionEventValue(map[string]interface{}{
 					"ready":   ds.Status.NumberReady,
 					"desired": desired,
@@ -314,12 +327,14 @@ func (d *DaemonSetResourcer) streamRestart(
 					return ctx.Err()
 				}
 			}
+			diagnostic.operation = "observe"
 
 			if ds.Generation >= patched.Generation && ds.Status.ObservedGeneration >= patched.Generation &&
 				ds.Status.ObservedGeneration >= ds.Generation && ds.Status.UpdatedNumberScheduled == desired &&
 				ds.Status.CurrentNumberScheduled == desired &&
 				ds.Status.NumberReady == desired &&
 				ds.Status.NumberAvailable == desired && readyPods == desired {
+				diagnostic.operation = "emit_complete"
 				complete, err := nativeActionEventValue(map[string]interface{}{
 					"message": fmt.Sprintf("DaemonSet %s successfully restarted", input.Reference.Address.ID),
 				})

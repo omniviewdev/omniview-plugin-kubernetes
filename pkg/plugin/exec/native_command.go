@@ -30,7 +30,16 @@ func podNativeCommand(ctx *types.PluginContext, opts exec.SessionOptions) (*exec
 	}, ctx, opts)
 }
 
-func podNativeCommandWithProvider(provider nativeClientProvider, ctx *types.PluginContext, opts exec.SessionOptions) (*exec.NativeCommand, error) {
+func podNativeCommandWithProvider(provider nativeClientProvider, ctx *types.PluginContext, opts exec.SessionOptions) (result *exec.NativeCommand, resultErr error) {
+	traceContext, diagnostic := startExecDiagnostic(ctx, "kubernetes.pod.exec.native")
+	var diagnosticErr error
+	defer func() {
+		if diagnosticErr != nil {
+			diagnostic.finish(diagnosticErr)
+		} else {
+			diagnostic.finish(resultErr)
+		}
+	}()
 	if err := exec.ValidateNativeCommandOptions(opts); err != nil {
 		return nil, err
 	}
@@ -41,6 +50,7 @@ func podNativeCommandWithProvider(provider nativeClientProvider, ctx *types.Plug
 	if err != nil {
 		return nil, err
 	}
+	diagnostic.pod, diagnostic.namespace = podName, namespace
 	if opts.Params["mode"] != "" && opts.Params["mode"] != "exec" {
 		return nil, resourcev2.NewError("UNSUPPORTED", "Native terminals support ordinary Pod exec only, not attach or debug sessions.")
 	}
@@ -56,19 +66,24 @@ func podNativeCommandWithProvider(provider nativeClientProvider, ctx *types.Plug
 		return nil, resourcev2.NewError("INVALID_REQUEST", "Native Pod exec requires an explicit container.")
 	}
 
+	diagnostic.stage, diagnostic.operation = "execution", "kubeconfig"
 	path, expected, err := nativeKubeconfig(ctx.Connection)
 	if err != nil {
 		return nil, err
 	}
+	diagnostic.operation = "client"
 	client, active, err := provider(ctx)
 	if err != nil || client == nil || active == nil {
+		diagnosticErr = err
 		return nil, resourcev2.NewError("UNAVAILABLE", "The selected Kubernetes client is unavailable for native exec.")
 	}
 	if !nativeAuthMatches(active, expected) {
 		return nil, resourcev2.NewError("UNSUPPORTED", "Native exec requires bounded local-file credential authentication matching the selected kubeconfig; credential helpers and in-memory authentication are unsupported.")
 	}
-	pod, err := client.CoreV1().Pods(namespace).Get(ctx.Context, podName, metav1.GetOptions{})
+	diagnostic.operation = "verify_pod"
+	pod, err := client.CoreV1().Pods(namespace).Get(traceContext, podName, metav1.GetOptions{})
 	if err != nil {
+		diagnosticErr = err
 		switch {
 		case apierrors.IsNotFound(err):
 			return nil, resourcev2.NewError("RESET_REQUIRED", "The selected Pod no longer exists.")
@@ -78,6 +93,7 @@ func podNativeCommandWithProvider(provider nativeClientProvider, ctx *types.Plug
 			return nil, resourcev2.NewError("UNAVAILABLE", "The selected Pod could not be verified for native exec.")
 		}
 	}
+	diagnostic.stage, diagnostic.operation = "admission", "validate_pod"
 	if pod.Name != podName || pod.Namespace != namespace || string(pod.UID) != uid || pod.DeletionTimestamp != nil {
 		return nil, resourcev2.NewError("RESET_REQUIRED", "The selected Pod was deleted, replaced, or changed identity.")
 	}
@@ -92,6 +108,7 @@ func podNativeCommandWithProvider(provider nativeClientProvider, ctx *types.Plug
 		return nil, resourcev2.NewError("INVALID_REQUEST", "The selected container is not an ordinary container in this Pod.")
 	}
 
+	diagnostic.stage, diagnostic.operation = "execution", "plan"
 	command := opts.Command
 	if len(command) == 0 {
 		command = podExecHandler().DefaultCommand

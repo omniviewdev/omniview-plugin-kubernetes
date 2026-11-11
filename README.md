@@ -191,6 +191,15 @@ observation failures identify the affected pod by namespace and name. Kubernetes
 a status code and recognized reason without API error messages or pod contents. Preflight failures
 are reported separately before drain execution. Observation does not log each poll.
 
+Rollout, scale, CronJob, node and Pod exec actions emit correlated traces and structured logs
+for action admission and execution, including the target, connection, phase and outcome.
+Streaming rollout diagnostics identify the failed operation without logging each observation.
+Helm action diagnostics record admission and execution, including release configuration and run
+phases. Failures report safe classifications and recognized Kubernetes status reasons when available;
+they do not record raw errors, action parameters, commands, output, credentials or resource contents.
+Interactive Pod exec diagnostics cover setup and stream lifecycle; native terminal execution after
+handoff is outside the plugin's visibility.
+
 Pods expose a one-shot, non-TTY `exec` action. Its input contains a command array, an optional
 container and a timeout from 1 to 100 seconds (30 seconds by default). Each output stream keeps
 at most 256 KiB. Invalid UTF-8 bytes become replacement characters. The remote command can

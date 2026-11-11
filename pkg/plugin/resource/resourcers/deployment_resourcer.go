@@ -222,11 +222,14 @@ func (d *DeploymentResourcer) executeRestart(
 	ctx context.Context,
 	client *clients.ClientSet,
 	input resource.ActionRequest,
-) (resource.Value, error) {
+) (result resource.Value, resultErr error) {
+	ctx, diagnostic := startRolloutDiagnostic(ctx, d.log, "deployment", "restart", input)
+	defer func() { diagnostic.finish(resultErr) }()
 	namespace, scopeErr := nativeRequestNamespace(input.Reference.Address.Scope)
 	if scopeErr != nil {
 		return resource.Value{}, scopeErr
 	}
+	diagnostic.stage, diagnostic.operation = "execution", "patch"
 	patch := fmt.Sprintf(
 		`{"spec":{"template":{"metadata":{"annotations":{"kubectl.kubernetes.io/restartedAt":"%s"}}}}}`,
 		time.Now().Format(time.RFC3339),
@@ -252,10 +255,13 @@ func (d *DeploymentResourcer) streamRestart(
 	input resource.ActionRequest,
 	stream chan<- resource.ActionEvent,
 ) (resultErr error) {
+	ctx, diagnostic := startRolloutDiagnostic(ctx, d.log, "deployment", "restart", input)
+	defer func() { diagnostic.finish(resultErr) }()
 	namespace, scopeErr := nativeRequestNamespace(input.Reference.Address.Scope)
 	if scopeErr != nil {
 		return scopeErr
 	}
+	diagnostic.stage, diagnostic.operation = "execution", "patch"
 
 	// Patch to trigger restart.
 	patch := fmt.Sprintf(
@@ -270,6 +276,7 @@ func (d *DeploymentResourcer) streamRestart(
 		return err
 	}
 
+	diagnostic.stage, diagnostic.operation = "observation", "watch"
 	// Watch the deployment for rollout completion.
 	watcher, err := client.KubeClient.AppsV1().Deployments(namespace).Watch(
 		ctx, metav1.ListOptions{
@@ -282,6 +289,7 @@ func (d *DeploymentResourcer) streamRestart(
 	}
 	defer watcher.Stop()
 	if input.Reference.Incarnation != nil {
+		diagnostic.operation = "get"
 		current, err := client.KubeClient.AppsV1().Deployments(namespace).Get(ctx, input.Reference.Address.ID, metav1.GetOptions{})
 		if err != nil {
 			return err
@@ -290,6 +298,7 @@ func (d *DeploymentResourcer) streamRestart(
 			return err
 		}
 	}
+	diagnostic.operation = "emit_ready"
 	select {
 	case stream <- resource.ActionEvent{Type: "ready"}:
 	case <-ctx.Done():
@@ -304,6 +313,7 @@ func (d *DeploymentResourcer) streamRestart(
 			resultErr = &resource.ResourceOperationError{Code: "TIMEOUT", Title: "Timed out", Message: "The rollout restart exceeded its deadline."}
 		}
 	}()
+	diagnostic.operation = "observe"
 	observations, stopObserving := rolloutObservations(ctx, watcher, time.Second, func(ctx context.Context) (*appsv1.Deployment, error) {
 		return client.KubeClient.AppsV1().Deployments(namespace).Get(ctx, input.Reference.Address.ID, metav1.GetOptions{})
 	})
@@ -349,13 +359,16 @@ func (d *DeploymentResourcer) streamRestart(
 			if dep.Spec.Replicas != nil {
 				desired = *dep.Spec.Replicas
 			}
+			diagnostic.operation = "list_ready_pods"
 			readyPods, err := rolloutReadyPods(ctx, client.KubeClient, "Deployment", patched, patched.Spec.Template.Annotations["kubectl.kubernetes.io/restartedAt"])
 			if err != nil {
 				return err
 			}
+			diagnostic.operation = "observe"
 
 			snapshot := [6]int32{desired, readyPods, dep.Status.UpdatedReplicas, dep.Status.ReadyReplicas, dep.Status.Replicas, dep.Status.AvailableReplicas}
 			if !progressEmitted || snapshot != lastProgress {
+				diagnostic.operation = "emit_progress"
 				progress, err := nativeActionEventValue(map[string]interface{}{
 					"ready":   dep.Status.AvailableReplicas,
 					"desired": desired,
@@ -372,11 +385,13 @@ func (d *DeploymentResourcer) streamRestart(
 					return ctx.Err()
 				}
 			}
+			diagnostic.operation = "observe"
 
 			if dep.Generation >= patched.Generation && dep.Status.ObservedGeneration >= patched.Generation &&
 				dep.Status.ObservedGeneration >= dep.Generation && dep.Status.UpdatedReplicas == desired &&
 				dep.Status.AvailableReplicas == desired &&
 				dep.Status.Replicas == desired && readyPods == desired {
+				diagnostic.operation = "emit_complete"
 				complete, err := nativeActionEventValue(map[string]interface{}{
 					"message": fmt.Sprintf("Deployment %s successfully restarted", input.Reference.Address.ID),
 				})
@@ -399,7 +414,9 @@ func (d *DeploymentResourcer) executeScale(
 	ctx context.Context,
 	client *clients.ClientSet,
 	input resource.ActionRequest,
-) (resource.Value, error) {
+) (result resource.Value, resultErr error) {
+	ctx, diagnostic := startRolloutDiagnostic(ctx, d.log, "deployment", "scale", input)
+	defer func() { diagnostic.finish(resultErr) }()
 	namespace, scopeErr := nativeRequestNamespace(input.Reference.Address.Scope)
 	if scopeErr != nil {
 		return resource.Value{}, scopeErr
@@ -413,6 +430,7 @@ func (d *DeploymentResourcer) executeScale(
 		return resource.Value{}, fmt.Errorf("replicas: %w", parseErr)
 	}
 	replicaCount := int32(replicas)
+	diagnostic.stage, diagnostic.operation = "execution", "patch"
 	patch := fmt.Sprintf(`{"spec":{"replicas":%d}}`, replicaCount)
 	_, err := client.KubeClient.AppsV1().Deployments(namespace).Patch(
 		ctx, input.Reference.Address.ID, k8stypes.StrategicMergePatchType,
@@ -434,11 +452,18 @@ func (d *DeploymentResourcer) executePauseResume(
 	client *clients.ClientSet,
 	input resource.ActionRequest,
 	paused bool,
-) (resource.Value, error) {
+) (result resource.Value, resultErr error) {
+	action := "pause"
+	if !paused {
+		action = "resume"
+	}
+	ctx, diagnostic := startRolloutDiagnostic(ctx, d.log, "deployment", action, input)
+	defer func() { diagnostic.finish(resultErr) }()
 	namespace, scopeErr := nativeRequestNamespace(input.Reference.Address.Scope)
 	if scopeErr != nil {
 		return resource.Value{}, scopeErr
 	}
+	diagnostic.stage, diagnostic.operation = "execution", "patch"
 	patch := fmt.Sprintf(`{"spec":{"paused":%t}}`, paused)
 	_, err := client.KubeClient.AppsV1().Deployments(namespace).Patch(
 		ctx, input.Reference.Address.ID, k8stypes.StrategicMergePatchType,

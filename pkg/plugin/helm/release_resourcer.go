@@ -8,6 +8,7 @@ import (
 
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	resource "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
@@ -228,10 +229,12 @@ func (r *ReleaseResourcer) Action(
 	if err != nil {
 		return resource.Value{}, err
 	}
+	trace.SpanFromContext(ctx).AddEvent("configure")
 	cfg, err := r.getConfig(ctx, client, namespace)
 	if err != nil {
 		return resource.Value{}, err
 	}
+	trace.SpanFromContext(ctx).AddEvent("run")
 
 	switch input.Action {
 	case "upgrade":

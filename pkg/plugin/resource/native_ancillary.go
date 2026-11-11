@@ -92,9 +92,17 @@ func (p *kubernetesProvider) GetActions(ctx context.Context, route resourcev2.Ac
 
 func (p *kubernetesProvider) StreamAction(ctx context.Context, request resourcev2.ActionRequest, stream chan<- resourcev2.ActionEvent) (resultErr error) {
 	operation, delegated := "admit", false
-	if request.Action == "drain" && request.Reference.Address.Type == "k8s:/nodes" {
+	name := ""
+	switch {
+	case request.Action == "drain" && request.Reference.Address.Type == "k8s:/nodes":
+		name = "kubernetes.node.drain.preflight"
+	case request.Action == "restart" && (request.Reference.Address.Type == "k8s:apps/deployments" ||
+		request.Reference.Address.Type == "k8s:apps/statefulsets" || request.Reference.Address.Type == "k8s:apps/daemonsets"):
+		name = "kubernetes.rollout.preflight"
+	}
+	if name != "" {
 		var span trace.Span
-		ctx, span = otel.Tracer("omniview.plugin.kubernetes").Start(ctx, "kubernetes.node.drain.preflight")
+		ctx, span = otel.Tracer("omniview.plugin.kubernetes").Start(ctx, name)
 		defer span.End()
 		defer func() {
 			if delegated || resultErr == nil {
@@ -130,13 +138,16 @@ func (p *kubernetesProvider) StreamAction(ctx context.Context, request resourcev
 			if classification == "canceled" || classification == "deadline_exceeded" {
 				outcome = "canceled"
 			}
-			attrs := []attribute.KeyValue{attribute.String("action", "drain"), attribute.String("plugin", "kubernetes"),
-				attribute.String("connection", request.Route.Connection), attribute.String("resource.type", "k8s:/nodes"),
+			attrs := []attribute.KeyValue{attribute.String("action", request.Action), attribute.String("plugin", "kubernetes"),
+				attribute.String("connection", request.Route.Connection), attribute.String("resource.type", request.Reference.Address.Type),
 				attribute.String("resource.id", request.Reference.Address.ID), attribute.String("stage", "preflight"),
 				attribute.String("operation", operation), attribute.String("outcome", outcome), attribute.String("error.class", classification)}
-			fields := []interface{}{"action", "drain", "plugin", "kubernetes", "connection", request.Route.Connection,
-				"resource_type", "k8s:/nodes", "resource_id", request.Reference.Address.ID, "stage", "preflight",
-				"operation", operation, "outcome", outcome, "error_class", classification, "cordon_known", false, "selection_known", false}
+			fields := []interface{}{"action", request.Action, "plugin", "kubernetes", "connection", request.Route.Connection,
+				"resource_type", request.Reference.Address.Type, "resource_id", request.Reference.Address.ID, "stage", "preflight",
+				"operation", operation, "outcome", outcome, "error_class", classification}
+			if request.Action == "drain" {
+				fields = append(fields, "cordon_known", false, "selection_known", false)
+			}
 			if classification == "kubernetes" {
 				attrs = append(attrs, attribute.Int("k8s.status_code", status), attribute.String("k8s.reason", reason))
 				fields = append(fields, "k8s_status_code", status, "k8s_reason", reason)
@@ -146,7 +157,11 @@ func (p *kubernetesProvider) StreamAction(ctx context.Context, request resourcev
 			if span.SpanContext().IsValid() {
 				fields = append(fields, "trace_id", span.SpanContext().TraceID().String(), "span_id", span.SpanContext().SpanID().String())
 			}
-			p.logger.Infow("Node drain preflight failed", fields...)
+			message := "Kubernetes action preflight failed"
+			if request.Action == "drain" {
+				message = "Node drain preflight failed"
+			}
+			p.logger.Infow(message, fields...)
 		}()
 	}
 	if _, err := resourcev2.AdmitStreamingAction(ctx, p, request); err != nil {
@@ -168,7 +183,10 @@ func (p *kubernetesProvider) StreamAction(ctx context.Context, request resourcev
 	}
 	operation = "acquire_client"
 	return p.WithClient(ctx, request.Route, func(ctx context.Context, client *clients.ClientSet) error {
-		operation = "get_node"
+		operation = "get_resource"
+		if request.Action == "drain" {
+			operation = "get_node"
+		}
 		if _, err := NativeGet(ctx, client.DynamicClient, binding.GVR, binding.API.Namespaced, resourcev2.GetRequest{Route: request.Route, Reference: request.Reference, Representation: binding.Descriptor.DefaultRepresentation}, binding.Descriptor.Representations[0]); err != nil {
 			return err
 		}

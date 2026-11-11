@@ -165,7 +165,16 @@ func trimPartialRune(buf []byte) []byte {
 	return buf
 }
 
-func (p *PodResourcer) executeExec(ctx context.Context, client *clients.ClientSet, input resource.ActionRequest) (resource.Value, error) {
+func (p *PodResourcer) executeExec(ctx context.Context, client *clients.ClientSet, input resource.ActionRequest) (result resource.Value, resultErr error) {
+	ctx, telemetry := startNativeActionTelemetry(ctx, p.log, "pod", input)
+	var streamFailure error
+	defer func() {
+		if streamFailure != nil {
+			telemetry.finish(streamFailure)
+		} else {
+			telemetry.finish(resultErr)
+		}
+	}()
 	if input.TypeTarget != nil || input.Reference.Address.Provider != "kubernetes" || input.Reference.Address.Type != "k8s:/pods" {
 		return resource.Value{}, resource.NewError("INVALID_REQUEST", "Exec requires an exact native Pod reference")
 	}
@@ -183,6 +192,7 @@ func (p *PodResourcer) executeExec(ctx context.Context, client *clients.ClientSe
 	if client == nil || client.KubeClient == nil || client.RESTConfig == nil {
 		return resource.Value{}, resource.NewError("UNAVAILABLE", "Kubernetes client is required")
 	}
+	telemetry.stage, telemetry.operation = "fetching", "get_pod"
 	pod, err := client.KubeClient.CoreV1().Pods(namespace).Get(ctx, input.Reference.Address.ID, metav1.GetOptions{})
 	if err != nil {
 		return resource.Value{}, err
@@ -194,6 +204,7 @@ func (p *PodResourcer) executeExec(ctx context.Context, client *clients.ClientSe
 	if err != nil {
 		return resource.Value{}, err
 	}
+	telemetry.stage, telemetry.operation = "setup", "create_executor"
 
 	req := client.KubeClient.CoreV1().RESTClient().Post().Resource("pods").Name(pod.Name).Namespace(namespace).SubResource("exec")
 	req.VersionedParams(&corev1.PodExecOptions{
@@ -216,7 +227,12 @@ func (p *PodResourcer) executeExec(ctx context.Context, client *clients.ClientSe
 	defer cancel()
 	stdout := &cappedWriter{limit: podExecOutputLimit}
 	stderr := &cappedWriter{limit: podExecOutputLimit}
+	telemetry.stage, telemetry.operation = "execution", "stream"
 	streamErr := executor.StreamWithContext(timeoutCtx, remotecommand.StreamOptions{Stdout: stdout, Stderr: stderr})
+	streamFailure = streamErr
+	if timeoutCtx.Err() != nil {
+		streamFailure = timeoutCtx.Err()
+	}
 	return podExecResult(streamErr, timeoutCtx.Err(), stdout, stderr)
 }
 
