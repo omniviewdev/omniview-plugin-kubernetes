@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	logging "github.com/omniviewdev/plugin-sdk/log"
 	"github.com/omniviewdev/plugin-sdk/pkg/v1/logs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,7 +24,7 @@ func runProcessPodWatchEvents(ctx context.Context, watcher watch.Interface, targ
 	}
 	go func() {
 		defer close(eventCh)
-		processPodWatchEvents(ctx, watcher, target, known, eventCh)
+		processPodWatchEvents(ctx, logging.NewNop(), watcher, target, known, eventCh)
 	}()
 }
 
@@ -235,7 +236,7 @@ func TestProcessPodWatchEvents_ContextCancellation(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		processPodWatchEvents(ctx, fw, "", make(map[string]map[string]struct{}), eventCh)
+		processPodWatchEvents(ctx, logging.NewNop(), fw, "", make(map[string]map[string]struct{}), eventCh)
 		close(done)
 	}()
 

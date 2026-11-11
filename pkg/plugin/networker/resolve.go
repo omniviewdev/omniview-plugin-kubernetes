@@ -5,7 +5,10 @@ import (
 	"context"
 	"fmt"
 	"github.com/omniview/kubernetes/pkg/utils"
+	"github.com/omniview/kubernetes/pkg/utils/remoteerr"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"maps"
 	"slices"
 	"strconv"
@@ -22,14 +25,14 @@ import (
 func extractPodSelector(resourceKey string, resourceData *resourcev2.Value) (map[string]string, error) {
 	spec, ok := utils.TaggedField(resourceData, "spec")
 	if !ok || spec.Kind != "map" {
-		return nil, fmt.Errorf("resource %q has no spec", resourceKey)
+		return nil, resourcev2.NewError("INVALID_REQUEST", fmt.Sprintf("resource %q has no spec", resourceKey))
 	}
 
 	switch resourceKey {
 	case "k8s:/services", "k8s:/replicationcontrollers":
 		raw, ok := spec.Map["selector"]
 		if !ok || raw.Kind != "map" {
-			return nil, fmt.Errorf("resource %q has no spec.selector", resourceKey)
+			return nil, resourcev2.NewError("INVALID_REQUEST", fmt.Sprintf("resource %q has no spec.selector", resourceKey))
 		}
 		return toStringMap(raw.Map), nil
 
@@ -40,16 +43,16 @@ func extractPodSelector(resourceKey string, resourceData *resourcev2.Value) (map
 		"k8s:batch/jobs":
 		sel, ok := spec.Map["selector"]
 		if !ok || sel.Kind != "map" {
-			return nil, fmt.Errorf("resource %q has no spec.selector", resourceKey)
+			return nil, resourcev2.NewError("INVALID_REQUEST", fmt.Sprintf("resource %q has no spec.selector", resourceKey))
 		}
 		ml, ok := sel.Map["matchLabels"]
 		if !ok || ml.Kind != "map" {
-			return nil, fmt.Errorf("resource %q has no spec.selector.matchLabels", resourceKey)
+			return nil, resourcev2.NewError("INVALID_REQUEST", fmt.Sprintf("resource %q has no spec.selector.matchLabels", resourceKey))
 		}
 		return toStringMap(ml.Map), nil
 
 	default:
-		return nil, fmt.Errorf("unsupported resource type for pod resolution: %q", resourceKey)
+		return nil, resourcev2.NewError("INVALID_REQUEST", fmt.Sprintf("unsupported resource type for pod resolution: %q", resourceKey))
 	}
 }
 
@@ -62,7 +65,7 @@ func resolveBackingPod(ctx context.Context, clientset kubernetes.Interface, name
 		LabelSelector: labelSelector,
 	})
 	if err != nil {
-		return "", fmt.Errorf("listing pods with selector %q: %w", labelSelector, err)
+		return "", remoteerr.Sanitize(fmt.Sprintf("list pods with selector %q", labelSelector), err)
 	}
 
 	type candidate struct {
@@ -74,7 +77,7 @@ func resolveBackingPod(ctx context.Context, clientset kubernetes.Interface, name
 	var candidates []candidate
 	for _, p := range pods.Items {
 		if p.Status.Phase != "Running" {
-			continue
+			continue // expected: only Running pods can back a tunnel
 		}
 		var ready bool
 		for _, c := range p.Status.Conditions {
@@ -91,7 +94,10 @@ func resolveBackingPod(ctx context.Context, clientset kubernetes.Interface, name
 	}
 
 	if len(candidates) == 0 {
-		return "", fmt.Errorf("no running pods found matching selector %q", labelSelector)
+		trace.SpanFromContext(ctx).AddEvent("backing_pod_none_running", trace.WithAttributes(
+			attribute.Int("pods_listed", len(pods.Items)),
+		))
+		return "", resourcev2.NewError("UNAVAILABLE", fmt.Sprintf("no running pods found matching selector %q", labelSelector))
 	}
 
 	slices.SortFunc(candidates, func(a, b candidate) int {
@@ -106,6 +112,11 @@ func resolveBackingPod(ctx context.Context, clientset kubernetes.Interface, name
 		return cmp.Compare(b.created.UnixNano(), a.created.UnixNano())
 	})
 
+	trace.SpanFromContext(ctx).AddEvent("backing_pod_resolved", trace.WithAttributes(
+		attribute.Int("pods_listed", len(pods.Items)),
+		attribute.Int("candidates", len(candidates)),
+		attribute.Bool("selected_ready", candidates[0].ready),
+	))
 	return candidates[0].name, nil
 }
 

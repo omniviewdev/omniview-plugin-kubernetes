@@ -52,8 +52,8 @@ func TestPodHandler_MetadataValidation(t *testing.T) {
 	}{
 		{
 			name:        "provider error propagates",
-			providerErr: errors.New("kubeconfig is required"),
-			wantErr:     "kubeconfig is required",
+			providerErr: errors.New("open /secret/home/user/.kube/config: no such file or directory"),
+			wantErr:     "load kubernetes client failed",
 		},
 		{
 			name:         "missing metadata",

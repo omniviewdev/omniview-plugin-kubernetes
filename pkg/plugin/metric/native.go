@@ -12,9 +12,12 @@ import (
 
 	"github.com/omniview/kubernetes/pkg/diag"
 	"github.com/omniview/kubernetes/pkg/utils"
+	"github.com/omniview/kubernetes/pkg/utils/remoteerr"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
 	sdkmetric "github.com/omniviewdev/plugin-sdk/pkg/v1/metric"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -237,6 +240,19 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 	if err := nativeContext(pc); err != nil {
 		return nil, err
 	}
+	_, span := diag.Tracer().Start(pc.Context, "kubernetes.metric.query", trace.WithAttributes(
+		attribute.String("source", "native"),
+		attribute.Bool("cache.hit", false),
+		attribute.Int("targets", len(query.Targets)),
+		attribute.Int("metrics", len(query.MetricIDs)),
+	))
+	defer func() {
+		class := diag.EndSpan(span, finalErr, false)
+		promLog().Debugw(pc.Context, "native metric query finished",
+			append([]any{"targets", len(query.Targets), "metrics", len(query.MetricIDs)}, class.LogFields()...)...)
+		// Client build and scan errors can carry remote text.
+		finalErr = remoteerr.Sanitize("native metric query", finalErr)
+	}()
 	if err := sdkmetric.ValidateResourceMetricsQuery(query); err != nil {
 		return nil, err
 	}
@@ -425,6 +441,17 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 				message = "Native metrics scan budget exhausted; unseen targets are not proven missing"
 			}
 			response.Warnings = append(response.Warnings, message)
+			if !scanned {
+				span.SetAttributes(attribute.Bool("cache.hit", true))
+			}
+			span.AddEvent("native.scan_failed", trace.WithAttributes(
+				attribute.String("status", status),
+				attribute.Bool("cache.hit", !scanned),
+				attribute.Bool("budget_exhausted", err == errNativeBudget),
+			))
+			promLog().Warnw(ctx, "native metrics namespace scan failed",
+				append([]any{"resource_namespace", namespace, "status", status, "cached_failure", !scanned,
+					"budget_exhausted", err == errNativeBudget}, diag.ClassifyError(err, false).LogFields()...)...)
 			for _, index := range indices {
 				for offset := range query.MetricIDs {
 					result := &response.Results[index*len(query.MetricIDs)+offset]

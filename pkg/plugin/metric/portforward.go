@@ -8,7 +8,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/omniview/kubernetes/pkg/diag"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -92,6 +95,7 @@ func (m *PortForwardManager) GetOrCreate(ctx context.Context, connectionID strin
 			if existing.namespace != namespace || existing.service != service || existing.port != port {
 				delete(m.sessions, connectionID)
 				m.mu.Unlock()
+				promLog().Debugw(ctx, "metric tunnel target changed; replacing", "connection", connectionID)
 				existing.stop()
 				<-existing.done
 				continue
@@ -139,6 +143,23 @@ func (t metricTunnelTransport) RoundTrip(request *http.Request) (*http.Response,
 }
 
 func (m *PortForwardManager) start(requestCtx context.Context, connectionID string, config *rest.Config, client *kubernetes.Clientset, session *pfSession) (url string, err error) {
+	startedAt := time.Now()
+	_, openSpan := diag.Tracer().Start(requestCtx, "kubernetes.metric.tunnel.open", trace.WithAttributes(
+		attribute.String("connection", connectionID),
+		attribute.String("resource.namespace", session.namespace),
+		attribute.String("resource.id", session.service),
+	))
+	defer func() {
+		class := diag.EndSpan(openSpan, err, false)
+		if err != nil {
+			promLog().Warnw(requestCtx, "metric tunnel open failed",
+				append([]any{"connection", connectionID, "duration_ms", time.Since(startedAt).Milliseconds()}, class.LogFields()...)...)
+		} else {
+			promLog().Infow(requestCtx, "metric tunnel opened",
+				"connection", connectionID, "resource_namespace", session.namespace, "resource_id", session.service,
+				"duration_ms", time.Since(startedAt).Milliseconds())
+		}
+	}()
 	stopRequestCancellation := context.AfterFunc(requestCtx, session.stop)
 	started := false
 	defer func() {
@@ -193,6 +214,12 @@ func (m *PortForwardManager) start(requestCtx context.Context, connectionID stri
 	started = true
 	go func() {
 		forwardErr := forwarder.ForwardPorts()
+		if forwardErr != nil && session.ctx.Err() == nil {
+			promLog().Warnw(context.Background(), "metric tunnel ended with error",
+				append([]any{"connection", connectionID, "resource_id", session.service}, diag.ClassifyError(forwardErr, false).LogFields()...)...)
+		} else {
+			promLog().Debugw(context.Background(), "metric tunnel ended", "connection", connectionID, "resource_id", session.service)
+		}
 		m.mu.Lock()
 		if forwardErr != nil {
 			session.err = forwardErr
@@ -257,6 +284,7 @@ func (m *PortForwardManager) Close(connectionID string) {
 	if session != nil {
 		session.stop()
 		<-session.done
+		promLog().Debugw(context.Background(), "metric tunnel closed", "connection", connectionID)
 	}
 }
 
@@ -314,5 +342,8 @@ func (m *PortForwardManager) reap() {
 	}
 	for _, session := range retired {
 		<-session.done
+	}
+	if len(retired) > 0 {
+		promLog().Debugw(context.Background(), "idle metric tunnels reaped", "count", len(retired))
 	}
 }

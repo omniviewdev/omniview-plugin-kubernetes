@@ -2,20 +2,23 @@ package exec
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
-
-	"go.opentelemetry.io/otel"
+	"time"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
+	utilexec "k8s.io/client-go/util/exec"
 	"k8s.io/streaming/pkg/httpstream"
 
+	"github.com/omniview/kubernetes/pkg/diag"
 	"github.com/omniview/kubernetes/pkg/pluginid"
+	"github.com/omniview/kubernetes/pkg/utils/remoteerr"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"github.com/omniviewdev/plugin-sdk/pkg/sdk"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
@@ -80,7 +83,7 @@ func podHandlerWithProvider(
 	diagnostic.stage, diagnostic.operation = "execution", "client"
 	clients, err := provider(ctx)
 	if err != nil {
-		return err
+		return remoteerr.Sanitize("load kubernetes client", err)
 	}
 
 	diagnostic.stage, diagnostic.operation = "admission", "validate"
@@ -244,34 +247,44 @@ func streamPod(
 	}
 	spdy, err := remotecommand.NewSPDYExecutor(config, "POST", req.URL())
 	if err != nil {
-		return err
+		execBuildFailed(ctx, "spdy", err)
+		return remoteerr.Sanitize("build exec executor", err)
 	}
 	ws, err := remotecommand.NewWebSocketExecutor(config, "GET", req.URL().String())
 	if err != nil {
-		return err
+		execBuildFailed(ctx, "websocket", err)
+		return remoteerr.Sanitize("build exec executor", err)
 	}
 	executor, err := remotecommand.NewFallbackExecutor(ws, spdy, httpstream.IsUpgradeFailure)
 	if err != nil {
-		return err
+		execBuildFailed(ctx, "websocket", err)
+		return remoteerr.Sanitize("build exec executor", err)
 	}
 	go func() {
+		started := time.Now()
 		var diagnostic *execDiagnostic
 		if parent, ok := ctx.Value(execDiagnosticKey{}).(*execDiagnostic); ok {
-			streamCtx, span := otel.Tracer("omniview.plugin.kubernetes").Start(ctx, "kubernetes.pod.exec.stream")
+			streamCtx, span := diag.Tracer().Start(ctx, "kubernetes.pod.exec.stream")
 			ctx = streamCtx
 			diagnostic = &execDiagnostic{ctx: parent.ctx, span: span, stage: "lifecycle", operation: subresource, pod: pod, namespace: namespace}
 		}
 		streamCtx, cancel := context.WithCancel(ctx)
 		defer cancel()
+		log := execLoggerFromContext(ctx)
+		log.Debugw(ctx, "exec stream started", "operation", subresource, "resource_namespace", namespace, "resource_id", pod)
 		queue := &terminalSizeQueue{ctx: streamCtx, resize: resize}
 		streamErr := executor.StreamWithContext(streamCtx, remotecommand.StreamOptions{
 			Stdin: tty, Stdout: tty, Stderr: tty, Tty: true, TerminalSizeQueue: queue,
 		})
+		log.Debugw(ctx, "exec stream ended", append([]any{"operation", subresource, "resource_namespace", namespace,
+			"resource_id", pod, "duration_ms", time.Since(started).Milliseconds()}, diag.ClassifyError(streamErr, false).LogFields()...)...)
 		if diagnostic != nil {
 			diagnostic.finish(streamErr)
 		}
 		if streamErr != nil && !attach {
 			streamErr = classifyExecError(streamErr, command)
+		} else if streamErr != nil {
+			streamErr = remoteerr.Sanitize("exec attach", streamErr)
 		}
 		select {
 		case stopChan <- streamErr:
@@ -343,12 +356,25 @@ func classifyExecError(err error, command []string) error {
 		},
 	}
 
+	// The original text is only matched locally; neither it nor its wrapped
+	// error reaches the client.
+	safe := remoteerr.Sanitize("exec session", err)
+	exitMessage := ""
+	var exitErr utilexec.ExitError
+	if errors.As(err, &exitErr) && exitErr.Exited() {
+		exitMessage = fmt.Sprintf("Command exited with status %d.", exitErr.ExitStatus())
+	}
+
 	for _, c := range classifications {
 		if strings.Contains(lower, c.pattern) {
+			message := c.title
+			if exitMessage != "" {
+				message += ". " + exitMessage
+			}
 			return &exec.ExecError{
-				Err:           err,
+				Err:           safe,
 				Title:         c.title,
-				Message:       msg,
+				Message:       message,
 				Suggestion:    c.suggestion,
 				Retryable:     c.retryable,
 				RetryCommands: c.retryCommands,
@@ -357,10 +383,14 @@ func classifyExecError(err error, command []string) error {
 	}
 
 	// Default: generic retryable error
+	message := safe.Error()
+	if exitMessage != "" {
+		message = exitMessage
+	}
 	return &exec.ExecError{
-		Err:           err,
+		Err:           safe,
 		Title:         "Exec failed",
-		Message:       msg,
+		Message:       message,
 		Suggestion:    "The exec session failed unexpectedly.",
 		Retryable:     true,
 		RetryCommands: []string{"sh", "/bin/sh"},

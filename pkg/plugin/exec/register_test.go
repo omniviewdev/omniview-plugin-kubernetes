@@ -290,15 +290,12 @@ func TestClassifyExecError(t *testing.T) {
 			assert.Equal(t, tc.expected.retryable, execErr.Retryable)
 			assert.Equal(t, tc.expected.retryCommands, execErr.RetryCommands)
 
-			// Original error is preserved
-			assert.Equal(t, origErr, execErr.Err)
-			assert.ErrorIs(t, execErr, origErr)
-
-			// Message contains the original error text
-			assert.Equal(t, tc.errMsg, execErr.Message)
-
-			// Error() delegates to the wrapped error
-			assert.Equal(t, origErr.Error(), execErr.Error())
+			// Remote error text is never carried to the client.
+			assert.NotErrorIs(t, execErr, origErr)
+			assert.NotContains(t, execErr.Error(), tc.errMsg)
+			assert.NotContains(t, execErr.Message, tc.errMsg)
+			assert.NotEmpty(t, execErr.Message)
+			assert.Equal(t, execErr.Err.Error(), execErr.Error())
 		})
 	}
 }

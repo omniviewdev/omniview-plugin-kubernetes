@@ -5,14 +5,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/omniview/kubernetes/pkg/diag"
 	"net/http"
 	"net/url"
 	"regexp"
 	"time"
 
+	"github.com/omniview/kubernetes/pkg/diag"
 	"github.com/omniview/kubernetes/pkg/utils"
 	"github.com/omniview/kubernetes/pkg/utils/kubeauth"
+	"github.com/omniview/kubernetes/pkg/utils/remoteerr"
+	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
 
@@ -50,8 +54,16 @@ func (f *PodResourceForwarder) ForwardResource(
 	ctx context.Context,
 	pctx *types.PluginContext,
 	opts networker.ResourcePortForwardHandlerOpts,
-) (*networker.ForwarderResult, error) {
+) (result *networker.ForwarderResult, resultErr error) {
 	log := loggerFromCtx(pctx)
+	span := startForwardSetupSpan(ctx, pctx, "pod", opts.Resource.ResourceKey)
+	defer func() {
+		class := diag.EndSpan(span, resultErr, false)
+		if resultErr != nil {
+			log.Warnw(ctx, "pod port-forward: setup failed", class.LogFields()...)
+		}
+		resultErr = remoteerr.Sanitize("pod port-forward setup", resultErr)
+	}()
 
 	log.Info(ctx, "pod port-forward: starting",
 		logging.String("resource_key", opts.Resource.ResourceKey),
@@ -62,17 +74,18 @@ func (f *PodResourceForwarder) ForwardResource(
 
 	clients, err := utils.KubeClientsFromContext(pctx)
 	if err != nil {
-		log.Error(ctx, "pod port-forward: failed to get kube clients", logging.Error(err))
+		log.Errorw(ctx, "pod port-forward: failed to get kube clients", diag.ClassifyError(err, false).LogFields()...)
 		return nil, err
 	}
 
 	if opts.Resource.ResourceKey != "k8s:/pods" {
-		return nil, fmt.Errorf("pod port-forward requires k8s:/pods")
+		return nil, resourcev2.NewError("INVALID_REQUEST", "pod port-forward requires k8s:/pods")
 	}
 	name, namespace, err := nativeForwardTarget(pctx, opts.Resource, "k8s:/pods")
 	if err != nil {
 		return nil, err
 	}
+	span.SetAttributes(attribute.String("resource.id", name), attribute.String("resource.namespace", namespace))
 
 	log.Info(ctx, "pod port-forward: resolved target",
 		logging.String("pod", name),
@@ -90,7 +103,7 @@ func (f *PodResourceForwarder) ForwardResource(
 
 	transport, upgrader, err := spdy.RoundTripperFor(clients.RestConfig)
 	if err != nil {
-		log.Error(ctx, "pod port-forward: failed to create SPDY round-tripper", logging.Error(err))
+		log.Errorw(ctx, "pod port-forward: failed to create SPDY round-tripper", diag.ClassifyError(err, false).LogFields()...)
 		return nil, err
 	}
 
@@ -115,28 +128,31 @@ func (f *PodResourceForwarder) ForwardResource(
 		errOut,
 	)
 	if err != nil {
-		log.Error(ctx, "pod port-forward: failed to create portforward", logging.Error(err))
+		log.Errorw(ctx, "pod port-forward: failed to create portforward", diag.ClassifyError(err, false).LogFields()...)
 		return nil, err
 	}
 
 	// start the forwarder
 	go func() {
+		started := time.Now()
 		log.Info(ctx, "pod port-forward: ForwardPorts starting")
 		diag.PortForward("started")
-		if err := fw.ForwardPorts(); err != nil {
+		err := fw.ForwardPorts()
+		class := diag.ClassifyError(err, false)
+		fields := append([]any{
+			"resource_id", name,
+			"resource_namespace", namespace,
+			"duration_ms", time.Since(started).Milliseconds(),
+			"stdout_lines", forwardLineCount(out),
+			"stderr_lines", forwardLineCount(errOut),
+		}, class.LogFields()...)
+		if err != nil {
 			diag.PortForward("failed")
-			log.Error(ctx, "pod port-forward: ForwardPorts returned error",
-				logging.Error(err),
-				logging.String("stdout", out.String()),
-				logging.String("stderr", errOut.String()),
-			)
-			errCh <- err
+			log.Errorw(ctx, "pod port-forward: ForwardPorts returned error", fields...)
+			errCh <- remoteerr.Sanitize("port-forward tunnel", err)
 		} else {
 			diag.PortForward("ended")
-			log.Info(ctx, "pod port-forward: ForwardPorts exited cleanly",
-				logging.String("stdout", out.String()),
-				logging.String("stderr", errOut.String()),
-			)
+			log.Infow(ctx, "pod port-forward: ForwardPorts exited cleanly", fields...)
 		}
 		close(errCh)
 	}()
@@ -145,12 +161,8 @@ func (f *PodResourceForwarder) ForwardResource(
 	go func() {
 		select {
 		case <-ctx.Done():
-			reason := "context cancelled"
-			if cause := context.Cause(ctx); cause != nil {
-				reason = cause.Error()
-			}
 			log.Info(ctx, "pod port-forward: stopping tunnel",
-				logging.String("reason", reason),
+				logging.String("reason", forwardStopReason(ctx)),
 			)
 			close(stopCh)
 		case <-stopCh:
@@ -176,8 +188,16 @@ func (f *WorkloadResourceForwarder) ForwardResource(
 	ctx context.Context,
 	pctx *types.PluginContext,
 	opts networker.ResourcePortForwardHandlerOpts,
-) (*networker.ForwarderResult, error) {
+) (result *networker.ForwarderResult, resultErr error) {
 	log := loggerFromCtx(pctx)
+	span := startForwardSetupSpan(ctx, pctx, "workload", opts.Resource.ResourceKey)
+	defer func() {
+		class := diag.EndSpan(span, resultErr, false)
+		if resultErr != nil {
+			log.Warnw(ctx, "workload port-forward: setup failed", class.LogFields()...)
+		}
+		resultErr = remoteerr.Sanitize("workload port-forward setup", resultErr)
+	}()
 
 	log.Info(ctx, "workload port-forward: starting",
 		logging.String("resource_key", opts.Resource.ResourceKey),
@@ -188,7 +208,7 @@ func (f *WorkloadResourceForwarder) ForwardResource(
 
 	clients, err := utils.KubeClientsFromContext(pctx)
 	if err != nil {
-		log.Error(ctx, "workload port-forward: failed to get kube clients", logging.Error(err))
+		log.Errorw(ctx, "workload port-forward: failed to get kube clients", diag.ClassifyError(err, false).LogFields()...)
 		return nil, err
 	}
 
@@ -196,14 +216,13 @@ func (f *WorkloadResourceForwarder) ForwardResource(
 	if err != nil {
 		return nil, err
 	}
+	span.SetAttributes(attribute.String("resource.namespace", namespace))
 
 	resourceKey := opts.Resource.ResourceKey
 	selector, err := extractPodSelector(resourceKey, opts.Resource.ResourceData)
 	if err != nil {
-		log.Error(ctx, "workload port-forward: failed to extract pod selector",
-			logging.Error(err),
-			logging.String("resource_key", resourceKey),
-		)
+		log.Errorw(ctx, "workload port-forward: failed to extract pod selector",
+			append([]any{"resource_key", resourceKey}, diag.ClassifyError(err, false).LogFields()...)...)
 		return nil, err
 	}
 	log.Info(ctx, "workload port-forward: extracted selector",
@@ -230,12 +249,11 @@ func (f *WorkloadResourceForwarder) ForwardResource(
 	// Resolve the initial backing pod.
 	podName, err := resolveBackingPod(ctx, clients.Clientset, namespace, selector)
 	if err != nil {
-		log.Error(ctx, "workload port-forward: failed to resolve backing pod",
-			logging.Error(err),
-			logging.String("namespace", namespace),
-		)
+		log.Errorw(ctx, "workload port-forward: failed to resolve backing pod",
+			append([]any{"resource_namespace", namespace}, diag.ClassifyError(err, false).LogFields()...)...)
 		return nil, err
 	}
+	span.SetAttributes(attribute.String("resource.id", podName))
 	log.Info(ctx, "workload port-forward: resolved backing pod",
 		logging.String("pod", podName),
 		logging.String("namespace", namespace),
@@ -247,12 +265,14 @@ func (f *WorkloadResourceForwarder) ForwardResource(
 	go func() {
 		defer close(errCh)
 
+		sessionStarted := time.Now()
 		localPort := opts.Options.LocalPort
 		firstAttempt := true
 
 		for attempt := range maxReconnectAttempts {
 			if err := ctx.Err(); err != nil {
-				log.Info(ctx, "workload port-forward: context cancelled, stopping")
+				log.Infow(ctx, "workload port-forward: context cancelled, stopping",
+					"duration_ms", time.Since(sessionStarted).Milliseconds(), "outcome", "canceled")
 				return
 			}
 
@@ -273,10 +293,8 @@ func (f *WorkloadResourceForwarder) ForwardResource(
 
 				podName, err = resolveBackingPod(ctx, clients.Clientset, namespace, selector)
 				if err != nil {
-					log.Warn(ctx, "workload port-forward: failed to resolve backing pod on reconnect",
-						logging.Error(err),
-						logging.Int("attempt", attempt+1),
-					)
+					log.Warnw(ctx, "workload port-forward: failed to resolve backing pod on reconnect",
+						append([]any{"attempt", attempt + 1}, diag.ClassifyError(err, false).LogFields()...)...)
 					continue
 				}
 				log.Info(ctx, "workload port-forward: re-resolved backing pod",
@@ -287,7 +305,8 @@ func (f *WorkloadResourceForwarder) ForwardResource(
 
 			fwErr := f.forwardToPod(ctx, log, clients, namespace, podName, localPort, remotePort, readyCh)
 			if fwErr == nil {
-				log.Info(ctx, "workload port-forward: tunnel closed cleanly")
+				log.Infow(ctx, "workload port-forward: tunnel closed cleanly",
+					"duration_ms", time.Since(sessionStarted).Milliseconds(), "outcome", "success")
 				return // clean shutdown
 			}
 			if errors.Is(fwErr, portforward.ErrLostConnectionToPod) {
@@ -298,11 +317,10 @@ func (f *WorkloadResourceForwarder) ForwardResource(
 				continue
 			}
 			// Unrecoverable error.
-			log.Error(ctx, "workload port-forward: unrecoverable error",
-				logging.Error(fwErr),
-				logging.String("pod", podName),
-			)
-			errCh <- fwErr
+			log.Errorw(ctx, "workload port-forward: unrecoverable error",
+				append([]any{"resource_id", podName, "duration_ms", time.Since(sessionStarted).Milliseconds()},
+					diag.ClassifyError(fwErr, false).LogFields()...)...)
+			errCh <- remoteerr.Sanitize("port-forward tunnel", fwErr)
 			return
 		}
 
@@ -342,7 +360,7 @@ func (f *WorkloadResourceForwarder) forwardToPod(
 
 	transport, upgrader, err := spdy.RoundTripperFor(clients.RestConfig)
 	if err != nil {
-		log.Error(ctx, "forwardToPod: failed to create SPDY round-tripper", logging.Error(err))
+		log.Errorw(ctx, "forwardToPod: failed to create SPDY round-tripper", diag.ClassifyError(err, false).LogFields()...)
 		return err
 	}
 
@@ -365,7 +383,7 @@ func (f *WorkloadResourceForwarder) forwardToPod(
 		errOut,
 	)
 	if err != nil {
-		log.Error(ctx, "forwardToPod: failed to create portforward", logging.Error(err))
+		log.Errorw(ctx, "forwardToPod: failed to create portforward", diag.ClassifyError(err, false).LogFields()...)
 		return err
 	}
 
@@ -373,13 +391,9 @@ func (f *WorkloadResourceForwarder) forwardToPod(
 	go func() {
 		select {
 		case <-ctx.Done():
-			reason := "context cancelled"
-			if cause := context.Cause(ctx); cause != nil {
-				reason = cause.Error()
-			}
 			log.Info(ctx, "forwardToPod: stopping tunnel",
 				logging.String("pod", podName),
-				logging.String("reason", reason),
+				logging.String("reason", forwardStopReason(ctx)),
 			)
 			close(stopCh)
 		case <-stopCh:
@@ -392,6 +406,7 @@ func (f *WorkloadResourceForwarder) forwardToPod(
 		logging.Int("remote_port", int(remotePort)),
 	)
 
+	started := time.Now()
 	diag.PortForward("started")
 	fwErr := fw.ForwardPorts()
 	if fwErr != nil {
@@ -400,26 +415,67 @@ func (f *WorkloadResourceForwarder) forwardToPod(
 		diag.PortForward("ended")
 	}
 
-	// Always log the portforward output for diagnostics.
-	if stdout := out.String(); stdout != "" {
-		log.Info(ctx, "forwardToPod: stdout", logging.String("output", stdout))
-	}
-	if stderr := errOut.String(); stderr != "" {
-		log.Warn(ctx, "forwardToPod: stderr", logging.String("output", stderr))
+	// Tunnel output can carry remote data; only line counts are logged.
+	stdoutLines, stderrLines := forwardLineCount(out), forwardLineCount(errOut)
+	if stderrLines > 0 {
+		log.Warnw(ctx, "forwardToPod: stderr", "resource_id", podName, "stdout_lines", stdoutLines, "stderr_lines", stderrLines)
+	} else if stdoutLines > 0 {
+		log.Debugw(ctx, "forwardToPod: stdout", "resource_id", podName, "stdout_lines", stdoutLines)
 	}
 
+	fields := append([]any{
+		"resource_id", podName,
+		"duration_ms", time.Since(started).Milliseconds(),
+	}, diag.ClassifyError(fwErr, false).LogFields()...)
 	if fwErr != nil {
-		log.Error(ctx, "forwardToPod: ForwardPorts returned error",
-			logging.Error(fwErr),
-			logging.String("pod", podName),
-		)
+		log.Errorw(ctx, "forwardToPod: ForwardPorts returned error", fields...)
 	} else {
-		log.Info(ctx, "forwardToPod: ForwardPorts exited cleanly",
-			logging.String("pod", podName),
-		)
+		log.Infow(ctx, "forwardToPod: ForwardPorts exited cleanly", fields...)
 	}
 
 	return fwErr
+}
+
+// startForwardSetupSpan starts the span covering port-forward setup only; the
+// tunnel itself outlives it and is described by logs.
+func startForwardSetupSpan(ctx context.Context, pctx *types.PluginContext, kind, resourceKey string) trace.Span {
+	connection := ""
+	if pctx != nil && pctx.Connection != nil {
+		connection = pctx.Connection.ID
+	}
+	_, span := diag.Tracer().Start(ctx, "kubernetes.portforward.session.open", trace.WithAttributes(
+		attribute.String("connection", connection),
+		attribute.String("resource.type", resourceKey),
+		attribute.String("forward.kind", kind),
+	))
+	return span
+}
+
+// forwardStopReason maps the context end into a closed vocabulary.
+func forwardStopReason(ctx context.Context) string {
+	cause := context.Cause(ctx)
+	if cause == nil {
+		return "context_canceled"
+	}
+	switch class := diag.ClassifyError(cause, false); class.Class {
+	case "canceled", "deadline_exceeded":
+		return class.Class
+	default:
+		return "cancel_cause"
+	}
+}
+
+// forwardLineCount counts the lines in the tunnel output buffer.
+func forwardLineCount(b *bytes.Buffer) int {
+	data := b.Bytes()
+	if len(data) == 0 {
+		return 0
+	}
+	n := bytes.Count(data, []byte{'\n'})
+	if data[len(data)-1] != '\n' {
+		n++
+	}
+	return n
 }
 
 // loggerFromCtx returns the logger from the plugin context, or a nop logger.
@@ -432,10 +488,10 @@ func loggerFromCtx(pctx *types.PluginContext) logging.Logger {
 
 func nativeForwardTarget(ctx *types.PluginContext, target networker.PortForwardResourceConnection, resourceType string) (string, string, error) {
 	if target.PluginID != "" && target.PluginID != "kubernetes" {
-		return "", "", fmt.Errorf("port-forward resource belongs to another provider")
+		return "", "", resourcev2.NewError("INVALID_REQUEST", "port-forward resource belongs to another provider")
 	}
 	if target.ConnectionID != "" && (ctx == nil || ctx.Connection == nil || target.ConnectionID != ctx.Connection.ID) {
-		return "", "", fmt.Errorf("port-forward connection does not match the selected connection")
+		return "", "", resourcev2.NewError("INVALID_REQUEST", "port-forward connection does not match the selected connection")
 	}
 	return utils.NativeResourceTarget(ctx, target.ResourceData, target.Reference, target.Route, resourceType, true)
 }

@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/omniview/kubernetes/pkg/diag"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -60,7 +61,10 @@ type kubeServiceChecker struct {
 func (k *kubeServiceChecker) ServiceExists(ctx context.Context, namespace, name string) (bool, error) {
 	_, err := k.clientset.CoreV1().Services(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
-		return false, nil // treat all errors as "not found" — includes forbidden, not found, etc.
+		// Treat all errors as "not found" (forbidden, not found, transient), but record the class.
+		promLog().Debugw(ctx, "prometheus service probe failed; treated as absent",
+			append([]any{"resource_namespace", namespace, "resource_id", name}, diag.ClassifyError(err, false).LogFields()...)...)
+		return false, nil
 	}
 	return true, nil
 }
@@ -143,11 +147,13 @@ func (d *PrometheusDetector) Detect(
 	d.mu.Unlock()
 
 	if ok && d.isCacheValid(cached) {
+		detectionObserved(ctx, true, cached)
 		return cached
 	}
 
 	// Perform fresh detection.
 	result := d.scan(ctx, checker, configuredService, configuredNamespace, configuredPort)
+	detectionObserved(ctx, false, result)
 
 	if ctx.Err() == nil {
 		d.mu.Lock()

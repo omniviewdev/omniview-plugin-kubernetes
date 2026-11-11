@@ -243,12 +243,13 @@ func TestNodeHandler_ProviderError(t *testing.T) {
 	opts := exec.SessionOptions{}
 	err := nodeHandlerWithProvider(
 		func(_ *types.PluginContext) (*kubeauth.KubeClientBundle, error) {
-			return nil, errors.New("kubeconfig is required")
+			return nil, errors.New("open /secret/home/user/.kube/config: no such file or directory")
 		},
 		testPluginContext(), opts, nil, nil, nil,
 	)
 	require.Error(t, err)
-	assert.Equal(t, "kubeconfig is required", err.Error())
+	assert.Equal(t, "load kubernetes client failed", err.Error())
+	assert.NotContains(t, err.Error(), "/secret/home/user")
 }
 
 func TestNodeHandler_MissingMetadata(t *testing.T) {

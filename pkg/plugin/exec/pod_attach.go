@@ -5,7 +5,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/omniview/kubernetes/pkg/diag"
+	"github.com/omniview/kubernetes/pkg/utils/remoteerr"
 	sdkexec "github.com/omniviewdev/plugin-sdk/pkg/v1/exec"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -36,7 +40,16 @@ func (q *terminalSizeQueue) Next() *remotecommand.TerminalSize {
 	}
 }
 
-func waitForDebugContainer(ctx context.Context, client kubernetes.Interface, namespace, name, uid, container string) error {
+func waitForDebugContainer(ctx context.Context, client kubernetes.Interface, namespace, name, uid, container string) (resultErr error) {
+	started := time.Now()
+	defer func() {
+		class := diag.ClassifyError(resultErr, false)
+		waitMs := time.Since(started).Milliseconds()
+		trace.SpanFromContext(ctx).AddEvent("debug_container_wait", trace.WithAttributes(
+			append([]attribute.KeyValue{attribute.Int64("wait_ms", waitMs)}, class.SpanAttrs()...)...))
+		execLoggerFromContext(ctx).Debugw(ctx, "debug container wait finished",
+			append([]any{"resource_namespace", namespace, "resource_id", name, "wait_ms", waitMs}, class.LogFields()...)...)
+	}()
 	if uid == "" {
 		return fmt.Errorf("original Pod UID is required for attach")
 	}
@@ -51,7 +64,7 @@ func waitForDebugContainer(ctx context.Context, client kubernetes.Interface, nam
 	for {
 		pod, err := client.CoreV1().Pods(namespace).Get(waitCtx, name, metav1.GetOptions{})
 		if err != nil {
-			return fmt.Errorf("checking debug container %s: %w", container, err)
+			return remoteerr.Sanitize("check debug container "+container, err)
 		}
 		if string(pod.UID) != uid {
 			return fmt.Errorf("Pod UID changed; cannot attach to original Pod UID %s", uid)
@@ -74,10 +87,11 @@ func waitForDebugContainer(ctx context.Context, client kubernetes.Interface, nam
 				continue
 			}
 			if terminated := status.State.Terminated; terminated != nil {
-				return fmt.Errorf("debug container %s terminated: %s (exit %d): %s", container, terminated.Reason, terminated.ExitCode, terminated.Message)
+				// The kubelet message is remote text; only the reason and exit code are reported.
+				return fmt.Errorf("debug container %s terminated: %s (exit %d)", container, safeContainerReason(terminated.Reason), terminated.ExitCode)
 			}
 			if waiting := status.State.Waiting; waiting != nil {
-				last = waiting.Reason + ": " + waiting.Message
+				last = safeContainerReason(waiting.Reason)
 				switch waiting.Reason {
 				case "", "ContainerCreating", "PodInitializing":
 				default:

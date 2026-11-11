@@ -3,19 +3,23 @@ package logs
 import (
 	"context"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/watch"
 
+	logging "github.com/omniviewdev/plugin-sdk/log"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
 	"github.com/omniviewdev/plugin-sdk/pkg/v1/logs"
 
+	"github.com/omniview/kubernetes/pkg/diag"
 	"github.com/omniview/kubernetes/pkg/utils"
 	"github.com/omniview/kubernetes/pkg/utils/kubeauth"
 )
@@ -181,16 +185,22 @@ func CronJobSourceResolver(
 			ctx.Context, ref.Name, metav1.GetOptions{},
 		)
 		if err != nil {
+			logsLogger(ctx).Debugw(ctx.Context, "cronjob active job skipped",
+				append([]any{"operation", "get_job"}, diag.ClassifyError(err, false).LogFields()...)...)
 			continue
 		}
 
 		selector, err := metav1.LabelSelectorAsSelector(job.Spec.Selector)
 		if err != nil {
+			logsLogger(ctx).Debugw(ctx.Context, "cronjob active job skipped",
+				append([]any{"operation", "job_selector"}, diag.ClassifyError(err, false).LogFields()...)...)
 			continue
 		}
 
 		result, err := resolvePodsToSources(ctx, clients, namespace, selector, opts)
 		if err != nil {
+			logsLogger(ctx).Debugw(ctx.Context, "cronjob active job skipped",
+				append([]any{"operation", "resolve_pods"}, diag.ClassifyError(err, false).LogFields()...)...)
 			continue
 		}
 		allSources = append(allSources, result.Sources...)
@@ -278,6 +288,7 @@ func watchPodsAsSourceEvents(
 ) {
 	defer close(eventCh)
 
+	log := logsLogger(ctx)
 	knownSources := initialKnown
 	if knownSources == nil {
 		knownSources = make(map[string]map[string]struct{})
@@ -289,12 +300,24 @@ func watchPodsAsSourceEvents(
 		maxBackoff = 30 * time.Second
 	)
 	backoff := minBackoff
+	attempt := 0
+
+	log.Debugw(ctx.Context, "pod source watch started", "resource_namespace", namespace)
+	defer func() {
+		log.Debugw(ctx.Context, "pod source watch stopped", "resource_namespace", namespace, "attempts", attempt)
+	}()
 
 	for {
 		if ctx.Context.Err() != nil {
 			return
 		}
 
+		attempt++
+		_, watchSpan := diag.Tracer().Start(ctx.Context, "kubernetes.logs.watch", trace.WithAttributes(
+			attribute.String("phase", "watch"),
+			attribute.String("resource.namespace", namespace),
+			attribute.Int("attempt", attempt),
+		))
 		watcher, err := clients.Clientset.CoreV1().Pods(namespace).Watch(
 			ctx.Context,
 			metav1.ListOptions{
@@ -302,22 +325,28 @@ func watchPodsAsSourceEvents(
 				ResourceVersion: rv,
 			},
 		)
+		watchClass := diag.EndSpan(watchSpan, err, false)
 		if err != nil {
-			log.Printf("[logs-watch] watch creation failed: %v, retrying in %s", err, backoff)
+			if ctx.Context.Err() != nil {
+				return
+			}
+			diag.LogsWatchRestart("watch_create_failed")
+			log.Warnw(ctx.Context, "pod source watch creation failed",
+				append([]any{"resource_namespace", namespace, "backoff_ms", backoff.Milliseconds(), "attempt", attempt}, watchClass.LogFields()...)...)
 			select {
 			case <-ctx.Context.Done():
 				return
 			case <-time.After(backoff):
 			}
 			// Relist to get a fresh resourceVersion.
-			rv, knownSources = relistPods(ctx.Context, clients, namespace, selector, target, knownSources, eventCh)
+			rv, knownSources = relistPods(ctx.Context, log, clients, namespace, selector, target, knownSources, eventCh)
 			backoff = min(backoff*2, maxBackoff)
 			continue
 		}
 
 		// Successful watch creation resets backoff.
 		backoff = minBackoff
-		newRV := processPodWatchEvents(ctx.Context, watcher, target, knownSources, eventCh)
+		newRV := processPodWatchEvents(ctx.Context, log, watcher, target, knownSources, eventCh)
 		watcher.Stop()
 
 		if ctx.Context.Err() != nil {
@@ -327,9 +356,13 @@ func watchPodsAsSourceEvents(
 		// Update RV if processPodWatchEvents returned one from the stream.
 		if newRV != "" {
 			rv = newRV
+			diag.LogsWatchRestart("watch_closed")
+			log.Debugw(ctx.Context, "pod source watch closed; rewatching", "resource_namespace", namespace)
 		} else {
 			// Watch closed without yielding events — relist.
-			rv, knownSources = relistPods(ctx.Context, clients, namespace, selector, target, knownSources, eventCh)
+			diag.LogsWatchRestart("watch_closed_empty")
+			log.Debugw(ctx.Context, "pod source watch closed without events; relisting", "resource_namespace", namespace)
+			rv, knownSources = relistPods(ctx.Context, log, clients, namespace, selector, target, knownSources, eventCh)
 		}
 	}
 }
@@ -338,6 +371,7 @@ func watchPodsAsSourceEvents(
 // It emits SourceAdded for any new pods and SourceRemoved for pods that disappeared.
 func relistPods(
 	ctx context.Context,
+	log logging.Logger,
 	clients *kubeauth.KubeClientBundle,
 	namespace string,
 	selector labels.Selector,
@@ -345,13 +379,25 @@ func relistPods(
 	prevKnown map[string]map[string]struct{},
 	eventCh chan<- logs.SourceEvent,
 ) (string, map[string]map[string]struct{}) {
-	podList, err := clients.Clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+	listCtx, span := diag.Tracer().Start(ctx, "kubernetes.logs.watch", trace.WithAttributes(
+		attribute.String("phase", "relist"),
+		attribute.String("resource.namespace", namespace),
+	))
+	podList, err := clients.Clientset.CoreV1().Pods(namespace).List(listCtx, metav1.ListOptions{
 		LabelSelector: selector.String(),
 	})
+	if podList != nil {
+		span.SetAttributes(attribute.Int("items", len(podList.Items)))
+	}
+	class := diag.EndSpan(span, err, false)
 	if err != nil {
-		log.Printf("[logs-watch] relist failed: %v", err)
+		if ctx.Err() == nil {
+			log.Warnw(ctx, "pod source relist failed",
+				append([]any{"resource_namespace", namespace}, class.LogFields()...)...)
+		}
 		return "", prevKnown
 	}
+	log.Debugw(ctx, "pod source relist completed", "resource_namespace", namespace, "items", len(podList.Items))
 
 	newKnown := make(map[string]map[string]struct{})
 	for i := range podList.Items {
@@ -402,6 +448,7 @@ func relistPods(
 // Returns the last seen resourceVersion from the stream (empty if none seen).
 func processPodWatchEvents(
 	ctx context.Context,
+	log logging.Logger,
 	watcher watch.Interface,
 	target string,
 	knownSources map[string]map[string]struct{},
@@ -420,12 +467,16 @@ func processPodWatchEvents(
 
 			// Handle watch errors (e.g. expired resourceVersion, server-side close).
 			if event.Type == watch.Error {
-				log.Printf("[logs-watch] watch error event received: %v", event.Object)
+				diag.LogsWatchRestart("watch_error_event")
+				log.Warnw(ctx, "pod source watch error event received",
+					append([]any{"last_resource_version_seen", lastRV != ""},
+						diag.ClassifyError(apierrors.FromObject(event.Object), false).LogFields()...)...)
 				return lastRV
 			}
 
 			pod, ok := event.Object.(*corev1.Pod)
 			if !ok {
+				log.Debugw(ctx, "pod source watch event ignored", "event_type", string(event.Type), "object_type", fmt.Sprintf("%T", event.Object))
 				continue
 			}
 			lastRV = pod.ResourceVersion
