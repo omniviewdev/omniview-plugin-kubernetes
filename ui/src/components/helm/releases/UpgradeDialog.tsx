@@ -37,7 +37,9 @@ interface DryRunUpgradeData {
   manifest?: string;
 }
 
-const UpgradeDialog: React.FC<Props> = ({
+const UpgradeDialog: React.FC<Props> = (props) => <UpgradeDialogSession key={JSON.stringify([props.connectionID, props.namespace, props.releaseName])} {...props} />;
+
+const UpgradeDialogSession: React.FC<Props> = ({
   open,
   onClose,
   releaseName,
@@ -49,10 +51,12 @@ const UpgradeDialog: React.FC<Props> = ({
   const [reuseValues, setReuseValues] = React.useState(true);
   const [dryRunManifest, setDryRunManifest] = React.useState<string | null>(null);
   const [valuesLoaded, setValuesLoaded] = React.useState(false);
+  const [valuesError, setValuesError] = React.useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = React.useState(0);
 
   const editorPath = useResourceEditorModelPath({
     pluginID: PLUGIN_ID, route: { connection: connectionID }, type: 'helm:releases',
-    key: `${namespace}/${releaseName}`, name: 'values',
+    key: `${namespace}/${releaseName}`, name: 'values', enabled: open,
   });
   const { executeAction, isExecuting } = useExecuteAction({ pluginID: PLUGIN_ID });
   const runAction = async (action: string, input = jsonToValue({})) => {
@@ -67,17 +71,24 @@ const UpgradeDialog: React.FC<Props> = ({
   React.useEffect(() => {
     if (!open || !releaseName || valuesLoaded) return;
 
+    let cancelled = false;
     void runAction('get-values', jsonToValue({ all: true }))
       .then((result) => {
+        if (cancelled) return;
         const data = helmActionData(result) as { values?: unknown } | undefined;
         setValues(data?.values ? stringify(data.values) : '');
         setValuesLoaded(true);
       })
-      .catch(() => {
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        // Never keep a prior draft when the current values cannot be loaded.
+        setValues('');
+        setValuesError(error instanceof Error ? error.message : 'Failed to load current values');
         setValuesLoaded(true);
       });
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, releaseName]);
+  }, [open, releaseName, loadAttempt]);
 
   const handleDryRun = async () => {
     try {
@@ -97,17 +108,29 @@ const UpgradeDialog: React.FC<Props> = ({
       await runAction('upgrade', jsonToValue({
         chart: chartRef, reuse_values: reuseValues, values: helmValues(values),
       }));
-      onClose();
+      handleClose();
     } catch (error: unknown) {
       setDryRunManifest(`Error: ${error instanceof Error ? error.message : 'Upgrade failed'}`);
     }
   };
 
+  const retryValues = () => {
+    // A retry starts from a clean slate: no stale draft, no previous error.
+    setValues('');
+    setValuesError(null);
+    setValuesLoaded(false);
+    setLoadAttempt((attempt) => attempt + 1);
+  };
+
   const handleClose = () => {
     setDryRunManifest(null);
     setValuesLoaded(false);
+    setValuesError(null);
+    setValues('');
     onClose();
   };
+
+  if (!open) return null;
 
   return (
     <Dialog open={open} onClose={handleClose} size="xl" style={dialogStyle}>
@@ -125,6 +148,17 @@ const UpgradeDialog: React.FC<Props> = ({
             </Checkbox>
           </Stack>
 
+          {valuesError !== null && (
+            <Stack direction="row" spacing={2} align="center">
+              <Text role="alert" size="sm" tone="danger">
+                Failed to load current values: {valuesError}.
+              </Text>
+              <Button size="sm" variant="outline" color="neutral" onClick={retryValues}>
+                Retry
+              </Button>
+            </Stack>
+          )}
+
           {/* Values editor */}
           <Stack direction="column" spacing={1}>
             <Text size="sm" tone="muted">
@@ -134,6 +168,7 @@ const UpgradeDialog: React.FC<Props> = ({
               <CodeEditor
                 filename="values.yaml"
                 path={editorPath}
+                schemaScope={{ pluginID: PLUGIN_ID, connectionID, resourceType: 'helm:releases' }}
                 language="yaml"
                 value={values}
                 onChange={(v) => setValues(v)}
@@ -171,7 +206,7 @@ const UpgradeDialog: React.FC<Props> = ({
           size="sm"
           variant="outline"
           color="neutral"
-          disabled={isExecuting}
+          disabled={isExecuting || !valuesLoaded || valuesError !== null}
           onClick={() => void handleDryRun()}
         >
           Dry Run
@@ -180,7 +215,7 @@ const UpgradeDialog: React.FC<Props> = ({
           size="sm"
           variant="solid"
           color="brand"
-          disabled={isExecuting}
+          disabled={isExecuting || !valuesLoaded || valuesError !== null}
           onClick={() => void handleUpgrade()}
         >
           Upgrade

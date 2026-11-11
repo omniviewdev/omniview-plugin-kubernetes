@@ -8,10 +8,7 @@ import {
   useResourceGroups,
   useNotifications,
   usePluginRouter,
-  parseAppError,
-  useEditorSchemas,
-} from '@omniviewdev/runtime';
-import type { EditorSchemaAssociation, EditorSchemaDocument } from '@omniviewdev/runtime';
+  parseAppError } from '@omniviewdev/runtime';
 import React from 'react';
 import { LuCog, LuLock, LuLockOpen, LuPuzzle, LuRotateCcw, LuSearch } from 'react-icons/lu';
 import { Outlet, useParams } from 'react-router';
@@ -195,34 +192,6 @@ function ClusterResourcesSession({ id }: { id: string }): React.ReactElement {
     [summary?.types],
   );
 
-  // Fetch and register OpenAPI schemas with the host's Monaco schema registry
-  const { associations, documents } = useEditorSchemas({
-    pluginID: PLUGIN_ID,
-    route: { connection: id },
-  });
-  React.useEffect(() => {
-    // The Monaco schema registry is attached to window by the host app at runtime.
-    // It exposes register/unregister methods for managing JSON schemas.
-    const win = window as Window & {
-      __monacoSchemaRegistry?: {
-        register: (
-          plugin: string,
-          connId: string,
-          associations: readonly EditorSchemaAssociation[],
-          documents: readonly EditorSchemaDocument[],
-        ) => void;
-        unregister: (plugin: string, connId: string) => void;
-      };
-    };
-    const registry = win.__monacoSchemaRegistry;
-    if (!registry || !id) return;
-
-    registry.register(PLUGIN_ID, id, associations, documents);
-
-    return () => {
-      registry.unregister(PLUGIN_ID, id);
-    };
-  }, [associations, documents, id]);
 
    
   const { notify } = useNotifications();

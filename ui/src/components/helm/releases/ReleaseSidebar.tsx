@@ -201,7 +201,7 @@ const ReleaseSidebarContent: React.FC<Props> = ({ ctx }) => {
   const namespace = ctx.resource?.reference.address.scope.find((entry) => entry.dimension === 'namespace')?.value ?? '';
   const valuesPath = useResourceEditorModelPath({
     pluginID: PLUGIN_ID, route: ctx.resource?.route ?? { connection: connectionID }, type: 'helm:releases',
-    key: `${namespace}/${releaseName}`, name: 'values-preview',
+    key: `${namespace}/${releaseName}`, name: 'values-preview', enabled: activeTab === '0',
   });
   const { executeAction, isExecuting } = useExecuteAction({ pluginID: PLUGIN_ID });
   const resource = ctx.resource;
@@ -354,6 +354,7 @@ const ReleaseSidebarContent: React.FC<Props> = ({ ctx }) => {
           <CodeEditor
             filename="values.yaml"
             path={valuesPath}
+            schemaScope={{ pluginID: PLUGIN_ID, connectionID, resourceType: 'helm:releases' }}
             language="yaml"
             value={valuesEntry ? stringify(valuesEntry.values ?? {}) : '# Loading...'}
             readOnly

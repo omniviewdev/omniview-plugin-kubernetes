@@ -827,6 +827,23 @@ projection with protected values replaced, never a mutation document. Such
 projections omit comments; unknown, unloaded, or crashed editors retain the
 protected fallback. Protected paths survive provider replacement within a session.
 
+Editor-only schemas are acquired on editor demand, not on dashboard or table
+navigation. Create and Helm upgrade keep model-path queries disabled until
+their dialogs open. Schema-aware YAML surfaces use the host-owned
+`__omniviewEditorSchemaBoundary` lifecycle slot, sharing registration with host
+editors and releasing it after the last editor closes. Monaco mounts after the
+host applies its schema update. Loading and unavailable states remain visible;
+failed schema requests or updates offer retry without disabling source editing.
+Protected in-memory previews remain separate from schema-bound source models.
+Concurrent schema-aware editors own separate, stable model filenames within the
+same schema directory. Closing one editor cannot dispose another editor's draft.
+
+This path requires the compatible host editor-demand boundary change before
+plugin adoption; it does not imply a new published package version. Older hosts
+show an explicit schema compatibility warning while retaining source editing.
+SDK-v2 schema availability, connection-generation isolation, document revisions,
+and catalog acquisition remain unchanged.
+
 Both standalone builds and the host's shared Monaco 0.52.2 cohort declare the
 word-highlighter promise-ownership backport from [upstream VS Code](https://github.com/microsoft/vscode/blob/e57fbd7a49486f12be089ec5800293f3453eefbd/src/vs/editor/contrib/wordHighlighter/browser/wordHighlighter.ts#L294-L315).
 Closing YAML immediately after cursor or Find activity disposes the editor

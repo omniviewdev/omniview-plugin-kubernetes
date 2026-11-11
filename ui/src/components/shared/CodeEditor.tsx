@@ -1,6 +1,7 @@
 import Editor, { DiffEditor, useMonaco } from '@monaco-editor/react';
+import { Banner, Text } from '@omniviewdev/base-ui';
 import type { editor, IDisposable } from 'monaco-editor';
-import { type FC, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { type ComponentType, type FC, type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
 // Themes
 import BrillianceBlack from './themes/BrillianceBlack';
@@ -18,7 +19,28 @@ type Props = {
   original?: string;
 };
 
-const CodeEditor: FC<Props> = ({
+type SchemaScope = { pluginID: string; connectionID: string; resourceType?: string };
+type SchemaBoundaryProps = SchemaScope & { modelPath?: string; statusClassName?: string; children: ReactNode };
+type SchemaEditorProps = Props & { schemaScope?: SchemaScope; schemaStatusClassName?: string };
+
+/** The host owns schema registration and its lifetime across all editor bundles. */
+const CodeEditor: FC<SchemaEditorProps> = ({ schemaScope, schemaStatusClassName, ...props }) => {
+  if (!schemaScope) return <CodeEditorSurface key={props.path} {...props} />;
+  const Boundary = (window as Window & {
+    __omniviewEditorSchemaBoundary?: ComponentType<SchemaBoundaryProps>;
+  }).__omniviewEditorSchemaBoundary;
+  if (!Boundary) return <div style={{ height: '100%' }}>
+    <Banner role="alert" color="danger" size="sm" className={schemaStatusClassName}>
+      <Banner.Content>
+        <Text size="sm" tone="danger">Editor schemas unavailable: this host does not support editor-demand schema registration. Completion and schema validation are unavailable.</Text>
+      </Banner.Content>
+    </Banner>
+    <CodeEditorSurface key={props.path} {...props} isolateModel />
+  </div>;
+  return <Boundary key={JSON.stringify(schemaScope)} {...schemaScope} modelPath={props.path} statusClassName={schemaStatusClassName}><CodeEditorSurface key={props.path} {...props} isolateModel /></Boundary>;
+};
+
+const CodeEditorSurface: FC<Props & { isolateModel?: boolean }> = ({
   height,
   language,
   filename,
@@ -28,6 +50,7 @@ const CodeEditor: FC<Props> = ({
   readOnly,
   diff,
   original,
+  isolateModel = false,
 }) => {
   // If uncontrolled, define our state control here
   const [controlledValue, setControlledValue] = useState(value);
@@ -37,6 +60,9 @@ const CodeEditor: FC<Props> = ({
   const diffEditor = useRef<editor.IDiffEditor | null>(null);
   const diffCreation = useRef<IDisposable | null>(null);
   const diffContainerID = useId();
+  // Schema-scoped wrappers own distinct drafts. Unscoped preview paths remain
+  // unchanged, and isolated models retain the schema-associated directory.
+  const modelPath = isolateModel && path ? `${path.slice(0, path.lastIndexOf('/') + 1)}${encodeURIComponent(diffContainerID)}-${path.slice(path.lastIndexOf('/') + 1)}` : path;
 
   useLayoutEffect(() => () => {
     diffCreation.current?.dispose();
@@ -133,7 +159,7 @@ const CodeEditor: FC<Props> = ({
           handleChange(v || '');
         }}
         height={height ?? '100%'}
-        path={path}
+        path={modelPath}
         options={{ readOnly, fontSize: 11 }}
       />
     );
