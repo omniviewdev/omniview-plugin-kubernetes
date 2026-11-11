@@ -195,6 +195,7 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => (
 const ReleaseSidebarContent: React.FC<Props> = ({ ctx }) => {
   // Per-action cached tab data
   const [tabData, setTabData] = React.useState<Record<string, TabDataEntry>>({});
+  const [valuesFailed, setValuesFailed] = React.useState(false);
   const tabCacheRef = React.useRef<Record<string, TabDataEntry>>({});
   const [activeTab, setActiveTab] = React.useState('0');
   const [showManifestDiff, setShowManifestDiff] = React.useState(false);
@@ -246,10 +247,12 @@ const ReleaseSidebarContent: React.FC<Props> = ({ ctx }) => {
         const entry = helmActionData(result) as TabDataEntry;
         tabCacheRef.current[actionID] = entry;
         setTabData((prev) => ({ ...prev, [actionID]: entry }));
+        if (actionID === 'get-values') setValuesFailed(false);
       })
       .catch(() => {
         if (cancelled) return;
         setTabData((prev) => ({ ...prev, [actionID]: null }));
+        if (actionID === 'get-values') setValuesFailed(true);
       });
     return () => {
       cancelled = true;
@@ -367,6 +370,17 @@ const ReleaseSidebarContent: React.FC<Props> = ({ ctx }) => {
         <div>
           {valuesSchema.error && <Text size="xs" role="status">Installed values schema is unavailable.</Text>}
           {valuesSchema.result && valuesSchema.result.status !== 'available' && <Text size="xs" role="status">Installed values schema: {valuesSchema.result.status}.</Text>}
+          {valuesFailed ? (
+            <Stack direction="column" spacing={2}>
+              <Text role="alert">Release values could not be loaded. Refresh the release before retrying.</Text>
+              <Button size="sm" onClick={() => {
+                void showResourceSidebar({
+                  pluginID: resource!.pluginID, route: resource!.route, reference: resource!.reference,
+                  representation: resource!.representation, targetId: resource!.targetId, resourceName: releaseName,
+                }).catch(() => setValuesFailed(true));
+              }}>Refresh release</Button>
+            </Stack>
+          ) : (
           <div style={editorBoxStyle}>
           <CodeEditor
             filename="values.yaml"
@@ -377,6 +391,7 @@ const ReleaseSidebarContent: React.FC<Props> = ({ ctx }) => {
             height={400}
           />
           </div>
+          )}
         </div>
       )}
 

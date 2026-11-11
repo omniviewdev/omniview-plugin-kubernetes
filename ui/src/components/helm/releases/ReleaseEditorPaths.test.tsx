@@ -6,13 +6,13 @@ import { PLUGIN_ID } from '@/pluginId';
 import { ReleaseSidebar } from './ReleaseSidebar';
 import UpgradeDialog from './UpgradeDialog';
 
-const mocks = vi.hoisted(() => ({ schema: vi.fn(() => ({ result: undefined, error: null })), execute: vi.fn(), resolve: vi.fn() }));
+const mocks = vi.hoisted(() => ({ schema: vi.fn(() => ({ result: undefined, error: null })), execute: vi.fn(), resolve: vi.fn(), show: vi.fn() }));
 vi.mock('@omniviewdev/runtime', () => ({
   jsonToValue: (value: unknown) => value,
   valueToJSON: (value: unknown) => value,
   useExecuteAction: () => ({ executeAction: mocks.execute, isExecuting: false }),
   resourceEditorModelURI: () => 'inmemory://fixture/helm-values.yaml',
-  useRightDrawer: () => ({ showResourceSidebar: vi.fn() }),
+  useRightDrawer: () => ({ showResourceSidebar: mocks.show }),
 }));
 vi.mock('@omniviewdev/runtime/api', () => ({ ResourceClient: { ResolveReference: mocks.resolve } }));
 vi.mock('../../../hooks/useEditorSchemaRegistration', () => ({ useEditorSchemaRegistration: mocks.schema }));
@@ -32,9 +32,28 @@ const ctx = {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.execute.mockReset();
+  mocks.show.mockReset();
   mocks.resolve.mockResolvedValue({ route: { connection: 'cluster' }, reference: ctx.resource!.reference });
 });
 describe('Helm values schema ownership', () => {
+  it('recovers a fenced values failure by refreshing the release record', async () => {
+    const revisions: string[] = [];
+    mocks.execute.mockImplementation(async ({ input }: { input: { expectedSourceRevision?: string } }) => {
+      revisions.push(input.expectedSourceRevision ?? '');
+      if (input.expectedSourceRevision === '1') throw new Error('Release changed');
+      return { data: { values: { replicas: 3 } } };
+    });
+    const view = render(<ReleaseSidebar ctx={ctx} />);
+    mocks.show.mockImplementation(async () => {
+      view.rerender(<ReleaseSidebar ctx={{ ...ctx, resource: { ...ctx.resource!, record: { ...ctx.resource!.record!, record: { ...ctx.resource!.record!.record, sourceRevision: '2' } } } }} />);
+    });
+    expect(await screen.findByRole('alert')).toBeVisible();
+    expect(screen.queryByLabelText('Installed values')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh release' }));
+    expect(await screen.findByText('replicas: 3')).toBeVisible();
+    expect(revisions).toEqual(['1', '2']);
+  });
+
   it('keeps installed values usable and never applies their schema to an upgrade draft', async () => {
     mocks.execute.mockResolvedValue({ data: { values: { replicas: 2 } } });
     const preview = render(<ReleaseSidebar ctx={ctx} />);
