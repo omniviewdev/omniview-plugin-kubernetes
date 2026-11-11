@@ -12,7 +12,6 @@ import (
 	resource "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"go.uber.org/zap"
 	"helm.sh/helm/v3/pkg/action"
-	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/repo"
 )
@@ -177,7 +176,7 @@ func (r *ChartResourcerWithActions) GetActions(
 }
 
 func (r *ChartResourcerWithActions) Action(
-	_ context.Context,
+	ctx context.Context,
 	_ *clients.ClientSet,
 	input resource.ActionRequest,
 ) (resource.Value, error) {
@@ -189,19 +188,19 @@ func (r *ChartResourcerWithActions) Action(
 
 	switch input.Action {
 	case "get-values":
-		return r.executeGetValues(repoName, chartName, input)
+		return r.executeGetValues(ctx, repoName, chartName, input)
 	case "get-readme":
-		return r.executeGetReadme(repoName, chartName, input)
+		return r.executeGetReadme(ctx, repoName, chartName, input)
 	case "get-versions":
 		return r.executeGetVersions(repoName, chartName)
 	case "get-chart-detail":
-		return r.executeGetChartDetail(repoName, chartName, input)
+		return r.executeGetChartDetail(ctx, repoName, chartName, input)
 	default:
 		return resource.Value{}, fmt.Errorf("unknown action: %s", input.Action)
 	}
 }
 
-func (r *ChartResourcerWithActions) executeGetValues(repoName, chartName string, input resource.ActionRequest) (resource.Value, error) {
+func (r *ChartResourcerWithActions) executeGetValues(ctx context.Context, repoName, chartName string, input resource.ActionRequest) (resource.Value, error) {
 	params, err := actionParams(input)
 	if err != nil {
 		return resource.Value{}, err
@@ -211,15 +210,9 @@ func (r *ChartResourcerWithActions) executeGetValues(repoName, chartName string,
 	settings := cli.New()
 	version, _ := params["version"].(string)
 
-	chartPathOpts := &action.ChartPathOptions{Version: version}
-	chartPath, err := chartPathOpts.LocateChart(chartRef, settings)
+	ch, err := locateAndLoadChart(ctx, &action.ChartPathOptions{Version: version}, chartRef, settings)
 	if err != nil {
-		return resource.Value{}, fmt.Errorf("failed to locate chart %s: %w", chartRef, err)
-	}
-
-	ch, err := loader.Load(chartPath)
-	if err != nil {
-		return resource.Value{}, fmt.Errorf("failed to load chart %s: %w", chartPath, err)
+		return resource.Value{}, err
 	}
 
 	values := ""
@@ -238,7 +231,7 @@ func (r *ChartResourcerWithActions) executeGetValues(repoName, chartName string,
 	})
 }
 
-func (r *ChartResourcerWithActions) executeGetReadme(repoName, chartName string, input resource.ActionRequest) (resource.Value, error) {
+func (r *ChartResourcerWithActions) executeGetReadme(ctx context.Context, repoName, chartName string, input resource.ActionRequest) (resource.Value, error) {
 	params, err := actionParams(input)
 	if err != nil {
 		return resource.Value{}, err
@@ -248,15 +241,9 @@ func (r *ChartResourcerWithActions) executeGetReadme(repoName, chartName string,
 	settings := cli.New()
 	version, _ := params["version"].(string)
 
-	chartPathOpts := &action.ChartPathOptions{Version: version}
-	chartPath, err := chartPathOpts.LocateChart(chartRef, settings)
+	ch, err := locateAndLoadChart(ctx, &action.ChartPathOptions{Version: version}, chartRef, settings)
 	if err != nil {
-		return resource.Value{}, fmt.Errorf("failed to locate chart %s: %w", chartRef, err)
-	}
-
-	ch, err := loader.Load(chartPath)
-	if err != nil {
-		return resource.Value{}, fmt.Errorf("failed to load chart %s: %w", chartPath, err)
+		return resource.Value{}, err
 	}
 
 	readme := ""
@@ -332,7 +319,7 @@ func (r *ChartResourcerWithActions) executeGetVersions(repoName, chartName strin
 	})
 }
 
-func (r *ChartResourcerWithActions) executeGetChartDetail(repoName, chartName string, input resource.ActionRequest) (resource.Value, error) {
+func (r *ChartResourcerWithActions) executeGetChartDetail(ctx context.Context, repoName, chartName string, input resource.ActionRequest) (resource.Value, error) {
 	params, err := actionParams(input)
 	if err != nil {
 		return resource.Value{}, err
@@ -343,15 +330,9 @@ func (r *ChartResourcerWithActions) executeGetChartDetail(repoName, chartName st
 	version, _ := params["version"].(string)
 
 	// Load the chart archive to get values and readme.
-	chartPathOpts := &action.ChartPathOptions{Version: version}
-	chartPath, err := chartPathOpts.LocateChart(chartRef, settings)
+	ch, err := locateAndLoadChart(ctx, &action.ChartPathOptions{Version: version}, chartRef, settings)
 	if err != nil {
-		return resource.Value{}, fmt.Errorf("failed to locate chart %s: %w", chartRef, err)
-	}
-
-	ch, err := loader.Load(chartPath)
-	if err != nil {
-		return resource.Value{}, fmt.Errorf("failed to load chart %s: %w", chartPath, err)
+		return resource.Value{}, err
 	}
 
 	// Extract values.yaml

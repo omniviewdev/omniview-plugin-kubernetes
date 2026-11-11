@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"flag"
+	"fmt"
 	"log"
 
 	"github.com/omniview/kubernetes/pkg/plugin/exec"
@@ -11,6 +13,7 @@ import (
 	"github.com/omniview/kubernetes/pkg/plugin/networker"
 	"github.com/omniview/kubernetes/pkg/plugin/resource"
 	"github.com/omniview/kubernetes/pkg/pluginid"
+	logging "github.com/omniviewdev/plugin-sdk/log"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"github.com/omniviewdev/plugin-sdk/settings"
 
@@ -121,10 +124,12 @@ func main() {
 		},
 	})
 
-	if err := klogconfig.ApplyAndWatch(klogFS, plugin.SettingsProvider, func(err error) {
-		log.Printf("failed to apply client log level setting: %v", err)
-	}); err != nil {
-		log.Printf("failed to apply client log level setting: %v", err)
+	warnClientLogLevel := func(err error) {
+		logging.Default().Named("klogconfig").Warnw(context.Background(), "failed to apply client log level setting",
+			"setting", klogconfig.SettingID, "error_type", fmt.Sprintf("%T", err))
+	}
+	if err := klogconfig.ApplyAndWatch(klogFS, plugin.SettingsProvider, warnClientLogLevel); err != nil {
+		warnClientLogLevel(err)
 	}
 
 	// Register the capabilities

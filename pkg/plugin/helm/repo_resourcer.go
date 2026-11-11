@@ -130,23 +130,23 @@ func (r *RepoResourcerWithActions) GetActions(
 }
 
 func (r *RepoResourcerWithActions) Action(
-	_ context.Context,
+	ctx context.Context,
 	_ *clients.ClientSet,
 	input resource.ActionRequest,
 ) (resource.Value, error) {
 	switch input.Action {
 	case "refresh":
-		return r.executeRefresh(input)
+		return r.executeRefresh(ctx, input)
 	case "list-charts":
 		return r.executeListCharts(input)
 	case "add":
-		return r.executeAdd(input)
+		return r.executeAdd(ctx, input)
 	default:
 		return resource.Value{}, fmt.Errorf("unknown action: %s", input.Action)
 	}
 }
 
-func (r *RepoResourcerWithActions) executeRefresh(input resource.ActionRequest) (resource.Value, error) {
+func (r *RepoResourcerWithActions) executeRefresh(ctx context.Context, input resource.ActionRequest) (resource.Value, error) {
 	f, err := loadRepoFile()
 	if err != nil {
 		return resource.Value{}, err
@@ -165,11 +165,13 @@ func (r *RepoResourcerWithActions) executeRefresh(input resource.ActionRequest) 
 
 	// OCI registries don't have a downloadable index file — validate connectivity.
 	if registry.IsOCI(entry.URL) {
-		if err := validateOCIRegistry(
-			entry.URL, entry.Username, entry.Password,
-			entry.CertFile, entry.KeyFile, entry.CAFile,
-			entry.InsecureSkipTLSverify, false,
-		); err != nil {
+		if err := traceRepoIndex(ctx, r.log, entry.Name, "oci", func() error {
+			return validateOCIRegistry(
+				entry.URL, entry.Username, entry.Password,
+				entry.CertFile, entry.KeyFile, entry.CAFile,
+				entry.InsecureSkipTLSverify, false,
+			)
+		}); err != nil {
 			return resource.Value{}, fmt.Errorf("OCI registry validation failed: %w", err)
 		}
 		return resource.ValueFromNative(map[string]interface{}{
@@ -189,8 +191,12 @@ func (r *RepoResourcerWithActions) executeRefresh(input resource.ActionRequest) 
 	}
 	chartRepo.CachePath = settings.RepositoryCache
 
-	indexPath, err := chartRepo.DownloadIndexFile()
-	if err != nil {
+	var indexPath string
+	if err := traceRepoIndex(ctx, r.log, entry.Name, "index", func() error {
+		var derr error
+		indexPath, derr = chartRepo.DownloadIndexFile()
+		return derr
+	}); err != nil {
 		return resource.Value{}, fmt.Errorf("failed to refresh %s: %w", entry.Name, err)
 	}
 
@@ -237,7 +243,7 @@ func (r *RepoResourcerWithActions) executeListCharts(input resource.ActionReques
 	})
 }
 
-func (r *RepoResourcerWithActions) executeAdd(input resource.ActionRequest) (resource.Value, error) {
+func (r *RepoResourcerWithActions) executeAdd(ctx context.Context, input resource.ActionRequest) (resource.Value, error) {
 	params, err := actionParams(input)
 	if err != nil {
 		return resource.Value{}, err
@@ -280,7 +286,9 @@ func (r *RepoResourcerWithActions) executeAdd(input resource.ActionRequest) (res
 
 	if registry.IsOCI(url) {
 		// OCI registries don't have index.yaml -- validate by connecting.
-		if err := validateOCIRegistry(url, username, password, certFile, keyFile, caFile, insecureSkipTLS, plainHTTP); err != nil {
+		if err := traceRepoIndex(ctx, r.log, name, "oci", func() error {
+			return validateOCIRegistry(url, username, password, certFile, keyFile, caFile, insecureSkipTLS, plainHTTP)
+		}); err != nil {
 			return resource.Value{}, err
 		}
 	} else {
@@ -292,7 +300,10 @@ func (r *RepoResourcerWithActions) executeAdd(input resource.ActionRequest) (res
 		}
 		chartRepo.CachePath = settings.RepositoryCache
 
-		if _, err := chartRepo.DownloadIndexFile(); err != nil {
+		if err := traceRepoIndex(ctx, r.log, name, "index", func() error {
+			_, derr := chartRepo.DownloadIndexFile()
+			return derr
+		}); err != nil {
 			return resource.Value{}, fmt.Errorf("failed to download index for %s: %w", url, err)
 		}
 	}

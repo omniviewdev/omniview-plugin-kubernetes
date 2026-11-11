@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 
@@ -35,7 +34,7 @@ func newActionConfig(ctx context.Context, config *rest.Config, client *http.Clie
 		driver = "secrets"
 	}
 	cfg := new(action.Configuration)
-	if err := cfg.Init(getter, namespace, driver, log.Printf); err != nil {
+	if err := cfg.Init(getter, namespace, driver, helmDebugSink(ctx)); err != nil {
 		return nil, fmt.Errorf("failed to initialize Helm action configuration: %w", err)
 	}
 	return cfg, nil

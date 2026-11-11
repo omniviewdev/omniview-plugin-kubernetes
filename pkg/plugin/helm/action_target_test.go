@@ -62,9 +62,9 @@ func TestHelmInstallHandlersRequireExplicitName(t *testing.T) {
 		TypeTarget: &resource.TypeActionTarget{Type: ReleaseType, Scope: resource.QueryScope{{Dimension: "namespace", Match: resource.ScopeOneOf, Values: &values}}},
 		Input:      resource.Value{Kind: "map", Map: map[string]resource.Value{"chart": {Kind: "string", String: "unused"}}},
 	}
-	_, err := r.executeInstall(&action.Configuration{}, request)
+	_, err := r.executeInstall(context.Background(), &action.Configuration{}, request)
 	require.EqualError(t, err, "release name is required")
-	_, err = r.executeDryRunInstall(&action.Configuration{}, request)
+	_, err = r.executeDryRunInstall(context.Background(), &action.Configuration{}, request)
 	require.EqualError(t, err, "release name is required")
 }
 

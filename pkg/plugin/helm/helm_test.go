@@ -571,9 +571,9 @@ func TestNativeActionConversionErrorsPropagate(t *testing.T) {
 	logger := zap.NewNop().Sugar()
 	_, err = NewReleaseResourcer(logger).executeRollback(nil, input)
 	assert.Equal(t, "INVALID_REQUEST", resource.ErrorCode(err))
-	_, err = NewRepoResourcerWithActions(logger).executeAdd(input)
+	_, err = NewRepoResourcerWithActions(logger).executeAdd(context.Background(), input)
 	assert.Equal(t, "INVALID_REQUEST", resource.ErrorCode(err))
-	_, err = NewChartResourcerWithActions(logger).executeGetValues("repo", "chart", input)
+	_, err = NewChartResourcerWithActions(logger).executeGetValues(context.Background(), "repo", "chart", input)
 	assert.Equal(t, "INVALID_REQUEST", resource.ErrorCode(err))
 }
 
