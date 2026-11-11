@@ -7,10 +7,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/omniview/kubernetes/pkg/diag"
 	"github.com/omniview/kubernetes/pkg/plugin/resource/resourcers"
+	"github.com/omniview/kubernetes/pkg/utils/remoteerr"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	logging "github.com/omniviewdev/plugin-sdk/log"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
 	"github.com/omniviewdev/plugin-sdk/pkg/v1/exec"
 )
@@ -44,7 +50,7 @@ func nodeHandlerWithProvider(
 ) error {
 	clients, err := provider(ctx)
 	if err != nil {
-		return err
+		return remoteerr.Sanitize("load kubernetes client", err)
 	}
 
 	nodeName, _, err := nativeExecTarget(ctx, opts, "k8s:/nodes", false)
@@ -104,26 +110,62 @@ func nodeHandlerWithProvider(
 	}
 
 	// Create the debug pod.
+	log := execLogger(ctx)
+	baseCtx := execBaseContext(ctx)
+	span := trace.SpanFromContext(baseCtx)
+	createStarted := time.Now()
 	_, err = clients.Clientset.CoreV1().Pods(debugPodNamespace).Create(ctx.Context, pod, metav1.CreateOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to create debug pod: %w", err)
+		class := diag.ClassifyError(err, false)
+		span.AddEvent("debug_pod_create_failed", trace.WithAttributes(class.SpanAttrs()...))
+		log.Warnw(baseCtx, "node debug pod create failed",
+			append([]any{"resource_id", nodeName, "resource_namespace", debugPodNamespace}, class.LogFields()...)...)
+		return remoteerr.Sanitize("create debug pod", err)
 	}
+	span.AddEvent("debug_pod_created", trace.WithAttributes(
+		attribute.String("resource.id", debugPodName),
+		attribute.String("resource.namespace", debugPodNamespace),
+		attribute.String("node", nodeName),
+		attribute.Int64("create_ms", time.Since(createStarted).Milliseconds()),
+	))
+	log.Info(baseCtx, "node debug pod created",
+		logging.String("pod", debugPodName), logging.String("node", nodeName))
 
 	// Ensure cleanup on exit. Use a detached context so the delete succeeds
 	// even when the session context has already been cancelled.
 	cleanup := func() {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cleanupCancel()
-		_ = clients.Clientset.CoreV1().Pods(debugPodNamespace).Delete(
+		delErr := clients.Clientset.CoreV1().Pods(debugPodNamespace).Delete(
 			cleanupCtx, debugPodName, metav1.DeleteOptions{GracePeriodSeconds: &zero},
 		)
+		class := diag.ClassifyError(delErr, false)
+		attrs := append([]attribute.KeyValue{attribute.String("resource.id", debugPodName)}, class.SpanAttrs()...)
+		span.AddEvent("debug_pod_cleanup", trace.WithAttributes(attrs...))
+		switch {
+		case delErr == nil:
+			log.Debugw(baseCtx, "node debug pod deleted", "resource_id", debugPodName)
+		case apierrors.IsNotFound(delErr):
+			// Already gone: nothing left to clean up.
+			log.Debugw(baseCtx, "node debug pod already deleted", "resource_id", debugPodName)
+		default:
+			log.Warnw(baseCtx, "node debug pod cleanup failed; pod may remain",
+				append([]any{"resource_id", debugPodName, "resource_namespace", debugPodNamespace}, class.LogFields()...)...)
+		}
 	}
 
 	// Wait for pod to be running.
+	waitStarted := time.Now()
 	if err := resourcers.WaitForPodRunning(ctx.Context, clients.Clientset, debugPodNamespace, debugPodName, debugPodTimeout); err != nil {
+		class := diag.ClassifyError(err, false)
+		span.AddEvent("debug_pod_not_running", trace.WithAttributes(
+			append([]attribute.KeyValue{attribute.Int64("wait_ms", time.Since(waitStarted).Milliseconds())}, class.SpanAttrs()...)...))
+		log.Warnw(baseCtx, "node debug pod did not reach Running",
+			append([]any{"resource_id", debugPodName, "wait_ms", time.Since(waitStarted).Milliseconds()}, class.LogFields()...)...)
 		cleanup()
-		return fmt.Errorf("debug pod did not reach Running state: %w", err)
+		return remoteerr.Sanitize("wait for debug pod to reach Running", err)
 	}
+	span.AddEvent("debug_pod_running", trace.WithAttributes(attribute.Int64("wait_ms", time.Since(waitStarted).Milliseconds())))
 
 	// Exec into the debug pod.
 	command := opts.Command
@@ -146,6 +188,7 @@ func nodeHandlerWithProvider(
 		resize,
 	)
 	if err != nil {
+		log.Warnw(baseCtx, "node debug exec setup failed", diag.ClassifyError(err, false).LogFields()...)
 		cleanup()
 		return err
 	}

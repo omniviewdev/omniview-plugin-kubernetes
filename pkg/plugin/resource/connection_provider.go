@@ -2,9 +2,9 @@ package resource
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"github.com/omniview/kubernetes/pkg/diag"
-	"log"
+	"io/fs"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -12,13 +12,16 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
+	"github.com/omniview/kubernetes/pkg/diag"
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 
+	logging "github.com/omniviewdev/plugin-sdk/log"
 	resource "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
 	sdkutils "github.com/omniviewdev/plugin-sdk/pkg/utils"
@@ -26,6 +29,31 @@ import (
 
 type kubeConnectionProvider struct {
 	logger *zap.SugaredLogger
+}
+
+// connectionLogger returns the SDK logger for connection diagnostics.
+func connectionLogger() logging.Logger { return logging.Default().Named("connections") }
+
+// kubeconfigLoadCause maps a kubeconfig load failure to a closed vocabulary; it never exposes paths.
+func kubeconfigLoadCause(err error) string {
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return "not_found"
+	case errors.Is(err, fs.ErrPermission):
+		return "permission"
+	default:
+		return "other"
+	}
+}
+
+// logKubeconfigSkipped records a kubeconfig that could not be loaded. The path is never logged.
+func logKubeconfigSkipped(ctx context.Context, level logging.Level, index int, err error) {
+	fields := append([]any{"kubeconfig_index", index, "cause", kubeconfigLoadCause(err)}, diag.ClassifyError(err, false).LogFields()...)
+	if level == logging.LevelWarn {
+		connectionLogger().Warnw(ctx, "kubeconfig context skipped", fields...)
+		return
+	}
+	connectionLogger().Debugw(ctx, "kubeconfig context skipped", fields...)
 }
 
 // CreateClient creates a new ClientSet from the connection in context.
@@ -77,9 +105,10 @@ func (p *kubeConnectionProvider) LoadConnections(ctx context.Context) ([]types.C
 	}
 
 	connections := make([]types.Connection, 0, len(kubeconfigs)*EstimatedContexts)
-	for _, kubeconfigPath := range kubeconfigs {
+	for i, kubeconfigPath := range kubeconfigs {
 		kubeconfigConnections, err := connectionsFromKubeconfig(kubeconfigPath)
 		if err != nil {
+			logKubeconfigSkipped(ctx, logging.LevelWarn, i, err)
 			continue
 		}
 		connections = append(connections, kubeconfigConnections...)
@@ -94,21 +123,38 @@ func (p *kubeConnectionProvider) LoadConnections(ctx context.Context) ([]types.C
 
 // CheckConnection validates connectivity to the cluster.
 func (p *kubeConnectionProvider) CheckConnection(ctx context.Context, conn *types.Connection, client *clients.ClientSet) (types.ConnectionStatus, error) {
-	result, err := p.checkConnection(ctx, conn, client)
+	ctx, span := diag.Tracer().Start(ctx, "kubernetes.connection.check")
+	started := time.Now()
+	connectionID := ""
+	if conn != nil {
+		connectionID = conn.ID
+	}
+	span.SetAttributes(attribute.String("connection", connectionID))
+
+	result, cause, err := p.checkConnection(ctx, conn, client)
 	if err == nil {
 		diag.ConnectionChecked(result.Status)
+	}
+	span.SetAttributes(attribute.String("status", string(result.Status)), attribute.String("cause", cause))
+	c := diag.EndSpan(span, err, false)
+	fields := append([]any{"connection", connectionID, "status", string(result.Status), "cause", cause,
+		"duration_ms", time.Since(started).Milliseconds()}, c.LogFields()...)
+	if result.Status != types.ConnectionStatusConnected && err == nil {
+		connectionLogger().Warnw(ctx, "connection check did not succeed", fields...)
+	} else {
+		connectionLogger().Debugw(ctx, "connection checked", fields...)
 	}
 	return result, err
 }
 
-func (p *kubeConnectionProvider) checkConnection(ctx context.Context, conn *types.Connection, client *clients.ClientSet) (types.ConnectionStatus, error) {
+func (p *kubeConnectionProvider) checkConnection(ctx context.Context, conn *types.Connection, client *clients.ClientSet) (types.ConnectionStatus, string, error) {
 	if conn == nil {
 		return types.ConnectionStatus{
 			Connection: conn,
 			Status:     types.ConnectionStatusError,
 			Details:    "No connection was provided to check",
 			Error:      "connection is required",
-		}, nil
+		}, "no_connection", nil
 	}
 	if client == nil {
 		return types.ConnectionStatus{
@@ -116,7 +162,7 @@ func (p *kubeConnectionProvider) checkConnection(ctx context.Context, conn *type
 			Status:     types.ConnectionStatusError,
 			Details:    "No client was provided to check the connection",
 			Error:      "client is required",
-		}, nil
+		}, "no_client", nil
 	}
 
 	if client.DiscoveryClient == nil {
@@ -125,7 +171,7 @@ func (p *kubeConnectionProvider) checkConnection(ctx context.Context, conn *type
 			Status:     types.ConnectionStatusError,
 			Details:    "DiscoveryClient is not initialized",
 			Error:      "DiscoveryClient is nil",
-		}, nil
+		}, "no_discovery_client", nil
 	}
 	if client.DynamicClient == nil {
 		return types.ConnectionStatus{
@@ -133,7 +179,7 @@ func (p *kubeConnectionProvider) checkConnection(ctx context.Context, conn *type
 			Status:     types.ConnectionStatusError,
 			Details:    "DynamicClient is not initialized",
 			Error:      "DynamicClient is nil",
-		}, nil
+		}, "no_dynamic_client", nil
 	}
 
 	result := types.ConnectionStatus{
@@ -145,38 +191,47 @@ func (p *kubeConnectionProvider) checkConnection(ctx context.Context, conn *type
 	err := client.DiscoveryClient.RESTClient().Get().AbsPath("/apis").Do(ctx).Into(groups)
 	if err != nil {
 		if ctx.Err() != nil {
-			return result, ctx.Err()
+			return result, "canceled", ctx.Err()
 		}
+		cause := "other"
 		switch {
 		case k8serrors.IsUnauthorized(err):
+			cause = "unauthorized"
 			result.Status = types.ConnectionStatusUnauthorized
 			result.Error = "Unauthorized"
 			result.Details = "You are not currently authorized to access this connection. Please check your credentials and try again."
 		case k8serrors.IsForbidden(err):
+			cause = "forbidden"
 			result.Status = types.ConnectionStatusForbidden
 			result.Error = "Forbidden"
 			result.Details = "You are forbidden from accessing this connection. Please check your permissions and try again."
 		case strings.Contains(err.Error(), "getting credentials: exec: executable aws failed with exit code 255"):
+			cause = "aws_exec_failed"
 			result.Status = types.ConnectionStatusUnauthorized
 			result.Error = "Unauthorized"
 			result.Details = "You are not currently authorized to access this connection. Please check your AWS credentials and try again."
 		case strings.Contains(err.Error(), "executable aws-iam-authenticator failed with exit code 1"):
+			cause = "aws_iam_authenticator_failed"
 			result.Status = types.ConnectionStatusUnauthorized
 			result.Error = "Unauthorized"
 			result.Details = "You are not currently authorized to access this connection. Please check your AWS credentials and try again."
 		case strings.Contains(err.Error(), "no such host"):
+			cause = "no_such_host"
 			result.Status = types.ConnectionStatusNotFound
 			result.Error = "Not Found"
 			result.Details = "The host was not found. Please check the host and try again."
 		case strings.Contains(err.Error(), "connection refused"):
+			cause = "connection_refused"
 			result.Status = types.ConnectionStatusError
 			result.Error = "Connection Refused"
 			result.Details = "The connection was refused. Please check the host and try again."
 		case strings.Contains(err.Error(), "certificate signed by unknown authority"):
+			cause = "unknown_authority"
 			result.Status = types.ConnectionStatusError
 			result.Error = "Unknown Authority"
 			result.Details = "The certificate for this connection was signed by an unknown authority. Please check the certificate and try again."
 		case strings.Contains(err.Error(), "certificate has expired"):
+			cause = "certificate_expired"
 			result.Status = types.ConnectionStatusUnauthorized
 			result.Error = "Certificate Expired"
 			result.Details = "The certificate for this connection has expired. Please check/refresh the certificate and try again."
@@ -185,16 +240,16 @@ func (p *kubeConnectionProvider) checkConnection(ctx context.Context, conn *type
 			result.Error = "Error"
 			result.Details = fmt.Sprintf("Error checking connection: %v", err)
 		}
-		return result, nil
+		return result, cause, nil
 	}
 
 	if err := ctx.Err(); err != nil {
-		return result, err
+		return result, "canceled", err
 	}
 
 	result.Status = types.ConnectionStatusConnected
 	result.Details = "Connection is valid"
-	return result, nil
+	return result, "connected", nil
 }
 
 // GetNamespaces returns the available namespaces for the connection.
@@ -262,7 +317,7 @@ func (p *kubeConnectionProvider) WatchConnections(ctx context.Context) (<-chan [
 		dir := filepath.Dir(expandedPath)
 		if _, ok := ws.dirs[dir]; !ok {
 			if err := w.Add(dir); err != nil {
-				log.Printf("watch add (dir) %q failed: %v", dir, err)
+				connectionLogger().Warnw(ctx, "kubeconfig watch add failed", append([]any{"target", "dir", "cause", kubeconfigLoadCause(err)}, diag.ClassifyError(err, false).LogFields()...)...)
 			} else {
 				ws.dirs[dir] = struct{}{}
 			}
@@ -270,7 +325,8 @@ func (p *kubeConnectionProvider) WatchConnections(ctx context.Context) (<-chan [
 
 		if _, ok := ws.files[expandedPath]; !ok {
 			if err := w.Add(expandedPath); err != nil {
-				log.Printf("watch add (file) %q failed: %v (will rely on dir watch)", expandedPath, err)
+				// the directory watch still reports changes to this file.
+				connectionLogger().Debugw(ctx, "kubeconfig watch add failed", append([]any{"target", "file", "cause", kubeconfigLoadCause(err)}, diag.ClassifyError(err, false).LogFields()...)...)
 			} else {
 				ws.files[expandedPath] = struct{}{}
 			}
@@ -284,7 +340,7 @@ func (p *kubeConnectionProvider) WatchConnections(ctx context.Context) (<-chan [
 	pushRefresh := func() {
 		conns, err := p.loadConnectionsFromPaths(kubeconfigs)
 		if err != nil {
-			log.Printf("LoadConnections failed during refresh: %v", err)
+			connectionLogger().Warnw(ctx, "connection refresh failed", diag.ClassifyError(err, false).LogFields()...)
 			return
 		}
 		select {
@@ -342,7 +398,8 @@ func (p *kubeConnectionProvider) WatchConnections(ctx context.Context) (<-chan [
 				}
 
 			case err := <-w.Errors:
-				log.Printf("fsnotify error: %v", err)
+				// fsnotify errors are filesystem-level; log only the classification.
+				connectionLogger().Warnw(ctx, "kubeconfig watcher error", diag.ClassifyError(err, false).LogFields()...)
 
 			case <-timer.C:
 				pushRefresh()
@@ -449,9 +506,11 @@ func extractStringSlice(data map[string]any, key string) []string {
 // loadConnectionsFromPaths loads connections from a set of kubeconfig paths (no session needed).
 func (p *kubeConnectionProvider) loadConnectionsFromPaths(kubeconfigs []string) ([]types.Connection, error) {
 	connections := make([]types.Connection, 0, len(kubeconfigs)*EstimatedContexts)
-	for _, kubeconfigPath := range kubeconfigs {
+	for i, kubeconfigPath := range kubeconfigs {
 		kubeconfigConnections, err := connectionsFromKubeconfig(kubeconfigPath)
 		if err != nil {
+			// refreshes run on every file event; a missing file would warn repeatedly.
+			logKubeconfigSkipped(context.Background(), logging.LevelDebug, i, err)
 			continue
 		}
 		connections = append(connections, kubeconfigConnections...)

@@ -14,13 +14,59 @@ import (
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
 	sdkmetric "github.com/omniviewdev/plugin-sdk/pkg/v1/metric"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
+	"github.com/omniview/kubernetes/pkg/diag"
 	"github.com/omniview/kubernetes/pkg/utils"
+	"github.com/omniview/kubernetes/pkg/utils/remoteerr"
 )
 
 // compositeQuery is the top-level QueryFunc that routes to either metrics-server
 // or Prometheus based on the metric IDs requested or the resource key.
 func compositeQuery(
+	promClient *prometheusClient,
+	qctx *sdkmetric.QueryContext,
+	req sdkmetric.QueryRequest,
+) (response *sdkmetric.QueryResponse, resultErr error) {
+	source := "native"
+	if req.ResourceKey == "cluster::metrics" || len(req.MetricIDs) == 0 {
+		source = "prometheus"
+	}
+	for _, id := range req.MetricIDs {
+		if strings.HasPrefix(id, "prom_") {
+			source = "prometheus"
+			break
+		}
+	}
+	spanCtx, span := diag.Tracer().Start(metricQueryContext(qctx), "kubernetes.metric.query", trace.WithAttributes(
+		attribute.String("source", source),
+		attribute.String("resource.type", req.ResourceKey),
+		attribute.String("shape", metricShapeName(req.Shape)),
+		attribute.Int("metric_ids", len(req.MetricIDs)),
+		attribute.Bool("cache.hit", false),
+	))
+	if qctx != nil {
+		traced := *qctx
+		traced.Context = spanCtx
+		qctx = &traced
+	}
+	defer func() {
+		class := diag.EndSpan(span, resultErr, false)
+		results := 0
+		if response != nil {
+			results = len(response.Results)
+			span.SetAttributes(attribute.Int("results", results))
+		}
+		promLog().Debugw(spanCtx, "metric query finished",
+			append([]any{"source", source, "resource_type", req.ResourceKey, "results", results}, class.LogFields()...)...)
+		// Prometheus, proxy and kube client errors can carry remote text.
+		resultErr = remoteerr.Sanitize("metric query", resultErr)
+	}()
+	return compositeQueryRouted(promClient, qctx, req)
+}
+
+func compositeQueryRouted(
 	promClient *prometheusClient,
 	qctx *sdkmetric.QueryContext,
 	req sdkmetric.QueryRequest,
@@ -224,7 +270,7 @@ func queryNodeMetrics(qctx *sdkmetric.QueryContext, req sdkmetric.QueryRequest) 
 	if err != nil {
 		return &sdkmetric.QueryResponse{
 			Success: false,
-			Error:   err.Error(),
+			Error:   remoteerr.Sanitize("create metrics client", err).Error(),
 		}, nil
 	}
 
@@ -236,7 +282,7 @@ func queryNodeMetrics(qctx *sdkmetric.QueryContext, req sdkmetric.QueryRequest) 
 	if err != nil {
 		return &sdkmetric.QueryResponse{
 			Success: false,
-			Error:   fmt.Sprintf("failed to get node metrics: %v", err),
+			Error:   remoteerr.Sanitize("get node metrics", err).Error(),
 		}, nil
 	}
 

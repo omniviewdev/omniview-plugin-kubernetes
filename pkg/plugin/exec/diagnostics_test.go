@@ -69,7 +69,8 @@ func TestPodHandlerDiagnosticDoesNotLogProviderError(t *testing.T) {
 	logger := &diagnosticTestLogger{Logger: logging.NewNop()}
 	ctx := &types.PluginContext{Context: context.Background(), Connection: &types.Connection{ID: "cluster"}, Logger: logger}
 	err := podHandlerWithProvider(fakeProvider(errors.New("secret-provider-error")), ctx, sdkexec.SessionOptions{}, nil, nil, nil)
-	require.ErrorContains(t, err, "secret-provider-error")
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "secret-provider-error", "returned error must not carry provider text")
 	assert.Equal(t, "client", logger.fields["operation"])
 	assert.Equal(t, "other", logger.fields["error_class"])
 	encoded, err := json.Marshal(logger.fields)

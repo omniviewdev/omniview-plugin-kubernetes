@@ -4,13 +4,16 @@ import (
 	"context"
 	"errors"
 	"io"
-	"log"
 	"sync"
 
+	"github.com/omniview/kubernetes/pkg/diag"
 	"github.com/omniview/kubernetes/pkg/utils/kubeauth"
+	logging "github.com/omniviewdev/plugin-sdk/log"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
 	sdklogs "github.com/omniviewdev/plugin-sdk/pkg/v1/logs"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -27,11 +30,21 @@ func logRoute(ctx *types.PluginContext, route *resourcev2.AccessRoute) resourcev
 	return resourcev2.AccessRoute{}
 }
 
-func safeLogError(err error) error {
+// safeLogError logs a classified Warn for err and returns a sanitized error
+// that never carries Kubernetes error text. The raw error text is never logged.
+func safeLogError(ctx context.Context, log logging.Logger, operation string, err error) error {
 	if err == nil {
 		return nil
 	}
-	log.Printf("[native-logs] %v", err)
+	if log == nil {
+		log = logging.Default()
+	}
+	class := diag.ClassifyError(err, false)
+	if class.Outcome == "canceled" {
+		log.Debugw(ctx, "native log operation canceled", append([]any{"operation", operation}, class.LogFields()...)...)
+	} else {
+		log.Warnw(ctx, "native log operation failed", append([]any{"operation", operation}, class.LogFields()...)...)
+	}
 	if errors.Is(err, context.Canceled) {
 		return context.Canceled
 	}
@@ -48,6 +61,8 @@ type borrowedReader struct {
 	done   chan struct{}
 	once   sync.Once
 	err    error
+	ctx    context.Context
+	log    logging.Logger
 }
 
 func (r *borrowedReader) Read(p []byte) (int, error) {
@@ -55,7 +70,7 @@ func (r *borrowedReader) Read(p []byte) (int, error) {
 	if err != nil {
 		_ = r.Close()
 		if err != io.EOF {
-			err = safeLogError(err)
+			err = safeLogError(r.ctx, r.log, "read", err)
 		}
 	}
 	return n, err
@@ -67,7 +82,7 @@ func (r *borrowedReader) Close() error {
 		close(r.stop)
 	})
 	<-r.done
-	return safeLogError(r.err)
+	return safeLogError(r.ctx, r.log, "close", r.err)
 }
 
 func nativeHandler(borrow ClientBorrower) sdklogs.LogHandlerFunc {
@@ -76,6 +91,16 @@ func nativeHandler(borrow ClientBorrower) sdklogs.LogHandlerFunc {
 			reader io.ReadCloser
 			err    error
 		}
+		log := logsLogger(ctx)
+		baseCtx := logsBaseContext(ctx)
+		_, span := diag.Tracer().Start(baseCtx, "kubernetes.logs.stream.open", trace.WithAttributes(
+			attribute.Bool("follow", req.Follow),
+			attribute.Bool("include_previous", req.IncludePrevious),
+			attribute.Int64("tail_lines", req.TailLines),
+			attribute.Int64("limit_bytes", req.LimitBytes),
+			attribute.String("resource.namespace", req.Labels["namespace"]),
+			attribute.String("resource.id", req.Labels["pod"]),
+		))
 		ready := make(chan opened, 1)
 		done := make(chan struct{})
 		go func() {
@@ -88,7 +113,7 @@ func nativeHandler(borrow ClientBorrower) sdklogs.LogHandlerFunc {
 				if err != nil {
 					return err
 				}
-				r := &borrowedReader{reader: body, body: body, stop: make(chan struct{}), done: done}
+				r := &borrowedReader{reader: body, body: body, stop: make(chan struct{}), done: done, ctx: baseCtx, log: log}
 				if !req.Follow {
 					limit := int64(1 << 20)
 					if req.LimitBytes > 0 && req.LimitBytes < limit {
@@ -106,10 +131,16 @@ func nativeHandler(borrow ClientBorrower) sdklogs.LogHandlerFunc {
 				return nil
 			})
 			if !sent {
-				ready <- opened{err: safeLogError(err)}
+				ready <- opened{err: safeLogError(baseCtx, log, "open", err)}
 			}
 		}()
 		result := <-ready
+		class := diag.EndSpan(span, result.err, false)
+		if result.err == nil {
+			log.Debugw(baseCtx, "native log stream opened", "follow", req.Follow, "include_previous", req.IncludePrevious)
+		} else {
+			log.Debugw(baseCtx, "native log stream open failed", class.LogFields()...)
+		}
 		return result.reader, result.err
 	}
 }
@@ -122,6 +153,8 @@ func nativeResolver(borrow ClientBorrower, resolve nativeResolverFunc) sdklogs.S
 			result *sdklogs.SourceResolverResult
 			err    error
 		}
+		log := logsLogger(ctx)
+		baseCtx := logsBaseContext(ctx)
 		ready := make(chan resolved, 1)
 		go func() {
 			sent := false
@@ -153,7 +186,7 @@ func nativeResolver(borrow ClientBorrower, resolve nativeResolverFunc) sdklogs.S
 				return nil
 			})
 			if !sent {
-				ready <- resolved{err: safeLogError(err)}
+				ready <- resolved{err: safeLogError(baseCtx, log, "resolve_sources", err)}
 			}
 		}()
 		result := <-ready

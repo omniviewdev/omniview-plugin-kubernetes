@@ -5,13 +5,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
+	"github.com/omniview/kubernetes/pkg/diag"
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	resource "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"helm.sh/helm/v3/pkg/action"
-	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/release"
 )
@@ -236,34 +238,54 @@ func (r *ReleaseResourcer) Action(
 	}
 	trace.SpanFromContext(ctx).AddEvent("run")
 
+	var run func(context.Context) (resource.Value, error)
 	switch input.Action {
 	case "upgrade":
-		return r.executeUpgrade(cfg, input)
+		run = func(ctx context.Context) (resource.Value, error) { return r.executeUpgrade(ctx, cfg, input) }
 	case "rollback":
-		return r.executeRollback(cfg, input)
+		run = func(context.Context) (resource.Value, error) { return r.executeRollback(cfg, input) }
 	case "get-values":
-		return r.executeGetValues(cfg, input)
+		run = func(context.Context) (resource.Value, error) { return r.executeGetValues(cfg, input) }
 	case "get-manifest":
-		return r.executeGetManifest(cfg, input)
+		run = func(context.Context) (resource.Value, error) { return r.executeGetManifest(cfg, input) }
 	case "get-notes":
-		return r.executeGetNotes(cfg, input)
+		run = func(context.Context) (resource.Value, error) { return r.executeGetNotes(cfg, input) }
 	case "get-hooks":
-		return r.executeGetHooks(cfg, input)
+		run = func(context.Context) (resource.Value, error) { return r.executeGetHooks(cfg, input) }
 	case "get-history":
-		return r.executeGetHistory(cfg, input)
+		run = func(context.Context) (resource.Value, error) { return r.executeGetHistory(cfg, input) }
 	case "install":
-		return r.executeInstall(cfg, input)
+		run = func(ctx context.Context) (resource.Value, error) { return r.executeInstall(ctx, cfg, input) }
 	case "dry-run-install":
-		return r.executeDryRunInstall(cfg, input)
+		run = func(ctx context.Context) (resource.Value, error) { return r.executeDryRunInstall(ctx, cfg, input) }
 	case "dry-run-upgrade":
-		return r.executeDryRunUpgrade(cfg, input)
+		run = func(ctx context.Context) (resource.Value, error) { return r.executeDryRunUpgrade(ctx, cfg, input) }
 	case "diff-revisions":
-		return r.executeDiffRevisions(cfg, input)
+		run = func(context.Context) (resource.Value, error) { return r.executeDiffRevisions(cfg, input) }
 	case "test":
-		return r.executeTest(cfg, input)
+		run = func(context.Context) (resource.Value, error) { return r.executeTest(cfg, input) }
 	default:
 		return resource.Value{}, fmt.Errorf("unknown action: %s", input.Action)
 	}
+
+	opCtx, span := diag.Tracer().Start(ctx, releaseOpSpanName(input.Action), trace.WithAttributes(
+		attribute.String("action", input.Action),
+		attribute.String("resource.namespace", namespace),
+		attribute.String("resource.id", input.Reference.Address.ID),
+	))
+	start := time.Now()
+	value, runErr := run(opCtx)
+	c := diag.EndSpan(span, runErr, false)
+	fields := append([]interface{}{
+		"action", input.Action, "namespace", namespace, "resource_id", input.Reference.Address.ID,
+		"duration_ms", time.Since(start).Milliseconds(),
+	}, c.LogFields()...)
+	if runErr != nil {
+		r.log.Debugw("Helm release operation failed", fields...)
+	} else {
+		r.log.Debugw("Helm release operation finished", fields...)
+	}
+	return value, runErr
 }
 
 // ================================= SCHEMA ================================= //
@@ -325,6 +347,7 @@ func (r *ReleaseResourcer) GetEditorSchemas(
 // ================================= ACTION IMPLEMENTATIONS ================================= //
 
 func (r *ReleaseResourcer) executeUpgrade(
+	ctx context.Context,
 	cfg *action.Configuration,
 	input resource.ActionRequest,
 ) (resource.Value, error) {
@@ -344,14 +367,9 @@ func (r *ReleaseResourcer) executeUpgrade(
 	settings.SetNamespace(namespaceOf(input.Reference))
 
 	version, _ := params["version"].(string)
-	chartPath, err := (&action.ChartPathOptions{Version: version}).LocateChart(chartRef, settings)
+	chart, err := locateAndLoadChart(ctx, &action.ChartPathOptions{Version: version}, chartRef, settings)
 	if err != nil {
-		return resource.Value{}, fmt.Errorf("failed to locate chart %s: %w", chartRef, err)
-	}
-
-	chart, err := loader.Load(chartPath)
-	if err != nil {
-		return resource.Value{}, fmt.Errorf("failed to load chart %s: %w", chartPath, err)
+		return resource.Value{}, err
 	}
 
 	upgrade := action.NewUpgrade(cfg)
@@ -538,6 +556,7 @@ func (r *ReleaseResourcer) executeGetHistory(
 }
 
 func (r *ReleaseResourcer) executeInstall(
+	ctx context.Context,
 	cfg *action.Configuration,
 	input resource.ActionRequest,
 ) (resource.Value, error) {
@@ -566,15 +585,9 @@ func (r *ReleaseResourcer) executeInstall(
 		settings.SetNamespace(namespace)
 	}
 
-	chartPathOpts := &action.ChartPathOptions{Version: version}
-	chartPath, err := chartPathOpts.LocateChart(chartRef, settings)
+	chart, err := locateAndLoadChart(ctx, &action.ChartPathOptions{Version: version}, chartRef, settings)
 	if err != nil {
-		return resource.Value{}, fmt.Errorf("failed to locate chart %s: %w", chartRef, err)
-	}
-
-	chart, err := loader.Load(chartPath)
-	if err != nil {
-		return resource.Value{}, fmt.Errorf("failed to load chart %s: %w", chartPath, err)
+		return resource.Value{}, err
 	}
 
 	install := action.NewInstall(cfg)
@@ -598,6 +611,7 @@ func (r *ReleaseResourcer) executeInstall(
 }
 
 func (r *ReleaseResourcer) executeDryRunInstall(
+	ctx context.Context,
 	cfg *action.Configuration,
 	input resource.ActionRequest,
 ) (resource.Value, error) {
@@ -626,15 +640,9 @@ func (r *ReleaseResourcer) executeDryRunInstall(
 		settings.SetNamespace(namespace)
 	}
 
-	chartPathOpts := &action.ChartPathOptions{Version: version}
-	chartPath, err := chartPathOpts.LocateChart(chartRef, settings)
+	chart, err := locateAndLoadChart(ctx, &action.ChartPathOptions{Version: version}, chartRef, settings)
 	if err != nil {
-		return resource.Value{}, fmt.Errorf("failed to locate chart %s: %w", chartRef, err)
-	}
-
-	chart, err := loader.Load(chartPath)
-	if err != nil {
-		return resource.Value{}, fmt.Errorf("failed to load chart %s: %w", chartPath, err)
+		return resource.Value{}, err
 	}
 
 	install := action.NewInstall(cfg)
@@ -667,6 +675,7 @@ func (r *ReleaseResourcer) executeDryRunInstall(
 }
 
 func (r *ReleaseResourcer) executeDryRunUpgrade(
+	ctx context.Context,
 	cfg *action.Configuration,
 	input resource.ActionRequest,
 ) (resource.Value, error) {
@@ -686,15 +695,9 @@ func (r *ReleaseResourcer) executeDryRunUpgrade(
 	settings := cli.New()
 	settings.SetNamespace(namespaceOf(input.Reference))
 
-	chartPathOpts := &action.ChartPathOptions{Version: version}
-	chartPath, err := chartPathOpts.LocateChart(chartRef, settings)
+	chart, err := locateAndLoadChart(ctx, &action.ChartPathOptions{Version: version}, chartRef, settings)
 	if err != nil {
-		return resource.Value{}, fmt.Errorf("failed to locate chart %s: %w", chartRef, err)
-	}
-
-	chart, err := loader.Load(chartPath)
-	if err != nil {
-		return resource.Value{}, fmt.Errorf("failed to load chart %s: %w", chartPath, err)
+		return resource.Value{}, err
 	}
 
 	upgrade := action.NewUpgrade(cfg)

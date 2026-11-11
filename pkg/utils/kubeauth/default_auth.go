@@ -10,14 +10,15 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-type DefaultAuthStrategy struct{}
+type DefaultAuthStrategy struct {
+	// exec records that the kubeconfig user authenticates through an exec plugin; diagnostics only.
+	exec bool
+}
 
 func (s *DefaultAuthStrategy) BuildRestConfig(
 	ctx context.Context,
 	kubeconfigPath, kubeContext string,
 ) (*rest.Config, error) {
-	// log.Print("processing auth info with default")
-
 	return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
 		&clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeconfigPath},
 		&clientcmd.ConfigOverrides{

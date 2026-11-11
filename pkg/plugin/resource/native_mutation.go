@@ -15,7 +15,9 @@ import (
 
 // NativeMutate admits the selected native verb independently. A type supporting
 // create does not thereby promise update or delete.
-func NativeMutate(ctx context.Context, client dynamic.Interface, gvr schema.GroupVersionResource, namespaced bool, verbs []string, request resourcev2.MutationRequest, representation resourcev2.Representation) (resourcev2.Record, error) {
+func NativeMutate(ctx context.Context, client dynamic.Interface, gvr schema.GroupVersionResource, namespaced bool, verbs []string, request resourcev2.MutationRequest, representation resourcev2.Representation) (result resourcev2.Record, retErr error) {
+	ctx, crud := startNativeCRUD(ctx, nativeCRUDVerb(request.Operation), request.Reference.Address.Type, nativeScopeNamespace(request.Reference.Address.Scope), request.Reference.Address.ID)
+	defer func() { crud.end(retErr) }()
 	if err := resourcev2.ValidateMutationRequest(request); err != nil {
 		return resourcev2.Record{}, err
 	}

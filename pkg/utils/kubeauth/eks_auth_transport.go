@@ -3,7 +3,6 @@ package kubeauth
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -12,13 +11,22 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	logging "github.com/omniviewdev/plugin-sdk/log"
+	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/omniview/kubernetes/pkg/diag"
 )
+
+// authLogger returns the SDK logger for authentication diagnostics.
+func authLogger() logging.Logger { return logging.Default().Named("kubeauth") }
 
 type eksAuthTransport struct {
 	ClusterName string
 	RoleARN     string
 	Profile     string
 	Region      string
+	// Connection is the connection ID the transport authenticates for; diagnostics only.
+	Connection string
 
 	mu        sync.Mutex
 	token     string
@@ -52,9 +60,8 @@ func (e *eksAuthTransport) getStsClient(ctx context.Context) (*sts.Client, error
 	// Lazy init STS client
 	cfg, err := config.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
-		awsErr := fmt.Errorf("error loading aws config: %w", err)
-		log.Print(awsErr)
-		return nil, awsErr
+		// the error is classified and logged by the token refresh caller.
+		return nil, fmt.Errorf("error loading aws config: %w", err)
 	}
 
 	client := sts.NewFromConfig(cfg)
@@ -67,6 +74,39 @@ func (e *eksAuthTransport) getStsClient(ctx context.Context) (*sts.Client, error
 	return client, err
 }
 
+// refreshTokenLocked generates a fresh EKS token. e.mu must be held.
+func (e *eksAuthTransport) refreshTokenLocked(ctx context.Context) error {
+	ctx, span := diag.Tracer().Start(ctx, "kubernetes.auth.eks.token")
+	span.SetAttributes(attribute.String("connection", e.Connection), attribute.Bool("cached", false))
+	started := time.Now()
+
+	err := func() error {
+		client, err := e.getStsClient(ctx)
+		if err != nil {
+			span.AddEvent("sts_client_failed")
+			return err
+		}
+		token, err := getEKSToken(ctx, client, e.ClusterName)
+		if err != nil {
+			span.AddEvent("token_presign_failed")
+			return fmt.Errorf("failed to generate EKS token: %w", err)
+		}
+		e.token = token
+		e.expiresAt = time.Now().Add(time.Minute * 14)
+		return nil
+	}()
+
+	c := diag.EndSpan(span, err, false)
+	diag.TokenRefresh(c.Outcome)
+	fields := append([]any{"connection", e.Connection, "duration_ms", time.Since(started).Milliseconds()}, c.LogFields()...)
+	if err != nil {
+		authLogger().Warnw(ctx, "eks token refresh failed", fields...)
+		return err
+	}
+	authLogger().Debugw(ctx, "eks token refreshed", fields...)
+	return nil
+}
+
 func (e *eksAuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	ctx := req.Context()
 
@@ -74,24 +114,10 @@ func (e *eksAuthTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 
 	// prevent unnecessary calls to sts to get tokens, tokens are set to a known 15 minutes:
 	if time.Now().After(e.expiresAt) {
-		client, err := e.getStsClient(ctx)
-		if err != nil {
+		if err := e.refreshTokenLocked(ctx); err != nil {
 			e.mu.Unlock()
 			return nil, err
 		}
-		log.Printf("token is expired, generating new token")
-		token, err := getEKSToken(ctx, client, e.ClusterName)
-		if err != nil {
-			e.mu.Unlock()
-			eksErr := fmt.Errorf("failed to generate EKS token: %w", err)
-			log.Print(eksErr.Error())
-			return nil, eksErr
-		}
-
-		log.Printf("successfully generated new eks token")
-
-		e.token = token
-		e.expiresAt = time.Now().Add(time.Minute * 14)
 	}
 	token := e.token
 	e.mu.Unlock()
@@ -101,8 +127,9 @@ func (e *eksAuthTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 
 	resp, err := e.base().RoundTrip(req2)
 	if err != nil {
-		log.Printf("error in round tripper: %s", err.Error())
-		log.Printf("got response: %v", resp)
+		// never log the error text (*url.Error carries the request URL) or the response.
+		fields := append([]any{"connection", e.Connection}, diag.ClassifyError(err, false).LogFields()...)
+		authLogger().Debugw(ctx, "eks authenticated request failed", fields...)
 	}
 
 	return resp, err

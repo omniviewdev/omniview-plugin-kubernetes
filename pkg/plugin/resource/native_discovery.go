@@ -3,6 +3,7 @@ package resource
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -19,6 +20,29 @@ const (
 	maxNativeDiscoveryBytes         = 16 << 20
 	maxNativeDiscoveryDocumentBytes = 4 << 20
 )
+
+// nativeBudgetError marks a local discovery or schema budget limit. reason is a
+// closed enum safe for logs and span attributes; text is unchanged from the
+// previous plain error.
+type nativeBudgetError struct {
+	reason string
+	text   string
+}
+
+func (e *nativeBudgetError) Error() string { return e.text }
+
+func errNativeDiscoveryBytes() error {
+	return &nativeBudgetError{reason: "discovery_bytes", text: "Kubernetes discovery exceeds the byte budget"}
+}
+
+// nativeBudgetReason returns the budget reason for err, or "" when err is not a local budget error.
+func nativeBudgetReason(err error) string {
+	var budget *nativeBudgetError
+	if errors.As(err, &budget) {
+		return budget.reason
+	}
+	return ""
+}
 
 // Native discovery uses the existing client's transport with the acquisition
 // context. client-go's ServerGroupsAndResources has no context parameter.
@@ -61,7 +85,7 @@ func discoverNativeResources(ctx context.Context, client discovery.DiscoveryInte
 		}
 	}
 	if len(versions) > maxNativeDiscoveryVersions {
-		return nil, nil, fmt.Errorf("Kubernetes discovery exceeds the served-version budget")
+		return nil, nil, &nativeBudgetError{reason: "discovery_versions", text: "Kubernetes discovery exceeds the served-version budget"}
 	}
 	seen := make(map[schema.GroupVersion]bool, len(versions))
 	for _, gv := range versions {
@@ -159,7 +183,7 @@ func (r nativeDiscoveryReader) Read(p []byte) (int, error) {
 	}
 	if b.remaining == 0 {
 		b.mu.Unlock()
-		return 0, fmt.Errorf("Kubernetes discovery exceeds the byte budget")
+		return 0, errNativeDiscoveryBytes()
 	}
 	limit := min(len(p), b.remaining, 32<<10)
 	b.remaining -= limit
@@ -173,7 +197,7 @@ func (r nativeDiscoveryReader) Read(p []byte) (int, error) {
 	b.changed.Broadcast()
 	b.mu.Unlock()
 	if exceeded {
-		return n, fmt.Errorf("Kubernetes discovery exceeds the byte budget")
+		return n, errNativeDiscoveryBytes()
 	}
 	return n, err
 }
@@ -183,7 +207,7 @@ func readNativeDiscovery(ctx context.Context, client rest.Interface, path string
 	exhausted := budget.remaining == 0 && budget.inFlight == 0
 	budget.mu.Unlock()
 	if exhausted {
-		return fmt.Errorf("Kubernetes discovery exceeds the byte budget")
+		return errNativeDiscoveryBytes()
 	}
 	stream, err := client.Get().AbsPath(path).Stream(ctx)
 	if err != nil {
@@ -196,7 +220,7 @@ func readNativeDiscovery(ctx context.Context, client rest.Interface, path string
 		return err
 	}
 	if len(data) > maxNativeDiscoveryDocumentBytes {
-		return fmt.Errorf("Kubernetes discovery exceeds the byte budget")
+		return errNativeDiscoveryBytes()
 	}
 	if err := ctx.Err(); err != nil {
 		return err

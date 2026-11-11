@@ -7,9 +7,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/omniview/kubernetes/pkg/diag"
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	resource "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"helm.sh/helm/v3/pkg/action"
@@ -35,7 +35,7 @@ func (h *HelmAncillary) StreamAction(context.Context, *clients.ClientSet, resour
 }
 
 func (h *HelmAncillary) Action(ctx context.Context, c *clients.ClientSet, r resource.ActionRequest) (result resource.Value, resultErr error) {
-	ctx, span := otel.Tracer("omniview.plugin.kubernetes").Start(ctx, "kubernetes.helm.action")
+	ctx, span := diag.Tracer().Start(ctx, "kubernetes.helm.action")
 	defer span.End()
 	stage, actionName, resourceType := "admission", "unknown", "unknown"
 	defer func() {
@@ -173,7 +173,10 @@ func (h *HelmAncillary) Mutate(ctx context.Context, c *clients.ClientSet, r reso
 			if e = f.WriteFile(repoFile(), 0600); e != nil {
 				return resource.Record{}, e
 			}
-			_ = os.Remove(filepath.Join(cli.New().RepositoryCache, r.Reference.Address.ID+"-index.yaml"))
+			if rmErr := os.Remove(filepath.Join(cli.New().RepositoryCache, r.Reference.Address.ID+"-index.yaml")); rmErr != nil && !errors.Is(rmErr, os.ErrNotExist) {
+				h.release.log.Warnw("Helm repository index cache removal failed",
+					"repo", r.Reference.Address.ID, "error_class", diag.ClassifyError(rmErr, false).Class)
+			}
 		default:
 			return resource.Record{}, fmt.Errorf("unsupported Helm mutation")
 		}

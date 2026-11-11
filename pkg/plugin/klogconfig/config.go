@@ -1,11 +1,13 @@
 package klogconfig
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"strings"
 	"sync"
 
+	logging "github.com/omniviewdev/plugin-sdk/log"
 	"github.com/omniviewdev/plugin-sdk/settings"
 )
 
@@ -38,6 +40,8 @@ func Setting() settings.Setting {
 	}
 }
 
+var resolveLevelWarnOnce sync.Once
+
 // ResolveLevel reads and normalizes the configured level from settings.
 // Invalid, empty, or missing values default to "none".
 func ResolveLevel(provider settings.Provider) string {
@@ -47,6 +51,11 @@ func ResolveLevel(provider settings.Provider) string {
 
 	level, err := provider.GetString(SettingID)
 	if err != nil {
+		resolveLevelWarnOnce.Do(func() {
+			logging.Default().Named("klogconfig").Warnw(context.Background(),
+				"client log level setting unreadable; using default",
+				"setting", SettingID, "level", LevelNone, "error_type", fmt.Sprintf("%T", err))
+		})
 		return LevelNone
 	}
 

@@ -41,10 +41,23 @@ func DetectAuthStrategy(kubeconfigPath, kubeContext string) (AuthStrategy, error
 	case isEKSAuth(authInfo):
 		return &EKSAuthStrategy{}, nil
 	case isGCPAuth(authInfo):
-		return &DefaultAuthStrategy{}, nil
+		return &DefaultAuthStrategy{exec: true}, nil
 	case isAKSAuth(authInfo):
-		return &DefaultAuthStrategy{}, nil
+		return &DefaultAuthStrategy{exec: true}, nil
 	default:
-		return &DefaultAuthStrategy{}, nil
+		return &DefaultAuthStrategy{exec: authInfo.Exec != nil}, nil
 	}
+}
+
+// authStrategyName reports the strategy family as a closed vocabulary for diagnostics.
+func authStrategyName(s AuthStrategy) string {
+	switch v := s.(type) {
+	case *EKSAuthStrategy:
+		return "eks"
+	case *DefaultAuthStrategy:
+		if v.exec {
+			return "exec"
+		}
+	}
+	return "default"
 }

@@ -9,6 +9,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -335,4 +338,35 @@ func TestShutdownInformersRacesWithConsumerRetirement(t *testing.T) {
 	}
 	waitNativeStop(t, w)
 	require.Empty(t, client.informers)
+}
+
+func TestLastLeaseCloseEmitsRetireSpan(t *testing.T) {
+	previous := otel.GetTracerProvider()
+	exporter := tracetest.NewInMemoryExporter()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
+	otel.SetTracerProvider(provider)
+	t.Cleanup(func() {
+		otel.SetTracerProvider(previous)
+		require.NoError(t, provider.Shutdown(context.Background()))
+	})
+	client, started := nativeLeaseClient(t)
+	lease, err := client.AcquireInformer(context.Background(), "team-a", podsGVR, cache.ResourceEventHandlerFuncs{})
+	require.NoError(t, err)
+	receiveNativeWatch(t, started)
+	require.NoError(t, lease.Close())
+	var found bool
+	for _, span := range exporter.GetSpans() {
+		if span.Name != "kubernetes.informer.retire" {
+			continue
+		}
+		found = true
+		attributes := map[string]string{}
+		for _, attr := range span.Attributes {
+			attributes[string(attr.Key)] = attr.Value.String()
+		}
+		require.Equal(t, "last_lease", attributes["trigger"])
+		require.Equal(t, "pods", attributes["resource.type"])
+		require.Equal(t, "success", attributes["outcome"])
+	}
+	require.True(t, found, "last lease close must emit kubernetes.informer.retire")
 }

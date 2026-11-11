@@ -10,9 +10,14 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/omniview/kubernetes/pkg/diag"
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
+	logging "github.com/omniviewdev/plugin-sdk/log"
 	resource "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"helm.sh/helm/v3/pkg/action"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,7 +38,29 @@ func releaseMetadata(ctx context.Context, c *clients.ClientSet, namespace string
 	return namedReleaseMetadata(ctx, c, namespace, size, cursor, "")
 }
 
+// namedReleaseMetadata fetches one page of Helm storage metadata inside a
+// kubernetes.helm.release.list span. Only counts and sizes are recorded.
 func namedReleaseMetadata(ctx context.Context, c *clients.ClientSet, namespace string, size int, cursor *string, name string) (metav1.PartialObjectMetadataList, error) {
+	ctx, span := diag.Tracer().Start(ctx, "kubernetes.helm.release.list", trace.WithAttributes(
+		attribute.String("resource.namespace", namespace),
+		attribute.Int("pages", 1),
+		attribute.Int("page_size", size),
+		attribute.Bool("named", name != ""),
+		attribute.Bool("continued", cursor != nil),
+	))
+	start := time.Now()
+	bytesRead := 0
+	page, err := fetchReleaseMetadata(ctx, c, namespace, size, cursor, name, &bytesRead)
+	span.SetAttributes(attribute.Int("items", len(page.Items)), attribute.Int("bytes", bytesRead))
+	cls := diag.EndSpan(span, err, false)
+	logging.Default().Named("helm").Debugw(ctx, "Helm release metadata page fetched", append([]any{
+		"namespace", namespace, "items", len(page.Items), "bytes", bytesRead,
+		"duration_ms", time.Since(start).Milliseconds(),
+	}, cls.LogFields()...)...)
+	return page, err
+}
+
+func fetchReleaseMetadata(ctx context.Context, c *clients.ClientSet, namespace string, size int, cursor *string, name string, bytesRead *int) (metav1.PartialObjectMetadataList, error) {
 	var page metav1.PartialObjectMetadataList
 	storage := os.Getenv("HELM_DRIVER")
 	if !supportsBoundedReleaseEnumeration() {
@@ -81,6 +108,7 @@ func namedReleaseMetadata(ctx context.Context, c *clients.ClientSet, namespace s
 		return page, apierrors.NewGenericServerResponse(response.StatusCode, http.MethodGet, schema.GroupResource{Resource: storage}, "", "Helm storage metadata request failed", 0, false)
 	}
 	data, err := io.ReadAll(io.LimitReader(response.Body, (32<<20)+1))
+	*bytesRead = len(data)
 	if err != nil {
 		return page, err
 	}
@@ -167,12 +195,14 @@ func (h *HelmAncillary) enumerateReleases(ctx context.Context, c *clients.Client
 // latestReleaseVersion scans native metadata pages, never a materialized history.
 func latestReleaseVersion(ctx context.Context, c *clients.ClientSet, namespace, name string) (int, error) {
 	var cursor *string
-	latest := 0
+	latest, pages, items := 0, 0, 0
 	for {
 		page, err := namedReleaseMetadata(ctx, c, namespace, 256, cursor, name)
 		if err != nil {
 			return 0, err
 		}
+		pages++
+		items += len(page.Items)
 		for _, entry := range page.Items {
 			version, err := strconv.Atoi(entry.Labels["version"])
 			if err != nil || version < 1 {
@@ -187,6 +217,9 @@ func latestReleaseVersion(ctx context.Context, c *clients.ClientSet, namespace, 
 		}
 		cursor = &page.Continue
 	}
+	trace.SpanFromContext(ctx).AddEvent("helm.release.latest_version", trace.WithAttributes(
+		attribute.Int("pages", pages), attribute.Int("items", items), attribute.Int("latest", latest),
+	))
 	if latest == 0 {
 		return 0, fmt.Errorf("Helm release not found")
 	}

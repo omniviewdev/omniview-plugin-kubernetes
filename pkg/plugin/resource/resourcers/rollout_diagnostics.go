@@ -2,16 +2,13 @@ package resourcers
 
 import (
 	"context"
-	"errors"
 
+	"github.com/omniview/kubernetes/pkg/diag"
 	resource "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type rolloutDiagnostic struct {
@@ -22,7 +19,7 @@ type rolloutDiagnostic struct {
 }
 
 func startRolloutDiagnostic(ctx context.Context, log *zap.SugaredLogger, kind, action string, input resource.ActionRequest) (context.Context, *rolloutDiagnostic) {
-	ctx, span := otel.Tracer("omniview.plugin.kubernetes").Start(ctx, "kubernetes."+kind+"."+action)
+	ctx, span := diag.Tracer().Start(ctx, "kubernetes."+kind+"."+action)
 	namespace, _ := nativeRequestNamespace(input.Reference.Address.Scope)
 	resourceType := ""
 	switch kind {
@@ -39,34 +36,9 @@ func startRolloutDiagnostic(ctx context.Context, log *zap.SugaredLogger, kind, a
 
 func (d *rolloutDiagnostic) finish(err error) {
 	defer d.span.End()
-	outcome, class, reason, status := "success", "", "", 0
+	classification := diag.ClassifyError(err, d.stage == "validation")
+	outcome, class, reason, status := classification.Outcome, classification.Class, classification.Reason, classification.StatusCode
 	if err != nil {
-		outcome, class = "failure", "other"
-		switch {
-		case errors.Is(err, context.Canceled):
-			outcome, class = "canceled", "canceled"
-		case errors.Is(err, context.DeadlineExceeded), resource.ErrorCode(err) == "TIMEOUT":
-			outcome, class = "canceled", "deadline_exceeded"
-		case d.stage == "validation":
-			class = "validation"
-		default:
-			var apiStatus apierrors.APIStatus
-			if errors.As(err, &apiStatus) {
-				class = "kubernetes"
-				s := apiStatus.Status()
-				status = int(s.Code)
-				switch s.Reason {
-				case metav1.StatusReasonUnauthorized, metav1.StatusReasonForbidden, metav1.StatusReasonNotFound,
-					metav1.StatusReasonAlreadyExists, metav1.StatusReasonConflict, metav1.StatusReasonInvalid,
-					metav1.StatusReasonTooManyRequests, metav1.StatusReasonTimeout, metav1.StatusReasonServerTimeout,
-					metav1.StatusReasonServiceUnavailable, metav1.StatusReasonInternalError, metav1.StatusReasonBadRequest,
-					metav1.StatusReasonMethodNotAllowed, metav1.StatusReasonGone, metav1.StatusReasonExpired:
-					reason = string(s.Reason)
-				default:
-					reason = "Other"
-				}
-			}
-		}
 		d.span.SetStatus(codes.Error, class)
 	}
 	attrs := []attribute.KeyValue{attribute.String("plugin", "kubernetes"), attribute.String("resource.type", d.resourceType),

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -13,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/omniview/kubernetes/pkg/diag"
 	"github.com/omniview/kubernetes/pkg/utils"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
@@ -193,7 +193,8 @@ func (c *prometheusClient) query(
 		return nil, fmt.Errorf("failed to get kube clients: %w", err)
 	}
 
-	log.Printf("[DEBUG] prometheus query: svc=%s ns=%s port=%d promql=%s", detection.Service, detection.Namespace, detection.Port, promql)
+	promLog().Debugw(ctx, "prometheus instant query",
+		"service", detection.Service, "resource_namespace", detection.Namespace)
 
 	// Check if proxy already failed for this connection — skip straight to port-forward.
 	c.proxyFailedMu.RLock()
@@ -207,16 +208,15 @@ func (c *prometheusClient) query(
 		var result *promAPIResponse
 		result, proxyErr = c.queryViaProxy(ctx, clients.Clientset, detection, promql)
 		if proxyErr == nil {
-			log.Printf("[DEBUG] proxy succeeded: resultType=%s numResults=%d", result.Data.ResultType, len(result.Data.Result))
-			if len(result.Data.Result) > 0 {
-				log.Printf("[DEBUG] first result value: %v", result.Data.Result[0].Value)
-			}
+			promLog().Debugw(ctx, "prometheus proxy query succeeded",
+				"result_type", result.Data.ResultType, "results", len(result.Data.Result))
 			return result, nil
 		}
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		log.Printf("[DEBUG] proxy failed (caching for future queries): %v", proxyErr)
+		promLog().Warnw(ctx, "prometheus proxy query failed; falling back to port-forward for this connection",
+			append([]any{"connection", connectionID}, diag.ClassifyError(proxyErr, false).LogFields()...)...)
 		c.proxyFailedMu.Lock()
 		if c.clientCache.isCurrent(connectionID, clients) {
 			c.proxyFailed[connectionID] = true
@@ -234,10 +234,8 @@ func (c *prometheusClient) query(
 	if err != nil {
 		return nil, fmt.Errorf("all prometheus query methods failed: proxy: %v, direct: %w", proxyErr, err)
 	}
-	log.Printf("[DEBUG] query succeeded via port-forward: resultType=%s numResults=%d", result.Data.ResultType, len(result.Data.Result))
-	if len(result.Data.Result) > 0 {
-		log.Printf("[DEBUG] first result value: %v", result.Data.Result[0].Value)
-	}
+	promLog().Debugw(ctx, "prometheus port-forward query succeeded",
+		"result_type", result.Data.ResultType, "results", len(result.Data.Result))
 	return result, nil
 }
 
@@ -359,8 +357,9 @@ func (c *prometheusClient) queryRange(
 		return nil, fmt.Errorf("failed to get kube clients: %w", err)
 	}
 
-	log.Printf("[DEBUG] prometheus query_range: promql=%s start=%d end=%d step=%s",
-		promql, start.Unix(), end.Unix(), step)
+	promLog().Debugw(ctx, "prometheus range query",
+		"service", detection.Service, "resource_namespace", detection.Namespace,
+		"range_seconds", int64(end.Sub(start).Seconds()), "step_ms", step.Milliseconds())
 
 	c.proxyFailedMu.RLock()
 	skipProxy := c.proxyFailed[connectionID]
@@ -376,7 +375,8 @@ func (c *prometheusClient) queryRange(
 			return nil, err
 		}
 		proxyErr = pErr
-		log.Printf("[DEBUG] range proxy failed: %v", proxyErr)
+		promLog().Warnw(ctx, "prometheus proxy range query failed; falling back to port-forward for this connection",
+			append([]any{"connection", connectionID}, diag.ClassifyError(proxyErr, false).LogFields()...)...)
 		c.proxyFailedMu.Lock()
 		if c.clientCache.isCurrent(connectionID, clients) {
 			c.proxyFailed[connectionID] = true
@@ -564,25 +564,25 @@ func (c *prometheusClient) queryPodPrometheus(
 	ns := extractResourceNamespace(req.ResourceData, req.ResourceNamespace)
 	now := time.Now()
 
-	log.Printf("[DEBUG] queryPodPrometheus: pod=%q namespace=%q (raw resourceID=%q) metricIDs=%v", pod, ns, req.ResourceID, req.MetricIDs)
+	promLog().Debugw(ctx, "pod prometheus query",
+		"resource_id", pod, "resource_namespace", ns, "metric_ids", len(req.MetricIDs))
 
 	// Diagnostic: check if cAdvisor metrics exist at all for this pod.
 	diagResp, diagErr := c.query(ctx, qctx.ConnectionID, qctx.Connection, fmt.Sprintf(`container_cpu_usage_seconds_total{pod="%s",namespace="%s"}`, pod, ns), req.Params)
 	if diagErr != nil {
-		log.Printf("[DEBUG] diagnostic: cAdvisor check failed: %v", diagErr)
+		promLog().Debugw(ctx, "cAdvisor presence check failed", diag.ClassifyError(diagErr, false).LogFields()...)
 	} else {
-		log.Printf("[DEBUG] diagnostic: container_cpu_usage_seconds_total (no container filter) numResults=%d", len(diagResp.Data.Result))
-		if len(diagResp.Data.Result) > 0 {
-			log.Printf("[DEBUG] diagnostic: first result labels: %v value: %v", diagResp.Data.Result[0].Metric, diagResp.Data.Result[0].Value)
-		} else {
+		promLog().Debugw(ctx, "cAdvisor presence check", "results", len(diagResp.Data.Result))
+		if len(diagResp.Data.Result) == 0 {
 			// Check if ANY cAdvisor metrics exist in this namespace
 			anyResp, anyErr := c.query(ctx, qctx.ConnectionID, qctx.Connection, fmt.Sprintf(`count(container_cpu_usage_seconds_total{namespace="%s"})`, ns), req.Params)
 			if anyErr != nil {
-				log.Printf("[DEBUG] diagnostic: cAdvisor namespace check failed: %v", anyErr)
+				promLog().Debugw(ctx, "cAdvisor namespace check failed",
+					append([]any{"resource_namespace", ns}, diag.ClassifyError(anyErr, false).LogFields()...)...)
 			} else if len(anyResp.Data.Result) > 0 {
-				log.Printf("[DEBUG] diagnostic: cAdvisor metrics exist in namespace %s: count=%v", ns, anyResp.Data.Result[0].Value)
+				promLog().Debugw(ctx, "cAdvisor metrics exist in namespace", "resource_namespace", ns)
 			} else {
-				log.Printf("[DEBUG] diagnostic: NO cAdvisor metrics found in namespace %s - check if kubelet/cAdvisor scraping is configured", ns)
+				promLog().Warnw(ctx, "no cAdvisor metrics found in namespace; kubelet/cAdvisor scraping may be unconfigured", "resource_namespace", ns)
 			}
 		}
 	}
@@ -735,7 +735,7 @@ func (c *prometheusClient) queryPodPrometheus(
 		}
 		resp, err := c.query(ctx, qctx.ConnectionID, qctx.Connection, m.promql, req.Params)
 		if err != nil {
-			log.Printf("prometheus query %s failed: %v", m.id, err)
+			promMetricQueryFailed(ctx, "instant", err)
 			continue
 		}
 		results = append(results, sdkmetric.MetricResult{
@@ -804,7 +804,7 @@ func (c *prometheusClient) queryAllPodPrometheus(
 		}
 		resp, err := c.query(ctx, qctx.ConnectionID, qctx.Connection, q.promql, req.Params)
 		if err != nil {
-			log.Printf("prometheus batch query %s failed: %v", q.metricID, err)
+			promMetricQueryFailed(ctx, "batch", err)
 			continue
 		}
 		// Each result in the vector has {pod, namespace} labels — one per pod.
@@ -976,7 +976,7 @@ func (c *prometheusClient) queryPodPrometheusTimeseries(
 		}
 		resp, err := c.queryRange(ctx, qctx.ConnectionID, qctx.Connection, m.promql, req.Params, req.StartTime, req.EndTime, req.Step)
 		if err != nil {
-			log.Printf("prometheus range query %s failed: %v", m.id, err)
+			promMetricQueryFailed(ctx, "range", err)
 			continue
 		}
 		points := extractTimeSeries(resp)
@@ -1011,11 +1011,11 @@ func (c *prometheusClient) resolveNodeInstance(
 	resp, err := c.query(ctx, connectionID, conn, q, params)
 	if err == nil && len(resp.Data.Result) > 0 {
 		if ip, ok := resp.Data.Result[0].Metric["internal_ip"]; ok && ip != "" {
-			log.Printf("[DEBUG] resolveNodeInstance: node=%q -> internal_ip=%q", node, ip)
+			promLog().Debugw(ctx, "node prometheus instance resolved", "resource_id", node)
 			return ip + ".*"
 		}
 	}
-	log.Printf("[DEBUG] resolveNodeInstance: could not resolve node=%q, falling back to name match", node)
+	promLog().Debugw(ctx, "node prometheus instance unresolved; using name match", "resource_id", node)
 	return node + ".*"
 }
 
@@ -1118,7 +1118,7 @@ func (c *prometheusClient) queryNodePrometheus(
 		}
 		resp, err := c.query(ctx, qctx.ConnectionID, qctx.Connection, m.promql, req.Params)
 		if err != nil {
-			log.Printf("prometheus query %s failed: %v", m.id, err)
+			promMetricQueryFailed(ctx, "instant", err)
 			continue
 		}
 		results = append(results, sdkmetric.MetricResult{
@@ -1224,7 +1224,7 @@ func (c *prometheusClient) queryNodePrometheusTimeseries(
 		}
 		resp, err := c.queryRange(ctx, qctx.ConnectionID, qctx.Connection, m.promql, req.Params, req.StartTime, req.EndTime, req.Step)
 		if err != nil {
-			log.Printf("prometheus range query %s failed: %v", m.id, err)
+			promMetricQueryFailed(ctx, "range", err)
 			continue
 		}
 		points := extractTimeSeries(resp)
@@ -1366,7 +1366,7 @@ func (c *prometheusClient) queryClusterPrometheus(
 		}
 		resp, err := c.query(ctx, qctx.ConnectionID, qctx.Connection, m.promql, req.Params)
 		if err != nil {
-			log.Printf("prometheus query %s failed: %v", m.id, err)
+			promMetricQueryFailed(ctx, "instant", err)
 			continue
 		}
 		results = append(results, sdkmetric.MetricResult{
@@ -1512,7 +1512,7 @@ func (c *prometheusClient) queryClusterPrometheusTimeseries(
 		}
 		resp, err := c.queryRange(ctx, qctx.ConnectionID, qctx.Connection, m.promql, req.Params, req.StartTime, req.EndTime, req.Step)
 		if err != nil {
-			log.Printf("prometheus range query %s failed: %v", m.id, err)
+			promMetricQueryFailed(ctx, "range", err)
 			continue
 		}
 		points := extractTimeSeries(resp)

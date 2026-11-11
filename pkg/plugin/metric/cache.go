@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/omniview/kubernetes/pkg/diag"
 	"github.com/omniview/kubernetes/pkg/utils/kubeauth"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
@@ -120,8 +121,15 @@ func (c *ClientCache) Get(ctx context.Context, connectionID string, conn *types.
 	entry := &clientEntry{ready: make(chan struct{}), cancel: cancel}
 	c.entries[connectionID] = entry
 	c.mu.Unlock()
+	buildStarted := time.Now()
 	clients, err := c.factory(buildCtx, conn)
 	cancel()
+	if err != nil {
+		promLog().Warnw(ctx, "metric client build failed",
+			append([]any{"connection", connectionID, "duration_ms", time.Since(buildStarted).Milliseconds()}, diag.ClassifyError(err, false).LogFields()...)...)
+	} else {
+		promLog().Debugw(ctx, "metric client built", "connection", connectionID, "duration_ms", time.Since(buildStarted).Milliseconds())
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.entries[connectionID] != entry {
@@ -152,6 +160,9 @@ func (c *ClientCache) Evict(connectionID string) {
 		cancel = entry.cancel
 	}
 	c.mu.Unlock()
+	if entry != nil {
+		promLog().Debugw(context.Background(), "metric client evicted", "connection", connectionID)
+	}
 	if cancel != nil {
 		cancel()
 	}
@@ -219,9 +230,14 @@ func (c *ClientCache) reap() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	reaped := 0
 	for id, entry := range c.entries {
 		if entry.readyClosed && now.Sub(entry.lastAccess) > c.ttl {
 			delete(c.entries, id)
+			reaped++
 		}
+	}
+	if reaped > 0 {
+		promLog().Debugw(context.Background(), "idle metric clients reaped", "count", reaped)
 	}
 }

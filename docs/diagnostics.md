@@ -15,6 +15,12 @@ The plugin reports a fixed set of measurements through plugin-sdk diagnostics (`
 | `omniview.plugin.self.native_scan.bytes` | counter (bytes) | `operation` (namespace, node) |
 | `omniview.plugin.self.native_scan.scans` | counter | `outcome` (ok, denied, budget, canceled, timeout, failed) |
 | `omniview.plugin.self.native_scan.cancellations` | counter | `reason` (caller, deadline, retired) |
+| `omniview.plugin.self.auth.token_refreshes` | counter | `outcome` (success, failure, canceled, other) |
+| `omniview.plugin.self.client.builds` | counter | `operation` (detect, rest_config, clientset, dynamic, discovery, complete, other), `outcome` (success, failure, canceled, other) |
+| `omniview.plugin.self.informer.sources` | gauge | none |
+| `omniview.plugin.self.source.sync.duration` | histogram (s) | `outcome` (success, failure, canceled, other) |
+| `omniview.plugin.self.catalog.refreshes` | counter | `outcome` (success, failure, canceled, other) |
+| `omniview.plugin.self.logs.watch.restarts` | counter | `reason` (watch_create_failed, watch_closed, watch_closed_empty, watch_error_event, other) |
 
 Attribute values come from these closed sets. Never record cluster, namespace, resource or path names, queries or error text. Resource sources use a bounded live-change queue; this metric set reports open watch streams, not queue occupancy. API calls are counted at the HTTP transport of the resource and legacy client bundles.
 
