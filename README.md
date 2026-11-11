@@ -596,6 +596,62 @@ Folder rules use `metadata:<namespaced-key>` for observed facts. Existing endpoi
 
 Metadata folder rules read only own string-valued keys. Inherited properties and invalid values remain unknown, including for negative operators.
 
+
+## Native discovery acceptance (P08)
+
+`hack/discovery-native.mjs` reuses the audited, private kind lifecycle below to
+create **two** independently owned Kubernetes API servers. It requires the same
+pinned kind/image and Docker setup, plus Go and the exact clean approved sibling
+`../plugin-sdk` at `6ce85c8b42cab1547396217510196b29e63ffe55`.
+Run from this repository with a new, canonical absolute sandbox directory:
+
+```bash
+SANDBOX="$HOME/omniview-discovery-native"
+node hack/discovery-native.mjs create "$SANDBOX"
+node hack/discovery-native.mjs exercise "$SANDBOX"
+node hack/discovery-native.mjs delete "$SANDBOX"
+```
+
+Exercise uses a private Go modfile with that SDK source and `GOWORK=off`, without
+changing repository dependencies. It runs the actual provider lifecycle and SDK
+gRPC transport against both APIs, not fake discovery/dynamic clients. Fixtures
+include `Mouse`/`mice` with different scope and schemas on the two clusters, plus
+cluster-scoped `Ox`/`oxen`. It exercises enumeration, Get, create/update/delete,
+compares capabilities to live discovery, and rejects unsupported operations on
+the real create-only SelfSubjectAccessReview API. Metadata-only API-server audit
+events verify the actual endpoint paths and absence of requests for rejected
+operations. No audit request/response bodies are enabled for these fixtures.
+Fixture namespaces are unique per exercise. Setup waits for CRD OpenAPI
+publication through native schema acquisition before the independently acquired
+connection catalogs are tested; CRD `Established` alone does not imply that its
+OpenAPI schema has been published.
+
+Removal deletes only A's Mouse CRD, observes the existing real 30-second refresh
+eligibility, confirms registration lookup alone does not refresh, then requests
+the catalog. Old catalog revisions must report `RESET_REQUIRED`; current
+catalogs reject the removed type as `UNSUPPORTED` without issuing stale resource
+requests. B must retain its independent scope/schema and working route. Both
+connections are then stopped/restarted and checked again. A missing registration
+is `NOT_FOUND`; this differs from the public catalog's unsupported-type admission.
+
+Exercise runs once per fresh sandbox. Ordinary Go tests compile and skip this
+opt-in test without `P08_NATIVE_ROOT`; a skip is not native acceptance. Creation,
+exercise, and deletion must all be recorded separately. Keep private kubeconfigs,
+audit files, and generated modfiles out of commits. This proves neither native
+UI behavior nor P05/P11 acceptance.
+
+Native receipt (2026-11-04): the complete test passed in **33.41 seconds** against
+two independently owned Kubernetes v1.32.2 API servers (kind v0.27.0), on source baseline
+`99cfc61422003bf1738d40da18aa387466e5542a` plus this harness and exact SDK
+`6ce85c8b42cab1547396217510196b29e63ffe55`. All fifteen audited collection/object
+verb-path cases above succeeded, alongside scope/schema isolation, unsupported
+verb admission, eligible removal refresh, stale-revision rejection, and reconnect.
+Both owned clusters were then deleted successfully; private evidence remains local.
+Earlier Docker, control-plane startup, TLS, namespace-cleanup, and initial schema
+availability failures remain recorded on [issue #28](https://github.com/omniviewdev/omniview-plugin-kubernetes/issues/28);
+the complete pass followed explicit fixture OpenAPI readiness. No production
+discovery rewrite or timeout change was needed. P08 remains open pending review.
+
 ## Local audit evidence fixture
 
 `hack/history-audit.mjs` creates a separate, randomly named local kind sandbox.
