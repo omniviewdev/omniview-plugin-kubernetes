@@ -153,6 +153,7 @@ func (e *EKSAuthStrategy) BuildRestConfig(
 		RoleARN:     e.roleArn,
 		Profile:     e.profile,
 		Region:      e.region,
+		Connection:  kubeContext,
 		Base:        transport,
 	}
 

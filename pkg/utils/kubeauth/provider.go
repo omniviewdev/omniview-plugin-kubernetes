@@ -3,10 +3,11 @@ package kubeauth
 import (
 	"context"
 	"errors"
-	"github.com/omniview/kubernetes/pkg/diag"
-	"log"
 	"net/http"
+	"time"
 
+	"github.com/omniview/kubernetes/pkg/diag"
+	"go.opentelemetry.io/otel/attribute"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -35,47 +36,75 @@ func LoadKubeClients(ctx context.Context, kubeconfigPath string, kubeContext str
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	// log.Printf("loading kube clients at path %s for context %s", kubeconfigPath, kubeContext)
 
-	strategy, err := DetectAuthStrategy(kubeconfigPath, kubeContext)
+	ctx, span := diag.Tracer().Start(ctx, "kubernetes.client.build")
+	span.SetAttributes(attribute.String("connection", kubeContext))
+	started := time.Now()
+	logger := authLogger()
+	strategyName := "unknown"
+	operation := "detect"
+
+	bundle, err := func() (*KubeClientBundle, error) {
+		strategy, err := DetectAuthStrategy(kubeconfigPath, kubeContext)
+		if err != nil {
+			return nil, err
+		}
+		strategyName = authStrategyName(strategy)
+		span.SetAttributes(attribute.String("auth.strategy", strategyName))
+		span.AddEvent("strategy_detected")
+
+		operation = "rest_config"
+		restConfig, err := strategy.BuildRestConfig(ctx, kubeconfigPath, kubeContext)
+		if err != nil {
+			return nil, err
+		}
+		span.AddEvent("rest_config")
+
+		// Raise rate limits from default (5 QPS / 10 burst) to avoid cascading
+		// timeouts when starting many informers concurrently.
+		restConfig.QPS = 50
+		restConfig.Burst = 100
+		restConfig.Wrap(diag.Transport)
+
+		operation = "clientset"
+		clientset, err := strategy.NewForConfig(restConfig)
+		if err != nil {
+			return nil, err
+		}
+		span.AddEvent("clientset")
+
+		operation = "dynamic"
+		dyn, err := strategy.NewDynamicForConfig(restConfig)
+		if err != nil {
+			return nil, err
+		}
+		span.AddEvent("dynamic")
+
+		operation = "discovery"
+		disco, err := strategy.NewDiscoveryForConfig(restConfig)
+		if err != nil {
+			return nil, err
+		}
+		span.AddEvent("discovery")
+
+		operation = "complete"
+		return &KubeClientBundle{
+			Clientset:  clientset,
+			Discovery:  disco,
+			Dynamic:    dyn,
+			RestConfig: restConfig,
+		}, nil
+	}()
+
+	span.SetAttributes(attribute.String("operation", operation))
+	c := diag.EndSpan(span, err, false)
+	diag.ClientBuild(operation, c.Outcome)
+	fields := append([]any{"connection", kubeContext, "operation", operation, "auth_strategy", strategyName,
+		"duration_ms", time.Since(started).Milliseconds()}, c.LogFields()...)
 	if err != nil {
+		logger.Warnw(ctx, "kubernetes client build failed", fields...)
 		return nil, err
 	}
-
-	restConfig, err := strategy.BuildRestConfig(ctx, kubeconfigPath, kubeContext)
-	if err != nil {
-		log.Printf("failed to build rest config: %s", err.Error())
-		return nil, err
-	}
-
-	// Raise rate limits from default (5 QPS / 10 burst) to avoid cascading
-	// timeouts when starting many informers concurrently.
-	restConfig.QPS = 50
-	restConfig.Burst = 100
-	restConfig.Wrap(diag.Transport)
-
-	clientset, err := strategy.NewForConfig(restConfig)
-	if err != nil {
-		log.Printf("failed to build clientset config: %s", err.Error())
-		return nil, err
-	}
-
-	dyn, err := strategy.NewDynamicForConfig(restConfig)
-	if err != nil {
-		log.Printf("failed to build dynamic config: %s", err.Error())
-		return nil, err
-	}
-
-	disco, err := strategy.NewDiscoveryForConfig(restConfig)
-	if err != nil {
-		log.Printf("failed to build discovery config: %s", err.Error())
-		return nil, err
-	}
-
-	return &KubeClientBundle{
-		Clientset:  clientset,
-		Discovery:  disco,
-		Dynamic:    dyn,
-		RestConfig: restConfig,
-	}, nil
+	logger.Debugw(ctx, "kubernetes clients built", fields...)
+	return bundle, nil
 }
