@@ -343,7 +343,9 @@ Existing informer updates remain explicitly **bestEffort**. Cache readiness does
 
 Watch failures use SDK error codes: unsupported native methods report `UNSUPPORTED`, cache-sync deadlines report `TIMEOUT`, and other unclassified failures report `PROVIDER_ERROR`. Unrepresentable records retain their classified conversion error. These states do not claim source continuity.
 
-OpenAPI documents are bounded to 16 MiB and shared by document reference plus exact local root. Demand-driven catalog refresh runs at most once every 30 seconds per connected cluster, with a 10-second acquisition deadline. Each eligible refresh reacquires OpenAPI before comparing snapshots, so schema-only changes and recovery from an initial missing document can update the catalog. This is not a CRD watcher or immediate change notification.
+Connection startup acquires bounded discovery, scope and native identity only. Catalog representations contain body-format ID/revision, never schemas. Default catalog observation performs no native network work; explicit eligible refresh reacquires discovery at most once every 30 seconds. A failed refresh cannot poison observation of the installed valid snapshot. Partial refresh cannot prove removal and does not replace installed support. Kubernetes advertises consumer-owned best-effort updates without ordinary acquire-on-connect inventory.
+
+`ResolveSchema` accepts one exact current representation or one auxiliary resource/key/revision. Native schema demand fetches only its discovered group/version, coalesces concurrent owners and reuses fresh results for 30 seconds. Revalidation occurs only on later demand, never on a timer or catalog refresh. Schema-only changes never change support revision or native authority. Missing or denied OpenAPI leaves independently admitted raw browsing usable.
 
 Before publication, the provider sets `nullable: true` on exactly
 `io.k8s.apimachinery.pkg.apis.meta.v1.Time` and
@@ -355,9 +357,9 @@ The correction uses exact `components.schemas` spans, not case-different aliases
 `GetSchemaDocument` serves bytes whose SHA-256 equals the binding revision.
 Generic host null checks remain strict.
 
-One provider-wide 32 MiB retained-schema budget covers every connection, with a separate 16 MiB staging bound. Identical document bytes share retained storage. Exhausted entries are unavailable, not incorrectly absent, and resource Get remains independent. Replacement, failed acquisition, and teardown release the cache budget; queued acquisition is cancellable. Available, absent, and unavailable schemas remain distinct; raw OpenAPI transport does not claim P07 normalization or full validation. Editor metadata also forwards installed Helm chart `values.schema.json` roles with native acquisition errors intact. Creation can use a schema-derived template or a complete pasted native manifest.
+One provider-wide 32 MiB retained-schema budget covers every connection. At most four demanded documents may be read or decoded concurrently; each remains capped at 16 MiB. Identical corrected bytes share retained accounting only after independent route admission. Each connection generation owns at most 256 demanded group/version entries, including failures. Aggregate retention pressure returns retryable `RESOURCE_LIMIT`, rather than caching invalid content. Replacement, failed publication, served-version withdrawal and teardown release owned bytes. One canceled waiter cannot cancel another owner; the final waiter and generation retirement cancel owned work. The host remains the sole schema normalizer.
 
-Helm schema acquisition never grants or requires Helm Secret access for native Pod schemas. A source-specific Helm failure retains native bindings and returns a document-free, generic Helm values role marked unavailable with an optional safe machine-code `unavailableReason`, never backend diagnostics or invented release identities. Request cancellation, deadlines, and retired connection generations remain errors rather than partial success. All Helm metadata, storage, and schema HTTP requests reuse the existing authenticated bounded client.
+Helm values enrichment selects only `helm:releases`, auxiliary key `values`, one exact namespaced release reference and its optional observed release-version `SourceRevision`. Native metadata lookup filters that release name; there is no enumerate-all-release schema work. A changed source revision fails with `RESET_REQUIRED`, while a current chart without a values schema is positively absent. An installed-release values schema never describes a selected replacement chart. Helm failures never require or grant Secret access for native Pod schemas. Native errors remain public-safe, and all requests reuse the existing authenticated bounded client.
 
 Tables and navigation use canonical references, routes, target membership, and host keys. Raw tagged integer Values stay exact; display adapters narrow only safe integers to numbers and retain wide integers as `bigint`. Restart counts and image-byte totals preserve exact mixed integer arithmetic. Mutation and action requests retain known UID and revision guards. Native connection discovery, explicit overrides, and disabled routes remain separate; host persistence owns desired profiles, not provider-side kubeconfig edits. Specialized React Router routes retain decoded colons and protect native Type slashes as `%2F`.
 
@@ -1026,21 +1028,21 @@ The plugin automatically discovers clusters from your `~/.kube/config` file. You
 - Set namespace restrictions per connection
 - Configure node shell image and command overrides
 
-Connection discovery and OpenAPI acquisition use up to four concurrent requests
-per stage, while retaining client-go throttling and server retry handling.
-OpenAPI decoding and retained-budget admission remain ordered, with at most four
-documents staged for one provider-wide acquisition. The existing 16 MiB schema
-document and 32 MiB retained-schema limits remain; concurrent staging increases
-transient memory, including the transport's separate response buffers.
+Connection discovery uses up to four concurrent requests while retaining
+client-go throttling and server retry handling. Optional OpenAPI work starts only
+for demanded group/versions. One provider-wide gate bounds concurrent reads and
+decodes to four documents, each at most 16 MiB; retained bytes remain capped at
+32 MiB. Transient memory also includes the transport's separate response buffers.
 EKS token refresh remains serialized, but cached-token HTTP requests do not hold
 the token mutex while waiting on the server.
 
 **Connection acquisition timeout (seconds)** configures the shared SDK policy
 `connection_acquisition_timeout_seconds`: 1-300 whole seconds, default 10.
-Changes apply to the next connection acquisition or catalog refresh without a
-restart; they do not extend an operation already running, retained client
-lifetimes, or watches. An earlier caller deadline still wins. Kubernetes discovery
-and schema logic remain in this plugin; the SDK helper is provider-neutral and
+Changes apply to the next connection acquisition, explicit catalog refresh or
+demanded schema acquisition without a restart; they do not extend an operation
+already running, retained client lifetimes, or watches. Earlier caller deadlines
+still cancel that caller's demand. Kubernetes discovery and schema logic remain
+in this plugin; the SDK helper is provider-neutral and
 requires explicit registration and adoption by other providers.
 
 ### Debug templates and defaults

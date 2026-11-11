@@ -30,10 +30,7 @@ import (
 var nativeTestGVR = schema.GroupVersionResource{Group: "sample.example", Version: "v1", Resource: "widgets"}
 
 func nativeTestRepresentation() resourcev2.Representation {
-	return resourcev2.Representation{
-		ID: "native", Revision: "native/v1",
-		Schema: resourcev2.SchemaBinding{State: "absent"},
-	}
+	return resourcev2.Representation{ID: "native", Revision: "native/v1"}
 }
 
 func nativeTestObject(name, namespace string) *unstructured.Unstructured {

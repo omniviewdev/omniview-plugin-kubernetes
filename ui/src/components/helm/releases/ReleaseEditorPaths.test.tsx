@@ -1,40 +1,236 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DrawerContext } from '@omniviewdev/runtime';
 import { PLUGIN_ID } from '@/pluginId';
 import { ReleaseSidebar } from './ReleaseSidebar';
 import UpgradeDialog from './UpgradeDialog';
 
-const mocks = vi.hoisted(() => ({ editorPath: vi.fn(), execute: vi.fn() }));
+const mocks = vi.hoisted(() => ({ schema: vi.fn(() => ({ result: undefined, error: null })), execute: vi.fn(), resolve: vi.fn(), show: vi.fn() }));
 vi.mock('@omniviewdev/runtime', () => ({
   jsonToValue: (value: unknown) => value,
+  valueToJSON: (value: unknown) => value,
   useExecuteAction: () => ({ executeAction: mocks.execute, isExecuting: false }),
-  useResourceEditorModelPath: mocks.editorPath,
-  useRightDrawer: () => ({ showResourceSidebar: vi.fn() }),
+  resourceEditorModelURI: () => 'inmemory://fixture/helm-values.yaml',
+  useRightDrawer: () => ({ showResourceSidebar: mocks.show }),
 }));
-vi.mock('@omniviewdev/runtime/api', () => ({ ResourceClient: { ResolveReference: vi.fn() } }));
-vi.mock('../../shared/CodeEditor', () => ({ default: ({ path }: { path?: string }) => <div data-testid="editor" data-path={path} /> }));
+vi.mock('@omniviewdev/runtime/api', () => ({ ResourceClient: { ResolveReference: mocks.resolve } }));
+vi.mock('../../../hooks/useEditorSchemaRegistration', () => ({ useEditorSchemaRegistration: mocks.schema }));
+vi.mock('../../shared/CodeEditor', () => ({ default: ({ value, onChange }: { value: string; onChange?: (value: string) => void }) =>
+  onChange ? <textarea aria-label="Upgrade values" value={value} onChange={(event) => onChange(event.target.value)} />
+    : <pre aria-label="Installed values">{value}</pre> }));
 
 const ctx = {
   data: { version: 1n },
-  resource: { key: 'release', route: { connection: 'cluster' }, reference: { address: {
-    id: 'release', scope: [{ dimension: 'namespace', value: 'team' }],
-  } } },
+  resource: { pluginID: PLUGIN_ID, targetId: 'release-target', representation: 'helm.release.v1', key: 'release',
+    route: { connection: 'cluster' }, reference: { address: {
+      provider: 'kubernetes', authority: 'host-authority', type: 'helm:releases', id: 'release', scope: [{ dimension: 'namespace', value: 'team' }],
+    } }, record: { record: { sourceRevision: '1' } } },
 } as DrawerContext<{ version?: bigint }>;
 
-describe('Helm values editor paths', () => {
-  it('separates read-only preview from upgrade draft within the same association', () => {
-    mocks.editorPath.mockImplementation(({ name }: { name: string }) => `file:///catalog/helm/${name}.yaml`);
-    mocks.execute.mockResolvedValue({});
-    render(<ReleaseSidebar ctx={ctx} />);
-    expect(mocks.editorPath).toHaveBeenCalledWith({
-      pluginID: PLUGIN_ID, route: { connection: 'cluster' }, type: 'helm:releases', key: 'team/release', name: 'values-preview',
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.execute.mockReset();
+  mocks.show.mockReset();
+  mocks.resolve.mockResolvedValue({ route: { connection: 'cluster' }, reference: ctx.resource!.reference });
+});
+describe('Helm values schema ownership', () => {
+  it('recovers a fenced values failure by refreshing the release record', async () => {
+    const revisions: string[] = [];
+    mocks.execute.mockImplementation(async ({ input }: { input: { expectedSourceRevision?: string } }) => {
+      revisions.push(input.expectedSourceRevision ?? '');
+      if (input.expectedSourceRevision === '1') throw new Error('Release changed');
+      return { data: { values: { replicas: 3 } } };
     });
-    expect(screen.getByTestId('editor').getAttribute('data-path')).toBe('file:///catalog/helm/values-preview.yaml');
-    render(<UpgradeDialog open={false} onClose={() => {}} releaseName="release" namespace="team" chartRef="chart" connectionID="cluster" />);
-    expect(mocks.editorPath).toHaveBeenCalledWith({
-      pluginID: PLUGIN_ID, route: { connection: 'cluster' }, type: 'helm:releases', key: 'team/release', name: 'values',
+    const view = render(<ReleaseSidebar ctx={ctx} />);
+    mocks.show.mockImplementation(async () => {
+      view.rerender(<ReleaseSidebar ctx={{ ...ctx, resource: { ...ctx.resource!, record: { ...ctx.resource!.record!, record: { ...ctx.resource!.record!.record, sourceRevision: '2' } } } }} />);
     });
+    expect(await screen.findByRole('alert')).toBeVisible();
+    expect(screen.queryByLabelText('Installed values')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh release' }));
+    expect(await screen.findByText('replicas: 3')).toBeVisible();
+    expect(revisions).toEqual(['1', '2']);
+  });
+
+  it('keeps installed values usable and never applies their schema to an upgrade draft', async () => {
+    mocks.execute.mockResolvedValue({ data: { values: { replicas: 2 } } });
+    const preview = render(<ReleaseSidebar ctx={ctx} />);
+    expect(await screen.findByText('replicas: 2')).toBeInTheDocument();
+    expect(mocks.schema).toHaveBeenLastCalledWith({
+      request: { route: { connection: 'cluster' }, type: 'helm:releases',
+        target: { auxiliary: { key: 'values', reference: ctx.resource!.reference, sourceRevision: '1' } } },
+      modelURI: expect.any(String), enabled: true,
+    });
+    preview.unmount();
+    mocks.schema.mockClear();
+    render(<UpgradeDialog open={false} onClose={() => {}} releaseName="release" namespace="team" chartRef="chart" connectionID="cluster" resource={ctx.resource!} />);
+    expect(mocks.schema).not.toHaveBeenCalled();
+  });
+
+  it('keeps authored values when initial release values arrive late', async () => {
+    const pending = Promise.withResolvers<unknown>();
+    mocks.execute.mockReturnValue(pending.promise);
+    render(<UpgradeDialog open onClose={() => {}} releaseName="release" namespace="team" chartRef="chart" connectionID="cluster" resource={ctx.resource!} />);
+    await waitFor(() => expect(mocks.execute).toHaveBeenCalled());
+    fireEvent.change(screen.getByRole('textbox', { name: 'Upgrade values' }), { target: { value: 'replicas: 7\n' } });
+    await act(async () => {
+      pending.resolve({ data: { values: { replicas: 1 } } });
+      await pending.promise;
+    });
+    expect(screen.getByRole('textbox', { name: 'Upgrade values' })).toHaveValue('replicas: 7\n');
+  });
+
+  it('shows an initial values failure locally while raw values stay editable', async () => {
+    mocks.execute.mockRejectedValue(new Error('Release values denied'));
+    render(<UpgradeDialog open onClose={() => {}} releaseName="release" namespace="team" chartRef="chart" connectionID="cluster" resource={ctx.resource!} />);
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Upgrade values' }), { target: { value: 'replicas: 3\n' } });
+    expect(screen.getByRole('textbox', { name: 'Upgrade values' })).toHaveValue('replicas: 3\n');
+  });
+
+  it.each([
+    ['release', { releaseName: 'other-release' }],
+    ['namespace', { namespace: 'other-team' }],
+    ['connection', { connectionID: 'other-cluster' }],
+    ['chart', { chartRef: 'other-chart' }],
+    ['resource incarnation', { resource: { ...ctx.resource!, reference: { ...ctx.resource!.reference, incarnation: 'replacement' } } }],
+  ] as const)('starts fresh values and errors for a different %s', async (_identity, change) => {
+    mocks.execute.mockRejectedValueOnce(new Error('Release values denied'));
+    const props = { open: true, onClose: vi.fn(), releaseName: 'release', namespace: 'team', chartRef: 'chart', connectionID: 'cluster', resource: ctx.resource! };
+    const view = render(<UpgradeDialog {...props} />);
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Upgrade values' }), { target: { value: 'replicas: 7\n' } });
+    const pending = Promise.withResolvers<unknown>();
+    mocks.execute.mockReturnValueOnce(pending.promise);
+
+    view.rerender(<UpgradeDialog {...props} {...change} />);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('textbox', { name: 'Upgrade values' })).toHaveValue('');
+    await waitFor(() => expect(mocks.execute).toHaveBeenCalledTimes(2));
+    await act(async () => { pending.resolve({ data: { values: { replicas: 2 } } }); });
+    expect(screen.getByRole('textbox', { name: 'Upgrade values' })).toHaveValue('replicas: 2\n');
+  });
+
+  it('ignores values from a release retired before its load completes', async () => {
+    const previous = Promise.withResolvers<unknown>();
+    const current = Promise.withResolvers<unknown>();
+    mocks.execute.mockReturnValueOnce(previous.promise).mockReturnValueOnce(current.promise);
+    const props = { open: true, onClose: vi.fn(), releaseName: 'release', namespace: 'team', chartRef: 'chart', connectionID: 'cluster', resource: ctx.resource! };
+    const view = render(<UpgradeDialog {...props} />);
+    await waitFor(() => expect(mocks.execute).toHaveBeenCalledTimes(1));
+    view.rerender(<UpgradeDialog {...props} namespace="other-team" />);
+    await waitFor(() => expect(mocks.execute).toHaveBeenCalledTimes(2));
+    await act(async () => { previous.resolve({ data: { values: { replicas: 9 } } }); });
+    expect(screen.getByRole('textbox', { name: 'Upgrade values' })).toHaveValue('');
+    await act(async () => { current.resolve({ data: { values: { replicas: 2 } } }); });
+    expect(screen.getByRole('textbox', { name: 'Upgrade values' })).toHaveValue('replicas: 2\n');
+  });
+
+  it.each(['Dry Run', 'Upgrade'])('rejects a stale %s draft after a same-name replacement', async (action) => {
+    let currentRevision = '1';
+    const applied: unknown[] = [];
+    mocks.execute.mockImplementation(async ({ action: actionID, input }: { action: string; input: { expectedSourceRevision?: string; values?: unknown } }) => {
+      if (input.expectedSourceRevision && input.expectedSourceRevision !== currentRevision) {
+        throw new Error('The installed Helm release revision changed');
+      }
+      if (actionID === 'get-values') return { data: { values: { replicas: 2 } } };
+      applied.push(input.values);
+      return { data: { manifest: 'applied to replacement' } };
+    });
+    const props = { open: true, onClose: vi.fn(), releaseName: 'release', namespace: 'team', chartRef: 'chart', connectionID: 'cluster', resource: ctx.resource! };
+    const view = render(<UpgradeDialog {...props} />);
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Upgrade values' })).toHaveValue('replicas: 2\n'));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Upgrade values' }), { target: { value: 'replicas: 7\n' } });
+    currentRevision = 'replacement-revision';
+    view.rerender(<UpgradeDialog {...props} resource={{ ...props.resource, record: { ...props.resource.record!, record: { ...props.resource.record!.record, sourceRevision: currentRevision } } }} />);
+    fireEvent.click(screen.getByRole('button', { name: action, exact: true }));
+    expect(await screen.findByLabelText('Installed values')).toBeVisible();
+    expect(screen.getByRole('textbox', { name: 'Upgrade values' })).toHaveValue('replicas: 7\n');
+    expect(applied).toEqual([]);
+    expect(props.onClose).not.toHaveBeenCalled();
+  });
+
+  it('does not load replacement values when release resolution completes after draft creation', async () => {
+    const pending = Promise.withResolvers<unknown>();
+    mocks.resolve.mockReturnValueOnce(pending.promise);
+    mocks.execute.mockImplementation(async ({ input }: { input: { expectedSourceRevision?: string } }) => {
+      if (input.expectedSourceRevision === '1') throw new Error('The installed Helm release revision changed');
+      return { data: { values: { replacement: true } } };
+    });
+    render(<UpgradeDialog open onClose={() => {}} releaseName="release" namespace="team" chartRef="chart" connectionID="cluster" resource={ctx.resource!} />);
+    await act(async () => { pending.resolve({ route: { connection: 'cluster' }, reference: ctx.resource!.reference }); });
+    expect(await screen.findByRole('alert')).toBeVisible();
+    expect(screen.getByRole('textbox', { name: 'Upgrade values' })).toHaveValue('');
+    fireEvent.change(screen.getByRole('textbox', { name: 'Upgrade values' }), { target: { value: 'replicas: 7\n' } });
+    expect(screen.getByRole('textbox', { name: 'Upgrade values' })).toHaveValue('replicas: 7\n');
+  });
+
+  it.each(['Dry Run', 'Upgrade'])('keeps same-revision drafts usable for %s across record refreshes', async (action) => {
+    const applied: unknown[] = [];
+    mocks.execute.mockImplementation(async ({ action: actionID, input }: { action: string; input: { expectedSourceRevision?: string; values?: unknown } }) => {
+      if (input.expectedSourceRevision !== '1') throw new Error('Draft source is not current');
+      if (actionID === 'get-values') return { data: { values: { replicas: 2 } } };
+      applied.push(input.values);
+      return { data: { manifest: 'current manifest' } };
+    });
+    const props = { open: true, onClose: vi.fn(), releaseName: 'release', namespace: 'team', chartRef: 'chart', connectionID: 'cluster', resource: ctx.resource! };
+    const view = render(<UpgradeDialog {...props} />);
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Upgrade values' })).toHaveValue('replicas: 2\n'));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Upgrade values' }), { target: { value: 'replicas: 7\n' } });
+    view.rerender(<UpgradeDialog {...props} resource={{ ...props.resource, record: { ...props.resource.record!, record: { ...props.resource.record!.record } } }} />);
+    expect(screen.getByRole('textbox', { name: 'Upgrade values' })).toHaveValue('replicas: 7\n');
+    expect(mocks.execute).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: action, exact: true }));
+    if (action === 'Upgrade') {
+      await waitFor(() => expect(props.onClose).toHaveBeenCalledTimes(1));
+    } else {
+      expect(await screen.findByLabelText('Installed values')).toBeVisible();
+      expect(props.onClose).not.toHaveBeenCalled();
+    }
+    expect(applied).toEqual([{ replicas: 7n }]);
+  });
+
+  it('keeps values editable but refuses upgrade actions without draft revision evidence', async () => {
+    mocks.execute.mockResolvedValue({ data: { values: { replicas: 2 } } });
+    render(<UpgradeDialog open onClose={() => {}} releaseName="release" namespace="team" chartRef="chart" connectionID="cluster" resource={{ ...ctx.resource!, record: undefined }} />);
+    expect(await screen.findByRole('alert')).toBeVisible();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Upgrade values' }), { target: { value: 'replicas: 7\n' } });
+    expect(screen.getByRole('textbox', { name: 'Upgrade values' })).toHaveValue('replicas: 7\n');
+    expect(screen.getByRole('button', { name: 'Dry Run', exact: true })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Upgrade', exact: true })).toBeDisabled();
+  });
+
+  it('retires an open sidebar draft when same-name replacement evidence arrives', async () => {
+    mocks.execute.mockResolvedValue({ data: { values: { replicas: 2 } } });
+    const view = render(<ReleaseSidebar ctx={ctx} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Upgrade Release' }));
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Upgrade values' })).toHaveValue('replicas: 2\n'));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Upgrade values' }), { target: { value: 'replicas: 7\n' } });
+    view.rerender(<ReleaseSidebar ctx={{ ...ctx, resource: { ...ctx.resource!, record: { ...ctx.resource!.record!, record: { ...ctx.resource!.record!.record, sourceRevision: 'replacement-revision' } } } }} />);
+    expect(screen.queryByRole('textbox', { name: 'Upgrade values' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Upgrade Release' }));
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Upgrade values' })).toHaveValue('replicas: 2\n'));
+  });
+
+  it.each(['Dry Run', 'Upgrade'])('retires pending %s results when the dialog closes and reopens', async (action) => {
+    const pending = Promise.withResolvers<unknown>();
+    mocks.execute.mockImplementation(({ action }: { action: string }) => action === 'get-values'
+      ? Promise.resolve({ data: { values: { replicas: 2 } } }) : pending.promise);
+    const onClose = vi.fn();
+    const props = { open: true, onClose, releaseName: 'release', namespace: 'team', chartRef: 'chart', connectionID: 'cluster', resource: ctx.resource! };
+    const view = render(<UpgradeDialog {...props} />);
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Upgrade values' })).toHaveValue('replicas: 2\n'));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Upgrade values' }), { target: { value: 'replicas: 7\n' } });
+    fireEvent.click(screen.getByRole('button', { name: action, exact: true }));
+    await waitFor(() => expect(mocks.execute).toHaveBeenCalledTimes(2));
+    view.rerender(<UpgradeDialog {...props} open={false} />);
+    view.rerender(<UpgradeDialog {...props} />);
+    await waitFor(() => expect(mocks.execute).toHaveBeenCalledTimes(3));
+    expect(screen.getByRole('textbox', { name: 'Upgrade values' })).toHaveValue('replicas: 2\n');
+    await act(async () => { pending.resolve({ data: { manifest: 'retired manifest' } }); });
+    expect(screen.queryByText('Dry Run Preview')).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
   });
 });

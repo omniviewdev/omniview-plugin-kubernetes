@@ -32,7 +32,7 @@ const record: HostRecord = {
       incarnation: 'pod-uid',
     },
     body: { kind: 'map', value: {} },
-    representation: { id: 'native-json', revision: 'schema', schema: { state: 'absent', validation: 'dynamic', unvalidated: [] } },
+    representation: { id: 'native-json', revision: 'format-1' },
     coverage: { kind: 'complete', paths: [] },
   },
 };

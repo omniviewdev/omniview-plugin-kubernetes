@@ -1,12 +1,18 @@
 import { Button } from '@omniviewdev/base-ui';
-import type { ResourceEditorFormProps, ResourceEditorPath } from '@omniviewdev/runtime';
-import { useState } from 'react';
+import { useSchemaFields, type ResourceEditorFormProps, type ResourceEditorPath, type SchemaRequest } from '@omniviewdev/runtime';
+import { useContext, useState } from 'react';
 
 import { EditorChoice, EditorField, EditorHelp, ReferencePicker, scalarText } from '../../editor-controls';
 
-import { identifierError, parameterError, record } from './rules';
+import { fieldAvailable, identifierError, parameterError, record } from './rules';
 import { booleanOptions, storageBuffer, type StorageState } from './storageState';
 import './storage.css';
+import { PLUGIN_ID } from '@/pluginId';
+import { ResourceSchemaContext } from '../../ResourceSchemaContext';
+import { installedEditorSchemaEvidence } from '../../resourceEditorContext';
+
+type ParametersProps = { form: ResourceEditorFormProps; state: StorageState; required?: boolean; disabled?: boolean };
+const parameterSchemaPath = [{ Kind: 'field', Name: 'parameters' }] as const;
 
 export function TextValue({ form, state, path, label, required, disabled, help, parse, password = false, allowEmpty = false }: {
   form: ResourceEditorFormProps; state: StorageState; path: ResourceEditorPath; label: string;
@@ -50,7 +56,25 @@ export function ChoiceValue({ form, state, path, label, options, help, disabled 
     setError(failure); state.report(JSON.stringify(path), failure);
   }} />;
 }
-export function Parameters({ form, state, required = false, disabled = false }: { form: ResourceEditorFormProps; state: StorageState; required?: boolean; disabled?: boolean }) {
+export function Parameters(props: ParametersProps) {
+  const request = useContext(ResourceSchemaContext);
+  return request ? <TargetParameters {...props} request={request} /> : <ParameterFields {...props} />;
+}
+
+function TargetParameters({ request, ...props }: ParametersProps & { request: SchemaRequest }) {
+  const schema = useSchemaFields({ pluginID: PLUGIN_ID, request, path: parameterSchemaPath });
+  const result = schema.result && { ...schema.result, fields: schema.result.fields.filter((field) =>
+    field.Segment.Kind === 'mapValue' && !!field.Types?.length && field.Types.every((type) => type === 'string')) };
+  const form = { ...props.form, context: { ...props.form.context, schema: installedEditorSchemaEvidence(result, parameterSchemaPath) } };
+  return <>
+    {schema.error && <p role="status">Parameter field schema is unavailable. Parameter changes are disabled.</p>}
+    <ParameterFields {...props} form={form} />
+  </>;
+}
+
+function ParameterFields({ form, state: storage, required = false, disabled = false }: ParametersProps) {
+  const state: StorageState = { ...storage, commit: (operations) => fieldAvailable(form.context, ['parameters', '*'])
+    ? storage.commit(operations) : 'Schema does not admit this field.' };
   const parameters = form.draft.get(['parameters']);
   const entries = record(parameters) ? Object.keys(parameters) : [];
   const [key, setKey] = storageBuffer(state, 'new-parameter-key');

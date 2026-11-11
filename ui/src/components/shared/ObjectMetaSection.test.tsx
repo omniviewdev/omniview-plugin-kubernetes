@@ -22,19 +22,9 @@ vi.mock('@omniviewdev/runtime/api', () => ({
       types: [
         {
           type: 'k8s:apps/deployments',
+          displayName: 'Deployment',
           identityDimensions: [{ name: 'namespace' }],
-          representations: [
-            {
-              id: 'native',
-              schema: {
-                document: {
-                  'x-kubernetes-group-version-kind': [
-                    { group: 'apps', version: 'v1', kind: 'Deployment' },
-                  ],
-                },
-              },
-            },
-          ],
+          representations: [{ id: 'native', revision: '1' }],
         },
       ],
     })),

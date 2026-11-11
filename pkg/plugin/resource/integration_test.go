@@ -28,7 +28,7 @@ import (
 var boundaryGVR = schema.GroupVersionResource{Version: "v1", Resource: "pods"}
 
 func boundaryRepresentation() resourcev2.Representation {
-	return resourcev2.Representation{ID: "kubernetes.object.v1/v1", Revision: "kubernetes.object.v1/v1", Schema: resourcev2.SchemaBinding{State: "unavailable"}}
+	return resourcev2.Representation{ID: "kubernetes.object.v1/v1", Revision: "kubernetes.object.v1/v1"}
 }
 func boundaryObject(name, namespace string) *unstructured.Unstructured {
 	return &unstructured.Unstructured{Object: map[string]any{"apiVersion": "v1", "kind": "Pod", "metadata": map[string]any{"name": name, "namespace": namespace, "uid": "uid-1", "resourceVersion": "opaque:9"}}}

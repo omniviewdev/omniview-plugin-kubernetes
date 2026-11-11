@@ -10,38 +10,113 @@ import (
 )
 
 func (p *kubernetesProvider) GetSchemaDocument(ctx context.Context, route resourcev2.AccessRoute, reference resourcev2.SchemaDocumentReference) (document resourcev2.SchemaDocument, err error) {
-	err = p.WithClient(ctx, route, func(_ context.Context, _ *clients.ClientSet) error {
-		snapshot, err := p.snapshot(route)
-		if err != nil {
-			return err
+	err = p.WithClient(ctx, route, func(ctx context.Context, _ *clients.ClientSet) error {
+		p.mu.RLock()
+		defer p.mu.RUnlock()
+		snapshot := p.catalogs[route.Connection]
+		if snapshot == nil || snapshot.schemas == nil || snapshot.schemas.ctx.Err() != nil {
+			return resourcev2.NewError("RESET_REQUIRED", "Native schema generation is not available")
 		}
-		var ok bool
-		document, ok = snapshot.documents[reference]
-		if !ok {
-			return resourcev2.NewError("RESET_REQUIRED", "Schema document revision is not available in this connection catalog")
+		for gv, entry := range snapshot.schemas.entries {
+			if entry.lease != nil && reference.ID == "kubernetes.openapi.v3/"+gv.String() && reference.Revision == entry.document.Revision {
+				document = resourcev2.SchemaDocument{Reference: reference, Dialect: resourcev2.DialectOpenAPI30, Document: entry.document.Document}
+				return ctx.Err()
+			}
 		}
-		return nil
+		return resourcev2.NewError("RESET_REQUIRED", "The exact demanded schema document is not held by this connection")
 	})
 	return document, err
 }
 
-func (p *kubernetesProvider) GetEditorSchemas(ctx context.Context, route resourcev2.AccessRoute) (schemas []resourcev2.EditorSchema, err error) {
-	err = p.WithClient(ctx, route, func(ctx context.Context, client *clients.ClientSet) error {
-		schemas, err = p.helmAncillary.GetEditorSchemas(ctx, client)
-		if err == nil {
-			return nil
+func (p *kubernetesProvider) ResolveSchema(ctx context.Context, request resourcev2.SchemaRequest) (binding resourcev2.SchemaBinding, err error) {
+	if err := resourcev2.ValidateSchemaRequest(request); err != nil {
+		return binding, err
+	}
+	err = p.WithClient(ctx, request.Route, func(ctx context.Context, client *clients.ClientSet) error {
+		p.mu.Lock()
+		snapshot := p.catalogs[request.Route.Connection]
+		if snapshot == nil {
+			p.mu.Unlock()
+			return resourcev2.NewError("UNAVAILABLE", "Connection catalog is not available")
 		}
-		if canceled := ctx.Err(); canceled != nil {
-			return canceled
+		if snapshot.schemas == nil {
+			snapshot.schemas = newNativeSchemaState(ctx)
 		}
-		// Native Kubernetes errors lose their code across the SDK boundary;
-		// classify them into public-safe resource errors.
-		if classified := classifyResourceError(err); classified != nil {
-			return classified
+		state := snapshot.schemas
+		served, native, admissionErr := admitNativeSchemaTarget(snapshot, request)
+		p.mu.Unlock()
+		if admissionErr != nil {
+			return admissionErr
 		}
-		return err
+		if request.Target.Auxiliary != nil {
+			binding, err = p.helmAncillary.ResolveSchema(ctx, client, request)
+		} else if native {
+			binding, err = p.resolveNativeSchema(ctx, request, served, state)
+		} else {
+			binding = resourcev2.SchemaBinding{State: "absent"}
+		}
+		if err != nil {
+			if canceled := ctx.Err(); canceled != nil {
+				return canceled
+			}
+			if classified := classifyResourceError(err); classified != nil {
+				return classified
+			}
+			return err
+		}
+		p.mu.RLock()
+		defer p.mu.RUnlock()
+		current := p.catalogs[request.Route.Connection]
+		if current == nil || current.schemas != state || state.ctx.Err() != nil {
+			return resourcev2.NewError("RESET_REQUIRED", "Native schema generation was retired")
+		}
+		currentServed, currentNative, err := admitNativeSchemaTarget(current, request)
+		if err != nil || currentNative != native || currentServed.GVR != served.GVR || currentServed.API.Kind != served.API.Kind {
+			return resourcev2.NewError("RESET_REQUIRED", "Native schema target changed during acquisition")
+		}
+		return ctx.Err()
 	})
-	return schemas, err
+	if err != nil {
+		return resourcev2.SchemaBinding{}, err
+	}
+	return binding, nil
+}
+
+func admitNativeSchemaTarget(snapshot *nativeCatalogSnapshot, request resourcev2.SchemaRequest) (nativeServedType, bool, error) {
+	for _, descriptor := range snapshot.catalog.Types {
+		if descriptor.Type != request.Type {
+			continue
+		}
+		if request.Target.Auxiliary != nil {
+			if request.Type != helm.ReleaseType || request.Target.Auxiliary.Key != "values" {
+				return nativeServedType{}, false, resourcev2.NewError("UNSUPPORTED", "Resource type does not provide this auxiliary schema")
+			}
+			if _, err := resourcev2.AdmitCatalogOperation(snapshot.catalog, resourcev2.GetRequest{
+				Route: request.Route, Reference: request.Target.Auxiliary.Reference,
+				Representation: descriptor.DefaultRepresentation,
+			}); err != nil {
+				return nativeServedType{}, false, err
+			}
+			return nativeServedType{}, false, nil
+		}
+		for _, representation := range descriptor.Representations {
+			if representation != *request.Target.Representation {
+				continue
+			}
+			native, exists := snapshot.bindings[request.Type]
+			if !exists {
+				return nativeServedType{}, false, nil
+			}
+			for _, served := range nativeServedVersions(native) {
+				gv := served.GVR.GroupVersion().String()
+				if len(native.Served) == 0 || representation.ID == nativeRepresentationVersion+"/"+gv || representation.ID == nativeModelRepresentationVersion+"/"+gv {
+					return served, true, nil
+				}
+			}
+		}
+		return nativeServedType{}, false, resourcev2.NewError("RESET_REQUIRED", "The exact schema representation is not current")
+	}
+	return nativeServedType{}, false, resourcev2.NewError("NOT_FOUND", "Resource type is not present in this connection catalog")
 }
 
 func (p *kubernetesProvider) GetResourceDefinition(ctx context.Context, route resourcev2.AccessRoute, token string) (definition resourcev2.ResourceDefinition, err error) {

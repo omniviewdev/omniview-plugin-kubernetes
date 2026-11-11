@@ -107,10 +107,11 @@ jobs:
 
   archive-smoke:
     needs: build
-    uses: omniviewdev/omniview/.github/workflows/plugin-archive-smoke.yml@main
+    uses: omniviewdev/omniview/.github/workflows/plugin-archive-smoke.yml@7534abc06430200070984c7df4d1071be6647f7a
     with:
-      host-ref: main
+      host-ref: 7534abc06430200070984c7df4d1071be6647f7a
       archive-artifact: plugin-archives
+      package-version: "0.36.0"
 
   publish:
     needs: [build, archive-smoke]
@@ -163,7 +164,7 @@ jobs:
           publisher-slug: omniview
           plugin-id: kubernetes
           version: ${{ needs.build.outputs.version }}
-          min-ide-version: "0.35.0"
+          min-ide-version: "0.36.0"
           artifact-path: dist/
           architectures: ${{ needs.build.outputs.platforms }}
 

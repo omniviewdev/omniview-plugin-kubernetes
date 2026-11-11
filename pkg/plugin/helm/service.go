@@ -2,12 +2,17 @@ package helm
 
 import (
 	"context"
+	sqldriver "database/sql/driver"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
+	"time"
 
+	"github.com/lib/pq"
 	"helm.sh/helm/v3/pkg/action"
+	"helm.sh/helm/v3/pkg/kube"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/discovery/cached/memory"
@@ -17,9 +22,52 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
-// Each native Helm operation owns its configuration so Background-only Helm
-// APIs still use the actual RPC cancellation without caching a request context.
+// Each native Helm operation owns its configuration. Kubernetes Background-only
+// APIs use the actual RPC cancellation; Helm's native SQL write APIs do not.
 func newActionConfig(ctx context.Context, config *rest.Config, client *http.Client, namespace string) (*action.Configuration, error) {
+	getter, err := newHelmOperationGetter(ctx, config, client, namespace)
+	if err != nil {
+		return nil, err
+	}
+	driver := os.Getenv("HELM_DRIVER")
+	if driver == "" {
+		driver = "secrets"
+	}
+	if driver == "sql" {
+		getter.sqlConnector, err = newHelmSQLConnector()
+		if err != nil {
+			return nil, err
+		}
+	}
+	cfg := new(action.Configuration)
+	if err := cfg.Init(getter, namespace, driver, helmDebugSink(ctx)); err != nil {
+		return nil, fmt.Errorf("failed to initialize Helm action configuration: %w", err)
+	}
+	return cfg, nil
+}
+
+// newNamedReleaseConfig avoids Helm's context-free SQL connection and migrations.
+// SQL configurations are named-read-only: Releases is deliberately unset, so no
+// native action can silently write through a different storage driver.
+func newNamedReleaseConfig(ctx context.Context, config *rest.Config, client *http.Client, namespace string) (*action.Configuration, error) {
+	if os.Getenv("HELM_DRIVER") != "sql" {
+		return newActionConfig(ctx, config, client, namespace)
+	}
+	getter, err := newHelmOperationGetter(ctx, config, client, namespace)
+	if err != nil {
+		return nil, err
+	}
+	getter.sqlConnector, err = newHelmSQLConnector()
+	if err != nil {
+		return nil, err
+	}
+	log := helmDebugSink(ctx)
+	kubeClient := kube.New(getter)
+	kubeClient.Log = log
+	return &action.Configuration{RESTClientGetter: getter, KubeClient: kubeClient, Log: log}, nil
+}
+
+func newHelmOperationGetter(ctx context.Context, config *rest.Config, client *http.Client, namespace string) (*restClientGetter, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -28,16 +76,95 @@ func newActionConfig(ctx context.Context, config *rest.Config, client *http.Clie
 	}
 	ownedClient := *client
 	ownedClient.Transport = helmRequestTransport{base: client.Transport, operation: ctx}
-	getter := newRESTClientGetter(config, &ownedClient, namespace)
-	driver := os.Getenv("HELM_DRIVER")
-	if driver == "" {
-		driver = "secrets"
+	return newRESTClientGetter(config, &ownedClient, namespace), nil
+}
+
+type helmSQLConnector struct {
+	config pq.Config
+}
+
+func newHelmSQLConnector() (*helmSQLConnector, error) {
+	config, err := pq.NewConfig(os.Getenv("HELM_DRIVER_SQL_CONNECTION_STRING"))
+	if err != nil {
+		return nil, err
 	}
-	cfg := new(action.Configuration)
-	if err := cfg.Init(getter, namespace, driver, helmDebugSink(ctx)); err != nil {
-		return nil, fmt.Errorf("failed to initialize Helm action configuration: %w", err)
+	return &helmSQLConnector{config: config}, nil
+}
+
+func (connector *helmSQLConnector) Driver() sqldriver.Driver { return &pq.Driver{} }
+
+func (connector *helmSQLConnector) Connect(ctx context.Context) (sqldriver.Conn, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
-	return cfg, nil
+	native, err := pq.NewConnectorConfig(connector.config.Clone())
+	if err != nil {
+		return nil, err
+	}
+	dialer := &helmSQLConnectDialer{operation: ctx}
+	native.Dialer(dialer)
+	connection, err := native.Connect(ctx)
+	dialer.finish()
+	if canceled := ctx.Err(); canceled != nil {
+		if err == nil && connection != nil {
+			_ = connection.Close()
+		}
+		return nil, canceled
+	}
+	return connection, err
+}
+
+// pq only uses Connect's context for dialing, not SSL/startup or session checks.
+// Its supported dialer hook closes stalled startup sockets on cancellation.
+type helmSQLConnectDialer struct {
+	net.Dialer
+	operation context.Context
+	release   func()
+}
+
+func (dialer *helmSQLConnectDialer) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
+	ctx := dialer.operation
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+	return dialer.DialContext(ctx, network, address)
+}
+
+func (dialer *helmSQLConnectDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	if dialer.release != nil {
+		dialer.release()
+		dialer.release = nil
+	}
+	connection, err := dialer.Dialer.DialContext(ctx, network, address)
+	if err != nil || dialer.operation == nil {
+		return connection, err
+	}
+	closed := make(chan struct{})
+	stop := context.AfterFunc(dialer.operation, func() {
+		_ = connection.Close()
+		close(closed)
+	})
+	dialer.release = func() {
+		if !stop() {
+			<-closed
+		}
+	}
+	return connection, nil
+}
+
+func (dialer *helmSQLConnectDialer) finish() {
+	if dialer.release != nil {
+		dialer.release()
+		dialer.release = nil
+	}
+	// pq retains this dialer for later query-cancellation packets. Those must
+	// use pq's independent cancellation context, not the completed Connect.
+	dialer.operation = nil
 }
 
 type helmRequestTransport struct {
@@ -83,9 +210,10 @@ func (b helmRequestBody) Close() error { b.release(); return b.ReadCloser.Close(
 // restClientGetter implements genericclioptions.RESTClientGetter
 // using an existing rest.Config from the K8s plugin's ClientSet.
 type restClientGetter struct {
-	restConfig *rest.Config
-	httpClient *http.Client
-	namespace  string
+	restConfig   *rest.Config
+	httpClient   *http.Client
+	namespace    string
+	sqlConnector *helmSQLConnector
 }
 
 func newRESTClientGetter(cfg *rest.Config, client *http.Client, namespace string) *restClientGetter {

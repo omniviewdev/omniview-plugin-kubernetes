@@ -1,15 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
-import { getTemplate, templateIdentity } from './templates';
+import { getTemplate } from './templates';
 
 describe('native create templates', () => {
-  it('uses the exact selected schema root and native group/version/kind', () => {
-    const document = { components: { schemas: {
-      'custom/Widget': { 'x-kubernetes-group-version-kind': [{ group: 'example.test', version: 'v7', kind: 'Widget' }] },
-      other: { 'x-kubernetes-group-version-kind': [{ group: '', version: 'v1', kind: 'Pod' }] },
-    } } };
-    const identity = templateIdentity(document, '#/components/schemas/custom~1Widget', true);
-    expect(identity).toEqual({ apiVersion: 'example.test/v7', kind: 'Widget', namespaced: true });
+  it('uses an explicit selected native group/version/kind without schema', () => {
+    const identity = { apiVersion: 'example.test/v7', kind: 'Widget', namespaced: true };
     expect(parse(getTemplate(identity))).toEqual({
       apiVersion: 'example.test/v7', kind: 'Widget', metadata: { name: 'my-widget', namespace: 'default' },
     });
@@ -23,11 +18,7 @@ describe('native create templates', () => {
     expect(body.metadata.namespace).toBeUndefined();
   });
 
-  it('does not invent identity when the schema is missing or ambiguous', () => {
-    expect(templateIdentity({}, '#/missing', false)).toBeUndefined();
-    expect(templateIdentity({ 'x-kubernetes-group-version-kind': [
-      { group: '', version: 'v1', kind: 'Pod' }, { group: 'other', version: 'v2', kind: 'Pod' },
-    ] }, '#', true)).toBeUndefined();
+  it('does not invent identity when no selected native target is known', () => {
     expect(parse(getTemplate())).toBeNull();
     expect(getTemplate()).toContain('Paste a complete Kubernetes YAML manifest');
   });

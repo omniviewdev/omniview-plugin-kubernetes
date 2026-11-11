@@ -20,9 +20,8 @@ type nativeCatalogSnapshot struct {
 	catalog           resourcev2.Catalog
 	bindings          map[string]nativeType
 	registrations     map[string]resourcev2.Registration[clients.ClientSet]
-	documents         map[resourcev2.SchemaDocumentReference]resourcev2.SchemaDocument
 	identityHint      *resourcev2.NativeAuthorityHint
-	schemaLease       *nativeSchemaLease
+	schemas           *nativeSchemaState
 	discoveryRevision string
 	nextRefresh       time.Time
 	refreshError      error
@@ -127,7 +126,7 @@ func (p *kubernetesProvider) startNativeConnection(ctx context.Context, connecti
 		previousLoad.cancel()
 	}
 	if previousSnapshot != nil {
-		previousSnapshot.schemaLease.Release()
+		p.retireNativeSchemas(previousSnapshot.schemas)
 	}
 	defer func() {
 		cancel()
@@ -144,10 +143,10 @@ func (p *kubernetesProvider) startNativeConnection(ctx context.Context, connecti
 	p.mu.Lock()
 	if p.catalogLoads[connection.ID] != load || ctx.Err() != nil {
 		p.mu.Unlock()
-		snapshot.schemaLease.Release()
 		return resourcev2.NewError("RESET_REQUIRED", "Native connection catalog acquisition was retired")
 	}
 	snapshot.nextRefresh = time.Now().Add(nativeCatalogRefreshInterval)
+	snapshot.schemas = newNativeSchemaState(ctx)
 	p.catalogs[connection.ID] = snapshot
 	p.mu.Unlock()
 	return nil
@@ -163,7 +162,7 @@ func (p *kubernetesProvider) retireNativeCatalog(connectionID string) {
 		load.cancel()
 	}
 	if snapshot != nil {
-		snapshot.schemaLease.Release()
+		p.retireNativeSchemas(snapshot.schemas)
 	}
 }
 
@@ -189,7 +188,7 @@ func (p *kubernetesProvider) snapshot(route resourcev2.AccessRoute) (*nativeCata
 
 func (p *kubernetesProvider) catalog(ctx context.Context, request resourcev2.CatalogRequest) (catalog resourcev2.Catalog, err error) {
 	err = p.WithClient(ctx, request.Route, func(ctx context.Context, client *clients.ClientSet) error {
-		if client != nil && client.DiscoveryClient != nil {
+		if request.Refresh && client != nil && client.DiscoveryClient != nil {
 			if err := p.refreshNativeCatalog(ctx, request.Route.Connection, client); err != nil {
 				return err
 			}

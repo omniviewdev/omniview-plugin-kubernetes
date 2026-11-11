@@ -9,9 +9,7 @@ import {
   useNotifications,
   usePluginRouter,
   parseAppError,
-  useEditorSchemas,
 } from '@omniviewdev/runtime';
-import type { EditorSchemaAssociation, EditorSchemaDocument } from '@omniviewdev/runtime';
 import React from 'react';
 import { LuCog, LuLock, LuLockOpen, LuPuzzle, LuRotateCcw, LuSearch } from 'react-icons/lu';
 import { Outlet, useParams } from 'react-router';
@@ -123,6 +121,24 @@ function RouteState({
   );
 }
 
+function SidebarCatalogStatus({ connectionID }: { connectionID: string }) {
+  const route = { connection: connectionID };
+  const { groups } = useResourceGroups({ pluginID: PLUGIN_ID, route });
+  const { resourceTypes } = useResourceTypes({ pluginID: PLUGIN_ID, route });
+  if (groups.isError || resourceTypes.isError) {
+    return <Stack direction="column" spacing={1} role="alert">
+      <Text size="xs">Sidebar catalog: {errorMessage(groups.error || resourceTypes.error)}</Text>
+      <Button size="sm" onClick={() => {
+        if (groups.isError) void groups.refetch();
+        if (resourceTypes.isError) void resourceTypes.refetch();
+      }}>Retry sidebar</Button>
+    </Stack>;
+  }
+  return groups.isLoading || resourceTypes.isLoading || !groups.data || !resourceTypes.data
+    ? <Text size="xs" role="status">Loading sidebar catalog…</Text>
+    : null;
+}
+
 export default function ClusterResourcesPage(): React.ReactElement {
   const { id = '' } = useParams<{ id: string }>();
   return <ClusterResourcesSession key={id} id={id} />;
@@ -130,11 +146,6 @@ export default function ClusterResourcesPage(): React.ReactElement {
 
 // ClusterResourcesRoute owns the connection boundary and readiness recovery.
 function ClusterResourcesSession({ id }: { id: string }): React.ReactElement {
-  const { resourceTypes: types } = useResourceTypes({
-    pluginID: PLUGIN_ID,
-    route: { connection: id },
-  });
-  const { groups } = useResourceGroups({ pluginID: PLUGIN_ID, route: { connection: id } });
   const { connection } = useConnection({ pluginID: PLUGIN_ID, connectionID: id });
   const { connectionOverrides } = useClusterPreferences(PLUGIN_ID);
   const { layout: rawLayout } = useSidebarLayout({ connectionID: id });
@@ -183,7 +194,7 @@ function ClusterResourcesSession({ id }: { id: string }): React.ReactElement {
     },
     [setSavedExpandedState],
   );
-  const { isFullySynced, summary } = useSourceStates({
+  const { summary } = useSourceStates({
     pluginID: PLUGIN_ID,
     route: { connection: id },
   });
@@ -195,57 +206,12 @@ function ClusterResourcesSession({ id }: { id: string }): React.ReactElement {
     [summary?.types],
   );
 
-  // Fetch and register OpenAPI schemas with the host's Monaco schema registry
-  const { associations, documents } = useEditorSchemas({
-    pluginID: PLUGIN_ID,
-    route: { connection: id },
-  });
-  React.useEffect(() => {
-    // The Monaco schema registry is attached to window by the host app at runtime.
-    // It exposes register/unregister methods for managing JSON schemas.
-    const win = window as Window & {
-      __monacoSchemaRegistry?: {
-        register: (
-          plugin: string,
-          connId: string,
-          associations: readonly EditorSchemaAssociation[],
-          documents: readonly EditorSchemaDocument[],
-        ) => void;
-        unregister: (plugin: string, connId: string) => void;
-      };
-    };
-    const registry = win.__monacoSchemaRegistry;
-    if (!registry || !id) return;
-
-    registry.register(PLUGIN_ID, id, associations, documents);
-
-    return () => {
-      registry.unregister(PLUGIN_ID, id);
-    };
-  }, [associations, documents, id]);
-
-   
   const { notify } = useNotifications();
 
-  // Each connection decides once after its initial summary arrives.
-  const [syncModalMode, setSyncModalMode] = React.useState<
-    'pending' | 'auto' | 'manual' | 'closed'
-  >('pending');
-  if (syncModalMode === 'pending' && summary) {
-    setSyncModalMode(isFullySynced ? 'closed' : 'auto');
-  }
-  const syncModalOpen = syncModalMode === 'auto' || syncModalMode === 'manual';
-
-  // Preserve the completion grace period for automatically opened dialogs.
-  React.useEffect(() => {
-    if (isFullySynced && syncModalMode === 'auto') {
-      const timer = setTimeout(() => setSyncModalMode('closed'), 1500);
-      return () => clearTimeout(timer);
-    }
-  }, [isFullySynced, syncModalMode]);
+  const [syncModalOpen, setSyncModalOpen] = React.useState(false);
 
   const handleCloseSyncModal = React.useCallback(() => {
-    setSyncModalMode('closed');
+    setSyncModalOpen(false);
   }, []);
 
   // Listen for footer click to re-open sync modal
@@ -253,7 +219,7 @@ function ClusterResourcesSession({ id }: { id: string }): React.ReactElement {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<{ connectionID?: string }>).detail;
       if (detail?.connectionID === id) {
-        setSyncModalMode('manual');
+        setSyncModalOpen(true);
       }
     };
     window.addEventListener('ov:show-sync-modal', handler);
@@ -292,32 +258,20 @@ function ClusterResourcesSession({ id }: { id: string }): React.ReactElement {
     });
   }, [notify]);
 
-  if (connection.isError || groups.isError || types.isError) {
-    const error = connection.error || groups.error || types.error;
+  if (connection.isError) {
     return (
       <RouteState
         title="Unable to load cluster resources"
-        detail={errorMessage(error)}
+        detail={errorMessage(connection.error)}
         action="Retry resources"
-        onAction={() => {
-          if (connection.isError) void connection.refetch();
-          if (groups.isError) void groups.refetch();
-          if (types.isError) void types.refetch();
-        }}
+        onAction={() => { void connection.refetch(); }}
       />
     );
   }
 
-  if (
-    groups.isLoading ||
-    types.isLoading ||
-    connection.isLoading ||
-    !groups.data ||
-    !types.data ||
-    !connection.data
-  ) {
+  if (connection.isLoading || !connection.data) {
     return (
-      <RouteState title="Loading cluster resources" detail="Waiting for the resource catalog." />
+      <RouteState title="Loading cluster resources" detail="Waiting for the connection." />
     );
   }
 
@@ -406,6 +360,7 @@ function ClusterResourcesSession({ id }: { id: string }): React.ReactElement {
             </Stack>
           </div>
           <ResourceRequestLauncher connectionID={id} />
+          <SidebarCatalogStatus connectionID={id} />
           <SidebarSourceStateProvider states={sourceStates}>
             <ResourceNavTree
               sections={layout}
@@ -426,7 +381,7 @@ function ClusterResourcesSession({ id }: { id: string }): React.ReactElement {
         </div>
       </Layout.Main>
       <SyncProgressDialog
-        open={syncModalOpen === true}
+        open={syncModalOpen}
         onClose={handleCloseSyncModal}
         clusterName={clusterName}
         pluginID={PLUGIN_ID}

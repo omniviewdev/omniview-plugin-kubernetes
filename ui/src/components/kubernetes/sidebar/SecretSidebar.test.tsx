@@ -24,7 +24,7 @@ const record: HostRecord = {
       apiVersion: 'v1', kind: 'Secret', metadata: { name: 'credentials', namespace: 'default' }, type: 'Opaque',
       data: { password: btoa('old-password') },
     }),
-    representation: { id: 'native-json', revision: 'schema', schema: { state: 'absent', validation: 'dynamic', unvalidated: [] } },
+    representation: { id: 'native-json', revision: 'format-1' },
     coverage: { kind: 'complete', paths: [] },
   },
 };

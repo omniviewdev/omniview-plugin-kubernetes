@@ -1,7 +1,9 @@
 import React from 'react';
 import type * as Runtime from '@omniviewdev/runtime';
 import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const state = vi.hoisted(() => ({ failed: false, closed: false }));
 
 vi.mock('@omniviewdev/runtime', async (importOriginal) => {
   const actual = await importOriginal<typeof Runtime>();
@@ -12,6 +14,8 @@ vi.mock('@omniviewdev/runtime', async (importOriginal) => {
       'unknown-native': { state: 'following', count: { kind: 'unknown' } },
       'estimated-native': { state: 'following', count: { kind: 'estimate', value: '9007199254740995' } },
       'zero-native': { state: 'following', count: { kind: 'exact', value: '0' } },
+      ...(state.failed ? { 'failed-native': { state: 'failed' } } : {}),
+      ...(state.closed ? { 'closed-native': { state: 'closed' } } : {}),
     } } }),
     useResourceTypes: () => ({ resourceTypes: { data: [] } }),
     useResourceGroups: () => ({ groups: { data: [] } }),
@@ -21,6 +25,7 @@ vi.mock('@omniviewdev/runtime', async (importOriginal) => {
 import SyncProgressDialog from './SyncProgressDialog';
 
 afterEach(cleanup);
+beforeEach(() => { state.failed = false; state.closed = false; });
 
 describe('sync count presentation', () => {
   it('keeps wide counts exact and distinguishes unknown, estimated, and known zero', () => {
@@ -30,5 +35,12 @@ describe('sync count presentation', () => {
     expect(screen.getByText('Unknown')).toBeInTheDocument();
     expect(screen.getByText('0', { exact: true })).toBeInTheDocument();
     expect(screen.queryByText('9007199254740992')).not.toBeInTheDocument();
+  });
+
+  it.each(['failed', 'closed'] as const)('does not describe a %s source as synced', (status) => {
+    state[status] = true;
+    render(<SyncProgressDialog open onClose={() => {}} clusterName="Owned fixture" pluginID="kubernetes" connectionID="fixture" />);
+    expect(screen.queryByText('Synced "Owned fixture"', { exact: true })).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 });

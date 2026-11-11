@@ -137,7 +137,6 @@ export class ResourceEditorController {
       if (identityPaths.some((path) => overlaps(path, operation.path))) return { status: 'immutable', message: 'Resource identity belongs to the host.' };
       if (immutableEditorPaths(context).some((path) => overlaps(path, operation.path))) return { status: 'immutable', message: 'This field cannot change after resource creation.' };
       if (!contribution.ownedPaths.some((path) => prefix(path, operation.path))) return { status: 'forbidden', message: 'This editor does not own the requested field.' };
-      if (context.schema.paths && !context.schema.paths.some((path) => path.length === operation.path.length && prefix(path, operation.path))) return { status: 'forbidden', message: 'Schema does not admit this field.' };
       try { if (operation.op !== 'remove') assertValue(operation.value); } catch { return { status: 'unsafe', message: 'Only exact values may be submitted. Hidden values cannot be written back.' }; }
     }
     try {

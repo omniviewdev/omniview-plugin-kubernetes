@@ -56,7 +56,6 @@ const target = (resourceKey = 'k8s:/pods'): KubernetesActionTarget => {
       representation: {
         id: result.resource.representation!,
         revision: '1',
-        schema: { state: 'none', validation: 'none', unvalidated: [] },
       },
       coverage: { kind: 'complete', paths: [], reason: '' },
       body: jsonToValue({ ...result.data, wide: 9007199254740993n }),

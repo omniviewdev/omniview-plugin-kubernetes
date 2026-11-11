@@ -36,4 +36,17 @@ describe('canonical create modal lifetime', () => {
     await waitFor(() => expect(screen.getByRole('textbox', { name: 'Manifest' })).toHaveProperty('value', template));
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  it('does not replace an open draft when optional template input changes', () => {
+    const onCreate = vi.fn();
+    const onClose = vi.fn();
+    const view = render(<CreateResourceModal {...props} onCreate={onCreate} onClose={onClose} />);
+    fireEvent.click(screen.getByRole('radio', { name: 'YAML' }));
+    const draft = screen.getByRole('textbox', { name: 'Manifest' });
+    const authored = template + '# authored before enrichment\n';
+    fireEvent.change(draft, { target: { value: authored } });
+    view.rerender(<CreateResourceModal {...props} template={template + '# later template\n'} onCreate={onCreate} onClose={onClose} />);
+    expect(screen.getByRole('textbox', { name: 'Manifest' })).toBe(draft);
+    expect(draft).toHaveValue(authored);
+  });
 });

@@ -83,14 +83,14 @@ func TestNativeCatalogSourceContinuityAndAcquisition(t *testing.T) {
 	require.NoError(t, err)
 	p := &kubernetesProvider{logger: zap.NewNop().Sugar()}
 	scope := resourcev2.QueryScope{{Dimension: "namespace", Match: resourcev2.ScopeAny}}
-	snapshot, err := p.assembleNativeCatalog(context.Background(), "route", nil, bindings, coverage, nil, nil, nil, scope)
+	snapshot, err := p.assembleNativeCatalog(context.Background(), "route", nil, bindings, coverage, nil, scope)
 	require.NoError(t, err)
 	for _, tc := range []struct {
 		token   string
 		source  bool
 		acquire bool
 	}{
-		{"k8s:/pods", true, true},
+		{"k8s:/pods", true, false},
 		{"k8s:/events", true, false},
 		{"k8s:events.k8s.io/events", true, false},
 		{"k8s:/configmaps", false, false},

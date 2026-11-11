@@ -1,5 +1,5 @@
 import { Button, Card, Chip, IconButton, Separator, Stack, Tabs, Text } from '@omniviewdev/base-ui';
-import { DrawerContext, jsonToValue, useExecuteAction, useResourceEditorModelPath, useRightDrawer } from '@omniviewdev/runtime';
+import { type DrawerContext, jsonToValue, resourceEditorModelURI, useExecuteAction, useRightDrawer, type SchemaRequest } from '@omniviewdev/runtime';
 import { ResourceClient } from '@omniviewdev/runtime/api';
 import React from 'react';
 import { LuCircleArrowUp, LuUndo2, LuGitCompare } from 'react-icons/lu';
@@ -13,6 +13,7 @@ import CodeEditor from '../../shared/CodeEditor';
 import styles from './ReleaseSidebar.module.css';
 import UpgradeDialog from './UpgradeDialog';
 import { helmActionData } from '../values';
+import { useEditorSchemaRegistration } from '../../../hooks/useEditorSchemaRegistration';
 
 const metaRowStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 2fr' };
 const metaValueStyle: React.CSSProperties = { fontWeight: 400 };
@@ -181,7 +182,11 @@ function parseManifestResources(
  */
 export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => (
   <ReleaseSidebarContent
-    key={JSON.stringify([ctx.resource?.key ?? '', String(ctx.data?.version ?? 0n)])}
+    key={JSON.stringify([
+      ctx.resource?.pluginID, ctx.resource?.targetId, ctx.resource?.key, ctx.resource?.route,
+      ctx.resource?.reference, ctx.resource?.representation, ctx.resource?.record?.record.sourceRevision,
+      String(ctx.data?.version ?? 0n),
+    ])}
     ctx={ctx}
   />
 );
@@ -190,6 +195,7 @@ export const ReleaseSidebar: React.FC<Props> = ({ ctx }) => (
 const ReleaseSidebarContent: React.FC<Props> = ({ ctx }) => {
   // Per-action cached tab data
   const [tabData, setTabData] = React.useState<Record<string, TabDataEntry>>({});
+  const [valuesFailed, setValuesFailed] = React.useState(false);
   const tabCacheRef = React.useRef<Record<string, TabDataEntry>>({});
   const [activeTab, setActiveTab] = React.useState('0');
   const [showManifestDiff, setShowManifestDiff] = React.useState(false);
@@ -199,15 +205,24 @@ const ReleaseSidebarContent: React.FC<Props> = ({ ctx }) => {
   const connectionID = ctx.resource?.route.connection ?? '';
   const releaseName = ctx.resource?.reference.address.id ?? '';
   const namespace = ctx.resource?.reference.address.scope.find((entry) => entry.dimension === 'namespace')?.value ?? '';
-  const valuesPath = useResourceEditorModelPath({
-    pluginID: PLUGIN_ID, route: ctx.resource?.route ?? { connection: connectionID }, type: 'helm:releases',
-    key: `${namespace}/${releaseName}`, name: 'values-preview',
+  const resource = ctx.resource;
+  const editorID = React.useId();
+  const schemaRequest = React.useMemo<SchemaRequest | undefined>(() => resource ? {
+    route: resource.route, type: resource.reference.address.type,
+    target: { auxiliary: { key: 'values', reference: resource.reference, sourceRevision: resource.record?.record.sourceRevision } },
+  } : undefined, [resource]);
+  const valuesPath = schemaRequest ? resourceEditorModelURI({
+    pluginID: PLUGIN_ID, ...schemaRequest, name: `${editorID}/values-preview`,
+  }) : '';
+  const valuesSchema = useEditorSchemaRegistration({
+    request: schemaRequest, modelURI: valuesPath, enabled: activeTab === '0' && !!resource,
   });
   const { executeAction, isExecuting } = useExecuteAction({ pluginID: PLUGIN_ID });
-  const resource = ctx.resource;
-  const runAction = React.useCallback((action: string, input = jsonToValue({})) => {
+  const runAction = React.useCallback((action: string, input: Record<string, unknown> = {}) => {
     if (!resource) return Promise.reject(new Error('Release reference is unavailable'));
-    return executeAction({ route: resource.route, reference: resource.reference, action, input });
+    const revision = resource.record?.record.sourceRevision;
+    const params = action === 'get-values' && revision ? { ...input, expectedSourceRevision: revision } : input;
+    return executeAction({ route: resource.route, reference: resource.reference, action, input: jsonToValue(params) });
   }, [executeAction, resource]);
   const { showResourceSidebar } = useRightDrawer();
   const executeReleaseRead = React.useEffectEvent(runAction);
@@ -232,10 +247,12 @@ const ReleaseSidebarContent: React.FC<Props> = ({ ctx }) => {
         const entry = helmActionData(result) as TabDataEntry;
         tabCacheRef.current[actionID] = entry;
         setTabData((prev) => ({ ...prev, [actionID]: entry }));
+        if (actionID === 'get-values') setValuesFailed(false);
       })
       .catch(() => {
         if (cancelled) return;
         setTabData((prev) => ({ ...prev, [actionID]: null }));
+        if (actionID === 'get-values') setValuesFailed(true);
       });
     return () => {
       cancelled = true;
@@ -247,7 +264,7 @@ const ReleaseSidebarContent: React.FC<Props> = ({ ctx }) => {
     const revision = ctx.data?.version ?? 0n;
     if (revision <= 1) return;
     try {
-      const result = await runAction('get-manifest', jsonToValue({ revision: revision - 1n }));
+      const result = await runAction('get-manifest', { revision: revision - 1n });
       const manifestData = helmActionData(result) as ManifestActionData | undefined;
       setPrevManifest(manifestData?.manifest ?? '');
     } catch {
@@ -325,7 +342,7 @@ const ReleaseSidebarContent: React.FC<Props> = ({ ctx }) => {
             color="warning"
             disabled={isExecuting}
             onClick={() =>
-              void runAction('rollback', jsonToValue({ revision: revision - 1n }))
+              void runAction('rollback', { revision: revision - 1n })
             }
             title="Rollback Release"
             aria-label="Rollback Release"
@@ -350,7 +367,21 @@ const ReleaseSidebarContent: React.FC<Props> = ({ ctx }) => {
 
       {/* Values - Monaco editor */}
       {activeTab === '0' && (
-        <div style={editorBoxStyle}>
+        <div>
+          {valuesSchema.error && <Text size="xs" role="status">Installed values schema is unavailable.</Text>}
+          {valuesSchema.result && valuesSchema.result.status !== 'available' && <Text size="xs" role="status">Installed values schema: {valuesSchema.result.status}.</Text>}
+          {valuesFailed ? (
+            <Stack direction="column" spacing={2}>
+              <Text role="alert">Release values could not be loaded. Refresh the release before retrying.</Text>
+              <Button size="sm" onClick={() => {
+                void showResourceSidebar({
+                  pluginID: resource!.pluginID, route: resource!.route, reference: resource!.reference,
+                  representation: resource!.representation, targetId: resource!.targetId, resourceName: releaseName,
+                }).catch(() => setValuesFailed(true));
+              }}>Refresh release</Button>
+            </Stack>
+          ) : (
+          <div style={editorBoxStyle}>
           <CodeEditor
             filename="values.yaml"
             path={valuesPath}
@@ -359,6 +390,8 @@ const ReleaseSidebarContent: React.FC<Props> = ({ ctx }) => {
             readOnly
             height={400}
           />
+          </div>
+          )}
         </div>
       )}
 
@@ -454,7 +487,7 @@ const ReleaseSidebarContent: React.FC<Props> = ({ ctx }) => {
                     color="warning"
                     disabled={isExecuting}
                     onClick={() =>
-                      void runAction('rollback', jsonToValue({ revision: rev.version }))
+                      void runAction('rollback', { revision: rev.version })
                     }
                     title={`Rollback to revision ${rev.version}`}
                     aria-label={`Rollback to revision ${rev.version}`}
@@ -526,6 +559,7 @@ const ReleaseSidebarContent: React.FC<Props> = ({ ctx }) => {
         namespace={namespace}
         chartRef={`${chartName}`}
         connectionID={connectionID}
+        resource={ctx.resource}
       />
     </Stack>
   );

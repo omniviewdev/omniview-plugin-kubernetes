@@ -1,9 +1,13 @@
 package helm
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
-	resource "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"strconv"
+	"time"
+
+	resource "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 )
 
 func namespaceOf(ref resource.ResourceReference) string {
@@ -30,6 +34,22 @@ func nativeObject(value resource.Value) (map[string]interface{}, error) {
 }
 func actionParams(request resource.ActionRequest) (map[string]interface{}, error) {
 	return nativeObject(request.Input)
+}
+
+func releaseActionSourceRevision(request resource.ActionRequest) (*string, error) {
+	params, err := actionParams(request)
+	if err != nil {
+		return nil, err
+	}
+	value, present := params["expectedSourceRevision"]
+	if !present && request.Action == "get-values" {
+		return nil, nil
+	}
+	revision, ok := value.(string)
+	if !ok || revision == "" {
+		return nil, resource.NewError("INVALID_REQUEST", "An observed installed Helm release source revision is required")
+	}
+	return &revision, nil
 }
 
 func actionNamespace(request resource.ActionRequest) (string, error) {
@@ -84,7 +104,51 @@ func helmRecord(ref resource.ResourceReference, body map[string]interface{}) (re
 	if e != nil {
 		return resource.Record{}, e
 	}
-	return resource.Record{Reference: ref, Body: v, Representation: helmRepresentationDescriptor(), Coverage: resource.Coverage{Kind: "complete"}}, nil
+	record := resource.Record{Reference: ref, Body: v, Representation: helmRepresentationDescriptor(), Coverage: resource.Coverage{Kind: "complete"}}
+	return record, nil
+}
+
+func helmReleaseRecord(ref resource.ResourceReference, snapshot namedReleaseSnapshot) (resource.Record, error) {
+	record, err := helmRecord(ref, releaseToMap(snapshot.release))
+	if err != nil {
+		return resource.Record{}, err
+	}
+	record.SourceRevision = snapshot.sourceRevision()
+	return record, nil
+}
+
+func (snapshot *namedReleaseSnapshot) sourceRevision() *string {
+	if snapshot.revision != nil {
+		return snapshot.revision
+	}
+	var deployed time.Time
+	if snapshot.release.Info != nil {
+		deployed = snapshot.release.Info.FirstDeployed.Time
+	}
+	snapshot.revision = helmReleaseSourceRevision(snapshot.release.Version, snapshot.identity.uid, deployed)
+	return snapshot.revision
+}
+
+// Native storage UIDs distinguish Kubernetes storage replacements. Other Helm
+// drivers expose FirstDeployed, including its serialized nanosecond precision.
+// Missing generation evidence must not become a version-only revision.
+func helmReleaseSourceRevision(version int, uid string, deployed time.Time) *string {
+	if version < 1 || (uid == "" && deployed.IsZero()) {
+		return nil
+	}
+	var buffer [128]byte
+	data := strconv.AppendInt(buffer[:0], int64(version), 10)
+	data = append(data, 0)
+	if uid != "" {
+		data = append(data, "uid:"...)
+		data = append(data, uid...)
+	} else {
+		data = append(data, "first_deployed:"...)
+		data = deployed.UTC().AppendFormat(data, time.RFC3339Nano)
+	}
+	digest := sha256.Sum256(data)
+	revision := hex.EncodeToString(digest[:])
+	return &revision
 }
 func pageBounds(request resource.EnumerateRequest) (int, int, error) {
 	size := int(request.PageSize)

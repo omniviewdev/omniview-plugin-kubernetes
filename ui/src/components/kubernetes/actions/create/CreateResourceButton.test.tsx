@@ -4,20 +4,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import CreateResourceButton from './CreateResourceButton';
 import type { jsonToValue as EncodeValue } from '@omniviewdev/runtime';
 
-const mocks = vi.hoisted(() => ({ mutate: vi.fn(), resolve: vi.fn(), encode: vi.fn(), schema: vi.fn(), editorPath: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  mutate: vi.fn(), resolve: vi.fn(), encode: vi.fn(), schema: vi.fn(),
+}));
 vi.mock('@omniviewdev/runtime', () => ({
   jsonToValue: mocks.encode,
   RESOURCE_EDITOR_EXTENSION_POINT: 'kubernetes/resource/editor/v1',
   useExtensionPointSnapshot: () => ({ contributions: [] }),
   useResourceMutations: () => ({ mutate: mocks.mutate }),
-  useResourceEditorModelPath: mocks.editorPath,
   useResourceTypes: () => ({ resourceTypes: { data: [{
     type: 'k8s:/pods', displayName: 'Pod', identityDimensions: [{ name: 'namespace' }],
-    defaultRepresentation: 'kubernetes.object.v1/v1', representations: [{ id: 'kubernetes.object.v1/v1', schema: { state: 'absent' } }],
+    defaultRepresentation: 'kubernetes.object.v1/v1', representations: [{ id: 'kubernetes.object.v1/v1', revision: 'v1' }],
     capabilities: [{ operation: 'create', scope: [] }],
   }] } }),
 }));
-vi.mock('@omniviewdev/runtime/api', () => ({ ResourceClient: { GetSchemaDocument: mocks.schema } }));
+vi.mock('@omniviewdev/runtime/api', () => ({ ResourceClient: { ResolveEditorSchema: mocks.schema } }));
 vi.mock('../../../../utils/kubernetesReference', () => ({ resolveKubernetesReference: mocks.resolve }));
 vi.mock('./CreateResourceModal', () => ({ default: ({ open, onCreate }: {
   open: boolean; onCreate: (yaml: string, isCurrent: () => boolean) => Promise<void>;
@@ -52,5 +53,20 @@ describe('canonical create mutation', () => {
     expect(request.reference.incarnation).toBeUndefined();
     expect(request.expectedRevision).toBeUndefined();
     expect(request.input).toMatchObject({ kind: 'map', value: { spec: { kind: 'map', value: { exact: { kind: 'int64', value: '9007199254740993' } } } } });
+  });
+
+  it('does not fetch optional schema while Create stays closed', async () => {
+    mocks.schema.mockReturnValue(new Promise(() => {}));
+    render(<CreateResourceButton connectionID="selected" resourceKey="k8s:/pods" />);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(mocks.schema).not.toHaveBeenCalled();
+  });
+
+  it('opens the raw editor before optional schema resolves', () => {
+    mocks.schema.mockReturnValue(new Promise(() => {}));
+    render(<CreateResourceButton connectionID="selected" resourceKey="k8s:/pods" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Create Pod' }));
+    expect(screen.getByRole('button', { name: 'Submit native manifest' })).toBeInTheDocument();
   });
 });

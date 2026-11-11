@@ -10,11 +10,9 @@ import (
 	"sort"
 )
 
-// assembleNativeCatalog builds an unpublished snapshot. The startup caller owns
-// acquisition cancellation, schema leases, retirement fencing, and publication.
-func (p *kubernetesProvider) assembleNativeCatalog(ctx context.Context, connectionID string, client *clients.ClientSet, bindings map[string]nativeType, coverage resourcev2.Coverage, schemas map[string]nativeSchemaDocument, failures map[string]error, identityHint *resourcev2.NativeAuthorityHint, watchScope resourcev2.QueryScope) (*nativeCatalogSnapshot, error) {
+// assembleNativeCatalog builds support and body-format contracts only.
+func (p *kubernetesProvider) assembleNativeCatalog(ctx context.Context, connectionID string, client *clients.ClientSet, bindings map[string]nativeType, coverage resourcev2.Coverage, identityHint *resourcev2.NativeAuthorityHint, watchScope resourcev2.QueryScope) (*nativeCatalogSnapshot, error) {
 	registrations := make(map[string]resourcev2.Registration[clients.ClientSet], len(bindings))
-	documents := make(map[resourcev2.SchemaDocumentReference]resourcev2.SchemaDocument)
 	for token, binding := range bindings {
 		versions := nativeServedVersions(binding)
 		binding.Descriptor.Representations = make([]resourcev2.Representation, 0, 2*len(versions))
@@ -23,19 +21,6 @@ func (p *kubernetesProvider) assembleNativeCatalog(ctx context.Context, connecti
 			representation := resourcev2.Representation{
 				ID:       nativeRepresentationVersion + "/" + gv,
 				Revision: nativeRepresentationVersion + "/" + gv,
-				Schema:   resourcev2.SchemaBinding{State: "unavailable"},
-			}
-			key := nativeSchemaKey(token, binding.GVR, served.GVR)
-			if document, ok := schemas[key]; ok {
-				ref := resourcev2.SchemaDocumentReference{ID: "kubernetes.openapi.v3/" + gv, Revision: document.Revision}
-				revision := document.Revision
-				representation.Schema = resourcev2.SchemaBinding{
-					State: "available", Revision: &revision, Dialect: resourcev2.DialectOpenAPI30, Root: document.Root,
-					DocumentRef: &ref,
-				}
-				documents[ref] = resourcev2.SchemaDocument{Reference: ref, Dialect: resourcev2.DialectOpenAPI30, Document: document.Document}
-			} else if failures[key] != nil {
-				p.logger.Debugw("native schema unavailable", "type", token, "apiVersion", gv)
 			}
 			model := representation
 			model.ID = nativeModelRepresentationVersion + "/" + gv
@@ -62,7 +47,6 @@ func (p *kubernetesProvider) assembleNativeCatalog(ctx context.Context, connecti
 				scope = watchScope
 			}
 			binding.Descriptor.Capabilities = append(binding.Descriptor.Capabilities, resourcev2.Capability{Operation: resourcev2.OperationSourceUpdates, Scope: scope, Guarantee: resourcev2.ContinuityBestEffort})
-			binding.Descriptor.AcquireOnConnect = token != "k8s:/events" && token != "k8s:events.k8s.io/events"
 		}
 		if binding.API.Namespaced {
 			for index := range binding.Descriptor.Capabilities {
@@ -79,6 +63,11 @@ func (p *kubernetesProvider) assembleNativeCatalog(ctx context.Context, connecti
 	for index := range catalog.Types {
 		if catalog.Types[index].Type == "helm:releases" {
 			catalog.Types[index].NativeAuthorityHint = identityHint
+			capabilities := append([]resourcev2.Capability(nil), catalog.Types[index].Capabilities...)
+			for capability := range capabilities {
+				capabilities[capability].Scope = watchScope
+			}
+			catalog.Types[index].Capabilities = capabilities
 		}
 	}
 	encoded, err := json.Marshal(struct {
@@ -94,7 +83,7 @@ func (p *kubernetesProvider) assembleNativeCatalog(ctx context.Context, connecti
 	if err := resourcev2.ValidateCatalog(catalog); err != nil {
 		return nil, err
 	}
-	return &nativeCatalogSnapshot{catalog: catalog, bindings: bindings, registrations: registrations, documents: documents, identityHint: identityHint}, nil
+	return &nativeCatalogSnapshot{catalog: catalog, bindings: bindings, registrations: registrations, identityHint: identityHint}, nil
 }
 
 // Keep the preferred raw representation first for existing UI/watch consumers.

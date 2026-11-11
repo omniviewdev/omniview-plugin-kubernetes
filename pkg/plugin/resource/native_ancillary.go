@@ -208,7 +208,7 @@ func (p *kubernetesProvider) Features(ctx context.Context) (resourcev2.FeatureSe
 		resourcev2.FeatureConnectionBrowser,
 		resourcev2.FeatureScopeValues,
 		resourcev2.FeaturePresentation,
-		resourcev2.FeatureEditorSchemas,
+		resourcev2.FeatureSchemaResolver,
 		resourcev2.FeatureSchemaDocuments,
 		resourcev2.FeatureRelationships,
 		resourcev2.FeatureHealth,
