@@ -3,14 +3,13 @@ package resourcers
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math"
 	"time"
 
+	"github.com/omniview/kubernetes/pkg/diag"
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	resource "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.uber.org/zap"
@@ -251,42 +250,16 @@ func (n *NodeResourcer) executeDrain(
 	input resource.ActionRequest,
 	stream chan<- resource.ActionEvent,
 ) (resultErr error) {
-	ctx, span := otel.Tracer("omniview.plugin.kubernetes").Start(ctx, "kubernetes.node.drain")
+	ctx, span := diag.Tracer().Start(ctx, "kubernetes.node.drain")
 	defer span.End()
 	stage, operation := "validation", "validate"
 	failedPodName, failedPodNamespace := "", ""
 	total, drained, skipped := 0, 0, 0
 	selectionKnown, cordonKnown, cordoned := false, false, false
 	defer func() {
-		outcome, classification, reason, status := "success", "", "", 0
+		result := diag.ClassifyError(resultErr, stage == "validation")
+		outcome, classification, reason, status := result.Outcome, result.Class, result.Reason, result.StatusCode
 		if resultErr != nil {
-			outcome = "failure"
-			classification = "other"
-			switch {
-			case errors.Is(resultErr, context.Canceled):
-				outcome, classification = "canceled", "canceled"
-			case errors.Is(resultErr, context.DeadlineExceeded):
-				outcome, classification = "canceled", "deadline_exceeded"
-			case stage == "validation":
-				classification = "validation"
-			default:
-				var apiStatus apierrors.APIStatus
-				if errors.As(resultErr, &apiStatus) {
-					classification = "kubernetes"
-					s := apiStatus.Status()
-					status = int(s.Code)
-					switch s.Reason {
-					case metav1.StatusReasonUnauthorized, metav1.StatusReasonForbidden, metav1.StatusReasonNotFound,
-						metav1.StatusReasonAlreadyExists, metav1.StatusReasonConflict, metav1.StatusReasonInvalid,
-						metav1.StatusReasonTooManyRequests, metav1.StatusReasonTimeout, metav1.StatusReasonServerTimeout,
-						metav1.StatusReasonServiceUnavailable, metav1.StatusReasonInternalError, metav1.StatusReasonBadRequest,
-						metav1.StatusReasonMethodNotAllowed, metav1.StatusReasonGone, metav1.StatusReasonExpired:
-						reason = string(s.Reason)
-					default:
-						reason = "Other"
-					}
-				}
-			}
 			span.SetStatus(codes.Error, classification)
 		}
 		attrs := []attribute.KeyValue{

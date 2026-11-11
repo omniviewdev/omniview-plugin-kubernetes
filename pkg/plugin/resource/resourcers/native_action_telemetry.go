@@ -2,16 +2,13 @@ package resourcers
 
 import (
 	"context"
-	"errors"
 
+	"github.com/omniview/kubernetes/pkg/diag"
 	resource "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type nativeActionTelemetry struct {
@@ -22,41 +19,16 @@ type nativeActionTelemetry struct {
 }
 
 func startNativeActionTelemetry(ctx context.Context, log *zap.SugaredLogger, kind string, input resource.ActionRequest) (context.Context, *nativeActionTelemetry) {
-	ctx, span := otel.Tracer("omniview.plugin.kubernetes").Start(ctx, "kubernetes."+kind+"."+input.Action)
+	ctx, span := diag.Tracer().Start(ctx, "kubernetes."+kind+"."+input.Action)
 	namespace, _ := nativeRequestNamespace(input.Reference.Address.Scope)
 	return ctx, &nativeActionTelemetry{span: span, log: log, kind: kind, action: input.Action, connection: input.Route.Connection, id: input.Reference.Address.ID, namespace: namespace, stage: "validation", operation: "validate"}
 }
 
 func (t *nativeActionTelemetry) finish(err error) {
 	defer t.span.End()
-	outcome, class, reason, status := "success", "", "", 0
+	classification := diag.ClassifyError(err, t.stage == "validation")
+	outcome, class, reason, status := classification.Outcome, classification.Class, classification.Reason, classification.StatusCode
 	if err != nil {
-		outcome, class = "failure", "other"
-		switch {
-		case errors.Is(err, context.Canceled):
-			outcome, class = "canceled", "canceled"
-		case errors.Is(err, context.DeadlineExceeded):
-			outcome, class = "canceled", "deadline_exceeded"
-		case t.stage == "validation":
-			class = "validation"
-		default:
-			var apiStatus apierrors.APIStatus
-			if errors.As(err, &apiStatus) {
-				class = "kubernetes"
-				s := apiStatus.Status()
-				status = int(s.Code)
-				switch s.Reason {
-				case metav1.StatusReasonUnauthorized, metav1.StatusReasonForbidden, metav1.StatusReasonNotFound,
-					metav1.StatusReasonAlreadyExists, metav1.StatusReasonConflict, metav1.StatusReasonInvalid,
-					metav1.StatusReasonTooManyRequests, metav1.StatusReasonTimeout, metav1.StatusReasonServerTimeout,
-					metav1.StatusReasonServiceUnavailable, metav1.StatusReasonInternalError, metav1.StatusReasonBadRequest,
-					metav1.StatusReasonMethodNotAllowed, metav1.StatusReasonGone, metav1.StatusReasonExpired:
-					reason = string(s.Reason)
-				default:
-					reason = "Other"
-				}
-			}
-		}
 		t.span.SetStatus(codes.Error, class)
 	}
 	resourceType := "k8s:/nodes"
