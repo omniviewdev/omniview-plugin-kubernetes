@@ -266,6 +266,9 @@ func (p *kubernetesProvider) nativeRegistration(route resourcev2.AccessRoute, bi
 		}
 	}
 	registration.Action = func(ctx context.Context, client *clients.ClientSet, request resourcev2.ActionRequest) (resourcev2.Value, error) {
+		if delegated, ok := ctx.Value(actionAdmissionKey{}).(*bool); ok {
+			*delegated = true
+		}
 		if strings.HasPrefix(request.Action, "kubernetes.") {
 			return editorAction(ctx, client, binding, request)
 		}

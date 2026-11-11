@@ -2,13 +2,20 @@ package helm
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
-	resource "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
-	"helm.sh/helm/v3/pkg/action"
-	"helm.sh/helm/v3/pkg/cli"
 	"os"
 	"path/filepath"
+
+	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
+	resource "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"helm.sh/helm/v3/pkg/action"
+	"helm.sh/helm/v3/pkg/cli"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func (h *HelmAncillary) GetActions(ctx context.Context, c *clients.ClientSet, t string) ([]resource.ActionDescriptor, error) {
@@ -27,8 +34,72 @@ func (h *HelmAncillary) StreamAction(context.Context, *clients.ClientSet, resour
 	return resource.NewError("UNSUPPORTED", "Helm exposes no streaming actions")
 }
 
-func (h *HelmAncillary) Action(ctx context.Context, c *clients.ClientSet, r resource.ActionRequest) (resource.Value, error) {
+func (h *HelmAncillary) Action(ctx context.Context, c *clients.ClientSet, r resource.ActionRequest) (result resource.Value, resultErr error) {
+	ctx, span := otel.Tracer("omniview.plugin.kubernetes").Start(ctx, "kubernetes.helm.action")
+	defer span.End()
+	stage, actionName, resourceType := "admission", "unknown", "unknown"
+	defer func() {
+		outcome, classification, reason, status := "success", "", "", 0
+		if resultErr != nil {
+			outcome, classification = "failure", "other"
+			switch {
+			case errors.Is(resultErr, context.Canceled):
+				outcome, classification = "canceled", "canceled"
+			case errors.Is(resultErr, context.DeadlineExceeded):
+				outcome, classification = "canceled", "deadline_exceeded"
+			default:
+				var apiStatus apierrors.APIStatus
+				if errors.As(resultErr, &apiStatus) {
+					classification = "kubernetes"
+					s := apiStatus.Status()
+					status = int(s.Code)
+					switch s.Reason {
+					case metav1.StatusReasonUnauthorized, metav1.StatusReasonForbidden, metav1.StatusReasonNotFound,
+						metav1.StatusReasonAlreadyExists, metav1.StatusReasonConflict, metav1.StatusReasonInvalid,
+						metav1.StatusReasonTooManyRequests, metav1.StatusReasonTimeout, metav1.StatusReasonServerTimeout,
+						metav1.StatusReasonServiceUnavailable, metav1.StatusReasonInternalError, metav1.StatusReasonBadRequest,
+						metav1.StatusReasonMethodNotAllowed, metav1.StatusReasonGone, metav1.StatusReasonExpired:
+						reason = string(s.Reason)
+					default:
+						reason = "Other"
+					}
+				} else if stage == "admission" {
+					classification = "validation"
+				}
+			}
+			span.SetStatus(codes.Error, classification)
+		}
+		attrs := []attribute.KeyValue{
+			attribute.String("action", actionName), attribute.String("plugin", "kubernetes"),
+			attribute.String("connection", r.Route.Connection), attribute.String("resource.type", resourceType),
+			attribute.String("resource.id", r.Reference.Address.ID), attribute.String("stage", stage),
+			attribute.String("outcome", outcome),
+		}
+		fields := []interface{}{"action", actionName, "plugin", "kubernetes", "connection", r.Route.Connection,
+			"resource_type", resourceType, "resource_id", r.Reference.Address.ID, "stage", stage, "outcome", outcome}
+		if resultErr != nil {
+			attrs = append(attrs, attribute.String("error.class", classification))
+			fields = append(fields, "error_class", classification)
+			if classification == "kubernetes" {
+				attrs = append(attrs, attribute.Int("k8s.status_code", status), attribute.String("k8s.reason", reason))
+				fields = append(fields, "k8s_status_code", status, "k8s_reason", reason)
+			}
+		}
+		span.SetAttributes(attrs...)
+		if span.SpanContext().IsValid() {
+			fields = append(fields, "trace_id", span.SpanContext().TraceID().String(), "span_id", span.SpanContext().SpanID().String())
+		}
+		h.release.log.Infow("Helm action finished", fields...)
+	}()
+	span.AddEvent("admission")
 	t := r.Reference.Address.Type
+	if r.TypeTarget != nil {
+		t = r.TypeTarget.Type
+	}
+	switch t {
+	case ReleaseType, RepositoryType, ChartType:
+		resourceType = t
+	}
 	if r.TypeTarget != nil {
 		if r.Reference.Address.Type != "" || r.Reference.Address.ID != "" || r.Reference.Address.Provider != "" || r.Reference.Address.Authority != "" || len(r.Reference.Address.Scope) != 0 || r.Reference.Incarnation != nil {
 			return resource.Value{}, resource.NewError("INVALID_REQUEST", "Helm action requires exactly one target")
@@ -47,6 +118,7 @@ func (h *HelmAncillary) Action(ctx context.Context, c *clients.ClientSet, r reso
 	found := false
 	for _, descriptor := range descriptors {
 		if descriptor.ID == r.Action {
+			actionName = descriptor.ID
 			if e := resource.ValidateActionDescriptorRequest(r, descriptor, false); e != nil {
 				return resource.Value{}, e
 			}
@@ -60,6 +132,8 @@ func (h *HelmAncillary) Action(ctx context.Context, c *clients.ClientSet, r reso
 	if e := validateActionInput(r); e != nil {
 		return resource.Value{}, e
 	}
+	stage = "execution"
+	span.AddEvent("execution")
 	switch t {
 	case ReleaseType:
 		return h.release.Action(ctx, c, r)

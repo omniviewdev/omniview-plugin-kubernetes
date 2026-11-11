@@ -195,6 +195,110 @@ func TestNodeResourcer_Uncordon(t *testing.T) {
 	assert.False(t, updated.Spec.Unschedulable)
 }
 
+func TestNodeActionTelemetry(t *testing.T) {
+	for _, tc := range []struct {
+		action, verb, stage, operation string
+		params                         map[string]interface{}
+		invalid                        bool
+	}{
+		{action: "cordon", verb: "patch", stage: "patching", operation: "patch_node"},
+		{action: "uncordon", verb: "patch", stage: "patching", operation: "patch_node"},
+		{action: "add-taint", invalid: true, stage: "validation", operation: "validate"},
+		{action: "add-taint", verb: "get", params: map[string]interface{}{"key": "secret-key", "effect": "NoSchedule"}, stage: "fetching", operation: "get_node"},
+		{action: "add-taint", verb: "patch", params: map[string]interface{}{"key": "secret-key", "effect": "NoSchedule"}, stage: "patching", operation: "patch_node"},
+		{action: "remove-taint", verb: "get", params: map[string]interface{}{"key": "secret-key"}, stage: "fetching", operation: "get_node"},
+		{action: "remove-taint", verb: "patch", params: map[string]interface{}{"key": "secret-key"}, stage: "patching", operation: "patch_node"},
+		{action: "get-conditions", verb: "get", stage: "fetching", operation: "get_node"},
+	} {
+		t.Run(tc.action+"/"+tc.stage, func(t *testing.T) {
+			core, logs := observer.New(zap.InfoLevel)
+			r := NewNodeResourcer(zap.New(core).Sugar())
+			cs := newNodeClientSet(testNode("worker", withTaints(corev1.Taint{Key: "secret-key", Effect: corev1.TaintEffectNoSchedule})))
+			if tc.verb != "" {
+				cs.KubeClient.(*fake.Clientset).PrependReactor(tc.verb, "nodes", func(k8stesting.Action) (bool, runtime.Object, error) {
+					return true, nil, apierrors.NewForbidden(schema.GroupResource{Resource: "nodes"}, "secret-node", errors.New("secret-error"))
+				})
+			}
+			// The add-taint patch case must not be a duplicate.
+			if tc.action == "add-taint" && tc.verb == "patch" {
+				tc.params["key"] = "secret-other"
+			}
+			request := workloadActionRequest(tc.action, "worker", "", tc.params)
+			request.Route.Connection = "cluster"
+			_, err := r.ExecuteAction(context.Background(), cs, request)
+			require.Error(t, err)
+			require.Equal(t, 1, logs.Len())
+			fields := logs.All()[0].ContextMap()
+			assert.Equal(t, tc.action, fields["action"])
+			assert.Equal(t, "worker", fields["resource_id"])
+			assert.Equal(t, "", fields["namespace"])
+			assert.Equal(t, "cluster", fields["connection"])
+			assert.Equal(t, "k8s:/nodes", fields["resource_type"])
+			assert.Equal(t, tc.stage, fields["stage"])
+			assert.Equal(t, tc.operation, fields["operation"])
+			assert.Equal(t, "failure", fields["outcome"])
+			if tc.invalid {
+				assert.Equal(t, "validation", fields["error_class"])
+			} else {
+				assert.Equal(t, "kubernetes", fields["error_class"])
+				assert.Equal(t, "Forbidden", fields["k8s_reason"])
+				assert.EqualValues(t, 403, fields["k8s_status_code"])
+			}
+			encoded, err := json.Marshal(fields)
+			require.NoError(t, err)
+			assert.NotContains(t, string(encoded), "secret-")
+		})
+	}
+}
+
+func TestNodeActionTelemetrySuccessAndCancellation(t *testing.T) {
+	for _, canceled := range []bool{false, true} {
+		core, logs := observer.New(zap.InfoLevel)
+		r := NewNodeResourcer(zap.New(core).Sugar())
+		cs := newNodeClientSet(testNode("worker"))
+		if canceled {
+			cs.KubeClient.(*fake.Clientset).PrependReactor("patch", "nodes", func(k8stesting.Action) (bool, runtime.Object, error) {
+				return true, nil, context.Canceled
+			})
+		}
+		_, err := r.ExecuteAction(context.Background(), cs, workloadActionRequest("cordon", "worker", "", nil))
+		require.Equal(t, canceled, err != nil)
+		require.Equal(t, 1, logs.Len())
+		fields := logs.All()[0].ContextMap()
+		if canceled {
+			assert.Equal(t, "canceled", fields["outcome"])
+			assert.Equal(t, "canceled", fields["error_class"])
+		} else {
+			assert.Equal(t, "success", fields["outcome"])
+			assert.NotContains(t, fields, "error_class")
+		}
+	}
+}
+
+func TestNodeActionTelemetryNoMutation(t *testing.T) {
+	for _, action := range []string{"add-taint", "remove-taint", "get-conditions"} {
+		t.Run(action, func(t *testing.T) {
+			core, logs := observer.New(zap.InfoLevel)
+			r := NewNodeResourcer(zap.New(core).Sugar())
+			cs := newNodeClientSet(testNode("worker", withTaints(corev1.Taint{Key: "existing", Effect: corev1.TaintEffectNoSchedule})))
+			params := map[string]interface{}{"key": "existing", "effect": "NoSchedule"}
+			if action == "remove-taint" {
+				params["key"] = "absent"
+			}
+			_, err := r.ExecuteAction(context.Background(), cs, workloadActionRequest(action, "worker", "", params))
+			require.NoError(t, err)
+			require.Equal(t, 1, logs.Len())
+			fields := logs.All()[0].ContextMap()
+			assert.Equal(t, "success", fields["outcome"])
+			assert.Equal(t, "fetching", fields["stage"])
+			assert.Equal(t, "get_node", fields["operation"])
+			for _, call := range cs.KubeClient.(*fake.Clientset).Actions() {
+				assert.NotEqual(t, "patch", call.GetVerb())
+			}
+		})
+	}
+}
+
 // ===================== Drain =====================
 
 func TestNodeDrainTelemetryFailures(t *testing.T) {

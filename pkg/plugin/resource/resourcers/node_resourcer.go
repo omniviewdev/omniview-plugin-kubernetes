@@ -174,23 +174,29 @@ func (n *NodeResourcer) ExecuteAction(
 	ctx context.Context,
 	client *clients.ClientSet,
 	input resource.ActionRequest,
-) (resource.Value, error) {
+) (result resource.Value, resultErr error) {
+	var telemetry *nativeActionTelemetry
+	switch input.Action {
+	case "cordon", "uncordon", "add-taint", "remove-taint", "get-conditions":
+		ctx, telemetry = startNativeActionTelemetry(ctx, n.log, "node", input)
+		defer func() { telemetry.finish(resultErr) }()
+	}
 	if _, err := nativeRequestNamespace(input.Reference.Address.Scope); err != nil {
 		return resource.Value{}, err
 	}
 	switch input.Action {
 	case "cordon":
-		return n.executeCordon(ctx, client, input, true)
+		return n.executeCordon(ctx, client, input, true, telemetry)
 	case "uncordon":
-		return n.executeCordon(ctx, client, input, false)
+		return n.executeCordon(ctx, client, input, false, telemetry)
 	case "drain":
 		return resource.Value{}, resource.NewError("UNSUPPORTED", "Drain requires streaming execution")
 	case "add-taint":
-		return n.executeAddTaint(ctx, client, input)
+		return n.executeAddTaint(ctx, client, input, telemetry)
 	case "remove-taint":
-		return n.executeRemoveTaint(ctx, client, input)
+		return n.executeRemoveTaint(ctx, client, input, telemetry)
 	case "get-conditions":
-		return n.executeGetConditions(ctx, client, input)
+		return n.executeGetConditions(ctx, client, input, telemetry)
 	default:
 		return resource.Value{}, fmt.Errorf("unknown action: %s", input.Action)
 	}
@@ -216,8 +222,10 @@ func (n *NodeResourcer) executeCordon(
 	client *clients.ClientSet,
 	input resource.ActionRequest,
 	unschedulable bool,
+	telemetry *nativeActionTelemetry,
 ) (resource.Value, error) {
 	patch := fmt.Sprintf(`{"spec":{"unschedulable":%t}}`, unschedulable)
+	telemetry.stage, telemetry.operation = "patching", "patch_node"
 	_, err := client.KubeClient.CoreV1().Nodes().Patch(
 		ctx, input.Reference.Address.ID, k8stypes.StrategicMergePatchType,
 		nativeActionPatch(input, patch), metav1.PatchOptions{},
@@ -550,6 +558,7 @@ func (n *NodeResourcer) executeAddTaint(
 	ctx context.Context,
 	client *clients.ClientSet,
 	input resource.ActionRequest,
+	telemetry *nativeActionTelemetry,
 ) (resource.Value, error) {
 	params, paramsErr := nativeActionParams(input.Input)
 	if paramsErr != nil {
@@ -567,6 +576,7 @@ func (n *NodeResourcer) executeAddTaint(
 	}
 
 	// Get the current node to read existing taints.
+	telemetry.stage, telemetry.operation = "fetching", "get_node"
 	node, err := client.KubeClient.CoreV1().Nodes().Get(ctx, input.Reference.Address.ID, metav1.GetOptions{})
 	if err == nil {
 		if err := nativeActionObjectMatches(input, node); err != nil {
@@ -600,6 +610,7 @@ func (n *NodeResourcer) executeAddTaint(
 	}
 
 	patch := fmt.Sprintf(`{"spec":{"taints":%s}}`, taintsJSON)
+	telemetry.stage, telemetry.operation = "patching", "patch_node"
 	_, err = client.KubeClient.CoreV1().Nodes().Patch(
 		ctx, input.Reference.Address.ID, k8stypes.StrategicMergePatchType,
 		nativeActionPatch(input, patch), metav1.PatchOptions{},
@@ -619,6 +630,7 @@ func (n *NodeResourcer) executeRemoveTaint(
 	ctx context.Context,
 	client *clients.ClientSet,
 	input resource.ActionRequest,
+	telemetry *nativeActionTelemetry,
 ) (resource.Value, error) {
 	params, paramsErr := nativeActionParams(input.Input)
 	if paramsErr != nil {
@@ -631,6 +643,7 @@ func (n *NodeResourcer) executeRemoveTaint(
 		return resource.Value{}, fmt.Errorf("taint key is required")
 	}
 
+	telemetry.stage, telemetry.operation = "fetching", "get_node"
 	node, err := client.KubeClient.CoreV1().Nodes().Get(ctx, input.Reference.Address.ID, metav1.GetOptions{})
 	if err == nil {
 		if err := nativeActionObjectMatches(input, node); err != nil {
@@ -665,6 +678,7 @@ func (n *NodeResourcer) executeRemoveTaint(
 
 	// Use MergePatch (not strategic merge) so that the full taints array is replaced.
 	patch := fmt.Sprintf(`{"spec":{"taints":%s}}`, taintsJSON)
+	telemetry.stage, telemetry.operation = "patching", "patch_node"
 	_, err = client.KubeClient.CoreV1().Nodes().Patch(
 		ctx, input.Reference.Address.ID, k8stypes.MergePatchType,
 		nativeActionPatch(input, patch), metav1.PatchOptions{},
@@ -684,7 +698,9 @@ func (n *NodeResourcer) executeGetConditions(
 	ctx context.Context,
 	client *clients.ClientSet,
 	input resource.ActionRequest,
+	telemetry *nativeActionTelemetry,
 ) (resource.Value, error) {
+	telemetry.stage, telemetry.operation = "fetching", "get_node"
 	node, err := client.KubeClient.CoreV1().Nodes().Get(ctx, input.Reference.Address.ID, metav1.GetOptions{})
 	if err == nil {
 		if err := nativeActionObjectMatches(input, node); err != nil {

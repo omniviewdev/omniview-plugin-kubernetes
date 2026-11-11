@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 
+	"go.opentelemetry.io/otel"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -72,16 +74,22 @@ func podHandlerWithProvider(
 	tty *os.File,
 	stopCh chan error,
 	resize <-chan exec.SessionResizeInput,
-) error {
+) (resultErr error) {
+	streamContext, diagnostic := startExecDiagnostic(ctx, "kubernetes.pod.exec.admission")
+	defer func() { diagnostic.finish(resultErr) }()
+	diagnostic.stage, diagnostic.operation = "execution", "client"
 	clients, err := provider(ctx)
 	if err != nil {
 		return err
 	}
 
+	diagnostic.stage, diagnostic.operation = "admission", "validate"
 	pod, namespace, err := nativeExecTarget(ctx, opts, "k8s:/pods", true)
 	if err != nil {
 		return err
 	}
+	diagnostic.pod, diagnostic.namespace = pod, namespace
+	streamContext = context.WithValue(streamContext, execDiagnosticKey{}, diagnostic)
 	container, ok := opts.Params["container"]
 	if !ok {
 		container = ""
@@ -89,17 +97,20 @@ func podHandlerWithProvider(
 
 	switch opts.Params["mode"] {
 	case "attach":
-		if err := waitForDebugContainer(ctx.Context, clients.Clientset, namespace, pod, opts.Params["pod_uid"], container); err != nil {
+		diagnostic.stage, diagnostic.operation = "execution", "wait_for_container"
+		if err := waitForDebugContainer(streamContext, clients.Clientset, namespace, pod, opts.Params["pod_uid"], container); err != nil {
 			return err
 		}
-		return streamPod(ctx.Context, clients.Clientset, clients.RestConfig, namespace, pod, container, nil, true, tty, stopCh, resize)
+		diagnostic.operation = "attach"
+		return streamPod(streamContext, clients.Clientset, clients.RestConfig, namespace, pod, container, nil, true, tty, stopCh, resize)
 	case "", "exec":
 	default:
 		return fmt.Errorf("unsupported session mode %q", opts.Params["mode"])
 	}
 
+	diagnostic.stage, diagnostic.operation = "execution", "exec"
 	return ExecCmd(
-		ctx.Context,
+		streamContext,
 		clients.Clientset,
 		clients.RestConfig,
 		namespace,
@@ -244,12 +255,21 @@ func streamPod(
 		return err
 	}
 	go func() {
+		var diagnostic *execDiagnostic
+		if parent, ok := ctx.Value(execDiagnosticKey{}).(*execDiagnostic); ok {
+			streamCtx, span := otel.Tracer("omniview.plugin.kubernetes").Start(ctx, "kubernetes.pod.exec.stream")
+			ctx = streamCtx
+			diagnostic = &execDiagnostic{ctx: parent.ctx, span: span, stage: "lifecycle", operation: subresource, pod: pod, namespace: namespace}
+		}
 		streamCtx, cancel := context.WithCancel(ctx)
 		defer cancel()
 		queue := &terminalSizeQueue{ctx: streamCtx, resize: resize}
 		streamErr := executor.StreamWithContext(streamCtx, remotecommand.StreamOptions{
 			Stdin: tty, Stdout: tty, Stderr: tty, Tty: true, TerminalSizeQueue: queue,
 		})
+		if diagnostic != nil {
+			diagnostic.finish(streamErr)
+		}
 		if streamErr != nil && !attach {
 			streamErr = classifyExecError(streamErr, command)
 		}

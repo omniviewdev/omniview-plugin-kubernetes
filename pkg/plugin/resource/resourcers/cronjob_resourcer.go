@@ -74,14 +74,21 @@ func (c *CronJobResourcer) ExecuteAction(
 	ctx context.Context,
 	client *clients.ClientSet,
 	input resource.ActionRequest,
-) (resource.Value, error) {
+) (result resource.Value, resultErr error) {
+	switch input.Action {
+	case "trigger", "suspend", "resume":
+	default:
+		return resource.Value{}, fmt.Errorf("unknown action: %s", input.Action)
+	}
+	ctx, telemetry := startNativeActionTelemetry(ctx, c.log, "cronjob", input)
+	defer func() { telemetry.finish(resultErr) }()
 	switch input.Action {
 	case "trigger":
-		return c.executeTrigger(ctx, client, input)
+		return c.executeTrigger(ctx, client, input, telemetry)
 	case "suspend":
-		return c.executeSuspend(ctx, client, input, true)
+		return c.executeSuspend(ctx, client, input, true, telemetry)
 	case "resume":
-		return c.executeSuspend(ctx, client, input, false)
+		return c.executeSuspend(ctx, client, input, false, telemetry)
 	default:
 		return resource.Value{}, fmt.Errorf("unknown action: %s", input.Action)
 	}
@@ -91,11 +98,13 @@ func (c *CronJobResourcer) executeTrigger(
 	ctx context.Context,
 	client *clients.ClientSet,
 	input resource.ActionRequest,
+	telemetry *nativeActionTelemetry,
 ) (resource.Value, error) {
 	namespace, scopeErr := nativeRequestNamespace(input.Reference.Address.Scope)
 	if scopeErr != nil {
 		return resource.Value{}, scopeErr
 	}
+	telemetry.stage, telemetry.operation = "fetching", "get_cronjob"
 	cj, err := client.KubeClient.BatchV1().CronJobs(namespace).Get(ctx, input.Reference.Address.ID, metav1.GetOptions{})
 	if err != nil {
 		return resource.Value{}, fmt.Errorf("failed to get cronjob %s: %w", input.Reference.Address.ID, err)
@@ -103,6 +112,7 @@ func (c *CronJobResourcer) executeTrigger(
 	if err := nativeActionObjectMatches(input, cj); err != nil {
 		return resource.Value{}, err
 	}
+	telemetry.stage, telemetry.operation = "creating", "create_job"
 	job := cronJobManualJob(cj)
 	created, err := client.KubeClient.BatchV1().Jobs(namespace).Create(ctx, job, metav1.CreateOptions{})
 	if err != nil {
@@ -151,6 +161,7 @@ func (c *CronJobResourcer) executeSuspend(
 	client *clients.ClientSet,
 	input resource.ActionRequest,
 	suspend bool,
+	telemetry *nativeActionTelemetry,
 ) (resource.Value, error) {
 	namespace, scopeErr := nativeRequestNamespace(input.Reference.Address.Scope)
 	if scopeErr != nil {
@@ -161,6 +172,7 @@ func (c *CronJobResourcer) executeSuspend(
 	if !suspend {
 		verb, done = "resume", "resumed"
 	}
+	telemetry.stage, telemetry.operation = "patching", "patch_cronjob"
 	_, err := client.KubeClient.BatchV1().CronJobs(namespace).Patch(
 		ctx, input.Reference.Address.ID, k8stypes.StrategicMergePatchType,
 		nativeActionPatch(input, patch), metav1.PatchOptions{},

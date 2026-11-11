@@ -2,16 +2,26 @@ package resourcers
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/kubernetes/fake"
@@ -72,6 +82,118 @@ func TestCronJobResourcer_Trigger(t *testing.T) {
 	require.NotNil(t, owner.Controller)
 	assert.True(t, *owner.Controller)
 	assert.Equal(t, "busybox:1.37.0", job.Spec.Template.Spec.Containers[0].Image)
+}
+
+func TestCronJobActionTelemetry(t *testing.T) {
+	for _, tc := range []struct {
+		action, verb, resource, stage, operation string
+		cancel, success                          bool
+	}{
+		{action: "trigger", verb: "get", resource: "cronjobs", stage: "fetching", operation: "get_cronjob"},
+		{action: "trigger", verb: "create", resource: "jobs", stage: "creating", operation: "create_job"},
+		{action: "suspend", verb: "patch", resource: "cronjobs", stage: "patching", operation: "patch_cronjob"},
+		{action: "resume", verb: "patch", resource: "cronjobs", stage: "patching", operation: "patch_cronjob"},
+		{action: "trigger", verb: "get", resource: "cronjobs", stage: "fetching", operation: "get_cronjob", cancel: true},
+		{action: "trigger", stage: "creating", operation: "create_job", success: true},
+		{action: "suspend", stage: "patching", operation: "patch_cronjob", success: true},
+		{action: "resume", stage: "patching", operation: "patch_cronjob", success: true},
+	} {
+		t.Run(tc.action+"/"+tc.stage+tc.verb, func(t *testing.T) {
+			core, logs := observer.New(zap.InfoLevel)
+			r := NewCronJobResourcer(zap.New(core).Sugar())
+			client := fake.NewClientset(testCronJob("nightly"))
+			if tc.verb != "" {
+				client.PrependReactor(tc.verb, tc.resource, func(k8stesting.Action) (bool, runtime.Object, error) {
+					if tc.cancel {
+						return true, nil, context.DeadlineExceeded
+					}
+					return true, nil, apierrors.NewForbidden(schema.GroupResource{Resource: tc.resource}, "secret-cronjob", errors.New("secret-error"))
+				})
+			}
+			request := workloadActionRequest(tc.action, "nightly", "default", nil)
+			request.Route.Connection = "cluster"
+			_, err := r.ExecuteAction(context.Background(), &clients.ClientSet{KubeClient: client}, request)
+			require.Equal(t, !tc.success, err != nil)
+			require.Equal(t, 1, logs.Len())
+			fields := logs.All()[0].ContextMap()
+			assert.Equal(t, tc.action, fields["action"])
+			assert.Equal(t, "nightly", fields["resource_id"])
+			assert.Equal(t, "default", fields["namespace"])
+			assert.Equal(t, "cluster", fields["connection"])
+			assert.Equal(t, "k8s:batch/cronjobs", fields["resource_type"])
+			assert.Equal(t, tc.stage, fields["stage"])
+			assert.Equal(t, tc.operation, fields["operation"])
+			if tc.success {
+				assert.Equal(t, "success", fields["outcome"])
+			} else if tc.cancel {
+				assert.Equal(t, "canceled", fields["outcome"])
+				assert.Equal(t, "deadline_exceeded", fields["error_class"])
+			} else {
+				assert.Equal(t, "failure", fields["outcome"])
+				assert.Equal(t, "kubernetes", fields["error_class"])
+				assert.Equal(t, "Forbidden", fields["k8s_reason"])
+				assert.EqualValues(t, 403, fields["k8s_status_code"])
+			}
+			encoded, err := json.Marshal(fields)
+			require.NoError(t, err)
+			assert.NotContains(t, string(encoded), "secret-")
+		})
+	}
+}
+
+func TestCronJobActionTelemetrySpan(t *testing.T) {
+	previous := otel.GetTracerProvider()
+	exporter := tracetest.NewInMemoryExporter()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
+	otel.SetTracerProvider(provider)
+	t.Cleanup(func() {
+		otel.SetTracerProvider(previous)
+		require.NoError(t, provider.Shutdown(context.Background()))
+	})
+	core, logs := observer.New(zap.InfoLevel)
+	r := NewCronJobResourcer(zap.New(core).Sugar())
+	client := fake.NewClientset()
+	client.PrependReactor("get", "cronjobs", func(k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, apierrors.NewForbidden(schema.GroupResource{Resource: "cronjobs"}, "secret-name", errors.New("secret-error"))
+	})
+	request := workloadActionRequest("trigger", "nightly", "default", nil)
+	request.Route.Connection = "cluster"
+	_, err := r.ExecuteAction(context.Background(), &clients.ClientSet{KubeClient: client}, request)
+	require.Error(t, err)
+	spans := exporter.GetSpans()
+	require.Len(t, spans, 1)
+	assert.Equal(t, "kubernetes.cronjob.trigger", spans[0].Name)
+	assert.Equal(t, codes.Error, spans[0].Status.Code)
+	assert.Equal(t, "kubernetes", spans[0].Status.Description)
+	assert.Equal(t, spans[0].SpanContext.TraceID().String(), logs.All()[0].ContextMap()["trace_id"])
+	attributes := make(map[string]string)
+	for _, attr := range spans[0].Attributes {
+		attributes[string(attr.Key)] = attr.Value.Emit()
+	}
+	assert.Equal(t, "nightly", attributes["resource.id"])
+	assert.Equal(t, "default", attributes["resource.namespace"])
+	assert.Equal(t, "cluster", attributes["connection"])
+	assert.Equal(t, "k8s:batch/cronjobs", attributes["resource.type"])
+	for _, attr := range spans[0].Attributes {
+		assert.NotContains(t, attr.Value.Emit(), "secret-")
+	}
+	nodeRequest := workloadActionRequest("cordon", "worker", "", nil)
+	nodeRequest.Route.Connection = "cluster"
+	_, err = NewNodeResourcer(zap.New(core).Sugar()).ExecuteAction(context.Background(), newNodeClientSet(testNode("worker")), nodeRequest)
+	require.NoError(t, err)
+	spans = exporter.GetSpans()
+	require.Len(t, spans, 2)
+	attributes = make(map[string]string)
+	for _, attr := range spans[1].Attributes {
+		attributes[string(attr.Key)] = attr.Value.Emit()
+	}
+	assert.Equal(t, "worker", attributes["resource.id"])
+	assert.Equal(t, "", attributes["resource.namespace"])
+	assert.Equal(t, "cluster", attributes["connection"])
+	assert.Equal(t, "k8s:/nodes", attributes["resource.type"])
+	for _, attr := range spans[1].Attributes {
+		assert.NotContains(t, attr.Value.Emit(), "secret-")
+	}
 }
 
 func TestCronJobManualJobNameStaysDNS1123(t *testing.T) {
