@@ -55,11 +55,13 @@ const (
 // owns authenticated Kubernetes clients and cancellation of its finite reads.
 // The host owns admission, shared demand, refresh scheduling and result reuse.
 type nativeProvider struct {
-	mu    sync.Mutex
-	cache *ClientCache
-	lanes map[string]*nativeLane
-	next  uint64
-	now   func() time.Time
+	mu       sync.Mutex
+	cache    *ClientCache
+	lanes    map[string]*nativeLane
+	next     uint64
+	now      func() time.Time
+	parallel int // Namespace lists one query keeps in flight.
+	flights  nativeFlights
 }
 
 type nativeLane struct {
@@ -69,6 +71,7 @@ type nativeLane struct {
 	namespaceTurn uint64                              // Protected by nativeProvider.mu.
 	failures      map[nativeScanKey]nativeScanFailure // Protected by nativeProvider.mu.
 	unavailable   map[string]nativeScanFailure        // By resource; a metrics API that is not served. Protected by nativeProvider.mu.
+	confirmed     map[string]bool                     // By resource; the API has answered a list since it last failed to. Protected by nativeProvider.mu.
 	failureOrder  uint64                              // Protected by nativeProvider.mu.
 	logged        map[nativeLogKey]time.Time          // Protected by nativeProvider.mu.
 }
@@ -188,6 +191,7 @@ func (p *nativeProvider) recordScanFailure(lane *nativeLane, key nativeScanKey, 
 			lane.unavailable = make(map[string]nativeScanFailure)
 		}
 		lane.unavailable[key.resource] = nativeNextFailure(previous, known, err, now)
+		delete(lane.confirmed, key.resource)
 		return
 	}
 	if nativeServerFailure(err) {
@@ -230,6 +234,10 @@ func (p *nativeProvider) clearScanFailure(lane *nativeLane, key nativeScanKey) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	delete(lane.unavailable, key.resource)
+	if lane.confirmed == nil {
+		lane.confirmed = make(map[string]bool)
+	}
+	lane.confirmed[key.resource] = true
 	delete(lane.failures, key)
 	key.name = ""
 	if failure, remembered := lane.failures[key]; remembered && nativeServerFailure(failure.err) {
@@ -237,9 +245,18 @@ func (p *nativeProvider) clearScanFailure(lane *nativeLane, key nativeScanKey) {
 	}
 }
 
+// apiConfirmed reports whether the metrics API has answered a list of the
+// resource since it last failed to. A source that has not asked yet has no
+// answer, and reports false.
+func (p *nativeProvider) apiConfirmed(lane *nativeLane, resource string) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return lane.confirmed[resource]
+}
+
 func newNativeProvider() *nativeProvider {
 	diag.DeclareNativeScan()
-	return &nativeProvider{cache: NewClientCache(ClientCacheOpts{}), lanes: make(map[string]*nativeLane), now: time.Now}
+	return &nativeProvider{cache: NewClientCache(ClientCacheOpts{}), lanes: make(map[string]*nativeLane), now: time.Now, parallel: nativeParallelism}
 }
 
 func (p *nativeProvider) retireConnection(connectionID string) {
@@ -425,48 +442,24 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 	if clients == nil || clients.Clientset == nil {
 		return nil, resourcev2.NewError("UNAVAILABLE", "Native metric client is unavailable")
 	}
-	budget := nativeScanBudget{bytes: nativeMaxBytes, objects: nativeMaxObjects, pages: nativeMaxPages}
+	budget := nativeScanBudget{bytes: nativeMaxBytes, objects: nativeMaxObjects, pages: nativeMaxPages, mu: new(sync.Mutex)}
 	namespaces := make([]string, 0, len(groups))
 	for namespace := range groups {
 		namespaces = append(namespaces, namespace)
 	}
 	sort.Strings(namespaces)
+	// Until the metrics API has answered a list since it last failed to, the
+	// sweep reads its first namespace alone. The first in name order, not in
+	// rotation order, so that queries that overlap read the same one and share it.
+	probing := !p.apiConfirmed(lane, resourceKey)
 	start := int(namespaceTurn % uint64(len(namespaces)))
-	unfinished := 0
-	for offset := range namespaces {
+	if probing {
+		start = 0
+	}
+	scans := make([]*nativeNamespaceScan, len(namespaces))
+	for offset := range scans {
 		namespace := namespaces[(start+offset)%len(namespaces)]
-		if err := ctx.Err(); err != nil {
-			if !deadlineReached() {
-				return nil, err
-			}
-			unfinished = len(namespaces) - offset
-			break
-		}
 		indices := groups[namespace]
-		seen := make(map[string]bool, len(indices))
-		duplicates := make(map[string]bool)
-		visit := func(item *metricsv1beta1.PodMetrics) {
-			index, wanted := indices[item.Name]
-			if !wanted || item.Namespace != namespace {
-				return
-			}
-			start := index * len(query.MetricIDs)
-			if seen[item.Name] {
-				duplicates[item.Name] = true
-			}
-			seen[item.Name] = true
-			for offset := range query.MetricIDs {
-				result := &response.Results[start+offset]
-				if result.Status == "unsupported" {
-					continue
-				}
-				if duplicates[item.Name] {
-					*result = sdkmetric.ResourceMetricResult{ResourceToken: result.ResourceToken, MetricID: result.MetricID, Status: "ambiguous", Message: "Metrics source returned duplicate Pod identities"}
-					continue
-				}
-				fillNativeResult(result, item, query.Targets[index].Reference.Incarnation)
-			}
-		}
 		// A singleton narrows its list to one metadata.name without adding a
 		// request. Access is judged per selector, so the effective selector is
 		// fixed here, before the failure cache is read, and is part of its key.
@@ -476,11 +469,17 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 				selected = targetName
 			}
 		}
-		scanKey := nativeScanKey{resource: resourceKey, namespace: namespace, name: selected}
-		err := p.scanFailure(lane, scanKey)
-		scanned := err == nil
-		if err == nil && isNode {
-			err = scanNativeNodes(ctx, clients.Clientset.CoreV1().RESTClient(), &budget, func(item *metricsv1beta1.NodeMetrics) {
+		scans[offset] = &nativeNamespaceScan{
+			namespace: namespace, indices: indices, key: nativeScanKey{resource: resourceKey, namespace: namespace, name: selected},
+			seen: make(map[string]bool, len(indices)), duplicates: make(map[string]bool),
+		}
+	}
+	// read lists one namespace and joins what it finds to that namespace's
+	// targets. It writes nothing else, so namespaces can be read at the same time.
+	read := func(ctx context.Context, scan *nativeNamespaceScan, fetch nativeFetch) error {
+		namespace, indices, seen, duplicates := scan.namespace, scan.indices, scan.seen, scan.duplicates
+		if isNode {
+			return scanNativeNodes(ctx, fetch, &budget, func(item *metricsv1beta1.NodeMetrics) {
 				index, wanted := indices[item.Name]
 				if !wanted || item.Namespace != "" {
 					return
@@ -504,25 +503,46 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 				_, wanted := indices[item.Name]
 				return wanted && item.Namespace == ""
 			})
-		} else if err == nil {
-			// Keep filtering, pagination and all scan budgets even when an
-			// aggregated metrics API ignores the selector.
-			err = scanNativeNamespace(ctx, clients.Clientset.CoreV1().RESTClient(), namespace, selected, &budget, visit, func(item *metricsv1beta1.PodMetrics) bool {
-				_, wanted := indices[item.Name]
-				return wanted && item.Namespace == namespace
-			})
 		}
+		visit := func(item *metricsv1beta1.PodMetrics) {
+			index, wanted := indices[item.Name]
+			if !wanted || item.Namespace != namespace {
+				return
+			}
+			start := index * len(query.MetricIDs)
+			if seen[item.Name] {
+				duplicates[item.Name] = true
+			}
+			seen[item.Name] = true
+			for offset := range query.MetricIDs {
+				result := &response.Results[start+offset]
+				if result.Status == "unsupported" {
+					continue
+				}
+				if duplicates[item.Name] {
+					*result = sdkmetric.ResourceMetricResult{ResourceToken: result.ResourceToken, MetricID: result.MetricID, Status: "ambiguous", Message: "Metrics source returned duplicate Pod identities"}
+					continue
+				}
+				fillNativeResult(result, item, query.Targets[index].Reference.Incarnation)
+			}
+		}
+		// Keep filtering, pagination and all scan budgets even when an
+		// aggregated metrics API ignores the selector.
+		return scanNativeNamespace(ctx, fetch, namespace, scan.key.name, &budget, visit, func(item *metricsv1beta1.PodMetrics) bool {
+			_, wanted := indices[item.Name]
+			return wanted && item.Namespace == namespace
+		})
+	}
+	unreached := p.sweep(ctx, lane, scans, probing, p.fetcher(lane, clients.Clientset.CoreV1().RESTClient()), read, deadlineReached)
+	if ctx.Err() != nil && !deadlineReached() {
+		return nil, ctx.Err()
+	}
+	for _, scan := range scans {
+		if !scan.reached {
+			continue
+		}
+		namespace, indices, err, scanned := scan.namespace, scan.indices, scan.err, scan.scanned
 		if err != nil {
-			if ctx.Err() != nil && !deadlineReached() {
-				return nil, ctx.Err()
-			}
-			if ctx.Err() != nil || errors.Is(err, context.DeadlineExceeded) {
-				// Whatever the interrupted request reported, only the timeout matters.
-				err = context.DeadlineExceeded
-			}
-			if scanned {
-				p.recordScanFailure(lane, scanKey, err)
-			}
 			response.Complete = false
 			status, message := "failed", "Native metrics namespace scan failed"
 			if apierrors.IsForbidden(err) || apierrors.IsUnauthorized(err) {
@@ -564,11 +584,8 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 				}
 			}
 		} else {
-			if scanned {
-				p.clearScanFailure(lane, scanKey)
-			}
 			for name, index := range indices {
-				if seen[name] {
+				if scan.seen[name] {
 					continue
 				}
 				for offset := range query.MetricIDs {
@@ -580,14 +597,11 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 			}
 		}
 	}
-	if unfinished > 0 {
+	if unreached > 0 {
 		response.Complete = false
-		for range unfinished {
+		for range unreached {
 			response.Warnings = append(response.Warnings, nativeDeadlineMessage)
 		}
-	}
-	if err := ctx.Err(); err != nil && !deadlineReached() {
-		return nil, err
 	}
 	if lane.ctx.Err() != nil || !p.cache.isCurrent(lane.key, clients) {
 		return nil, resourcev2.NewError("RESET_REQUIRED", "Native metric source generation was retired")

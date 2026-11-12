@@ -15,11 +15,15 @@ import (
 
 // nativeFakeAPI is a metrics API that counts the namespace lists reaching it and
 // answers each with whatever serve says. Node lists count under the empty
-// namespace. serve may block, for example until the request is canceled.
+// namespace. serve may block, for example until the request is canceled. With a
+// latency, every list takes that long before serve answers it.
 type nativeFakeAPI struct {
-	mu    sync.Mutex
-	calls map[string]int
-	serve func(request *http.Request, namespace string) (*http.Response, error)
+	mu       sync.Mutex
+	calls    map[string]int
+	inFlight int
+	peak     int // The most lists that were ever in flight together.
+	latency  time.Duration
+	serve    func(request *http.Request, namespace string) (*http.Response, error)
 }
 
 func newNativeFakeAPI(serve func(*http.Request, string) (*http.Response, error)) *nativeFakeAPI {
@@ -33,9 +37,29 @@ func (a *nativeFakeAPI) RoundTrip(request *http.Request) (*http.Response, error)
 	}
 	a.mu.Lock()
 	a.calls[namespace]++
-	serve := a.serve
+	a.inFlight++
+	a.peak = max(a.peak, a.inFlight)
+	serve, latency := a.serve, a.latency
 	a.mu.Unlock()
+	defer func() {
+		a.mu.Lock()
+		a.inFlight--
+		a.mu.Unlock()
+	}()
+	if latency > 0 {
+		select {
+		case <-time.After(latency):
+		case <-request.Context().Done():
+			return nil, request.Context().Err()
+		}
+	}
 	return serve(request, namespace)
+}
+
+func (a *nativeFakeAPI) peakInFlight() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.peak
 }
 
 func (a *nativeFakeAPI) setServe(serve func(*http.Request, string) (*http.Response, error)) {
@@ -134,11 +158,25 @@ func TestNativeAbsentMetricsAPIIsProbedOncePerBackoffWindow(t *testing.T) {
 		}
 	}
 
-	// A new failure starts from the first window again, not where the last one ended.
+	// The API goes away again. It had answered, so namespaces are read in
+	// parallel and up to 4 of them find out before the first failure stops the
+	// rest.
 	api.setServe(nativeRefuses(http.StatusNotFound, "NotFound"))
-	absent(poll(18*time.Minute, 46))
-	absent(poll(18*time.Minute+29*time.Second, 46))
-	absent(poll(18*time.Minute+30*time.Second, 47))
+	answered := api.total()
+	now = start.Add(18 * time.Minute)
+	response, err := provider.query(pc, query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	absent(response)
+	if found := api.total() - answered; found < 1 || found > nativeParallelism {
+		t.Fatalf("%d requests found out that the API had gone, want 1 to %d", found, nativeParallelism)
+	}
+	// The failure starts from the first window again, not where the last one
+	// ended, and the read that ends it is a single probe.
+	total := api.total()
+	absent(poll(18*time.Minute+29*time.Second, total))
+	absent(poll(18*time.Minute+30*time.Second, total+1))
 }
 
 func TestNativeAbsentMetricsAPIBackoffDoublesToTheCeiling(t *testing.T) {

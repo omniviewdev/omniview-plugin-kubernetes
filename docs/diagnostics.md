@@ -42,9 +42,9 @@ A native metrics query reads PodMetrics (one list per namespace) or NodeMetrics 
 
 | Counter | Counts |
 |---|---|
-| `api_calls` | List requests issued, including ones that failed or were canceled. `operation=namespace` is one namespace's PodMetrics list; `node` is the NodeMetrics list. These requests also appear in `api.calls` (`operation=read`), mixed with every other read. |
-| `pages` | List pages that decoded and validated. `api_calls` minus `pages` is requests that produced no usable page. |
-| `objects` | Metric objects decoded against the 20,000-object budget, including objects on a page that later failed validation or hit the budget. |
+| `api_calls` | List requests issued, including ones that failed or were canceled. `operation=namespace` is one namespace's PodMetrics list; `node` is the NodeMetrics list. Identical lists that are in flight at the same time are one request, shared by every query waiting on it. These requests also appear in `api.calls` (`operation=read`), mixed with every other read. |
+| `pages` | List pages that decoded and validated, counted by each scan that decoded them, so queries that share a request each count its pages. When no request is shared, `api_calls` minus `pages` is the requests that produced no usable page. |
+| `objects` | Metric objects decoded against the 20,000-object budget, including objects on a page that later failed validation or hit the budget. Counted for each scan that decoded them, as for `pages`. |
 | `bytes` | Response bytes read against the 8 MiB budget, including bytes of a page that later failed. An error response body is read by the Kubernetes client, not by the scan, and is not counted. |
 | `scans` | Finished scans, one per list sequence including its continuation pages. `ok`; `denied` (HTTP 401 or 403); `budget` (the 64-page, 20,000-object or 8 MiB budget stopped it, so unseen targets are not proven missing); `canceled`; `timeout`; `failed` (anything else, including an invalid page). A scan refused by an exhausted page budget before any request counts as `budget` with no `api_calls`. |
 | `cancellations` | Queries that ended without delivering because the caller canceled (`caller`), the caller's deadline expired (`deadline`; the 15 s scan timeout is not counted here, because it delivers the namespaces that finished, and shows as `scans` with `outcome=timeout`) or the source generation was retired (`retired`). Counted once per query and independently of `scans`: a retirement can discard a query whose scans all finished `ok`. |

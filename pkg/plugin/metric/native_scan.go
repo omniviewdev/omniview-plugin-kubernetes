@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 
 	"github.com/omniview/kubernetes/pkg/diag"
 	corev1 "k8s.io/api/core/v1"
@@ -21,6 +22,22 @@ type nativeScanBudget struct {
 	bytes   int64
 	objects int
 	pages   int
+	// mu, when set, serializes the budget among scans of one execution that run
+	// at the same time. A scan holds it to take a page and to decode one in
+	// memory, never while waiting for the network.
+	mu *sync.Mutex
+}
+
+func (b *nativeScanBudget) lock() {
+	if b.mu != nil {
+		b.mu.Lock()
+	}
+}
+
+func (b *nativeScanBudget) unlock() {
+	if b.mu != nil {
+		b.mu.Unlock()
+	}
 }
 
 type nativeBudgetReader struct {
@@ -58,17 +75,38 @@ func (r *nativeBudgetReader) Read(data []byte) (int, error) {
 	return n, err
 }
 
-func scanNativeNamespace(ctx context.Context, client rest.Interface, namespace, name string, budget *nativeScanBudget, visit func(*metricsv1beta1.PodMetrics), retain ...func(*metricsv1beta1.PodMetrics) bool) error {
+func scanNativeNamespace(ctx context.Context, fetch nativeFetch, namespace, name string, budget *nativeScanBudget, visit func(*metricsv1beta1.PodMetrics), retain ...func(*metricsv1beta1.PodMetrics) bool) error {
 	selector := ""
 	if name != "" {
 		// Names came from validated DNS resource identities, not query text.
 		selector = "metadata.name=" + name
 	}
-	return scanNativeMetrics(ctx, client, diag.ScanNamespace, "/apis/metrics.k8s.io/v1beta1/namespaces/"+namespace+"/pods", "PodMetricsList", selector, budget, visit, retain...)
+	return scanNativeMetrics(ctx, fetch, diag.ScanNamespace, "/apis/metrics.k8s.io/v1beta1/namespaces/"+namespace+"/pods", "PodMetricsList", selector, budget, visit, retain...)
 }
 
-func scanNativeNodes(ctx context.Context, client rest.Interface, budget *nativeScanBudget, visit func(*metricsv1beta1.NodeMetrics), retain ...func(*metricsv1beta1.NodeMetrics) bool) error {
-	return scanNativeMetrics(ctx, client, diag.ScanNode, "/apis/metrics.k8s.io/v1beta1/nodes", "NodeMetricsList", "", budget, visit, retain...)
+func scanNativeNodes(ctx context.Context, fetch nativeFetch, budget *nativeScanBudget, visit func(*metricsv1beta1.NodeMetrics), retain ...func(*metricsv1beta1.NodeMetrics) bool) error {
+	return scanNativeMetrics(ctx, fetch, diag.ScanNode, "/apis/metrics.k8s.io/v1beta1/nodes", "NodeMetricsList", "", budget, visit, retain...)
+}
+
+// nativeFetch issues one list request and returns the response body, which the
+// caller closes. The request is counted wherever it is actually made.
+type nativeFetch func(ctx context.Context, operation diag.ScanOperation, path, selector, continuation string) (io.ReadCloser, error)
+
+// restFetch lists through a Kubernetes client, streaming the response.
+func restFetch(client rest.Interface) nativeFetch {
+	return func(ctx context.Context, operation diag.ScanOperation, path, selector, continuation string) (io.ReadCloser, error) {
+		diag.ScanRequest(operation)
+		// metrics-server may ignore limit; never assume one page is bounded by it.
+		request := client.Get().AbsPath(path).
+			SetHeader("Accept", "application/json").SetHeader("Accept-Encoding", "identity").Param("limit", "1000")
+		if selector != "" {
+			request = request.Param("fieldSelector", selector)
+		}
+		if continuation != "" {
+			request = request.Param("continue", continuation)
+		}
+		return request.Stream(ctx)
+	}
 }
 
 // nativeScanOutcome maps a finished scan to the closed diagnostics vocabulary.
@@ -96,10 +134,12 @@ func nativeScanOutcome(err error) diag.ScanOutcome {
 // Objects and bytes are measured from the shared budget, so work consumed by a
 // scan that is later rejected, exhausted or canceled is still counted. Nothing
 // that names a namespace, Pod, continuation token or error text is recorded.
-func scanNativeMetrics[T any](ctx context.Context, client rest.Interface, operation diag.ScanOperation, path, kind, selector string, budget *nativeScanBudget, visit func(*T), retain ...func(*T) bool) (scanErr error) {
-	startObjects, startBytes := budget.objects, budget.bytes
+func scanNativeMetrics[T any](ctx context.Context, fetch nativeFetch, operation diag.ScanOperation, path, kind, selector string, budget *nativeScanBudget, visit func(*T), retain ...func(*T) bool) (scanErr error) {
+	// This scan's own use of the budget. Scans that run at the same time share
+	// it, so a difference between its levels would count their work too.
+	var objects, bytes int64
 	defer func() {
-		diag.ScanVolume(operation, int64(startObjects-budget.objects), startBytes-budget.bytes)
+		diag.ScanVolume(operation, objects, bytes)
 		diag.ScanFinished(nativeScanOutcome(scanErr))
 	}()
 	continuation := ""
@@ -108,25 +148,25 @@ func scanNativeMetrics[T any](ctx context.Context, client rest.Interface, operat
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if budget.pages <= 0 || budget.objects <= 0 || budget.bytes <= 0 {
+		budget.lock()
+		spent := budget.pages <= 0 || budget.objects <= 0 || budget.bytes <= 0
+		if !spent {
+			budget.pages--
+		}
+		budget.unlock()
+		if spent {
 			return errNativeBudget
 		}
-		budget.pages--
-		diag.ScanRequest(operation)
-		// metrics-server may ignore limit; never assume one page is bounded by it.
-		request := client.Get().AbsPath(path).
-			SetHeader("Accept", "application/json").SetHeader("Accept-Encoding", "identity").Param("limit", "1000")
-		if selector != "" {
-			request = request.Param("fieldSelector", selector)
-		}
-		if continuation != "" {
-			request = request.Param("continue", continuation)
-		}
-		body, err := request.Stream(ctx)
+		body, err := fetch(ctx, operation, path, selector, continuation)
 		if err != nil {
 			return err
 		}
+		budget.lock()
+		objectsBefore, bytesBefore := budget.objects, budget.bytes
 		next, err := decodeNativeMetricsPage(ctx, &nativeBudgetReader{source: body, budget: budget}, kind, budget, visit, retain...)
+		objects += int64(objectsBefore - budget.objects)
+		bytes += bytesBefore - budget.bytes
+		budget.unlock()
 		body.Close()
 		if err != nil {
 			return err

@@ -100,6 +100,7 @@ Budgets are shared across all namespaces and continuation pages in one execution
 | Scanned metric objects | 20,000 |
 | API pages | 64 |
 | Execution deadline | 15 seconds, or earlier caller cancellation |
+| Namespace lists in flight per query | 4 |
 | Retained source connection lanes | 128; disconnected lanes retire |
 | Authenticated client idle TTL | 10 minutes |
 
@@ -111,9 +112,22 @@ not spend the deadline on it again. A caller that cancels, or whose own deadline
 falls first, receives the error instead, as does a query whose source generation
 was retired.
 
-Targets are grouped by namespace. The provider performs namespace LISTs and streams one object at a time, filtering exact requested identities. It requests `limit=1000` but **does not assume metrics-server implements pagination**. It follows `continue` only when the server returns it, and rejects repeated/oversized continuation tokens. An unpaginated namespace is still bounded by decoded byte and scanned-object budgets. A namespace can cost a full inventory scan even for one selected Pod; these bounds are not constant-cost or throughput claims. There are no per-Pod GET fallbacks and no target chunker that repeats the same namespace scan inside one execution.
+Targets are grouped by namespace. The provider performs namespace LISTs and decodes one object at a time, filtering exact requested identities. It requests `limit=1000` but **does not assume metrics-server implements pagination**. It follows `continue` only when the server returns it, and rejects repeated/oversized continuation tokens. An unpaginated namespace is still bounded by decoded byte and scanned-object budgets. A namespace can cost a full inventory scan even for one selected Pod; these bounds are not constant-cost or throughput claims. There are no per-Pod GET fallbacks and no target chunker that repeats the same namespace scan inside one execution.
 
-Each Pod query rotates the starting namespace within its source generation. Repeated identical batches therefore do not always exclude the same trailing namespaces when the shared scan budget is exhausted. Retirement resets this cursor. It stores no samples and schedules no polling.
+A query keeps up to 4 namespace lists in flight at once, started in the order of
+its rotation. They share the execution's budgets, and the first page of each is
+reserved in that order. An identical list request already in flight, from this or
+another query of the same source generation, is not repeated: the queries wait
+for the one response and each decodes it against its own budgets. The response is
+read in full, up to one byte past the byte budget, and is forgotten once the
+queries waiting on it have it; a query that arrives later makes its own request,
+so no metric samples are cached. If the request's own query is canceled, the
+queries still waiting ask again. Until the metrics API has answered a list since
+the source began or since it last failed to, a query reads one namespace first,
+the first in name order, and reads the rest only after that one has finished, so
+a missing API is found out by one request.
+
+Each Pod query rotates the starting namespace within its source generation. Repeated identical batches therefore do not always exclude the same trailing namespaces when the shared scan budget is exhausted. A query that has to probe a metrics API it has not seen answer starts at the first namespace in name order instead. Retirement resets this cursor. It stores no samples and schedules no polling.
 
 Clients reuse the Kubernetes connection's actual authenticated transport, including custom authentication strategies. Finite requests use their caller context, not `context.Background()`. A source lane has its own lifecycle cancellation and opaque generation-specific cache key. Connection retirement cancels its in-flight reads, evicts its clients and fences late publication. Reconnect cannot reuse the retired lane. Legacy Prometheus/Node caches remain independent and retire through the same registered connection callback.
 

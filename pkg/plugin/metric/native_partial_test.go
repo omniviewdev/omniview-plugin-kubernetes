@@ -74,25 +74,35 @@ func TestNativeDeadlineDeliversTheNamespacesThatFinished(t *testing.T) {
 
 func TestNativeDeadlineWarnsForEveryNamespaceThatDidNotFinish(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		// The sweep starts at ns-00 and reaches the hung namespace third; the two
-		// after it are never started.
-		api := newNativeFakeAPI(nativeHangsAt("ns-02"))
+		api := newNativeFakeAPI(nativeAnswers)
 		provider := nativeTestProvider(t, api.RoundTrip)
 		pc := nativeSelectedPC()
+		query := nativeNamespaceQuery(pc, 6)
+		// A first query shows that the API answers, so the next one reads
+		// namespaces in parallel.
+		if _, err := provider.query(pc, query); err != nil {
+			t.Fatal(err)
+		}
+		answered := api.total()
 
-		response, err := provider.query(pc, nativeNamespaceQuery(pc, 5))
+		// Now no list returns. Only as many as can be in flight are started; the
+		// rest never begin, and the deadline passes with nothing finished.
+		api.setServe(nativeHangsAt("ns-00", "ns-01", "ns-02", "ns-03", "ns-04", "ns-05"))
+		response, err := provider.query(pc, query)
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := []string{"row-ns-00=ok", "row-ns-01=ok", "row-ns-02=failed", "row-ns-03=failed", "row-ns-04=failed"}
-		if got := nativeStatuses(response); !slices.Equal(got, want) {
-			t.Fatalf("statuses = %v, want %v", got, want)
+		if started := api.total() - answered; started != nativeParallelism {
+			t.Fatalf("%d lists were started, want the %d that fit", started, nativeParallelism)
 		}
-		if response.Complete || !slices.Equal(response.Warnings, []string{nativeDeadlineMessage, nativeDeadlineMessage, nativeDeadlineMessage}) {
-			t.Fatalf("complete=%v warnings=%v, want one warning for each of the 3 namespaces that did not finish", response.Complete, response.Warnings)
+		for _, result := range response.Results {
+			if result.Status != "failed" {
+				t.Fatalf("statuses = %v", nativeStatuses(response))
+			}
 		}
-		if got := api.namespaceCalls("ns-03") + api.namespaceCalls("ns-04"); got != 0 {
-			t.Fatalf("%d lists were started after the deadline", got)
+		want := []string{nativeDeadlineMessage, nativeDeadlineMessage, nativeDeadlineMessage, nativeDeadlineMessage, nativeDeadlineMessage, nativeDeadlineMessage}
+		if response.Complete || !slices.Equal(response.Warnings, want) {
+			t.Fatalf("complete=%v warnings=%v, want one warning for each of the 6 namespaces that did not finish", response.Complete, response.Warnings)
 		}
 	})
 }

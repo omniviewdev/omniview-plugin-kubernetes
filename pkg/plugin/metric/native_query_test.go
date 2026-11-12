@@ -8,6 +8,7 @@ import (
 	"math"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -252,9 +253,9 @@ func TestNativeQueryFollowsContinuationBeforeDeclaringMissing(t *testing.T) {
 }
 
 func TestNativeAdmittedNamespacesReturnBoundedPartialResults(t *testing.T) {
-	calls := 0
+	var calls atomic.Int64
 	provider := nativeTestProvider(t, func(request *http.Request) (*http.Response, error) {
-		calls++
+		calls.Add(1)
 		return nativeTestResponse(request, nativePage("")), nil
 	})
 	pc := &types.PluginContext{Context: context.Background(), Connection: &types.Connection{ID: "selected"}}
@@ -267,8 +268,8 @@ func TestNativeAdmittedNamespacesReturnBoundedPartialResults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.Complete || len(response.Results) != len(targets) || calls != nativeMaxPages {
-		t.Fatalf("admitted batch rejected or escaped page budget: calls=%d response=%+v", calls, response)
+	if response.Complete || len(response.Results) != len(targets) || calls.Load() != nativeMaxPages {
+		t.Fatalf("admitted batch rejected or escaped page budget: calls=%d response=%+v", calls.Load(), response)
 	}
 	missing, failed := 0, 0
 	for _, result := range response.Results {
@@ -287,9 +288,9 @@ func TestNativeAdmittedNamespacesReturnBoundedPartialResults(t *testing.T) {
 }
 
 func TestNativeQueryRefreshReachesPreviouslyBudgetStarvedNamespace(t *testing.T) {
-	calls := 0
+	var calls atomic.Int64
 	provider := nativeTestProvider(t, func(request *http.Request) (*http.Response, error) {
-		calls++
+		calls.Add(1)
 		namespace := strings.TrimSuffix(strings.TrimPrefix(request.URL.Path, "/apis/metrics.k8s.io/v1beta1/namespaces/"), "/pods")
 		sample := strings.ReplaceAll(nativeSample, `"namespace":"one"`, `"namespace":"`+namespace+`"`)
 		return nativeTestResponse(request, nativePage(sample)), nil
@@ -317,15 +318,15 @@ func TestNativeQueryRefreshReachesPreviouslyBudgetStarvedNamespace(t *testing.T)
 			t.Fatalf("unexpected initial sample: %+v", result)
 		}
 	}
-	if first.Complete || available != nativeMaxPages || starved == "" || calls != nativeMaxPages {
-		t.Fatalf("unexpected initial budget coverage: calls=%d response=%+v", calls, first)
+	if first.Complete || available != nativeMaxPages || starved == "" || calls.Load() != nativeMaxPages {
+		t.Fatalf("unexpected initial budget coverage: calls=%d response=%+v", calls.Load(), first)
 	}
 	second, err := provider.query(pc, query)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if second.Complete || calls != 2*nativeMaxPages {
-		t.Fatalf("refresh escaped shared budget: calls=%d response=%+v", calls, second)
+	if second.Complete || calls.Load() != 2*nativeMaxPages {
+		t.Fatalf("refresh escaped shared budget: calls=%d response=%+v", calls.Load(), second)
 	}
 	for _, result := range second.Results {
 		if result.ResourceToken == starved {
