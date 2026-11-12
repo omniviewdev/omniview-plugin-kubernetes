@@ -8,6 +8,7 @@ import (
 	"math"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -252,9 +253,9 @@ func TestNativeQueryFollowsContinuationBeforeDeclaringMissing(t *testing.T) {
 }
 
 func TestNativeAdmittedNamespacesReturnBoundedPartialResults(t *testing.T) {
-	calls := 0
+	var calls atomic.Int64
 	provider := nativeTestProvider(t, func(request *http.Request) (*http.Response, error) {
-		calls++
+		calls.Add(1)
 		return nativeTestResponse(request, nativePage("")), nil
 	})
 	pc := &types.PluginContext{Context: context.Background(), Connection: &types.Connection{ID: "selected"}}
@@ -267,8 +268,8 @@ func TestNativeAdmittedNamespacesReturnBoundedPartialResults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.Complete || len(response.Results) != len(targets) || calls != nativeMaxPages {
-		t.Fatalf("admitted batch rejected or escaped page budget: calls=%d response=%+v", calls, response)
+	if response.Complete || len(response.Results) != len(targets) || calls.Load() != nativeMaxPages {
+		t.Fatalf("admitted batch rejected or escaped page budget: calls=%d response=%+v", calls.Load(), response)
 	}
 	missing, failed := 0, 0
 	for _, result := range response.Results {
@@ -287,9 +288,9 @@ func TestNativeAdmittedNamespacesReturnBoundedPartialResults(t *testing.T) {
 }
 
 func TestNativeQueryRefreshReachesPreviouslyBudgetStarvedNamespace(t *testing.T) {
-	calls := 0
+	var calls atomic.Int64
 	provider := nativeTestProvider(t, func(request *http.Request) (*http.Response, error) {
-		calls++
+		calls.Add(1)
 		namespace := strings.TrimSuffix(strings.TrimPrefix(request.URL.Path, "/apis/metrics.k8s.io/v1beta1/namespaces/"), "/pods")
 		sample := strings.ReplaceAll(nativeSample, `"namespace":"one"`, `"namespace":"`+namespace+`"`)
 		return nativeTestResponse(request, nativePage(sample)), nil
@@ -317,15 +318,15 @@ func TestNativeQueryRefreshReachesPreviouslyBudgetStarvedNamespace(t *testing.T)
 			t.Fatalf("unexpected initial sample: %+v", result)
 		}
 	}
-	if first.Complete || available != nativeMaxPages || starved == "" || calls != nativeMaxPages {
-		t.Fatalf("unexpected initial budget coverage: calls=%d response=%+v", calls, first)
+	if first.Complete || available != nativeMaxPages || starved == "" || calls.Load() != nativeMaxPages {
+		t.Fatalf("unexpected initial budget coverage: calls=%d response=%+v", calls.Load(), first)
 	}
 	second, err := provider.query(pc, query)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if second.Complete || calls != 2*nativeMaxPages {
-		t.Fatalf("refresh escaped shared budget: calls=%d response=%+v", calls, second)
+	if second.Complete || calls.Load() != 2*nativeMaxPages {
+		t.Fatalf("refresh escaped shared budget: calls=%d response=%+v", calls.Load(), second)
 	}
 	for _, result := range second.Results {
 		if result.ResourceToken == starved {
@@ -527,7 +528,7 @@ func TestNativeDenialOfOneSelectorDoesNotSuppressAnotherSelector(t *testing.T) {
 	read("", 1)
 }
 
-func TestNativeMissingListEndpointSharesCooldownAcrossSelectors(t *testing.T) {
+func TestNativeMissingMetricsAPISharesCooldownAcrossSelectorsAndNamespaces(t *testing.T) {
 	calls := 0
 	available := false
 	provider := nativeTestProvider(t, func(request *http.Request) (*http.Response, error) {
@@ -554,17 +555,18 @@ func TestNativeMissingListEndpointSharesCooldownAcrossSelectors(t *testing.T) {
 	scan("one", "first", "failed", 1)
 	// Scrolling to another singleton must not probe a missing metrics API again.
 	scan("one", "second", "failed", 1)
-	// A missing namespace must not suppress a different namespace's endpoint.
-	scan("two", "third", "failed", 2)
+	// A metrics API that is not served is missing for the whole connection, not
+	// for one namespace, so another namespace is not probed either.
+	scan("two", "third", "failed", 1)
 	available = true
 	now = now.Add(nativePersistentFailureTTL)
-	scan("one", "second", "ok", 3)
+	scan("one", "second", "ok", 2)
 }
 
 // nativeFailingSingletons answers every Pod list with a failure and counts the
-// requests each metadata.name selector received. Pods named "flaky..." get a
-// server error that can clear by itself; every other Pod is refused until access
-// changes. The clock moves only when a test moves it.
+// requests each metadata.name selector received. Pods named "flaky..." fail with
+// a transport error that can clear by itself; every other Pod is refused until
+// access changes. The clock moves only when a test moves it.
 type nativeFailingSingletons struct {
 	provider *nativeProvider
 	pc       *types.PluginContext
@@ -579,7 +581,7 @@ func newNativeFailingSingletons(t *testing.T) *nativeFailingSingletons {
 		name := strings.TrimPrefix(request.URL.Query().Get("fieldSelector"), "metadata.name=")
 		failing.requests[name]++
 		if strings.HasPrefix(name, "flaky") {
-			return nativeFailureStatus(request, http.StatusServiceUnavailable, "ServiceUnavailable"), nil
+			return nil, errors.New("dial tcp 10.0.0.1:6443: connect: connection refused")
 		}
 		return nativeFailureStatus(request, http.StatusForbidden, "Forbidden"), nil
 	})
@@ -637,7 +639,7 @@ func TestNativeFailureCachePrunesExpiredFailuresBeforeEvictingLiveOnes(t *testin
 		failing.expect(t, name, "denied", 1)
 		live = append(live, name)
 	}
-	// A server error is the newest entry yet expires first, and it fills the cache.
+	// A transport error is the newest entry yet expires first, and it fills the cache.
 	failing.now = failing.now.Add(time.Millisecond)
 	failing.expect(t, "flaky", "failed", 1)
 	failing.now = failing.now.Add(nativeTransientFailureTTL + time.Second)
@@ -670,7 +672,7 @@ func TestNativeFailureCooldownFollowsWhetherTheFailureCanClear(t *testing.T) {
 		{"forbidden", api(http.StatusForbidden, "Forbidden"), "denied", true},
 		{"unauthorized", api(http.StatusUnauthorized, "Unauthorized"), "denied", true},
 		{"server error", api(http.StatusInternalServerError, "InternalError"), "failed", false},
-		{"unavailable", api(http.StatusServiceUnavailable, "ServiceUnavailable"), "failed", false},
+		{"unavailable", api(http.StatusServiceUnavailable, "ServiceUnavailable"), "failed", true},
 		{"transport", func(*http.Request) (*http.Response, error) {
 			return nil, errors.New("dial tcp 10.0.0.1:6443: connect: connection refused")
 		}, "failed", false},

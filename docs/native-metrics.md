@@ -100,28 +100,73 @@ Budgets are shared across all namespaces and continuation pages in one execution
 | Scanned metric objects | 20,000 |
 | API pages | 64 |
 | Execution deadline | 15 seconds, or earlier caller cancellation |
+| Namespace lists in flight per query | 4 |
 | Retained source connection lanes | 128; disconnected lanes retire |
 | Authenticated client idle TTL | 10 minutes |
 
-Targets are grouped by namespace. The provider performs namespace LISTs and streams one object at a time, filtering exact requested identities. It requests `limit=1000` but **does not assume metrics-server implements pagination**. It follows `continue` only when the server returns it, and rejects repeated/oversized continuation tokens. An unpaginated namespace is still bounded by decoded byte and scanned-object budgets. A namespace can cost a full inventory scan even for one selected Pod; these bounds are not constant-cost or throughput claims. There are no per-Pod GET fallbacks and no target chunker that repeats the same namespace scan inside one execution.
+When the 15-second execution deadline ends a query, the namespaces that finished
+are still delivered: the response is incomplete and carries a warning for each
+namespace that did not finish, whether its scan was cut off or never started. The
+namespace whose scan was cut off enters the negative cache, so the next poll does
+not spend the deadline on it again. A caller that cancels, or whose own deadline
+falls first, receives the error instead, as does a query whose source generation
+was retired.
 
-Each Pod query rotates the starting namespace within its source generation. Repeated identical batches therefore do not always exclude the same trailing namespaces when the shared scan budget is exhausted. Retirement resets this cursor. It stores no samples and schedules no polling.
+Targets are grouped by namespace. The provider performs namespace LISTs and decodes one object at a time, filtering exact requested identities. It requests `limit=1000` but **does not assume metrics-server implements pagination**. It follows `continue` only when the server returns it, and rejects repeated/oversized continuation tokens. An unpaginated namespace is still bounded by decoded byte and scanned-object budgets. A namespace can cost a full inventory scan even for one selected Pod; these bounds are not constant-cost or throughput claims. There are no per-Pod GET fallbacks and no target chunker that repeats the same namespace scan inside one execution.
+
+A query keeps up to 4 namespace lists in flight at once, started in the order of
+its rotation. They share the execution's budgets, and the first page of each is
+reserved in that order. An identical list request already in flight, from this or
+another query of the same source generation, is not repeated: the queries wait
+for the one response and each decodes it against its own budgets. The response is
+read in full, up to one byte past the byte budget, and is forgotten once the
+queries waiting on it have it; a query that arrives later makes its own request,
+so no metric samples are cached. If the request's own query is canceled, the
+queries still waiting ask again. Until the metrics API has answered a list since
+the source began or since it last failed to, a query reads one namespace first,
+the first in name order, and reads the rest only after that one has finished, so
+a missing API is found out by one request.
+
+Each Pod query rotates the starting namespace within its source generation. Repeated identical batches therefore do not always exclude the same trailing namespaces when the shared scan budget is exhausted. A query that has to probe a metrics API it has not seen answer starts at the first namespace in name order instead. Retirement resets this cursor. It stores no samples and schedules no polling.
 
 Clients reuse the Kubernetes connection's actual authenticated transport, including custom authentication strategies. Finite requests use their caller context, not `context.Background()`. A source lane has its own lifecycle cancellation and opaque generation-specific cache key. Connection retirement cancels its in-flight reads, evicts its clients and fences late publication. Reconnect cannot reuse the retired lane. Legacy Prometheus/Node caches remain independent and retire through the same registered connection callback.
 
-Persistent native endpoint availability and authorization failures have a 30-second
-negative availability window per source generation, resource type, and namespace.
-Authorization failures also retain the exact selector: a denial for one Pod must
-not suppress an authorized query for another. A missing LIST endpoint (404) is
-shared across selectors, so scrolling to new Pod names does not probe an absent
-metrics API again. Other failures, including transport, decoding, and server
-errors, use a 5-second cooldown. Cache hits do not extend expiry. At most 256
-failures are retained per lane; insertion prunes expired entries, then evicts the
-earliest-expiring failure, older insertion first on a tie, to retain a new failure.
+A metrics API that is not served (404 on its API group or resource, or 503 from
+an aggregated API without a backend) is remembered per source generation and
+resource type, not per namespace: while it is remembered, no namespace is read.
+Authorization failures are remembered per source generation, resource type and
+namespace, and retain the exact selector: a denial for one Pod must not suppress
+an authorized query for another. A server error (any other 5xx, or 429) is
+remembered per namespace and shared across selectors, so scrolling to new Pod
+names does not probe a failing server again. Other failures, including transport
+and decoding errors, are remembered per namespace and exact selector.
+
+A remembered failure suppresses reads of its endpoint for a window. The first
+window is 30 seconds for an unavailable API or a refused caller and 5 seconds for
+any other failure. Each consecutive failure of the same endpoint doubles the
+window, up to 10 minutes. A successful read of an endpoint forgets its failures,
+and a successful read of any namespace ends the remembered absence of the API. A
+failure that follows a quiet period longer than 10 minutes starts over at the
+first window. Cache hits do not extend a window. At most 256 namespace failures
+are retained per lane, and entries outlive their window so that the next failure
+backs off further. Inserting into a full cache prunes expired entries, then
+evicts the earliest-expiring failure, older insertion first on a tie, to retain
+the new failure.
+
 No metric samples are cached by the provider. Caller cancellation and scan-budget
 exhaustion do not create negative entries, including exhaustion encountered during
 a decoder look-ahead. Expiry, eviction, or connection retirement permits a new
 read; absent metrics remain failed or denied, never zero or proven missing.
+
+Failed namespace scans are logged as `native metrics namespace scan failed`. A
+failure replayed from the negative cache never warns, because no scan was
+repeated. A metrics API that is not served (404 or 503) is a standing
+condition: it warns the first time on a connection, and its repeats, live or
+replayed, are logged at debug level at most once every 10 minutes. Any other live
+failure warns, at most once a minute for each namespace and failure class; when
+replayed from the cache it is not logged. Query warnings and the
+`native.scan_failed` span events are not affected: the response still carries one
+warning per failed namespace.
 
 ## Metric views
 
