@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/omniview/kubernetes/pkg/diag"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
 	"go.uber.org/zap"
@@ -47,6 +48,10 @@ func BenchmarkNativeClusterProfile(b *testing.B) {
 	if *nativeProfileRetainedHeap != "" && b.N != 1 {
 		b.Fatal("retained heap output requires -benchtime=1x to avoid overwriting a profile")
 	}
+	// Production phase labels (phase, connection) are off unless the host enables
+	// profiling; turn them on so -tagfocus splits this run the same way.
+	diag.SetProfileLabels(true)
+	b.Cleanup(func() { diag.SetProfileLabels(false) })
 	b.StopTimer()
 	directory := b.TempDir()
 	var fixture *nativeProfileFixture

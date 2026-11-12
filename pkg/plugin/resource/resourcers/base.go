@@ -526,7 +526,7 @@ func (s *KubernetesResourcerBase[T]) Source(ctx context.Context, client *clients
 			staging[key] = event.object
 		}
 	}
-	observation := func(u *unstructured.Unstructured) (resource.SourceObservation, error) {
+	observation := diag.LabelFunc(ctx, diag.PhaseConvert, request.Target.Route.Connection, func(u *unstructured.Unstructured) (resource.SourceObservation, error) {
 		record, err := watchRecord(request.Target, request.Representation, u)
 		if err != nil {
 			return resource.SourceObservation{}, err
@@ -541,7 +541,7 @@ func (s *KubernetesResourcerBase[T]) Source(ctx context.Context, client *clients
 			result.Metadata = &metadata
 		}
 		return result, nil
-	}
+	})
 	batch := make([]resource.SourceObservation, 0, resource.MaxSourceBatchItems)
 	for _, u := range staging {
 		item, err := observation(u)

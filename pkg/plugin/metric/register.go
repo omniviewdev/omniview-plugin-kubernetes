@@ -660,7 +660,7 @@ func Register(plugin *sdk.Plugin) func(string) {
 		},
 		GetMetricOwnerCatalogFunc:  metricOwnerCatalog,
 		ResourceMetricsCatalogFunc: native.catalog,
-		QueryResourcesFunc:         native.query,
+		QueryResourcesFunc:         labelMetricsScan(native.query),
 		QueryFunc: func(qctx *metric.QueryContext, req metric.QueryRequest) (*metric.QueryResponse, error) {
 			return compositeQuery(promClient, qctx, req)
 		},

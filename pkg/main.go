@@ -5,7 +5,9 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os"
 
+	"github.com/omniview/kubernetes/pkg/diag"
 	"github.com/omniview/kubernetes/pkg/plugin/exec"
 	"github.com/omniview/kubernetes/pkg/plugin/klogconfig"
 	pluginlogs "github.com/omniview/kubernetes/pkg/plugin/logs"
@@ -54,6 +56,10 @@ func init() {
 
 func main() {
 	defer klog.Flush()
+
+	// Block and mutex profiles stay empty unless the host opted into profiling;
+	// the SDK serves them from the same opt-in.
+	diag.EnableProfiling(os.Getenv)
 
 	plugin := sdk.NewPlugin(sdk.PluginOpts{
 		ID: pluginid.ID,
