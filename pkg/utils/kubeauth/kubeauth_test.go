@@ -44,6 +44,11 @@ func TestIsEKSAuth(t *testing.T) {
 			expected: true,
 		},
 		{
+			name:     "nil AuthInfo",
+			auth:     nil,
+			expected: false,
+		},
+		{
 			name: "nil Exec",
 			auth: &clientcmdapi.AuthInfo{
 				Exec: nil,
@@ -146,6 +151,11 @@ func TestIsGCPAuth(t *testing.T) {
 			expected: false,
 		},
 		{
+			name:     "nil AuthInfo",
+			auth:     nil,
+			expected: false,
+		},
+		{
 			name: "nil Exec",
 			auth: &clientcmdapi.AuthInfo{
 				Exec: nil,
@@ -195,6 +205,11 @@ func TestIsAKSAuth(t *testing.T) {
 					Args:    []string{"get", "pods"},
 				},
 			},
+			expected: false,
+		},
+		{
+			name:     "nil AuthInfo",
+			auth:     nil,
 			expected: false,
 		},
 		{
@@ -278,6 +293,13 @@ func TestCrossChecks(t *testing.T) {
 			expectEKS: false,
 			expectGCP: false,
 			expectAKS: true,
+		},
+		{
+			name:      "nil AuthInfo should be false for all",
+			auth:      nil,
+			expectEKS: false,
+			expectGCP: false,
+			expectAKS: false,
 		},
 		{
 			name: "no Exec should be false for all",

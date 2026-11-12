@@ -45,7 +45,7 @@ func DetectAuthStrategy(kubeconfigPath, kubeContext string) (AuthStrategy, error
 	case isAKSAuth(authInfo):
 		return &DefaultAuthStrategy{exec: true}, nil
 	default:
-		return &DefaultAuthStrategy{exec: authInfo.Exec != nil}, nil
+		return &DefaultAuthStrategy{exec: usesExec(authInfo)}, nil
 	}
 }
 

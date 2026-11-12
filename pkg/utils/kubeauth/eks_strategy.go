@@ -106,8 +106,16 @@ func (e *EKSAuthStrategy) BuildRestConfig(
 		return nil, err
 	}
 
-	current := rawCfg.Contexts[kubeContext]
-	authInfo := rawCfg.AuthInfos[current.AuthInfo]
+	var authInfo *api.AuthInfo
+	if current := rawCfg.Contexts[kubeContext]; current != nil {
+		authInfo = rawCfg.AuthInfos[current.AuthInfo]
+	}
+	if !usesExec(authInfo) {
+		// the kubeconfig changed after this strategy was chosen and the context no longer has an exec
+		// user. use the default authenticator so we at least try.
+		e.useDefault = true
+		return clientLoader.ClientConfig()
+	}
 
 	switch authInfo.Exec.Command {
 	case awsCliCommand:
@@ -166,6 +174,10 @@ func (e *EKSAuthStrategy) BuildRestConfig(
 }
 
 func (e *EKSAuthStrategy) NewForConfig(config *rest.Config) (*kubernetes.Clientset, error) {
+	if e.useDefault {
+		return new(DefaultAuthStrategy).NewForConfig(config)
+	}
+
 	configShallowCopy := *config
 
 	if configShallowCopy.UserAgent == "" {
@@ -178,6 +190,10 @@ func (e *EKSAuthStrategy) NewForConfig(config *rest.Config) (*kubernetes.Clients
 func (e *EKSAuthStrategy) NewDynamicForConfig(
 	config *rest.Config,
 ) (*dynamic.DynamicClient, error) {
+	if e.useDefault {
+		return new(DefaultAuthStrategy).NewDynamicForConfig(config)
+	}
+
 	configShallowCopy := *config
 
 	if configShallowCopy.UserAgent == "" {
@@ -190,6 +206,10 @@ func (e *EKSAuthStrategy) NewDynamicForConfig(
 func (e *EKSAuthStrategy) NewDiscoveryForConfig(
 	config *rest.Config,
 ) (*discovery.DiscoveryClient, error) {
+	if e.useDefault {
+		return new(DefaultAuthStrategy).NewDiscoveryForConfig(config)
+	}
+
 	configShallowCopy := *config
 
 	if configShallowCopy.UserAgent == "" {
