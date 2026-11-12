@@ -4,10 +4,12 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	sdkdiag "github.com/omniviewdev/plugin-sdk/pkg/diagnostics"
 	lifecyclepb "github.com/omniviewdev/plugin-sdk/proto/v1/lifecycle"
+	utilnet "k8s.io/apimachinery/pkg/util/net"
 )
 
 func point(t *testing.T, name string, attrs map[string]string) *lifecyclepb.DiagPoint {
@@ -141,5 +143,52 @@ func TestConnectionStatesAreClosedVocabulary(t *testing.T) {
 	if point(t, "omniview.plugin.self.connection.checks", map[string]string{"state": "connected"}) == nil ||
 		point(t, "omniview.plugin.self.connection.checks", map[string]string{"state": "unknown"}) == nil {
 		t.Fatal("states not recorded")
+	}
+}
+
+type idleCloser struct {
+	http.RoundTripper
+	closed int
+}
+
+func (c *idleCloser) CloseIdleConnections() { c.closed++ }
+
+func TestTransportExposesWrappedTransportForIdleClose(t *testing.T) {
+	base := &idleCloser{RoundTripper: http.DefaultTransport}
+	utilnet.CloseIdleConnectionsFor(Transport(base))
+	if base.closed != 1 {
+		t.Fatalf("CloseIdleConnections calls = %d, want 1", base.closed)
+	}
+	if Transport(base).(interface{ WrappedRoundTripper() http.RoundTripper }).WrappedRoundTripper() != http.RoundTripper(base) {
+		t.Fatal("WrappedRoundTripper does not return the base transport")
+	}
+}
+
+func TestWatchGaugeMatchesCountUnderConcurrency(t *testing.T) {
+	read := func() float64 {
+		p := point(t, "omniview.plugin.self.watch.streams", map[string]string{"state": "open"})
+		if p == nil {
+			return 0
+		}
+		return p.Value
+	}
+	before := read()
+	const workers, rounds = 32, 500
+	var wg sync.WaitGroup
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < rounds; i++ {
+				addWatches(1)
+				if i != 0 {
+					addWatches(-1)
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	if got, want := read(), before+workers; got != want {
+		t.Fatalf("gauge = %v, want %v", got, want)
 	}
 }

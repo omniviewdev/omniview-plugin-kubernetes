@@ -84,6 +84,22 @@ type resourceResponseTransport struct {
 	lifetime context.Context
 }
 
+// WrappedRoundTripper lets client-go utilities (for example
+// utilnet.CloseIdleConnectionsFor) reach the underlying transport.
+func (t *resourceResponseTransport) WrappedRoundTripper() http.RoundTripper {
+	if t.base == nil {
+		return http.DefaultTransport
+	}
+	return t.base
+}
+
+// CloseIdleConnections closes idle connections on the wrapped transport.
+func (t *resourceResponseTransport) CloseIdleConnections() {
+	if c, ok := t.WrappedRoundTripper().(interface{ CloseIdleConnections() }); ok {
+		c.CloseIdleConnections()
+	}
+}
+
 func (t *resourceResponseTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	var release func()
 	if t.lifetime != nil {
