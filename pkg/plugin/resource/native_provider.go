@@ -306,15 +306,22 @@ func (p *kubernetesProvider) checkConnection(ctx context.Context, connection typ
 	if err != nil || status.Status != types.ConnectionStatusConnected {
 		return status, err
 	}
-	identity, err := nativeClusterIdentity(ctx, client.KubeClient)
-	if err != nil {
-		return status, err
-	}
 	snapshot, err := p.snapshot(resourcev2.AccessRoute{Connection: connection.ID})
 	if err != nil {
 		return status, err
 	}
-	if hint := snapshot.identityHint; hint != nil && (identity == nil || hint.ID != *identity) {
+	hint := snapshot.identityHint
+	if hint == nil {
+		// No identity was observed at start, so there is nothing to compare.
+		return status, nil
+	}
+	identity, err := nativeClusterIdentity(ctx, client.KubeClient)
+	if err != nil {
+		// An unreadable identity is reported as retryable and is never taken
+		// for a different one; only a UID that was read and differs resets.
+		return status, err
+	}
+	if identity == nil || hint.ID != *identity {
 		return status, resourcev2.NewError("RESET_REQUIRED", "Native Kubernetes backing identity changed; reconnect before acquiring resources")
 	}
 	return status, nil

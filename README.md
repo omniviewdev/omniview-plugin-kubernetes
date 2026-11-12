@@ -1044,10 +1044,12 @@ every group, version and resource from `/api` and `/apis` in two requests. Serve
 that do not serve it are read as before, with up to four concurrent requests per
 group/version. Both paths retain client-go throttling and server retry handling and
 share the same byte and served-version budgets. Inside the acquisition timeout, a
-discovery request that fails with a closed or reset connection, a handshake or
-network timeout, or HTTP 429/5xx is repeated up to twice after a short jittered
-backoff; authentication and authorization failures and cancellation are never
-retried. Optional OpenAPI work starts only
+discovery or cluster-identity request that fails with a closed or reset connection,
+a handshake or network timeout, or HTTP 429/5xx is repeated up to twice after a
+short jittered backoff; authentication and authorization failures and cancellation
+are never retried. A cluster identity that cannot be read is reported as
+unavailable and retryable, never as a changed identity: only a different UID that
+was read requires a reconnect. Optional OpenAPI work starts only
 for demanded group/versions. One provider-wide gate bounds concurrent reads and
 decodes to four documents, each at most 16 MiB; retained bytes remain capped at
 32 MiB. Transient memory also includes the transport's separate response buffers.
