@@ -76,7 +76,7 @@ func newKubernetesProvider(logger *zap.SugaredLogger, retireMetrics func(string)
 			},
 			DestroyClient:   provider.connections.DestroyClient,
 			CheckConnection: provider.checkConnection,
-			OnStart:         provider.startNativeConnection,
+			OnStart:         provider.startNativeConnectionObserved,
 			OnStop: func(_ context.Context, connection types.Connection, _ *clients.ClientSet) error {
 				provider.retireNativeCatalog(connection.ID)
 				retireMetrics(connection.ID)

@@ -99,8 +99,9 @@ func TestClassifyResourceError_Conflict(t *testing.T) {
 }
 
 func TestClassifyResourceError_UnhandledStatusCode(t *testing.T) {
-	// Unclassified native server failures retain the transport INTERNAL fallback.
-	err := k8sStatusError(500, "Internal Server Error")
+	// A status with no class of its own retains the transport INTERNAL fallback.
+	// Server errors (5xx) are classified; see TestClassifyResourceError_ServerErrors.
+	err := k8sStatusError(418, "I'm a teapot")
 
 	result := classifyResourceError(err)
 	assert.Nil(t, result, "unhandled K8s status codes should return nil for INTERNAL fallback")
