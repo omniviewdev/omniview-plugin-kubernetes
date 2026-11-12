@@ -87,6 +87,29 @@ func TestNativeAbsentMetricsAPIIsLoggedOncePerConnection(t *testing.T) {
 	}
 }
 
+func TestNativeUnavailableMetricsAPIIsAlsoLoggedOncePerConnection(t *testing.T) {
+	sink := captureMetricLogs(t)
+	api := newNativeFakeAPI(nativeRefuses(http.StatusServiceUnavailable, "ServiceUnavailable"))
+	provider := nativeTestProvider(t, api.RoundTrip)
+	now := time.Now()
+	provider.now = func() time.Time { return now }
+	pc := nativeSelectedPC()
+	query := nativeNamespaceQuery(pc, 20)
+	for range 10 {
+		response, err := provider.query(pc, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if response.Complete || len(response.Warnings) != 20 {
+			t.Fatalf("complete=%v warnings=%d", response.Complete, len(response.Warnings))
+		}
+		now = now.Add(time.Minute)
+	}
+	if got, want := nativeScanFailureLines(sink), (map[logging.Level]int{logging.LevelWarn: 1}); !reflect.DeepEqual(got, want) {
+		t.Fatalf("an aggregated API without a backend logged %v, want %v", got, want)
+	}
+}
+
 func TestNativeCachedFailureIsNotLoggedAgain(t *testing.T) {
 	sink := captureMetricLogs(t)
 	provider := nativeTestProvider(t, func(request *http.Request) (*http.Response, error) {

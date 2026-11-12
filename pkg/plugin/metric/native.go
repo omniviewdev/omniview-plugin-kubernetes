@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/http"
 	"sort"
 	"strconv"
 	"sync"
@@ -37,11 +38,14 @@ const (
 	nativeMaxObjects     = 20000
 	nativeMaxPages       = 64
 	nativeTimeout        = 15 * time.Second
-	// A missing API or a refused caller stays that way until cluster
-	// configuration changes. Any other failure (a transport error, a truncated
-	// body or a server error) often clears by itself and blocks retries briefly.
+	// A missing or unavailable metrics API and a refused caller stay that way
+	// until cluster configuration changes. Any other failure (a transport error,
+	// a truncated body or a server error) often clears by itself. Each failure is
+	// remembered for the matching initial window below, and the window doubles
+	// with every consecutive failure of the same endpoint, up to the ceiling.
 	nativePersistentFailureTTL = 30 * time.Second
 	nativeTransientFailureTTL  = 5 * time.Second
+	nativeMaxFailureTTL        = 10 * time.Minute
 )
 
 // nativeProvider has no polling or metric-result cache. Each source generation
@@ -61,6 +65,7 @@ type nativeLane struct {
 	cancel        context.CancelFunc
 	namespaceTurn uint64                              // Protected by nativeProvider.mu.
 	failures      map[nativeScanKey]nativeScanFailure // Protected by nativeProvider.mu.
+	unavailable   map[string]nativeScanFailure        // By resource; a metrics API that is not served. Protected by nativeProvider.mu.
 	failureOrder  uint64                              // Protected by nativeProvider.mu.
 	logged        map[nativeLogKey]time.Time          // Protected by nativeProvider.mu.
 }
@@ -68,8 +73,8 @@ type nativeLane struct {
 // nativeScanKey names one list endpoint whose failure is remembered. Access can
 // be granted to a single metadata.name and refused for the namespace as a whole,
 // so the exact selector is part of the endpoint: refusing one selector says
-// nothing about any other.
-// A missing LIST endpoint is selector-independent and uses an empty name.
+// nothing about any other. A failure of the server itself is the same for every
+// selector and uses an empty name.
 type nativeScanKey struct {
 	resource  string
 	namespace string
@@ -77,9 +82,10 @@ type nativeScanKey struct {
 }
 
 type nativeScanFailure struct {
-	err   error
-	until time.Time
-	order uint64 // Insertion order; breaks eviction ties between equal expiries.
+	err     error
+	until   time.Time
+	order   uint64 // Insertion order; breaks eviction ties between equal expiries.
+	strikes int    // Consecutive failures of the endpoint, this one included.
 }
 
 func (f nativeScanFailure) expiresBefore(other nativeScanFailure) bool {
@@ -92,75 +98,139 @@ func (f nativeScanFailure) expiresBefore(other nativeScanFailure) bool {
 // A failed endpoint is independent of which rows are currently mounted. Keep a
 // bounded negative availability cache, not metric samples. Expiry or connection
 // retirement permits recovery without issuing another request on every scroll.
+// Entries outlive their window so that the next failure of the endpoint backs
+// off further; a successful read forgets them.
 func (p *nativeProvider) scanFailure(lane *nativeLane, key nativeScanKey) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	now := p.now()
+	// A metrics API that is not served says nothing about one namespace in
+	// particular: while that is remembered, no namespace is read.
+	if failure, remembered := lane.unavailable[key.resource]; remembered && now.Before(failure.until) {
+		return failure.err
+	}
 	if key.name != "" {
 		endpoint := key
 		endpoint.name = ""
-		failure := lane.failures[endpoint]
-		// A LIST returns an empty list, not 404, for an unmatched name.
-		// Missing API/namespace endpoints therefore apply to every selector.
-		if now.Before(failure.until) && apierrors.IsNotFound(failure.err) {
+		// A server failure is the same for every selector in the namespace.
+		if failure, remembered := lane.failures[endpoint]; remembered && now.Before(failure.until) && nativeServerFailure(failure.err) {
 			return failure.err
 		}
 	}
-	failure := lane.failures[key]
-	if now.Before(failure.until) {
+	if failure, remembered := lane.failures[key]; remembered && now.Before(failure.until) {
 		return failure.err
 	}
-	delete(lane.failures, key)
 	return nil
 }
 
-// nativeFailureCooldown bounds how long one failed scan suppresses new reads of
-// its endpoint. A missing API or a refused caller stays that way until cluster
-// configuration changes, so it holds for the long window. Everything else, such
-// as a transport error, a truncated body or a server error, often clears by
-// itself and holds only briefly.
+// nativeFailureCooldown is the initial window in which one failed scan
+// suppresses new reads of its endpoint. A missing or unavailable API or a
+// refused caller stays that way until cluster configuration changes, so it
+// holds for the long window. Everything else, such as a transport error, a
+// truncated body or a server error, often clears by itself and holds only
+// briefly.
 func nativeFailureCooldown(err error) time.Duration {
-	if apierrors.IsForbidden(err) || apierrors.IsUnauthorized(err) || apierrors.IsNotFound(err) {
+	if apierrors.IsForbidden(err) || apierrors.IsUnauthorized(err) || nativeAPIUnavailable(err) {
 		return nativePersistentFailureTTL
 	}
 	return nativeTransientFailureTTL
 }
 
-// Expiry is fixed when a scan fails; reading an entry never extends it. At
-// capacity, expired entries are removed first. If every remaining entry is still
-// live, the one expiring earliest gives way, so the newest failure is always
-// cached and the cache stays bounded. An endpoint that is not cached is read
-// again; no status is ever inferred for it.
+// nativeServerFailure reports whether err is the API server failing rather than
+// declining one request, so that every selector in the namespace would meet it.
+func nativeServerFailure(err error) bool {
+	var status apierrors.APIStatus
+	return errors.As(err, &status) && (status.Status().Code >= http.StatusInternalServerError || apierrors.IsTooManyRequests(err))
+}
+
+// nativeNextFailure returns the entry that records err for an endpoint, given
+// what was remembered about it before. Each consecutive failure doubles the
+// window up to nativeMaxFailureTTL. A failure after a quiet period longer than
+// that ceiling starts over.
+func nativeNextFailure(previous nativeScanFailure, known bool, err error, now time.Time) nativeScanFailure {
+	strikes := 1
+	if known && now.Sub(previous.until) <= nativeMaxFailureTTL {
+		strikes = previous.strikes + 1
+	}
+	window := nativeFailureCooldown(err)
+	for step := 1; step < strikes && window < nativeMaxFailureTTL; step++ {
+		window *= 2
+	}
+	return nativeScanFailure{err: err, until: now.Add(min(window, nativeMaxFailureTTL)), strikes: strikes}
+}
+
+// A window is fixed when a scan fails; reading an entry never extends it. A
+// failure of an endpoint whose window is still open was met by a scan that began
+// before that window did, and changes nothing. At capacity, expired entries are
+// removed first. If every remaining entry is still live, the one expiring
+// earliest gives way, so the newest failure is always cached and the cache stays
+// bounded. An endpoint that is not cached is read again; no status is ever
+// inferred for it.
 func (p *nativeProvider) recordScanFailure(lane *nativeLane, key nativeScanKey, err error) {
 	if err == nil || errors.Is(err, errNativeBudget) || lane.ctx.Err() != nil {
 		return
 	}
-	if apierrors.IsNotFound(err) {
-		key.name = ""
-	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	now := p.now()
+	if nativeAPIUnavailable(err) {
+		// Whichever namespace noticed, the metrics API is missing for the
+		// whole resource.
+		previous, known := lane.unavailable[key.resource]
+		if known && now.Before(previous.until) {
+			return
+		}
+		if lane.unavailable == nil {
+			lane.unavailable = make(map[string]nativeScanFailure)
+		}
+		lane.unavailable[key.resource] = nativeNextFailure(previous, known, err, now)
+		return
+	}
+	if nativeServerFailure(err) {
+		key.name = ""
+	}
+	previous, known := lane.failures[key]
+	if known && now.Before(previous.until) {
+		return
+	}
 	if lane.failures == nil {
 		lane.failures = make(map[nativeScanKey]nativeScanFailure)
 	}
-	now := p.now()
-	var earliest nativeScanKey
-	var earliestFailure nativeScanFailure
-	found := false
-	for existing, failure := range lane.failures {
-		if !now.Before(failure.until) {
-			delete(lane.failures, existing)
-			continue
+	if !known && len(lane.failures) >= nativeMaxFailures {
+		var earliest nativeScanKey
+		var earliestFailure nativeScanFailure
+		found := false
+		for existing, failure := range lane.failures {
+			if !now.Before(failure.until) {
+				delete(lane.failures, existing)
+				continue
+			}
+			if !found || failure.expiresBefore(earliestFailure) {
+				earliest, earliestFailure, found = existing, failure, true
+			}
 		}
-		if !found || failure.expiresBefore(earliestFailure) {
-			earliest, earliestFailure, found = existing, failure, true
+		if found && len(lane.failures) >= nativeMaxFailures {
+			delete(lane.failures, earliest)
 		}
 	}
-	if _, replacing := lane.failures[key]; !replacing && len(lane.failures) >= nativeMaxFailures {
-		delete(lane.failures, earliest)
-	}
+	failure := nativeNextFailure(previous, known, err, now)
 	lane.failureOrder++
-	lane.failures[key] = nativeScanFailure{err: err, until: now.Add(nativeFailureCooldown(err)), order: lane.failureOrder}
+	failure.order = lane.failureOrder
+	lane.failures[key] = failure
+}
+
+// clearScanFailure forgets the failures of an endpoint that has just been read
+// successfully. Reaching the metrics API at all also ends its remembered
+// absence for every namespace.
+func (p *nativeProvider) clearScanFailure(lane *nativeLane, key nativeScanKey) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	delete(lane.unavailable, key.resource)
+	delete(lane.failures, key)
+	key.name = ""
+	if failure, remembered := lane.failures[key]; remembered && nativeServerFailure(failure.err) {
+		delete(lane.failures, key)
+	}
 }
 
 func newNativeProvider() *nativeProvider {
@@ -471,6 +541,9 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 				}
 			}
 		} else {
+			if scanned {
+				p.clearScanFailure(lane, scanKey)
+			}
 			for name, index := range indices {
 				if seen[name] {
 					continue

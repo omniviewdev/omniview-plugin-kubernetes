@@ -30,10 +30,12 @@ type nativeLogKey struct {
 }
 
 // nativeAPIUnavailable reports whether err says the metrics API is not served
-// for the cluster. Unlike a refusal or a server error, that stays true from one
-// poll to the next.
+// for the cluster: no such API group or resource (404), or an aggregated API
+// that has no backend to answer (503). Unlike a refusal or an ordinary server
+// error, that stays true from one poll to the next and is the same for every
+// namespace.
 func nativeAPIUnavailable(err error) bool {
-	return apierrors.IsNotFound(err)
+	return apierrors.IsNotFound(err) || apierrors.IsServiceUnavailable(err)
 }
 
 // nativeFailureClass names the kind of a scan failure for rate limiting. It
