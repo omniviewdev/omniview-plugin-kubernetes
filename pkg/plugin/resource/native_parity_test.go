@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -38,6 +40,7 @@ func TestNativeParityLabelQueryBindsSelectorAndUsesAllNamespaces(t *testing.T) {
 	client := nativeTestHTTPClient(t, func(request *http.Request) *unstructured.UnstructuredList {
 		assert.Equal(t, "/apis/sample.example/v1/widgets", request.URL.Path)
 		assert.Equal(t, "app in (api,worker),!disabled", request.URL.Query().Get("labelSelector"))
+		// The page holds one record, so the List asks for exactly one.
 		assert.Equal(t, "1", request.URL.Query().Get("limit"))
 		list := nativeTestList(nativeTestObject("native-name", "selected"))
 		if calls.Add(1) == 1 {
@@ -70,18 +73,31 @@ func TestNativeParityLabelQueryBindsSelectorAndUsesAllNamespaces(t *testing.T) {
 func TestNativeParityCollects500WithBoundedNativePages(t *testing.T) {
 	assert.Equal(t, 256, int(resourcev2.MaxPageRecords))
 	var calls atomic.Int32
+	var limits []string
+	var mutex sync.Mutex
 	client := nativeTestHTTPClient(t, func(request *http.Request) *unstructured.UnstructuredList {
 		assert.Equal(t, "/apis/sample.example/v1/widgets", request.URL.Path)
-		assert.Equal(t, "1", request.URL.Query().Get("limit"))
-		index := int(calls.Add(1)) - 1
-		if index == 0 {
-			assert.Empty(t, request.URL.Query().Get("continue"))
-		} else {
-			assert.Equal(t, fmt.Sprintf("next-%d", index), request.URL.Query().Get("continue"))
+		calls.Add(1)
+		limit, err := strconv.Atoi(request.URL.Query().Get("limit"))
+		assert.NoError(t, err)
+		mutex.Lock()
+		limits = append(limits, request.URL.Query().Get("limit"))
+		mutex.Unlock()
+		// Like the API server: the continue token resumes after the last item of the
+		// List that returned it, and each List returns at most its limit.
+		start := 0
+		if token := request.URL.Query().Get("continue"); token != "" {
+			_, err := fmt.Sscanf(token, "next-%d", &start)
+			assert.NoError(t, err)
 		}
-		list := nativeTestList(nativeTestObject(fmt.Sprintf("widget-%03d", index), "selected"))
-		if index < 499 {
-			list.SetContinue(fmt.Sprintf("next-%d", index+1))
+		end := min(start+limit, 500)
+		var objects []*unstructured.Unstructured
+		for index := start; index < end; index++ {
+			objects = append(objects, nativeTestObject(fmt.Sprintf("widget-%03d", index), "selected"))
+		}
+		list := nativeTestList(objects...)
+		if end < 500 {
+			list.SetContinue(fmt.Sprintf("next-%d", end))
 		}
 		return list
 	})
@@ -110,7 +126,11 @@ func TestNativeParityCollects500WithBoundedNativePages(t *testing.T) {
 	request.PageSize = 500
 	_, err := NativeEnumerate(context.Background(), client, nativeTestGVR, true, request, nativeTestRepresentation())
 	require.Error(t, err)
-	assert.Equal(t, int32(500), calls.Load())
+	// Two Lists of 256 serve the 500 objects; one List per object took 500.
+	assert.Equal(t, int32(2), calls.Load())
+	mutex.Lock()
+	defer mutex.Unlock()
+	assert.Equal(t, []string{"256", "256"}, limits)
 }
 
 func TestNativeParityRepresentationProjection(t *testing.T) {
