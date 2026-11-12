@@ -1039,8 +1039,11 @@ The plugin automatically discovers clusters from your `~/.kube/config` file. You
 - Set namespace restrictions per connection
 - Configure node shell image and command overrides
 
-Connection discovery uses up to four concurrent requests while retaining
-client-go throttling and server retry handling. Inside the acquisition timeout, a
+Connection discovery asks the API server for aggregated discovery, which returns
+every group, version and resource from `/api` and `/apis` in two requests. Servers
+that do not serve it are read as before, with up to four concurrent requests per
+group/version. Both paths retain client-go throttling and server retry handling and
+share the same byte and served-version budgets. Inside the acquisition timeout, a
 discovery request that fails with a closed or reset connection, a handshake or
 network timeout, or HTTP 429/5xx is repeated up to twice after a short jittered
 backoff; authentication and authorization failures and cancellation are never

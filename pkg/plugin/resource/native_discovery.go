@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"sync"
 
+	apidiscoveryv2 "k8s.io/api/apidiscovery/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
@@ -19,6 +21,11 @@ const (
 	maxNativeDiscoveryVersions      = 256
 	maxNativeDiscoveryBytes         = 16 << 20
 	maxNativeDiscoveryDocumentBytes = 4 << 20
+
+	// nativeAggregatedDiscoveryAccept asks /api and /apis for aggregated
+	// discovery (every group, version and resource in one response) and accepts
+	// the legacy lists from servers that do not serve it, as client-go does.
+	nativeAggregatedDiscoveryAccept = discovery.AcceptV2 + "," + discovery.AcceptV1
 )
 
 // nativeBudgetError marks a local discovery or schema budget limit. reason is a
@@ -60,21 +67,43 @@ func discoverNativeResources(ctx context.Context, client discovery.DiscoveryInte
 		budget.mu.Unlock()
 	})
 	defer stop()
-	var core metav1.APIVersions
-	if err := readNativeDiscovery(ctx, restClient, "/api", &core, budget); err != nil {
+	// Servers with aggregated discovery answer /api and /apis with every group,
+	// version and resource, so no per-version request is needed. Others answer
+	// with the legacy lists and each version is read below. The two responses
+	// are merged independently, so a mixed pair still resolves.
+	listed := make(map[schema.GroupVersion]*metav1.APIResourceList)
+	stale := make(map[schema.GroupVersion]error)
+	core, err := readNativeDiscoveryIndex(ctx, restClient, "/api", budget)
+	if err != nil {
 		return nil, nil, err
 	}
-	var advertised metav1.APIGroupList
-	if err := readNativeDiscovery(ctx, restClient, "/apis", &advertised, budget); err != nil {
+	coreVersions := core.Versions
+	if core.aggregated() {
+		coreVersions = nil
+		for _, group := range core.aggregatedGroups(listed, stale) {
+			if group.Name != "" {
+				return nil, nil, fmt.Errorf("invalid Kubernetes discovery group version")
+			}
+			for _, version := range group.Versions {
+				coreVersions = append(coreVersions, version.Version)
+			}
+		}
+	}
+	advertised, err := readNativeDiscoveryIndex(ctx, restClient, "/apis", budget)
+	if err != nil {
 		return nil, nil, err
 	}
-	groups := make([]*metav1.APIGroup, 0, len(advertised.Groups))
-	versions := make([]schema.GroupVersion, 0, len(core.Versions))
-	for _, version := range core.Versions {
+	advertisedGroups := advertised.Groups
+	if advertised.aggregated() {
+		advertisedGroups = advertised.aggregatedGroups(listed, stale)
+	}
+	groups := make([]*metav1.APIGroup, 0, len(advertisedGroups))
+	versions := make([]schema.GroupVersion, 0, len(coreVersions))
+	for _, version := range coreVersions {
 		versions = append(versions, schema.GroupVersion{Version: version})
 	}
-	for index := range advertised.Groups {
-		group := &advertised.Groups[index]
+	for index := range advertisedGroups {
+		group := &advertisedGroups[index]
 		groups = append(groups, group)
 		for _, version := range group.Versions {
 			gv, err := schema.ParseGroupVersion(version.GroupVersion)
@@ -118,12 +147,15 @@ func discoverNativeResources(ctx context.Context, client discovery.DiscoveryInte
 				next++
 				nextMu.Unlock()
 				gv := versions[index]
+				if listed[gv] != nil {
+					continue
+				}
 				path := "/apis/" + gv.String()
 				if gv.Group == "" {
 					path = "/api/" + gv.Version
 				}
 				entry := &results[index]
-				entry.err = readNativeDiscovery(workCtx, restClient, path, &entry.list, budget)
+				entry.err = readNativeDiscovery(workCtx, restClient, path, "", &entry.list, budget)
 				if entry.err == nil && entry.list.GroupVersion != gv.String() {
 					entry.err = fmt.Errorf("Kubernetes discovery returned a different group version")
 					cancel()
@@ -142,6 +174,10 @@ func discoverNativeResources(ctx context.Context, client discovery.DiscoveryInte
 	lists := make([]*metav1.APIResourceList, 0, len(versions))
 	failed := make(map[schema.GroupVersion]error)
 	for index, gv := range versions {
+		if list := listed[gv]; list != nil {
+			lists = append(lists, list)
+			continue
+		}
 		entry := &results[index]
 		if entry.err != nil {
 			failed[gv] = entry.err
@@ -149,6 +185,7 @@ func discoverNativeResources(ctx context.Context, client discovery.DiscoveryInte
 			lists = append(lists, &entry.list)
 		}
 	}
+	maps.Copy(failed, stale)
 	if len(failed) != 0 {
 		return groups, lists, &discovery.ErrGroupDiscoveryFailed{Groups: failed}
 	}
@@ -202,22 +239,56 @@ func (r nativeDiscoveryReader) Read(p []byte) (int, error) {
 	return n, err
 }
 
+// nativeDiscoveryIndex is an /api or /apis response in either format: the
+// legacy lists (versions, groups) or aggregated discovery (items).
+type nativeDiscoveryIndex struct {
+	metav1.TypeMeta
+	Versions []string                           `json:"versions"`
+	Groups   []metav1.APIGroup                  `json:"groups"`
+	Items    []apidiscoveryv2.APIGroupDiscovery `json:"items"`
+}
+
+func (i *nativeDiscoveryIndex) aggregated() bool {
+	return i.Kind == "APIGroupDiscoveryList" && i.APIVersion == apidiscoveryv2.SchemeGroupVersion.String()
+}
+
+// aggregatedGroups converts aggregated discovery to legacy groups. The resource
+// lists it carries and the versions it marks stale are recorded in listed and
+// stale; a stale version is absent from the returned groups.
+func (i *nativeDiscoveryIndex) aggregatedGroups(listed map[schema.GroupVersion]*metav1.APIResourceList, stale map[schema.GroupVersion]error) []metav1.APIGroup {
+	groups, lists, failed := discovery.SplitGroupsAndResources(apidiscoveryv2.APIGroupDiscoveryList{Items: i.Items})
+	maps.Copy(listed, lists)
+	maps.Copy(stale, failed)
+	return groups.Groups
+}
+
+func readNativeDiscoveryIndex(ctx context.Context, client rest.Interface, path string, budget *nativeDiscoveryBudget) (nativeDiscoveryIndex, error) {
+	var index nativeDiscoveryIndex
+	err := readNativeDiscovery(ctx, client, path, nativeAggregatedDiscoveryAccept, &index, budget)
+	return index, err
+}
+
 // readNativeDiscovery reads one discovery document, repeating the request while
-// it fails with a transient transport or overload error.
-func readNativeDiscovery(ctx context.Context, client rest.Interface, path string, into any, budget *nativeDiscoveryBudget) error {
+// it fails with a transient transport or overload error. A non-empty accept
+// replaces the client's Accept header.
+func readNativeDiscovery(ctx context.Context, client rest.Interface, path, accept string, into any, budget *nativeDiscoveryBudget) error {
 	return retryNativeRequest(ctx, func() error {
-		return readNativeDiscoveryOnce(ctx, client, path, into, budget)
+		return readNativeDiscoveryOnce(ctx, client, path, accept, into, budget)
 	})
 }
 
-func readNativeDiscoveryOnce(ctx context.Context, client rest.Interface, path string, into any, budget *nativeDiscoveryBudget) error {
+func readNativeDiscoveryOnce(ctx context.Context, client rest.Interface, path, accept string, into any, budget *nativeDiscoveryBudget) error {
 	budget.mu.Lock()
 	exhausted := budget.remaining == 0 && budget.inFlight == 0
 	budget.mu.Unlock()
 	if exhausted {
 		return errNativeDiscoveryBytes()
 	}
-	stream, err := client.Get().AbsPath(path).Stream(ctx)
+	request := client.Get().AbsPath(path)
+	if accept != "" {
+		request = request.SetHeader("Accept", accept)
+	}
+	stream, err := request.Stream(ctx)
 	if err != nil {
 		return err
 	}
