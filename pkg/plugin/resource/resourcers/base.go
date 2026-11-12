@@ -2,11 +2,14 @@ package resourcers
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
+	"io"
 	"math/rand/v2"
+	"net"
 	"net/http"
-	"net/url"
 	"reflect"
 	"strings"
 	"sync"
@@ -114,7 +117,52 @@ func classifyWatchError(err error) watchErrorClassification {
 			return watchErrorClassification{code: "UNSUPPORTED", message: "Resource does not support this method"}
 		}
 	}
-	return watchErrorClassification{code: watchErrorCode(err), message: err.Error()}
+	code := watchErrorCode(err)
+	if code == "PROVIDER_ERROR" {
+		if transient, ok := classifyTransientWatchError(err); ok {
+			return transient
+		}
+	}
+	return watchErrorClassification{code: code, message: err.Error()}
+}
+
+// classifyTransientWatchError maps API server and transport failures that clear
+// without user action to the codes the host reopens a source on: UNAVAILABLE,
+// CONNECTION_ERROR and TIMEOUT. Any other code is terminal for the host.
+// Certificate failures do not clear by retrying and keep their own code.
+func classifyTransientWatchError(err error) (watchErrorClassification, bool) {
+	var status *k8serrors.StatusError
+	if errors.As(err, &status) {
+		switch code := status.ErrStatus.Code; {
+		case code == http.StatusRequestTimeout || code == http.StatusGatewayTimeout:
+			return watchErrorClassification{code: "TIMEOUT", message: "Kubernetes API server did not respond in time"}, true
+		case code == http.StatusTooManyRequests || code >= http.StatusInternalServerError:
+			return watchErrorClassification{code: "UNAVAILABLE", message: "Kubernetes API server is temporarily unavailable"}, true
+		}
+		return watchErrorClassification{}, false
+	}
+	var (
+		unknownAuthority x509.UnknownAuthorityError
+		invalid          x509.CertificateInvalidError
+		hostname         x509.HostnameError
+		verification     *tls.CertificateVerificationError
+	)
+	if errors.As(err, &unknownAuthority) || errors.As(err, &invalid) || errors.As(err, &hostname) || errors.As(err, &verification) {
+		return watchErrorClassification{code: "CERTIFICATE_ERROR", message: "Kubernetes API server certificate could not be verified"}, true
+	}
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return watchErrorClassification{code: "UNAVAILABLE", message: "Kubernetes API server is temporarily unavailable"}, true
+	}
+	// net.Error covers dial, reset and DNS failures, the TLS handshake timeout
+	// and url.Error around any of them.
+	var network net.Error
+	if errors.As(err, &network) {
+		if network.Timeout() {
+			return watchErrorClassification{code: "TIMEOUT", message: "Kubernetes API server did not respond in time"}, true
+		}
+		return watchErrorClassification{code: "CONNECTION_ERROR", message: "Unable to connect to the Kubernetes API server"}, true
+	}
+	return watchErrorClassification{}, false
 }
 
 func watchRecord(target resource.ReadTarget, representation resource.Representation, u *unstructured.Unstructured) (resource.Record, error) {
@@ -243,13 +291,45 @@ func watchNamespaces(scope resource.QueryScope) ([]string, error) {
 	}
 }
 
+// sourceLivenessInterval is the nominal gap between two API server probes; each
+// wait is jittered to 80-120% so connections do not probe in step.
 var sourceLivenessInterval = 10 * time.Second
 
+const (
+	// sourceLivenessTimeout bounds one probe. client-go allows the TLS handshake
+	// alone 10 s and an overloaded control plane takes seconds to answer, so a
+	// tighter bound would report a slow server as unreachable.
+	sourceLivenessTimeout = 15 * time.Second
+	// sourceLivenessFailures is how many probes in a row must get no HTTP
+	// response, with no informer progress in between, before the sources of a
+	// connection are reset. One failed probe is routine on a loaded control
+	// plane and two in a row happen on one that keeps serving; three span at
+	// least two probe intervals with no answer and no watch event.
+	sourceLivenessFailures = 3
+)
+
+// watchProgress is the part of an informer the liveness monitor reads. The
+// resource version moves whenever the reflector receives a watch event or
+// bookmark, or completes a list. On a cluster with no changes it only moves
+// with a bookmark, which the server sends about once a minute.
+type watchProgress interface {
+	LastSyncResourceVersion() string
+}
+
+// sourceHealthMonitor decides when the API server of one connection is
+// unreachable. A reset closes every informer of the connection and the reopen
+// relists everything against a server that may already be struggling, so it is
+// the last resort: a probe that gets any HTTP response (429, 5xx, 401...) shows
+// a live server and clears the failure count, and so does a failed probe while
+// an informer still receives watch events.
 type sourceHealthMonitor struct {
 	cancel    context.CancelFunc
 	unhealthy chan struct{}
 	done      chan struct{}
 	refs      int
+	// watched counts the sessions observing each informer.
+	// Guarded by sourceHealthMonitors.
+	watched map[watchProgress]int
 }
 
 var sourceHealthMonitors = struct {
@@ -258,7 +338,9 @@ var sourceHealthMonitors = struct {
 }{clients: make(map[*clients.ClientSet]*sourceHealthMonitor)}
 
 // acquireSourceHealth shares a cancellable probe across all following sessions.
-func acquireSourceHealth(ctx context.Context, client *clients.ClientSet) (<-chan struct{}, func(), error) {
+// watched lists the informers backing the session; their watch progress is
+// evidence that the API server is reachable even when a probe fails.
+func acquireSourceHealth(ctx context.Context, client *clients.ClientSet, watched []watchProgress) (<-chan struct{}, func(), error) {
 	for {
 		sourceHealthMonitors.Lock()
 		monitor := sourceHealthMonitors.clients[client]
@@ -274,22 +356,54 @@ func acquireSourceHealth(ctx context.Context, client *clients.ClientSet) (<-chan
 		}
 		if monitor == nil {
 			monitorCtx, cancel := context.WithCancel(context.Background())
-			monitor = &sourceHealthMonitor{cancel: cancel, unhealthy: make(chan struct{}), done: make(chan struct{})}
+			monitor = &sourceHealthMonitor{cancel: cancel, unhealthy: make(chan struct{}), done: make(chan struct{}), watched: make(map[watchProgress]int)}
 			sourceHealthMonitors.clients[client] = monitor
 			interval := sourceLivenessInterval
 			go runSourceHealth(monitorCtx, client, monitor, interval)
 		}
 		monitor.refs++
+		for _, informer := range watched {
+			monitor.watched[informer]++
+		}
 		sourceHealthMonitors.Unlock()
 		return monitor.unhealthy, func() {
 			sourceHealthMonitors.Lock()
 			monitor.refs--
+			for _, informer := range watched {
+				if monitor.watched[informer] <= 1 {
+					delete(monitor.watched, informer)
+				} else {
+					monitor.watched[informer]--
+				}
+			}
 			if monitor.refs == 0 {
 				monitor.cancel()
 			}
 			sourceHealthMonitors.Unlock()
 		}, nil
 	}
+}
+
+// observeWatches returns the current resource version of every watched informer
+// and whether any informer already present in previous has moved since.
+// Informers seen for the first time only establish a baseline.
+func (m *sourceHealthMonitor) observeWatches(previous map[watchProgress]string) (map[watchProgress]string, bool) {
+	sourceHealthMonitors.Lock()
+	informers := make([]watchProgress, 0, len(m.watched))
+	for informer := range m.watched {
+		informers = append(informers, informer)
+	}
+	sourceHealthMonitors.Unlock()
+	current := make(map[watchProgress]string, len(informers))
+	progressed := false
+	for _, informer := range informers {
+		version := informer.LastSyncResourceVersion()
+		current[informer] = version
+		if before, known := previous[informer]; known && before != version {
+			progressed = true
+		}
+	}
+	return current, progressed
 }
 
 func runSourceHealth(ctx context.Context, client *clients.ClientSet, monitor *sourceHealthMonitor, interval time.Duration) {
@@ -302,6 +416,14 @@ func runSourceHealth(ctx context.Context, client *clients.ClientSet, monitor *so
 		sourceHealthMonitors.Unlock()
 	}()
 	probe, setupErr := newSourceHealthProbe(client)
+	if setupErr != nil {
+		// Without a probe there is no evidence the API server is down, so the
+		// sources keep running; only their own watches can end them.
+		zap.S().Named("source_health").Warnw("source health probe unavailable; liveness resets are disabled for this connection", diag.ClassifyError(setupErr, false).LogFields()...)
+		<-ctx.Done()
+		return
+	}
+	watched, _ := monitor.observeWatches(nil)
 	failures := 0
 	for {
 		// Spread connection probes over 80–120% of the nominal interval.
@@ -313,23 +435,25 @@ func runSourceHealth(ctx context.Context, client *clients.ClientSet, monitor *so
 			return
 		case <-timer.C:
 		}
-		probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		err := setupErr
-		if err == nil {
-			err = probe(probeCtx)
-		}
+		probeCtx, cancel := context.WithTimeout(ctx, sourceLivenessTimeout)
+		err := probe(probeCtx)
 		cancel()
 		if ctx.Err() != nil {
 			return
 		}
-		if err == nil {
+		var progressed bool
+		watched, progressed = monitor.observeWatches(watched)
+		if err == nil || progressed {
+			if err != nil {
+				zap.S().Named("source_health").Debugw("source health probe failed while informers still receive events", append([]any{"consecutive_failures", failures}, diag.ClassifyError(err, false).LogFields()...)...)
+			}
 			failures = 0
 			continue
 		}
 		failures++
 		c := diag.ClassifyError(err, false)
 		zap.S().Named("source_health").Debugw("source health probe failed", append([]any{"consecutive_failures", failures}, c.LogFields()...)...)
-		if failures == 2 {
+		if failures >= sourceLivenessFailures {
 			close(monitor.unhealthy)
 			// Keep the monitor until all subscribers have released it.
 			<-ctx.Done()
@@ -338,15 +462,23 @@ func runSourceHealth(ctx context.Context, client *clients.ClientSet, monitor *so
 	}
 }
 
+// newSourceHealthProbe returns a GET of the API server's /version. The returned
+// function reports an error only when no HTTP response arrived: throttling,
+// authentication and server errors all prove the server is reachable.
 func newSourceHealthProbe(client *clients.ClientSet) (func(context.Context) error, error) {
 	if client.RESTConfig == nil {
 		return nil, fmt.Errorf("Kubernetes REST configuration is unavailable")
 	}
-	endpoint, err := url.Parse(client.RESTConfig.Host)
+	// Resolve the host exactly as client-go does, so host:port forms work.
+	endpoint, _, err := rest.DefaultServerUrlFor(client.RESTConfig)
 	if err != nil {
 		return nil, err
 	}
 	endpoint.Path = strings.TrimSuffix(endpoint.Path, "/") + "/version"
+	request, err := http.NewRequest(http.MethodGet, endpoint.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 	httpClient := client.HTTPClient
 	if httpClient == nil {
 		httpClient, err = rest.HTTPClientFor(client.RESTConfig)
@@ -355,18 +487,12 @@ func newSourceHealthProbe(client *clients.ClientSet) (func(context.Context) erro
 		}
 	}
 	return func(ctx context.Context) error {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
+		response, err := httpClient.Do(request.Clone(ctx))
 		if err != nil {
 			return err
 		}
-		response, err := httpClient.Do(req)
-		if err != nil {
-			return err
-		}
-		defer response.Body.Close()
-		if response.StatusCode < 200 || response.StatusCode >= 300 {
-			return fmt.Errorf("Kubernetes health probe returned HTTP %d", response.StatusCode)
-		}
+		// The status is ignored on purpose: any HTTP response proves the server is reachable.
+		_ = response.Body.Close()
 		return nil
 	}, nil
 }
@@ -584,7 +710,11 @@ func (s *KubernetesResourcerBase[T]) Source(ctx context.Context, client *clients
 	finishSnapshot(nil)
 	snapshotCompleted = true
 	sourceLog.Debugw("source snapshot delivered", "sync_ms", time.Since(snapshotStart).Milliseconds(), "namespaces", len(namespaces))
-	unhealthy, releaseHealth, err := acquireSourceHealth(ctx, client)
+	watched := make([]watchProgress, len(leases))
+	for i, lease := range leases {
+		watched[i] = lease.Informer
+	}
+	unhealthy, releaseHealth, err := acquireSourceHealth(ctx, client, watched)
 	if err != nil {
 		return err
 	}
@@ -598,7 +728,7 @@ func (s *KubernetesResourcerBase[T]) Source(ctx context.Context, client *clients
 			return ctx.Err()
 		case <-unhealthy:
 			snapshotSpan.AddEvent("source.continuity_lost")
-			sourceLog.Warnw("source continuity lost; Kubernetes API health probe failed twice", "reason", "health_probe_failed")
+			sourceLog.Warnw("source continuity lost; Kubernetes API health probes failed repeatedly", "reason", "health_probe_failed")
 			return emit.Reset(ctx, resource.SourceResetContinuityLost, "Kubernetes API is unreachable; informer events are not being delivered")
 		case first := <-events:
 			item, err := observation(first.object)
