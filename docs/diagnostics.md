@@ -24,6 +24,8 @@ The plugin reports a fixed set of measurements through plugin-sdk diagnostics (`
 
 Attribute values come from these closed sets. Never record cluster, namespace, resource or path names, queries or error text. Resource sources use a bounded live-change queue; this metric set reports open watch streams, not queue occupancy. API calls are counted at the HTTP transport of the resource and legacy client bundles.
 
+For CPU, heap, goroutine, mutex and block profiles, and the deterministic benchmarks, see [profiling.md](profiling.md).
+
 ## Initial resource inventory
 
 Informer initial adds are accumulated by namespace/name until every source
