@@ -18,6 +18,7 @@ import (
 	"github.com/omniview/kubernetes/pkg/pluginid"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/util/flowcontrol"
 )
 
@@ -323,5 +324,24 @@ func TestHungFiniteRequestTimesOutAndWatchStaysOpen(t *testing.T) {
 	case <-watchEnded:
 		t.Fatal("watch connection was closed by the finite-verb ceiling")
 	default:
+	}
+}
+
+type closeTrackingTransport struct{ closed atomic.Int64 }
+
+func (c *closeTrackingTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, errors.New("unused")
+}
+
+func (c *closeTrackingTransport) CloseIdleConnections() { c.closed.Add(1) }
+
+func TestUserAgentTransportClosesIdleConnectionsOfWrappedTransport(t *testing.T) {
+	fake := &closeTrackingTransport{}
+	utilnet.CloseIdleConnectionsFor(&userAgentTransport{base: fake})
+	if got := fake.closed.Load(); got != 1 {
+		t.Fatalf("wrapped transport CloseIdleConnections calls = %d, want 1", got)
+	}
+	if (&userAgentTransport{}).WrappedRoundTripper() != http.DefaultTransport {
+		t.Fatal("nil base must unwrap to http.DefaultTransport")
 	}
 }

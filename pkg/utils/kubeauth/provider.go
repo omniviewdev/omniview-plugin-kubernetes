@@ -61,6 +61,22 @@ func (t *userAgentTransport) RoundTrip(req *http.Request) (*http.Response, error
 	return base.RoundTrip(req)
 }
 
+// WrappedRoundTripper lets apimachinery's CloseIdleConnectionsFor walk through
+// this wrapper to the transport that owns the connections.
+func (t *userAgentTransport) WrappedRoundTripper() http.RoundTripper {
+	if t.base == nil {
+		return http.DefaultTransport
+	}
+	return t.base
+}
+
+// CloseIdleConnections forwards to the wrapped transport when it supports it.
+func (t *userAgentTransport) CloseIdleConnections() {
+	if closer, ok := t.WrappedRoundTripper().(interface{ CloseIdleConnections() }); ok {
+		closer.CloseIdleConnections()
+	}
+}
+
 // setEKSUserAgent applies the plugin user agent to the pre-authenticated EKS
 // http client, whose transport is fixed before client-go reads the config.
 func setEKSUserAgent(client *http.Client) {
