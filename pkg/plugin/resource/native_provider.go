@@ -76,7 +76,7 @@ func newKubernetesProvider(logger *zap.SugaredLogger, retireMetrics func(string)
 			},
 			DestroyClient:   provider.connections.DestroyClient,
 			CheckConnection: provider.checkConnection,
-			OnStart:         provider.startNativeConnectionObserved,
+			OnStart:         labelConnectStart(provider.startNativeConnectionObserved),
 			OnStop: func(_ context.Context, connection types.Connection, _ *clients.ClientSet) error {
 				provider.retireNativeCatalog(connection.ID)
 				retireMetrics(connection.ID)
@@ -278,7 +278,7 @@ func (p *kubernetesProvider) nativeRegistration(route resourcev2.AccessRoute, bi
 	}
 	if verbSliceContains(binding.API.Verbs, "list") && verbSliceContains(binding.API.Verbs, "watch") {
 		watcher := resourcers.NewKubernetesResourcerBase[resourcers.MetaAccessor](p.logger, binding.GVR)
-		registration.Source = watcher.Source
+		registration.Source = labelSource(watcher.Source)
 	}
 	return registration
 }

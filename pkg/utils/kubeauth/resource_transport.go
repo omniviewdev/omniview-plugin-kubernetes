@@ -12,6 +12,9 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
@@ -28,18 +31,65 @@ const ResourceRequestTimeout = 60 * time.Second
 // LoadResourceKubeClients opts finite native resource responses into a decoded
 // HTTP body budget. It must not be used for logs, exec, or metrics clients.
 // Native JSON watch streams instead receive a per-frame decoded byte budget.
+// Like LoadKubeClients, each build records a span, a client.builds count and a
+// duration log line.
 func LoadResourceKubeClients(ctx context.Context, path, kubeContext string) (*KubeClientBundle, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	ctx, span := diag.Tracer().Start(ctx, "kubernetes.client.build")
+	span.SetAttributes(attribute.String("connection", kubeContext))
+	started := time.Now()
+	logger := authLogger()
+	progress := resourceBuildProgress{operation: "detect", strategy: "unknown", span: span}
+	var bundle *KubeClientBundle
+	var err error
+	diag.Do(ctx, diag.PhaseClientBuild, kubeContext, func(ctx context.Context) {
+		bundle, err = buildResourceKubeClients(ctx, path, kubeContext, &progress)
+	})
+	span.SetAttributes(attribute.String("operation", progress.operation))
+	c := diag.EndSpan(span, err, false)
+	diag.ClientBuild(progress.operation, c.Outcome)
+	fields := append([]any{"connection", kubeContext, "operation", progress.operation, "auth_strategy", progress.strategy,
+		"duration_ms", time.Since(started).Milliseconds()}, c.LogFields()...)
+	if err != nil {
+		logger.Warnw(ctx, "kubernetes client build failed", fields...)
+		return nil, err
+	}
+	logger.Debugw(ctx, "kubernetes clients built", fields...)
+	return bundle, nil
+}
+
+// resourceBuildProgress tracks the build stage so a failure is attributed to
+// the step that failed, using the same operation vocabulary as LoadKubeClients.
+type resourceBuildProgress struct {
+	operation string
+	strategy  string
+	span      trace.Span
+}
+
+func (p *resourceBuildProgress) step(operation string) {
+	p.operation = operation
+}
+
+func (p *resourceBuildProgress) done(event string) {
+	p.span.AddEvent(event)
+}
+
+func buildResourceKubeClients(ctx context.Context, path, kubeContext string, progress *resourceBuildProgress) (*KubeClientBundle, error) {
 	strategy, err := DetectAuthStrategy(path, kubeContext)
 	if err != nil {
 		return nil, err
 	}
+	progress.strategy = authStrategyName(strategy)
+	progress.span.SetAttributes(attribute.String("auth.strategy", progress.strategy))
+	progress.done("strategy_detected")
+	progress.step("rest_config")
 	config, err := strategy.BuildRestConfig(ctx, path, kubeContext)
 	if err != nil {
 		return nil, err
 	}
+	progress.done("rest_config")
 	config = rest.CopyConfig(config)
 	config.QPS, config.Burst = ConnectionQPS, ConnectionBurst
 	config.RateLimiter = newConnectionRateLimiter()
@@ -64,6 +114,7 @@ func LoadResourceKubeClients(ctx context.Context, path, kubeContext string) (*Ku
 	client.Transport = diag.Transport(client.Transport)
 	// Construct once from the exact configured/authenticated transport, before
 	// installing resource-only response budgets.
+	progress.step("clientset")
 	streamingHTTP := *client
 	streamingClientset, err := kubernetes.NewForConfigAndClient(config, &streamingHTTP)
 	if err != nil {
@@ -74,14 +125,20 @@ func LoadResourceKubeClients(ctx context.Context, path, kubeContext string) (*Ku
 	if err != nil {
 		return nil, err
 	}
+	progress.done("clientset")
+	progress.step("dynamic")
 	dyn, err := dynamic.NewForConfigAndClient(config, client)
 	if err != nil {
 		return nil, err
 	}
+	progress.done("dynamic")
+	progress.step("discovery")
 	disco, err := discovery.NewDiscoveryClientForConfigAndClient(config, client)
 	if err != nil {
 		return nil, err
 	}
+	progress.done("discovery")
+	progress.step("complete")
 	return &KubeClientBundle{Clientset: clientset, Dynamic: dyn, Discovery: disco,
 		RestConfig: config, HTTPClient: client,
 		StreamingClientset: streamingClientset, StreamingHTTPClient: &streamingHTTP}, nil
