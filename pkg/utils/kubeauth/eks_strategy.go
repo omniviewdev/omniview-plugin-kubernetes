@@ -141,6 +141,19 @@ func (e *EKSAuthStrategy) BuildRestConfig(
 	// clear out the exec provider so it's not used
 	baseConfig.ExecProvider = nil
 
+	tokens := &eksAuthTransport{
+		ClusterName: e.clusterName,
+		RoleARN:     e.roleArn,
+		Profile:     e.profile,
+		Region:      e.region,
+		Connection:  kubeContext,
+	}
+	// publish the authentication with the config. client-go never runs the aws CLI for EKS, so
+	// anything that builds its own transport from this config (exec and port-forward executors,
+	// additional clients) would otherwise send unauthenticated requests. the http client below is
+	// built from the same config, so it carries this one layer and shares its token cache.
+	baseConfig.Wrap(tokens.wrapTransport)
+
 	configShallowCopy := *baseConfig
 
 	if configShallowCopy.UserAgent == "" {
@@ -156,17 +169,8 @@ func (e *EKSAuthStrategy) BuildRestConfig(
 		return nil, fmt.Errorf("failed to create full transport: %w", err)
 	}
 
-	roundTripper := &eksAuthTransport{
-		ClusterName: e.clusterName,
-		RoleARN:     e.roleArn,
-		Profile:     e.profile,
-		Region:      e.region,
-		Connection:  kubeContext,
-		Base:        transport,
-	}
-
 	e.httpClient = &http.Client{
-		Transport: roundTripper,
+		Transport: transport,
 		Timeout:   configShallowCopy.Timeout,
 	}
 

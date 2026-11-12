@@ -19,14 +19,16 @@ import (
 )
 
 // authorizationRecorder is an API server double that answers the requests the
-// auth tests make and remembers the Authorization header of every request.
+// auth tests make and remembers the path and Authorization header of each one.
 type authorizationRecorder struct {
 	mu     sync.Mutex
+	paths  []string
 	values []string
 }
 
 func (r *authorizationRecorder) handler(w http.ResponseWriter, req *http.Request) {
 	r.mu.Lock()
+	r.paths = append(r.paths, req.URL.Path)
 	r.values = append(r.values, req.Header.Get("Authorization"))
 	r.mu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
@@ -44,6 +46,12 @@ func (r *authorizationRecorder) seen() []string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return append([]string(nil), r.values...)
+}
+
+func (r *authorizationRecorder) seenPaths() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.paths...)
 }
 
 func TestLoadClients_ContextWithoutUser(t *testing.T) {
