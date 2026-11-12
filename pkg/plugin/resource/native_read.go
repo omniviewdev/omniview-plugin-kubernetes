@@ -74,8 +74,8 @@ func NativeGet(ctx context.Context, client dynamic.Interface, gvr schema.GroupVe
 	return record, nil
 }
 
-// NativeEnumerate assembles a bounded source page from bounded native Lists,
-// requesting one item per List. Its private cursor resumes source acquisition
+// NativeEnumerate assembles a bounded source page from native Lists, each sized
+// to the room left in the page. Its private cursor resumes source acquisition
 // only; it is never a host query cursor.
 // Separate namespace lists do not establish a shared point-in-time snapshot.
 func NativeEnumerate(ctx context.Context, client dynamic.Interface, gvr schema.GroupVersionResource, namespaced bool, request resourcev2.EnumerateRequest, representation resourcev2.Representation) (resourcev2.SourcePage, error) {
@@ -104,6 +104,13 @@ func NativeQuery(ctx context.Context, client dynamic.Interface, gvr schema.Group
 	}, representation, selector.String())
 }
 
+// nativeEnumerate fills one source page from native Lists.
+//
+// Each List is sized to the room the page has left, so every item it returns
+// joins the page and its continue token, which resumes after that List's last
+// item, is the exact cursor. A List is never truncated: when its items cannot
+// all join, because the wire budget ends the page or the transport refuses the
+// response as too large, the same position is requested again with fewer items.
 func nativeEnumerate(ctx context.Context, client dynamic.Interface, gvr schema.GroupVersionResource, namespaced bool, request resourcev2.EnumerateRequest, representation resourcev2.Representation, selector string) (result resourcev2.SourcePage, retErr error) {
 	ctx, crud := startNativeCRUD(ctx, "list", request.Target.Type, "", "")
 	defer func() {
@@ -156,19 +163,37 @@ func nativeEnumerate(ctx context.Context, client dynamic.Interface, gvr schema.G
 		Provider: request.Target.Provider, Authority: request.Target.Authority, Type: request.Target.Type,
 	}
 	recordBytes, recordNodes, recordFields, bodyBytes := 0, 0, 0, 0
+	// ceiling caps the items one List asks for. It starts at the page size and
+	// only falls when a response could not be used whole.
+	ceiling := int(request.PageSize)
+	// budgetFull marks a page that the wire budget, not the page size, has ended.
+	budgetFull := false
 acquire:
-	for calls := 0; cursor.Namespace < len(namespaces) && len(page.Records) < int(request.PageSize) && calls < int(request.PageSize)+len(namespaces); calls++ {
+	for calls := 0; cursor.Namespace < len(namespaces) && len(page.Records) < int(request.PageSize) && calls < int(request.PageSize)+len(namespaces); {
 		namespace := namespaces[cursor.Namespace]
-		// Keep the native limit fixed across the Kubernetes continuation chain.
+		remaining := int(request.PageSize) - len(page.Records)
+		// A continue token names the snapshot and the next key, never the limit,
+		// and resumes after the last item of the List that returned it. Sizing
+		// each List to the room left in the page lets every returned item join
+		// the page, so the token is always an exact cursor.
+		limit := min(remaining, ceiling)
 		list, err := nativeResourceClient(client, gvr, namespaced, namespace).List(ctx, metav1.ListOptions{
-			Limit: 1, Continue: cursor.Continue, LabelSelector: selector,
+			Limit: int64(limit), Continue: cursor.Continue, LabelSelector: selector,
 		})
 		if err != nil {
 			if apierrors.IsResourceExpired(err) || apierrors.IsGone(err) {
 				return resourcev2.SourcePage{}, resourcev2.NewError("RESET_REQUIRED", "The native source continuation has expired")
 			}
-			if len(page.Records) > 0 && resourcev2.ErrorCode(err) == "RESOURCE_LIMIT" {
-				break
+			if resourcev2.ErrorCode(err) == "RESOURCE_LIMIT" {
+				if limit > 1 {
+					// The response outgrew the transport's decoded-body budget before
+					// any of it was used: ask for the same position in smaller pieces.
+					ceiling = limit / 2
+					continue
+				}
+				if len(page.Records) > 0 {
+					break
+				}
 			}
 			return resourcev2.SourcePage{}, err
 		}
@@ -176,10 +201,14 @@ acquire:
 			return resourcev2.SourcePage{}, err
 		}
 		continuation := list.GetContinue()
-		if len(list.Items) > 1 && (continuation != "" || cursor.Continue != "") {
+		// A server that honors limits never returns more items than it was asked
+		// for together with a continue token; one that ignores them can only
+		// answer with the complete list.
+		honored := len(list.Items) <= limit
+		if !honored && (continuation != "" || cursor.Continue != "") {
 			return resourcev2.SourcePage{}, resourcev2.NewError("RESOURCE_LIMIT", "The API server returned an unbounded continued source page")
 		}
-		if len(list.Items) > int(request.PageSize)-len(page.Records) {
+		if len(list.Items) > remaining {
 			if len(page.Records) > 0 {
 				break
 			}
@@ -217,22 +246,22 @@ acquire:
 		if err != nil {
 			return resourcev2.SourcePage{}, err
 		}
-		var one [1]resourcev2.Record
-		staged := one[:0]
-		if len(list.Items) > 1 {
-			staged = make([]resourcev2.Record, 0, len(list.Items))
-		}
+		staged := make([]resourcev2.Record, 0, len(list.Items))
 		addedBytes, addedNodes, addedFields, addedBodyBytes := 0, 0, 0, 0
+		// unfit holds why the item after the staged ones cannot join the page.
+		var unfit error
+	stage:
 		for i := range list.Items {
 			if err := ctx.Err(); err != nil {
 				return resourcev2.SourcePage{}, err
 			}
 			record, err := nativeRecord(&list.Items[i], address, namespaced, namespace, representation)
 			if err != nil {
-				if len(page.Records) > 0 && resourcev2.ErrorCode(err) == "RESOURCE_LIMIT" {
-					break acquire
+				if resourcev2.ErrorCode(err) != "RESOURCE_LIMIT" {
+					return resourcev2.SourcePage{}, err
 				}
-				return resourcev2.SourcePage{}, err
+				unfit = err
+				break stage
 			}
 			size, err := resourcev2.ValueWireSize(record.Body)
 			bytes, nodes, fields := 0, 0, 0
@@ -240,10 +269,11 @@ acquire:
 				bytes, nodes, fields, err = resourcev2.SourceRecordWireCost(record)
 			}
 			if err != nil {
-				if len(page.Records) > 0 && resourcev2.ErrorCode(err) == "RESOURCE_LIMIT" {
-					break acquire
+				if resourcev2.ErrorCode(err) != "RESOURCE_LIMIT" {
+					return resourcev2.SourcePage{}, err
 				}
-				return resourcev2.SourcePage{}, err
+				unfit = err
+				break stage
 			}
 			addedBodyBytes += size
 			addedBytes += bytes
@@ -253,12 +283,23 @@ acquire:
 				resourcev2.SourcePageResponseWireSize(baseBytes+recordBytes+addedBytes) > resourcev2.MaxMessageBytes ||
 				baseNodes+recordNodes+addedNodes > resourcev2.MaxValueNodes ||
 				baseFields+recordFields+addedFields > resourcev2.MaxWireFields {
-				if len(page.Records) > 0 {
-					break acquire
-				}
-				return resourcev2.SourcePage{}, resourcev2.NewError("RESOURCE_LIMIT", "The complete native source page exceeds the resource wire budget")
+				unfit = resourcev2.NewError("RESOURCE_LIMIT", "The complete native source page exceeds the resource wire budget")
+				break stage
 			}
 			staged = append(staged, record)
+		}
+		if unfit != nil {
+			switch {
+			case len(staged) > 0 && honored:
+				// The continue token resumes after the last item of this List, so the
+				// items that do not fit cannot be handed back. Ask for this position
+				// again with only the items that do; the page ends with them.
+				ceiling, budgetFull = len(staged), true
+				continue
+			case len(page.Records) > 0:
+				break acquire
+			}
+			return resourcev2.SourcePage{}, unfit
 		}
 		if resourcev2.SourcePageResponseWireSize(baseBytes+recordBytes) > resourcev2.MaxMessageBytes ||
 			baseNodes+recordNodes > resourcev2.MaxValueNodes || baseFields+recordFields > resourcev2.MaxWireFields {
@@ -274,6 +315,10 @@ acquire:
 		recordFields += addedFields
 		page = candidate
 		cursor = next
+		calls++
+		if budgetFull {
+			break
+		}
 	}
 	if err := resourcev2.ValidateSourcePage(page); err != nil {
 		return resourcev2.SourcePage{}, err

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -50,6 +51,7 @@ func nativeTestClient(objects ...runtime.Object) *dynamicfake.FakeDynamicClient 
 
 // Use the real dynamic HTTP client when asserting ListOptions: client-go's
 // fake dynamic client drops Limit and Continue from its recorded list actions.
+// The client-side rate limiter stays off so request counts never cost wall time.
 func nativeTestHTTPClient(t *testing.T, handle func(*http.Request) *unstructured.UnstructuredList) dynamic.Interface {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -58,7 +60,7 @@ func nativeTestHTTPClient(t *testing.T, handle func(*http.Request) *unstructured
 		assert.NoError(t, json.NewEncoder(writer).Encode(handle(request)))
 	}))
 	t.Cleanup(server.Close)
-	client, err := dynamic.NewForConfig(&rest.Config{Host: server.URL})
+	client, err := dynamic.NewForConfig(&rest.Config{Host: server.URL, QPS: -1})
 	require.NoError(t, err)
 	return client
 }
@@ -192,6 +194,7 @@ func TestNativeEnumerateUsesBoundedSourcePagination(t *testing.T) {
 	var calls atomic.Int32
 	client := nativeTestHTTPClient(t, func(request *http.Request) *unstructured.UnstructuredList {
 		assert.Equal(t, "/apis/sample.example/v1/widgets", request.URL.Path)
+		// The page holds one record, so the List asks for exactly one.
 		assert.Equal(t, "1", request.URL.Query().Get("limit"))
 		if calls.Add(1) == 1 {
 			assert.Empty(t, request.URL.Query().Get("continue"))
@@ -231,6 +234,7 @@ func TestNativeEnumerateUsesBoundedSourcePagination(t *testing.T) {
 func TestNativeEnumerateSelectedNamespaces(t *testing.T) {
 	var calls atomic.Int32
 	client := nativeTestHTTPClient(t, func(request *http.Request) *unstructured.UnstructuredList {
+		// The page holds one record, so every List asks for exactly one.
 		assert.Equal(t, "1", request.URL.Query().Get("limit"))
 		switch calls.Add(1) {
 		case 1:
@@ -294,7 +298,7 @@ func TestNativeEnumerateAcceptsMaximumSourcePageSize(t *testing.T) {
 	client := nativeTestHTTPClient(t, func(request *http.Request) *unstructured.UnstructuredList {
 		calls.Add(1)
 		assert.Equal(t, "/apis/sample.example/v1/widgets", request.URL.Path)
-		assert.Equal(t, "1", request.URL.Query().Get("limit"))
+		assert.Equal(t, "256", request.URL.Query().Get("limit"))
 		assert.Empty(t, request.URL.Query().Get("continue"))
 		return nativeTestList()
 	})
@@ -459,8 +463,12 @@ func TestNativeEnumerateCompleteUnpaginatedLists(t *testing.T) {
 	})
 	t.Run("defer entire namespace", func(t *testing.T) {
 		var bCalls atomic.Int32
+		var limits []string
+		var mutex sync.Mutex
 		client := nativeTestHTTPClient(t, func(request *http.Request) *unstructured.UnstructuredList {
-			assert.Equal(t, "1", request.URL.Query().Get("limit"))
+			mutex.Lock()
+			limits = append(limits, request.URL.Query().Get("limit"))
+			mutex.Unlock()
 			if strings.Contains(request.URL.Path, "/namespaces/a/") {
 				return nativeTestList(nativeTestObject("a", "a"))
 			}
@@ -480,11 +488,17 @@ func TestNativeEnumerateCompleteUnpaginatedLists(t *testing.T) {
 		assert.Equal(t, "b2", second.Records[1].Reference.Address.ID)
 		assert.Nil(t, second.NextCursor)
 		assert.Equal(t, int32(2), bCalls.Load())
+		// Namespace a asks for the whole page; b then asks for the one slot left,
+		// ignores that limit, and is deferred whole to a page with room for it.
+		mutex.Lock()
+		defer mutex.Unlock()
+		assert.Equal(t, []string{"2", "1", "2"}, limits)
 	})
 	t.Run("continued unbounded response fails closed", func(t *testing.T) {
 		client := nativeTestClient()
 		client.PrependReactor("list", "widgets", func(action clienttesting.Action) (bool, runtime.Object, error) {
-			list := nativeTestList(nativeTestObject("a", "ns"), nativeTestObject("b", "ns"))
+			// Asked for at most two items, the server returns three and a token.
+			list := nativeTestList(nativeTestObject("a", "ns"), nativeTestObject("b", "ns"), nativeTestObject("c", "ns"))
 			list.SetContinue("next")
 			return true, list, nil
 		})
@@ -527,10 +541,13 @@ func TestNativeReadsEnforceResourceWireBudgets(t *testing.T) {
 
 func TestNativeEnumerateSingleItemSnapshotContinuation(t *testing.T) {
 	large := make([]any, 70000)
-	var tokens []string
+	var tokens, limits []string
+	var mutex sync.Mutex
 	client := nativeTestHTTPClient(t, func(request *http.Request) *unstructured.UnstructuredList {
-		assert.Equal(t, "1", request.URL.Query().Get("limit"))
+		mutex.Lock()
+		limits = append(limits, request.URL.Query().Get("limit"))
 		tokens = append(tokens, request.URL.Query().Get("continue"))
+		mutex.Unlock()
 		var name string
 		switch request.URL.Query().Get("continue") {
 		case "":
@@ -569,8 +586,13 @@ func TestNativeEnumerateSingleItemSnapshotContinuation(t *testing.T) {
 		}
 		request.Cursor = page.NextCursor
 	}
+	mutex.Lock()
+	defer mutex.Unlock()
 	assert.Equal(t, []string{"a", "b", "c"}, names)
 	assert.Equal(t, []string{"", "next-a", "next-a", "next-b", "next-b"}, tokens)
+	// Every page asks for its whole capacity first; the one-item answer leaves 255
+	// slots, and the next object, which no longer fits, ends the page.
+	assert.Equal(t, []string{"256", "255", "256", "255", "256"}, limits)
 }
 
 func TestNativeCursorRejectsChangedConnectionGeneration(t *testing.T) {
