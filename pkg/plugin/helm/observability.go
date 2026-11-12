@@ -35,7 +35,8 @@ func helmDebugSink(ctx context.Context) action.DebugLog {
 // returned error.
 func locateAndLoadChart(ctx context.Context, opts *action.ChartPathOptions, chartRef string, settings *cli.EnvSettings) (*chart.Chart, error) {
 	span := trace.SpanFromContext(ctx)
-	chartPath, err := opts.LocateChart(chartRef, settings)
+	chartPath, cleanup, err := locateChartArchive(ctx, opts, chartRef, settings)
+	defer cleanup()
 	if err != nil {
 		span.AddEvent("chart_load_failed", trace.WithAttributes(
 			attribute.String("stage", "locate"),

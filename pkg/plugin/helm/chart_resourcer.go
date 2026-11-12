@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -29,44 +28,26 @@ func NewChartResourcer(logger *zap.SugaredLogger) *ChartResourcer {
 	}
 }
 
-// loadAllIndexes loads all repo index files from the Helm cache directory.
-func loadAllIndexes() (map[string]*repo.IndexFile, error) {
+// loadConfiguredIndex loads the cached index of one configured repository.
+// ok is false when the repository is not configured or has no cached index.
+// Only the requested index is read, so the limit on one index file applies per
+// repository and not to the sum over every configured repository.
+func loadConfiguredIndex(name string) (idx *repo.IndexFile, ok bool, err error) {
 	f, err := loadRepoFile()
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-
-	settings := cli.New()
-	cachePath := settings.RepositoryCache
-
-	var totalBytes int64
-	for _, entry := range f.Repositories {
-		info, err := os.Stat(filepath.Join(cachePath, entry.Name+"-index.yaml"))
-		if os.IsNotExist(err) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		if info.Size() > (16<<20)-totalBytes {
-			return nil, fmt.Errorf("Helm cached indexes exceed 16 MiB")
-		}
-		totalBytes += info.Size()
+	if !f.Has(name) {
+		return nil, false, nil
 	}
-	indexes := make(map[string]*repo.IndexFile, len(f.Repositories))
-	for _, entry := range f.Repositories {
-		indexPath := filepath.Join(cachePath, entry.Name+"-index.yaml")
-		if _, statErr := os.Stat(indexPath); os.IsNotExist(statErr) {
-			continue
-		}
-		idx, loadErr := loadIndex(entry.Name)
-		if loadErr != nil {
-			return nil, loadErr
-		}
-		indexes[entry.Name] = idx
+	idx, err = loadIndex(name)
+	if os.IsNotExist(err) {
+		return nil, false, nil
 	}
-
-	return indexes, nil
+	if err != nil {
+		return nil, false, err
+	}
+	return idx, true, nil
 }
 
 // chartVersionToMap converts a ChartVersion into a flat map suitable for the SDK.
@@ -263,12 +244,10 @@ func (r *ChartResourcerWithActions) executeGetReadme(ctx context.Context, repoNa
 }
 
 func (r *ChartResourcerWithActions) executeGetVersions(repoName, chartName string) (resource.Value, error) {
-	indexes, err := loadAllIndexes()
+	idx, ok, err := loadConfiguredIndex(repoName)
 	if err != nil {
 		return resource.Value{}, err
 	}
-
-	idx, ok := indexes[repoName]
 	if !ok {
 		return resource.Value{}, fmt.Errorf("repository %s not found in local cache", repoName)
 	}

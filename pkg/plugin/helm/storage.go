@@ -156,26 +156,61 @@ func (h *HelmAncillary) enumerateReleases(ctx context.Context, c *clients.Client
 	if metadata.Continue != "" {
 		page.NextCursor = &metadata.Continue
 	}
-	budget := 0
-	for _, item := range metadata.Items {
+	// Every revision of a release is its own storage entry. Only the newest
+	// revision of each release is decoded, chosen from the labels Helm writes on
+	// every storage entry, so older revisions cost nothing beyond the listing.
+	type releaseKey struct{ namespace, name string }
+	latest := make(map[releaseKey]int, len(metadata.Items))
+	versions := make([]int, len(metadata.Items))
+	for i, item := range metadata.Items {
 		name := item.Labels["name"]
 		if name == "" {
 			return resource.SourcePage{}, fmt.Errorf("Helm storage entry lacks release name")
 		}
-		namespace := item.Namespace
-		if namespace == "" {
+		if item.Namespace == "" {
 			return resource.SourcePage{}, fmt.Errorf("Helm storage entry lacks namespace")
 		}
-		cfg, err := h.release.getConfig(ctx, c, namespace)
-		if err != nil {
-			return resource.SourcePage{}, err
+		version, err := strconv.Atoi(item.Labels["version"])
+		if err != nil || version < 1 {
+			return resource.SourcePage{}, fmt.Errorf("invalid native Helm revision")
 		}
-		snapshot, err := getNamedRelease(ctx, c, cfg, namespace, name, nil)
-		if err != nil {
-			return resource.SourcePage{}, err
+		versions[i] = version
+		key := releaseKey{item.Namespace, name}
+		if best, seen := latest[key]; !seen || version > versions[best] {
+			latest[key] = i
 		}
-		if strconv.Itoa(snapshot.release.Version) != item.Labels["version"] || (item.UID != "" && string(item.UID) != snapshot.identity.uid) {
+	}
+	complete := releasePageHoldsAllRevisions(metadata.Items, r.Cursor != nil, metadata.Continue != "")
+	configs := map[string]*action.Configuration{}
+	budget := 0
+	for i, item := range metadata.Items {
+		name, namespace := item.Labels["name"], item.Namespace
+		if latest[releaseKey{namespace, name}] != i {
 			continue
+		}
+		identity := releaseStorageIdentity{version: versions[i], uid: string(item.UID)}
+		if !complete(namespace, name) {
+			// Revisions of this release continue on another page, so the newest
+			// revision on this page may not be the newest overall.
+			current, err := latestReleaseIdentity(ctx, c, namespace, name)
+			if err != nil {
+				return resource.SourcePage{}, err
+			}
+			if current.version != identity.version || (item.UID != "" && string(item.UID) != current.uid) {
+				continue
+			}
+		}
+		cfg := configs[namespace]
+		if cfg == nil {
+			cfg, err = h.release.getConfig(ctx, c, namespace)
+			if err != nil {
+				return resource.SourcePage{}, err
+			}
+			configs[namespace] = cfg
+		}
+		snapshot, err := getReleaseRevision(ctx, cfg, namespace, name, identity)
+		if err != nil {
+			return resource.SourcePage{}, err
 		}
 		identityScope := []resource.ScopeEntry{{Dimension: "namespace", Value: namespace}}
 		record, err := helmReleaseRecord(targetReference(r.Target, name, identityScope), snapshot)
@@ -193,6 +228,58 @@ func (h *HelmAncillary) enumerateReleases(ctx context.Context, c *clients.Client
 		page.Records = append(page.Records, record)
 	}
 	return page, nil
+}
+
+// releasePageHoldsAllRevisions returns a predicate reporting whether every
+// storage entry of a release is guaranteed to be on this page. Kubernetes lists
+// storage entries in key order (namespace/sh.helm.release.v1.<name>.v<version>),
+// so all keys sharing a release's prefix lie on the page when the page starts
+// before the prefix and ends after it. A page that is not sorted is never
+// trusted, which makes callers fall back to a release-qualified lookup.
+func releasePageHoldsAllRevisions(items []metav1.PartialObjectMetadata, hasPrevious, hasNext bool) func(namespace, name string) bool {
+	if !hasPrevious && !hasNext {
+		return func(string, string) bool { return true }
+	}
+	if len(items) == 0 {
+		return func(string, string) bool { return false }
+	}
+	keys := make([]string, len(items))
+	for i, item := range items {
+		keys[i] = item.Namespace + "/" + item.Name
+		if i > 0 && keys[i] <= keys[i-1] {
+			return func(string, string) bool { return false }
+		}
+	}
+	first, last := keys[0], keys[len(keys)-1]
+	return func(namespace, name string) bool {
+		prefix := namespace + "/sh.helm.release.v1." + name + ".v"
+		if hasPrevious && first >= prefix {
+			return false
+		}
+		return !hasNext || (last > prefix && !strings.HasPrefix(last, prefix))
+	}
+}
+
+// getReleaseRevision decodes exactly one known storage revision. The caller
+// already holds the revision's identity from a metadata listing, so no further
+// metadata or reachability request is made.
+func getReleaseRevision(ctx context.Context, cfg *action.Configuration, namespace, name string, identity releaseStorageIdentity) (namedReleaseSnapshot, error) {
+	snapshot := namedReleaseSnapshot{identity: identity}
+	if err := ctx.Err(); err != nil {
+		return snapshot, err
+	}
+	if err := chartutil.ValidateReleaseName(name); err != nil {
+		return snapshot, err
+	}
+	rel, err := cfg.Releases.Get(name, identity.version)
+	if err != nil {
+		return snapshot, err
+	}
+	if rel.Name != name || rel.Namespace != namespace || rel.Version != identity.version {
+		return snapshot, resource.NewError("RESET_REQUIRED", "The installed Helm release target changed")
+	}
+	snapshot.release = rel
+	return snapshot, nil
 }
 
 type releaseStorageIdentity struct {
