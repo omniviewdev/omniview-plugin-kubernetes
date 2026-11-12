@@ -108,6 +108,11 @@ func (e *eksAuthTransport) refreshTokenLocked(ctx context.Context) error {
 }
 
 func (e *eksAuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	return e.roundTripOver(e.base(), req)
+}
+
+// roundTripOver authenticates req with the cached token, refreshing it when expired, and sends it over base.
+func (e *eksAuthTransport) roundTripOver(base http.RoundTripper, req *http.Request) (*http.Response, error) {
 	ctx := req.Context()
 
 	e.mu.Lock()
@@ -125,7 +130,7 @@ func (e *eksAuthTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	req2 := req.Clone(ctx)
 	req2.Header.Set("Authorization", "Bearer "+token)
 
-	resp, err := e.base().RoundTrip(req2)
+	resp, err := base.RoundTrip(req2)
 	if err != nil {
 		// never log the error text (*url.Error carries the request URL) or the response.
 		fields := append([]any{"connection", e.Connection}, diag.ClassifyError(err, false).LogFields()...)
@@ -140,4 +145,26 @@ func (e *eksAuthTransport) base() http.RoundTripper {
 		return e.Base
 	}
 	return http.DefaultTransport
+}
+
+// wrapTransport layers EKS authentication, backed by e's token cache, over rt. It is a
+// rest.Config.WrapTransport function: transports that client-go builds from the config
+// authenticate and share one cache instead of each minting their own tokens.
+func (e *eksAuthTransport) wrapTransport(rt http.RoundTripper) http.RoundTripper {
+	return &eksBearerTransport{tokens: e, base: rt}
+}
+
+// eksBearerTransport authenticates requests over base with the tokens of a shared eksAuthTransport.
+type eksBearerTransport struct {
+	tokens *eksAuthTransport
+	base   http.RoundTripper
+}
+
+func (t *eksBearerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	return t.tokens.roundTripOver(t.base, req)
+}
+
+// WrappedRoundTripper exposes the wrapped transport for connection retirement.
+func (t *eksBearerTransport) WrappedRoundTripper() http.RoundTripper {
+	return t.base
 }

@@ -11,8 +11,15 @@ const (
 	awsIamAuthenticatorCommand = "aws-iam-authenticator"
 )
 
+// usesExec reports whether the kubeconfig user authenticates through an exec credential plugin.
+// A context with no user, or one naming a user that is not in the kubeconfig, has no AuthInfo at
+// all. That is a valid anonymous context, not an exec user.
+func usesExec(auth *clientcmdapi.AuthInfo) bool {
+	return auth != nil && auth.Exec != nil
+}
+
 func isEKSAuth(auth *clientcmdapi.AuthInfo) bool {
-	return auth.Exec != nil &&
+	return usesExec(auth) &&
 		((auth.Exec.Command == awsCliCommand && contains(auth.Exec.Args, "eks")) ||
 			(auth.Exec.Command == awsIamAuthenticatorCommand))
 }
@@ -23,7 +30,7 @@ func IsEKSAuth(auth *clientcmdapi.AuthInfo) bool {
 }
 
 func isGCPAuth(auth *clientcmdapi.AuthInfo) bool {
-	return auth.Exec != nil && auth.Exec.Command == "gcloud"
+	return usesExec(auth) && auth.Exec.Command == "gcloud"
 }
 
 // IsGCPAuth returns true if the auth info uses GCP/gcloud authentication.
@@ -32,7 +39,7 @@ func IsGCPAuth(auth *clientcmdapi.AuthInfo) bool {
 }
 
 func isAKSAuth(auth *clientcmdapi.AuthInfo) bool {
-	return auth.Exec != nil && auth.Exec.Command == "az"
+	return usesExec(auth) && auth.Exec.Command == "az"
 }
 
 // IsAKSAuth returns true if the auth info uses Azure AKS authentication.
