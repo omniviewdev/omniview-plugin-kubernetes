@@ -1040,7 +1040,11 @@ The plugin automatically discovers clusters from your `~/.kube/config` file. You
 - Configure node shell image and command overrides
 
 Connection discovery uses up to four concurrent requests while retaining
-client-go throttling and server retry handling. Optional OpenAPI work starts only
+client-go throttling and server retry handling. Inside the acquisition timeout, a
+discovery request that fails with a closed or reset connection, a handshake or
+network timeout, or HTTP 429/5xx is repeated up to twice after a short jittered
+backoff; authentication and authorization failures and cancellation are never
+retried. Optional OpenAPI work starts only
 for demanded group/versions. One provider-wide gate bounds concurrent reads and
 decodes to four documents, each at most 16 MiB; retained bytes remain capped at
 32 MiB. Transient memory also includes the transport's separate response buffers.

@@ -202,7 +202,15 @@ func (r nativeDiscoveryReader) Read(p []byte) (int, error) {
 	return n, err
 }
 
+// readNativeDiscovery reads one discovery document, repeating the request while
+// it fails with a transient transport or overload error.
 func readNativeDiscovery(ctx context.Context, client rest.Interface, path string, into any, budget *nativeDiscoveryBudget) error {
+	return retryNativeRequest(ctx, func() error {
+		return readNativeDiscoveryOnce(ctx, client, path, into, budget)
+	})
+}
+
+func readNativeDiscoveryOnce(ctx context.Context, client rest.Interface, path string, into any, budget *nativeDiscoveryBudget) error {
 	budget.mu.Lock()
 	exhausted := budget.remaining == 0 && budget.inFlight == 0
 	budget.mu.Unlock()
