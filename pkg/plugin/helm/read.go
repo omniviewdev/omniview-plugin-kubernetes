@@ -85,9 +85,14 @@ func loadIndex(name string) (*repo.IndexFile, error) {
 	return index, nil
 }
 
-// maxParsedIndexes bounds the parsed index cache; the least recently used entry
-// is dropped first.
-const maxParsedIndexes = 16
+// The parsed index cache is bounded by the total size of the index files it
+// holds, since a parsed index occupies several times its file size, and by entry
+// count. The least recently used entries are dropped first; an index larger than
+// the byte budget by itself is not retained.
+const (
+	maxParsedIndexBytes = 32 << 20
+	maxParsedIndexes    = 16
+)
 
 type parsedIndex struct {
 	modTime time.Time
@@ -99,6 +104,7 @@ type parsedIndex struct {
 type parsedIndexCache struct {
 	mu      sync.Mutex
 	clock   uint64
+	bytes   int64
 	entries map[string]*parsedIndex
 }
 
@@ -122,7 +128,11 @@ func (c *parsedIndexCache) put(path string, info os.FileInfo, index *repo.IndexF
 	if c.entries == nil {
 		c.entries = make(map[string]*parsedIndex, maxParsedIndexes)
 	}
-	if _, replacing := c.entries[path]; !replacing && len(c.entries) >= maxParsedIndexes {
+	c.removeLocked(path)
+	if info.Size() > maxParsedIndexBytes {
+		return
+	}
+	for len(c.entries) > 0 && (len(c.entries) >= maxParsedIndexes || c.bytes+info.Size() > maxParsedIndexBytes) {
 		var oldest string
 		var oldestUse uint64
 		for key, entry := range c.entries {
@@ -130,16 +140,24 @@ func (c *parsedIndexCache) put(path string, info os.FileInfo, index *repo.IndexF
 				oldest, oldestUse = key, entry.used
 			}
 		}
-		delete(c.entries, oldest)
+		c.removeLocked(oldest)
 	}
 	c.clock++
 	c.entries[path] = &parsedIndex{modTime: info.ModTime(), size: info.Size(), index: index, used: c.clock}
+	c.bytes += info.Size()
+}
+
+func (c *parsedIndexCache) removeLocked(path string) {
+	if entry, ok := c.entries[path]; ok {
+		c.bytes -= entry.size
+		delete(c.entries, path)
+	}
 }
 
 func (c *parsedIndexCache) forget(path string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	delete(c.entries, path)
+	c.removeLocked(path)
 }
 
 func (h *HelmAncillary) Enumerate(ctx context.Context, c *clients.ClientSet, r resource.EnumerateRequest) (resource.SourcePage, error) {
