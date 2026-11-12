@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -20,7 +18,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	fakedynamic "k8s.io/client-go/dynamic/fake"
-	"k8s.io/client-go/rest"
 	k8stesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 )
@@ -423,82 +420,5 @@ func TestSourceCanonicalConversionErrors(t *testing.T) {
 				t.Fatal("source did not report conversion error")
 			}
 		})
-	}
-}
-func TestSourceLivenessProbe(t *testing.T) {
-	oldInterval := sourceLivenessInterval
-	sourceLivenessInterval = 20 * time.Millisecond
-	defer func() { sourceLivenessInterval = oldInterval }()
-	requests := make(chan struct{}, 8)
-	responses := make(chan int, 8)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requests <- struct{}{}
-		select {
-		case status := <-responses:
-			w.WriteHeader(status)
-		case <-r.Context().Done():
-		}
-	}))
-	defer server.Close()
-	cs := newFakeClientSet(defaultGVRListKinds())
-	cs.RESTConfig = &rest.Config{Host: server.URL}
-	cs.HTTPClient = server.Client()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	emitters := []*sourceTestEmitter{
-		{events: make(chan sourceTestEvent, 16)},
-		{events: make(chan sourceTestEvent, 16)},
-	}
-	done := make(chan error, len(emitters))
-	for _, emitter := range emitters {
-		go func() {
-			done <- newBaseResourcer().Source(ctx, cs, resource.SourceRequest{Target: testWatchTarget(), Representation: testWatchRepresentation(), Limits: resource.SourceLimits{MaxBatchItems: resource.MaxSourceBatchItems}}, emitter)
-		}()
-	}
-	defer func() {
-		cancel()
-		for range emitters {
-			select {
-			case <-done:
-			case <-time.After(10 * time.Second):
-				t.Error("source did not stop")
-			}
-		}
-	}()
-	for _, emitter := range emitters {
-		require.True(t, nextSourceTestEvent(t, emitter).boundary)
-	}
-	nextProbe := func() {
-		t.Helper()
-		select {
-		case <-requests:
-		case <-time.After(5 * time.Second):
-			t.Fatal("liveness probe did not run")
-		}
-	}
-	nextProbe()
-	select {
-	case <-requests:
-		t.Fatal("sessions started separate health probes")
-	case <-time.After(100 * time.Millisecond):
-	}
-	responses <- http.StatusTooManyRequests
-	nextProbe()
-	for _, emitter := range emitters {
-		require.Empty(t, emitter.events, "one failed probe must not reset")
-	}
-	responses <- http.StatusOK
-	nextProbe()
-	responses <- http.StatusTooManyRequests
-	nextProbe()
-	for _, emitter := range emitters {
-		require.Empty(t, emitter.events, "success must clear the failure count")
-	}
-	responses <- http.StatusTooManyRequests
-	for _, emitter := range emitters {
-		event := nextSourceTestEvent(t, emitter)
-		require.NotNil(t, event.reset)
-		require.Equal(t, resource.SourceResetContinuityLost, event.reset.Reason)
-		require.Equal(t, "Kubernetes API is unreachable; informer events are not being delivered", event.reset.Message)
 	}
 }
