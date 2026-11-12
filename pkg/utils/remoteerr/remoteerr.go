@@ -32,6 +32,10 @@ func (e *safeError) Unwrap() error { return e.class }
 //   - Cancellation and deadlines stay matchable with errors.Is.
 //   - Kubernetes API failures keep their status code and allow-listed reason and
 //     stay matchable with apierrors helpers, but lose the server message.
+//   - Transport failures (timeouts, resets, end of stream, certificate checks)
+//     keep a fixed phrase and the SDK code that reports them, so callers still
+//     tell a timeout from a refused connection. Endpoints, addresses and
+//     certificate details are dropped.
 //   - Everything else becomes "<operation> failed".
 //
 // operation must be a fixed string written by our code.
@@ -66,6 +70,12 @@ func Sanitize(operation string, err error) error {
 			class: &apierrors.StatusError{ErrStatus: metav1.Status{
 				Status: metav1.StatusFailure, Reason: reason, Code: int32(class.StatusCode),
 			}},
+		}
+	case diag.ClassNetwork, diag.ClassCertificate:
+		failure, _ := class.TransportFailure()
+		return &safeError{
+			msg:   operation + " failed: " + failure.Text,
+			class: resource.NewError(failure.Code, operation+" failed ("+failure.Code+")"),
 		}
 	default:
 		return &safeError{msg: operation + " failed"}

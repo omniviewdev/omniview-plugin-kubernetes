@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -61,6 +63,27 @@ func TestNativeGetSpanClassifiesFailureWithoutProviderText(t *testing.T) {
 	require.NoError(t, marshalErr)
 	assert.NotContains(t, string(encoded), "secret-provider-text")
 	assert.NotContains(t, spans[0].Status.Description, "secret-provider-text")
+}
+
+func TestNativeGetSpanClassifiesTransportFailureWithItsCauseType(t *testing.T) {
+	exporter := captureSpans(t)
+	client := nativeTestClient()
+	client.PrependReactor("get", "widgets", func(clienttesting.Action) (bool, runtime.Object, error) {
+		return true, nil, &url.Error{Op: "Get", URL: "https://secret-host.internal:6443/apis/example/v1/widgets/native-name", Err: io.EOF}
+	})
+	_, err := NativeGet(context.Background(), client, nativeTestGVR, true, nativeTestGet("team-a"), nativeTestRepresentation())
+	require.Error(t, err)
+	spans := exporter.GetSpans()
+	require.Len(t, spans, 1)
+	attributes := spanAttributes(spans[0])
+	assert.Equal(t, "failure", attributes["outcome"])
+	assert.Equal(t, "network", attributes["error.class"])
+	assert.Equal(t, "eof", attributes["error.reason"])
+	assert.Equal(t, "*errors.errorString", attributes["error.type"])
+	encoded, marshalErr := json.Marshal(spans[0].Attributes)
+	require.NoError(t, marshalErr)
+	assert.NotContains(t, string(encoded), "secret-host")
+	assert.NotContains(t, spans[0].Status.Description, "secret-host")
 }
 
 func TestNativeEnumerateSpanReportsItemCount(t *testing.T) {

@@ -3,6 +3,7 @@ package logs
 import (
 	"context"
 	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -220,6 +221,89 @@ func TestNativeErrorsKeepDiagnosticsOffWire(t *testing.T) {
 	require.Error(t, err)
 	require.NotContains(t, err.Error(), "secret")
 	awaitReleased(t, released)
+}
+
+func TestNativeOpenErrorsKeepTheirClass(t *testing.T) {
+	for _, tc := range []struct {
+		status int
+		code   string
+	}{
+		{http.StatusBadRequest, "INVALID_REQUEST"},
+		{http.StatusUnauthorized, "UNAUTHORIZED"},
+		{http.StatusForbidden, "FORBIDDEN"},
+		{http.StatusNotFound, "NOT_FOUND"},
+		{http.StatusTooManyRequests, "RESOURCE_LIMIT"},
+		{http.StatusInternalServerError, "PROVIDER_ERROR"},
+		{http.StatusBadGateway, "UNAVAILABLE"},
+		{http.StatusServiceUnavailable, "UNAVAILABLE"},
+		{http.StatusGatewayTimeout, "TIMEOUT"},
+	} {
+		t.Run(http.StatusText(tc.status), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				http.Error(w, "secret kube credential diagnostic", tc.status)
+			}))
+			defer server.Close()
+			released := make(chan struct{})
+			ctx := &types.PluginContext{Context: context.Background(), Connection: &types.Connection{ID: "selected"}}
+			stream, err := nativeHandler(testBorrower(t, server, released))(ctx, sdklogs.LogStreamRequest{
+				Labels: map[string]string{"pod": "pod", "namespace": "ns"},
+			})
+			require.Nil(t, stream)
+			require.Error(t, err)
+			require.Equal(t, tc.code, resourcev2.ErrorCode(err))
+			require.NotContains(t, err.Error(), "secret")
+			awaitReleased(t, released)
+		})
+	}
+}
+
+func TestNativeReadFailureKeepsItsClass(t *testing.T) {
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The connection is dropped when fewer bytes than declared are written.
+		w.Header().Set("Content-Length", "1000")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, "2026-11-03T00:00:01Z partial secret line\n")
+	}))
+	server.Config.ErrorLog = log.New(io.Discard, "", 0)
+	server.Start()
+	defer server.Close()
+	released := make(chan struct{})
+	ctx := &types.PluginContext{Context: context.Background(), Connection: &types.Connection{ID: "selected"}}
+	stream, err := nativeHandler(testBorrower(t, server, released))(ctx, sdklogs.LogStreamRequest{
+		Labels: map[string]string{"pod": "pod", "namespace": "ns"},
+	})
+	require.NoError(t, err)
+	_, err = io.ReadAll(stream)
+	require.Error(t, err)
+	require.Equal(t, "UNAVAILABLE", resourcev2.ErrorCode(err), "a body cut short is a transport failure, not INTERNAL")
+	require.NotContains(t, err.Error(), "secret")
+	awaitReleased(t, released)
+}
+
+func TestNativeResolverErrorsKeepTheirClass(t *testing.T) {
+	for _, tc := range []struct {
+		status int
+		code   string
+	}{
+		{http.StatusForbidden, "FORBIDDEN"},
+		{http.StatusNotFound, "NOT_FOUND"},
+	} {
+		t.Run(http.StatusText(tc.status), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				http.Error(w, "secret kube credential diagnostic", tc.status)
+			}))
+			defer server.Close()
+			released := make(chan struct{})
+			ctx := &types.PluginContext{Context: context.Background(), Connection: &types.Connection{ID: "selected"}}
+			result, err := nativeResolver(testBorrower(t, server, released), DeploymentSourceResolver)(ctx,
+				taggedFixture(map[string]any{"metadata": map[string]any{"name": "deploy", "namespace": "ns"}}), sdklogs.SourceResolverOptions{})
+			require.Nil(t, result)
+			require.Error(t, err)
+			require.Equal(t, tc.code, resourcev2.ErrorCode(err))
+			require.NotContains(t, err.Error(), "secret")
+			awaitReleased(t, released)
+		})
+	}
 }
 
 func TestNativeFiniteCanonicalSourceNeedsNoObservedBody(t *testing.T) {
