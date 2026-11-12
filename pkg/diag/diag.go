@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -22,8 +23,18 @@ var (
 	connChecks, _   = sdkdiag.Default().Counter("omniview.plugin.self.connection.checks", "1")
 	forwards, _     = sdkdiag.Default().Counter("omniview.plugin.self.portforward.sessions", "1")
 
-	openWatches atomic.Int64
+	watchMu     sync.Mutex
+	openWatches int64
 )
+
+// addWatches adjusts the open-watch count and publishes it under one lock so
+// concurrent opens and closes cannot leave a stale value in the gauge.
+func addWatches(n int64) {
+	watchMu.Lock()
+	defer watchMu.Unlock()
+	openWatches += n
+	watchStreams.Set(float64(openWatches), attr(sdkdiag.KeyState, "open"))
+}
 
 func attr(key sdkdiag.Key, value string) sdkdiag.Attr { return sdkdiag.Attr{Key: key, Value: value} }
 
@@ -38,6 +49,17 @@ func Transport(base http.RoundTripper) http.RoundTripper {
 }
 
 type transport struct{ base http.RoundTripper }
+
+// WrappedRoundTripper lets client-go utilities (for example
+// utilnet.CloseIdleConnectionsFor) reach the underlying transport.
+func (t *transport) WrappedRoundTripper() http.RoundTripper { return t.base }
+
+// CloseIdleConnections closes idle connections on the wrapped transport.
+func (t *transport) CloseIdleConnections() {
+	if c, ok := t.base.(interface{ CloseIdleConnections() }); ok {
+		c.CloseIdleConnections()
+	}
+}
 
 func operation(req *http.Request) string {
 	if req.Method == http.MethodGet && req.URL != nil {
@@ -84,7 +106,7 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		apiDuration.Observe(time.Since(start).Seconds(), attr(sdkdiag.KeyOperation, op))
 	}
 	if op == "watch" && err == nil && resp != nil && resp.Body != nil {
-		watchStreams.Set(float64(openWatches.Add(1)), attr(sdkdiag.KeyState, "open"))
+		addWatches(1)
 		resp.Body = &watchBody{ReadCloser: resp.Body}
 	}
 	return resp, err
@@ -97,7 +119,7 @@ type watchBody struct {
 
 func (b *watchBody) Close() error {
 	if b.closed.CompareAndSwap(false, true) {
-		watchStreams.Set(float64(openWatches.Add(-1)), attr(sdkdiag.KeyState, "open"))
+		addWatches(-1)
 	}
 	return b.ReadCloser.Close()
 }

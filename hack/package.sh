@@ -6,7 +6,7 @@
 # Writes dist/<plugin-id>-<os>_<arch>.tar.gz, the names the publish action
 # uploads. The plugin ID is the id in plugin.yaml unless PLUGIN_ID is set,
 # which publishes the same code under another ID: it is stamped into the
-# packaged plugin.yaml, the Go binary (pkg/pluginid) and the UI bundle.
+# packaged plugin.yaml, the Go binary (pkg/pluginid, with the version) and the UI bundle.
 # Each archive holds plugin.yaml, bin/plugin and assets/ at its root, which is
 # the layout the app installs.
 set -euo pipefail
@@ -41,7 +41,7 @@ for platform in "$@"; do
   echo "Building $platform"
   GOOS="$os" GOARCH="$arch" CGO_ENABLED=0 \
     GOWORK=off go build -trimpath \
-      -ldflags="-s -w -X github.com/omniview/kubernetes/pkg/pluginid.ID=$PLUGIN_ID" \
+      -ldflags="-s -w -X github.com/omniview/kubernetes/pkg/pluginid.ID=$PLUGIN_ID -X github.com/omniview/kubernetes/pkg/pluginid.Version=$VERSION" \
       -o "$stage/bin/plugin$ext" ./pkg
 
   # The released version is the tag, not whatever plugin.yaml said at the time,

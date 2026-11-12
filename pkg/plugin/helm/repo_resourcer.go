@@ -11,7 +11,6 @@ import (
 	resource "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"go.uber.org/zap"
 	"helm.sh/helm/v3/pkg/cli"
-	"helm.sh/helm/v3/pkg/getter"
 	"helm.sh/helm/v3/pkg/registry"
 	"helm.sh/helm/v3/pkg/repo"
 )
@@ -184,17 +183,10 @@ func (r *RepoResourcerWithActions) executeRefresh(ctx context.Context, input res
 		})
 	}
 
-	settings := cli.New()
-	chartRepo, err := repo.NewChartRepository(entry, getter.All(settings))
-	if err != nil {
-		return resource.Value{}, fmt.Errorf("failed to create chart repository: %w", err)
-	}
-	chartRepo.CachePath = settings.RepositoryCache
-
 	var indexPath string
 	if err := traceRepoIndex(ctx, r.log, entry.Name, "index", func() error {
 		var derr error
-		indexPath, derr = chartRepo.DownloadIndexFile()
+		indexPath, derr = downloadRepoIndex(ctx, entry, cli.New())
 		return derr
 	}); err != nil {
 		return resource.Value{}, fmt.Errorf("failed to refresh %s: %w", entry.Name, err)
@@ -213,12 +205,10 @@ func (r *RepoResourcerWithActions) executeRefresh(ctx context.Context, input res
 func (r *RepoResourcerWithActions) executeListCharts(input resource.ActionRequest) (resource.Value, error) {
 	repoName := input.Reference.Address.ID
 
-	indexes, err := loadAllIndexes()
+	idx, ok, err := loadConfiguredIndex(repoName)
 	if err != nil {
 		return resource.Value{}, err
 	}
-
-	idx, ok := indexes[repoName]
 	if !ok {
 		return resource.Value{}, fmt.Errorf("repository %s index not found in local cache", repoName)
 	}
@@ -293,15 +283,8 @@ func (r *RepoResourcerWithActions) executeAdd(ctx context.Context, input resourc
 		}
 	} else {
 		// Traditional HTTP(S) repository -- validate by downloading the index.
-		settings := cli.New()
-		chartRepo, err := repo.NewChartRepository(entry, getter.All(settings))
-		if err != nil {
-			return resource.Value{}, fmt.Errorf("failed to create chart repository: %w", err)
-		}
-		chartRepo.CachePath = settings.RepositoryCache
-
 		if err := traceRepoIndex(ctx, r.log, name, "index", func() error {
-			_, derr := chartRepo.DownloadIndexFile()
+			_, derr := downloadRepoIndex(ctx, entry, cli.New())
 			return derr
 		}); err != nil {
 			return resource.Value{}, fmt.Errorf("failed to download index for %s: %w", url, err)

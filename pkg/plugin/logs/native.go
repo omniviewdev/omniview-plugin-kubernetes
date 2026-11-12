@@ -32,6 +32,9 @@ func logRoute(ctx *types.PluginContext, route *resourcev2.AccessRoute) resourcev
 
 // safeLogError logs a classified Warn for err and returns a sanitized error
 // that never carries Kubernetes error text. The raw error text is never logged.
+// The returned error keeps the reviewed class of the failure (FORBIDDEN,
+// NOT_FOUND, INVALID_REQUEST, UNAVAILABLE, ...) so a caller can tell a
+// permanent failure from a transient one; only an unrecognized failure is INTERNAL.
 func safeLogError(ctx context.Context, log logging.Logger, operation string, err error) error {
 	if err == nil {
 		return nil
@@ -51,7 +54,20 @@ func safeLogError(ctx context.Context, log logging.Logger, operation string, err
 	if errors.Is(err, context.DeadlineExceeded) {
 		return context.DeadlineExceeded
 	}
-	return resourcev2.NewError("INTERNAL", "native log operation failed")
+	return resourcev2.NewError(logErrorCode(err, class), "native log operation failed")
+}
+
+// logErrorCode returns the SDK code that reports err: the reviewed code it
+// already carries, else the one its classification maps to, else INTERNAL.
+func logErrorCode(err error, class diag.Classification) string {
+	var coded *resourcev2.ResourceOperationError
+	if errors.As(err, &coded) && coded != nil && resourcev2.IsErrorCode(coded.Code) {
+		return coded.Code
+	}
+	if code := class.ResourceCode(); code != "" {
+		return code
+	}
+	return "INTERNAL"
 }
 
 type borrowedReader struct {

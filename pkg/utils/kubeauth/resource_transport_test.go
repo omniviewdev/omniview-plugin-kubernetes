@@ -15,9 +15,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/omniview/kubernetes/pkg/diag"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	utilnet "k8s.io/apimachinery/pkg/util/net"
 )
 
 func TestResourceConstructorPreservesAuth(t *testing.T) {
@@ -303,5 +305,25 @@ func TestResourceClientLifetimeCancelsDiscoveryAndFencesFutureHTTP(t *testing.T)
 	}
 	if got := requests.Load(); got != before {
 		t.Fatalf("retired bundle issued later HTTP: requests %d -> %d", before, got)
+	}
+}
+
+type idleCloseRecorder struct {
+	http.RoundTripper
+	closed int
+}
+
+func (c *idleCloseRecorder) CloseIdleConnections() { c.closed++ }
+
+func TestResourceResponseTransportReachableForIdleClose(t *testing.T) {
+	base := &idleCloseRecorder{RoundTripper: http.DefaultTransport}
+	utilnet.CloseIdleConnectionsFor(&resourceResponseTransport{base: base})
+	if base.closed != 1 {
+		t.Fatalf("CloseIdleConnections calls = %d, want 1", base.closed)
+	}
+	stacked := &idleCloseRecorder{RoundTripper: http.DefaultTransport}
+	utilnet.CloseIdleConnectionsFor(&resourceResponseTransport{base: diag.Transport(stacked)})
+	if stacked.closed != 1 {
+		t.Fatalf("stacked CloseIdleConnections calls = %d, want 1", stacked.closed)
 	}
 }

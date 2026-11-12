@@ -191,3 +191,40 @@ func TestDetectAuthStrategy_TokenAuth(t *testing.T) {
 	_, ok := strategy.(*DefaultAuthStrategy)
 	assert.True(t, ok, "expected *DefaultAuthStrategy for token auth, got %T", strategy)
 }
+
+// writeContextOnlyKubeconfig writes a kubeconfig that defines no users and one
+// context naming contextUser (possibly empty) as its user: the shape of a
+// kubectl-proxy or anonymous-API context, for which client-go has no AuthInfo.
+func writeContextOnlyKubeconfig(t *testing.T, server, contextUser string) string {
+	t.Helper()
+
+	cfg := clientcmdapi.NewConfig()
+	cfg.Clusters["test-cluster"] = &clientcmdapi.Cluster{Server: server}
+	cfg.Contexts["test-context"] = &clientcmdapi.Context{Cluster: "test-cluster", AuthInfo: contextUser}
+	cfg.CurrentContext = "test-context"
+
+	path := filepath.Join(t.TempDir(), "kubeconfig")
+	require.NoError(t, clientcmd.WriteToFile(*cfg, path))
+	return path
+}
+
+func TestDetectAuthStrategy_ContextWithoutUser(t *testing.T) {
+	// A context whose user is empty, or missing from the kubeconfig's users, has no
+	// AuthInfo. It is a valid anonymous context and must select the default
+	// strategy instead of dereferencing the missing AuthInfo.
+	for name, contextUser := range map[string]string{
+		"empty user":             "",
+		"user missing from list": "ghost",
+	} {
+		t.Run(name, func(t *testing.T) {
+			path := writeContextOnlyKubeconfig(t, "http://127.0.0.1:1", contextUser)
+
+			strategy, err := DetectAuthStrategy(path, "test-context")
+			require.NoError(t, err)
+			defaultStrategy, ok := strategy.(*DefaultAuthStrategy)
+			require.True(t, ok, "expected *DefaultAuthStrategy, got %T", strategy)
+			assert.False(t, defaultStrategy.exec, "a missing user is not an exec user")
+			assert.Equal(t, "default", authStrategyName(strategy))
+		})
+	}
+}

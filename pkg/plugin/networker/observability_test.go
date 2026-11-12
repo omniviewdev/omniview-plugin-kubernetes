@@ -1,7 +1,6 @@
 package networker
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"strings"
@@ -19,9 +18,19 @@ import (
 )
 
 func TestForwardLineCountReportsLinesNotContent(t *testing.T) {
-	assert.Equal(t, 0, forwardLineCount(new(bytes.Buffer)))
-	assert.Equal(t, 1, forwardLineCount(bytes.NewBufferString("secret-line")))
-	assert.Equal(t, 2, forwardLineCount(bytes.NewBufferString("secret-a\nsecret-b\n")))
+	count := func(chunks ...string) int {
+		w := new(lineCountWriter)
+		for _, c := range chunks {
+			n, err := w.Write([]byte(c))
+			require.NoError(t, err)
+			require.Equal(t, len(c), n)
+		}
+		return w.Lines()
+	}
+	assert.Equal(t, 0, count())
+	assert.Equal(t, 1, count("secret-line"))
+	assert.Equal(t, 2, count("secret-a\nsecret-b\n"))
+	assert.Equal(t, 2, count("secret-a\nsecret-", "b"), "a line split across writes counts once")
 }
 
 func TestForwardSetupFailureIsClassifiedAndDoesNotLeakKubeconfigPath(t *testing.T) {

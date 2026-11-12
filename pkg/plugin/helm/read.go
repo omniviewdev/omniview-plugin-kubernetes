@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 )
 
 func (h *HelmAncillary) Get(ctx context.Context, client *clients.ClientSet, request resource.GetRequest) (resource.Record, error) {
@@ -57,17 +59,107 @@ func (h *HelmAncillary) Get(ctx context.Context, client *clients.ClientSet, requ
 	}
 	return resource.Record{}, resource.NewError("NOT_FOUND", "Helm resource not found")
 }
+
+// loadIndex returns the parsed cached index of a repository. Parsing a large
+// index is expensive and paged chart reads repeat it, so parsed indexes are kept
+// and reused while the file's modification time and size are unchanged. The
+// returned index is shared and must not be modified.
 func loadIndex(name string) (*repo.IndexFile, error) {
 	path := filepath.Join(cli.New().RepositoryCache, name+"-index.yaml")
 	info, e := os.Stat(path)
 	if e != nil {
+		parsedIndexes.forget(path)
 		return nil, e
 	}
-	if info.Size() > 16<<20 {
+	if info.Size() > maxIndexBytes {
 		return nil, fmt.Errorf("Helm index exceeds 16 MiB")
 	}
-	return repo.LoadIndexFile(path)
+	if index := parsedIndexes.get(path, info); index != nil {
+		return index, nil
+	}
+	index, err := repo.LoadIndexFile(path)
+	if err != nil {
+		return nil, err
+	}
+	parsedIndexes.put(path, info, index)
+	return index, nil
 }
+
+// The parsed index cache is bounded by the total size of the index files it
+// holds, since a parsed index occupies several times its file size, and by entry
+// count. The least recently used entries are dropped first; an index larger than
+// the byte budget by itself is not retained.
+const (
+	maxParsedIndexBytes = 32 << 20
+	maxParsedIndexes    = 16
+)
+
+type parsedIndex struct {
+	modTime time.Time
+	size    int64
+	index   *repo.IndexFile
+	used    uint64
+}
+
+type parsedIndexCache struct {
+	mu      sync.Mutex
+	clock   uint64
+	bytes   int64
+	entries map[string]*parsedIndex
+}
+
+var parsedIndexes parsedIndexCache
+
+func (c *parsedIndexCache) get(path string, info os.FileInfo) *repo.IndexFile {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	entry := c.entries[path]
+	if entry == nil || entry.size != info.Size() || !entry.modTime.Equal(info.ModTime()) {
+		return nil
+	}
+	c.clock++
+	entry.used = c.clock
+	return entry.index
+}
+
+func (c *parsedIndexCache) put(path string, info os.FileInfo, index *repo.IndexFile) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.entries == nil {
+		c.entries = make(map[string]*parsedIndex, maxParsedIndexes)
+	}
+	c.removeLocked(path)
+	if info.Size() > maxParsedIndexBytes {
+		return
+	}
+	for len(c.entries) > 0 && (len(c.entries) >= maxParsedIndexes || c.bytes+info.Size() > maxParsedIndexBytes) {
+		var oldest string
+		var oldestUse uint64
+		for key, entry := range c.entries {
+			if oldest == "" || entry.used < oldestUse {
+				oldest, oldestUse = key, entry.used
+			}
+		}
+		c.removeLocked(oldest)
+	}
+	c.clock++
+	c.entries[path] = &parsedIndex{modTime: info.ModTime(), size: info.Size(), index: index, used: c.clock}
+	c.bytes += info.Size()
+}
+
+func (c *parsedIndexCache) removeLocked(path string) {
+	if entry, ok := c.entries[path]; ok {
+		c.bytes -= entry.size
+		delete(c.entries, path)
+	}
+}
+
+func (c *parsedIndexCache) forget(path string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.removeLocked(path)
+}
+
 func (h *HelmAncillary) Enumerate(ctx context.Context, c *clients.ClientSet, r resource.EnumerateRequest) (resource.SourcePage, error) {
 	if r.Target.Representation != "" && r.Target.Representation != helmRepresentation {
 		return resource.SourcePage{}, fmt.Errorf("unknown Helm representation")

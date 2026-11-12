@@ -10,6 +10,11 @@ package pluginid
 // ID defaults to the id in plugin.yaml.
 var ID = "kubernetes"
 
+// Version is the released plugin version. hack/package.sh stamps it at link
+// time with -X github.com/omniview/kubernetes/pkg/pluginid.Version=<version>;
+// unstamped builds report "dev".
+var Version = "dev"
+
 // ResourceProvider is the stable canonical resource provider, independent of the
 // installation ID. SDK exec resource selectors use this provider, not ID.
 const ResourceProvider = "kubernetes"
