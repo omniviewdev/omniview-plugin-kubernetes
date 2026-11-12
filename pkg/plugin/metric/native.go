@@ -13,6 +13,7 @@ import (
 	"github.com/omniview/kubernetes/pkg/diag"
 	"github.com/omniview/kubernetes/pkg/utils"
 	"github.com/omniview/kubernetes/pkg/utils/remoteerr"
+	logging "github.com/omniviewdev/plugin-sdk/log"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
 	sdkmetric "github.com/omniviewdev/plugin-sdk/pkg/v1/metric"
@@ -61,6 +62,7 @@ type nativeLane struct {
 	namespaceTurn uint64                              // Protected by nativeProvider.mu.
 	failures      map[nativeScanKey]nativeScanFailure // Protected by nativeProvider.mu.
 	failureOrder  uint64                              // Protected by nativeProvider.mu.
+	logged        map[nativeLogKey]time.Time          // Protected by nativeProvider.mu.
 }
 
 // nativeScanKey names one list endpoint whose failure is remembered. Access can
@@ -449,9 +451,15 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 				attribute.Bool("cache.hit", !scanned),
 				attribute.Bool("budget_exhausted", err == errNativeBudget),
 			))
-			promLog().Warnw(ctx, "native metrics namespace scan failed",
-				append([]any{"resource_namespace", namespace, "status", status, "cached_failure", !scanned,
-					"budget_exhausted", err == errNativeBudget}, diag.ClassifyError(err, false).LogFields()...)...)
+			if level, logged := p.scanFailureLevel(lane, namespace, err, scanned); logged {
+				fields := append([]any{"resource_namespace", namespace, "status", status, "cached_failure", !scanned,
+					"budget_exhausted", err == errNativeBudget}, diag.ClassifyError(err, false).LogFields()...)
+				if level == logging.LevelWarn {
+					promLog().Warnw(ctx, "native metrics namespace scan failed", fields...)
+				} else {
+					promLog().Debugw(ctx, "native metrics namespace scan failed", fields...)
+				}
+			}
 			for _, index := range indices {
 				for offset := range query.MetricIDs {
 					result := &response.Results[index*len(query.MetricIDs)+offset]

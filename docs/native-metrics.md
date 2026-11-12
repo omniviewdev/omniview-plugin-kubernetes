@@ -123,6 +123,15 @@ exhaustion do not create negative entries, including exhaustion encountered duri
 a decoder look-ahead. Expiry, eviction, or connection retirement permits a new
 read; absent metrics remain failed or denied, never zero or proven missing.
 
+Failed namespace scans are logged as `native metrics namespace scan failed`. A
+failure replayed from the negative cache is not logged, because no scan was
+repeated. A metrics API that is not served (404) is a standing condition: it
+warns the first time on a connection and is afterwards repeated at debug level
+at most once every 10 minutes. Any other live failure warns, at most once a
+minute for each namespace and failure class. Query warnings and the
+`native.scan_failed` span events are not affected: the response still carries one
+warning per failed namespace.
+
 ## Metric views
 
 - Tables use base-ui `MetricCell`: a fixed-density bar beside a compact value. Pod limits/requests and Node capacity come from their owning resources, in the catalog's physical units. Unknown bounds remain unknown.
