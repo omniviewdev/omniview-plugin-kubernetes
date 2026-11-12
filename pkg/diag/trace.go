@@ -3,6 +3,7 @@ package diag
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	resource "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"go.opentelemetry.io/otel"
@@ -20,9 +21,21 @@ func Tracer() trace.Tracer { return otel.Tracer(TracerName) }
 type Classification struct {
 	Outcome, Class, Reason string
 	StatusCode             int
+	// ErrorType is the Go type of the innermost wrapped error, such as
+	// "*net.OpError" or "syscall.Errno". It names a compile-time type and
+	// carries nothing from the error text, so it is safe in logs and spans.
+	ErrorType string
 }
 
 func ClassifyError(err error, inValidation bool) Classification {
+	c := classifyError(err, inValidation)
+	if err != nil {
+		c.ErrorType = fmt.Sprintf("%T", innermost(err))
+	}
+	return c
+}
+
+func classifyError(err error, inValidation bool) Classification {
 	if err == nil {
 		return Classification{Outcome: "success"}
 	}
@@ -49,6 +62,9 @@ func ClassifyError(err error, inValidation bool) Classification {
 		}
 		return Classification{Outcome: "failure", Class: "kubernetes", Reason: reason, StatusCode: int(s.Code)}
 	}
+	if transport, ok := ClassifyTransport(err); ok {
+		return Classification{Outcome: "failure", Class: transport.Class, Reason: transport.Reason}
+	}
 	return Classification{Outcome: "failure", Class: "other"}
 }
 func (c Classification) SpanAttrs() []attribute.KeyValue {
@@ -58,6 +74,11 @@ func (c Classification) SpanAttrs() []attribute.KeyValue {
 	}
 	if c.Class == "kubernetes" {
 		attrs = append(attrs, attribute.Int("k8s.status_code", c.StatusCode), attribute.String("k8s.reason", c.Reason))
+	} else if c.Reason != "" {
+		attrs = append(attrs, attribute.String("error.reason", c.Reason))
+	}
+	if c.ErrorType != "" {
+		attrs = append(attrs, attribute.String("error.type", c.ErrorType))
 	}
 	return attrs
 }
@@ -68,6 +89,11 @@ func (c Classification) LogFields() []any {
 	}
 	if c.Class == "kubernetes" {
 		fields = append(fields, "k8s_status_code", c.StatusCode, "k8s_reason", c.Reason)
+	} else if c.Reason != "" {
+		fields = append(fields, "error_reason", c.Reason)
+	}
+	if c.ErrorType != "" {
+		fields = append(fields, "error_type", c.ErrorType)
 	}
 	return fields
 }
