@@ -2,9 +2,13 @@ package resourcers
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
+	"io"
 	"math/rand/v2"
+	"net"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -114,7 +118,52 @@ func classifyWatchError(err error) watchErrorClassification {
 			return watchErrorClassification{code: "UNSUPPORTED", message: "Resource does not support this method"}
 		}
 	}
-	return watchErrorClassification{code: watchErrorCode(err), message: err.Error()}
+	code := watchErrorCode(err)
+	if code == "PROVIDER_ERROR" {
+		if transient, ok := classifyTransientWatchError(err); ok {
+			return transient
+		}
+	}
+	return watchErrorClassification{code: code, message: err.Error()}
+}
+
+// classifyTransientWatchError maps API server and transport failures that clear
+// without user action to the codes the host reopens a source on: UNAVAILABLE,
+// CONNECTION_ERROR and TIMEOUT. Any other code is terminal for the host.
+// Certificate failures do not clear by retrying and keep their own code.
+func classifyTransientWatchError(err error) (watchErrorClassification, bool) {
+	var status *k8serrors.StatusError
+	if errors.As(err, &status) {
+		switch code := status.ErrStatus.Code; {
+		case code == http.StatusRequestTimeout || code == http.StatusGatewayTimeout:
+			return watchErrorClassification{code: "TIMEOUT", message: "Kubernetes API server did not respond in time"}, true
+		case code == http.StatusTooManyRequests || code >= http.StatusInternalServerError:
+			return watchErrorClassification{code: "UNAVAILABLE", message: "Kubernetes API server is temporarily unavailable"}, true
+		}
+		return watchErrorClassification{}, false
+	}
+	var (
+		unknownAuthority x509.UnknownAuthorityError
+		invalid          x509.CertificateInvalidError
+		hostname         x509.HostnameError
+		verification     *tls.CertificateVerificationError
+	)
+	if errors.As(err, &unknownAuthority) || errors.As(err, &invalid) || errors.As(err, &hostname) || errors.As(err, &verification) {
+		return watchErrorClassification{code: "CERTIFICATE_ERROR", message: "Kubernetes API server certificate could not be verified"}, true
+	}
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return watchErrorClassification{code: "UNAVAILABLE", message: "Kubernetes API server is temporarily unavailable"}, true
+	}
+	// net.Error covers dial, reset and DNS failures, the TLS handshake timeout
+	// and url.Error around any of them.
+	var network net.Error
+	if errors.As(err, &network) {
+		if network.Timeout() {
+			return watchErrorClassification{code: "TIMEOUT", message: "Kubernetes API server did not respond in time"}, true
+		}
+		return watchErrorClassification{code: "CONNECTION_ERROR", message: "Unable to connect to the Kubernetes API server"}, true
+	}
+	return watchErrorClassification{}, false
 }
 
 func watchRecord(target resource.ReadTarget, representation resource.Representation, u *unstructured.Unstructured) (resource.Record, error) {
