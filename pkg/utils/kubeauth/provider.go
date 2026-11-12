@@ -3,16 +3,69 @@ package kubeauth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
+	"runtime"
 	"time"
 
 	"github.com/omniview/kubernetes/pkg/diag"
+	"github.com/omniview/kubernetes/pkg/pluginid"
 	"go.opentelemetry.io/otel/attribute"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/util/flowcontrol"
 )
+
+const (
+	// ConnectionQPS and ConnectionBurst are the API request limits for one
+	// connection's client bundle. Client-go builds a separate token bucket for
+	// every client it constructs from a config, so the bundle shares one
+	// limiter (rest.Config.RateLimiter, which overrides QPS/Burst) to make
+	// these the total for the clientset, dynamic, discovery and streaming
+	// clients together. A watch takes one token when it starts, so sharing
+	// with the streaming clientset only throttles watch (re)starts against
+	// other traffic, never an established stream.
+	ConnectionQPS   float32 = 50
+	ConnectionBurst         = 100
+)
+
+// newConnectionRateLimiter builds the limiter shared by one client bundle.
+// It is a variable so tests can observe which requests consult it.
+var newConnectionRateLimiter = func() flowcontrol.RateLimiter {
+	return flowcontrol.NewTokenBucketRateLimiter(ConnectionQPS, ConnectionBurst)
+}
+
+// userAgent identifies this plugin's API traffic in server audit logs.
+func userAgent() string {
+	return fmt.Sprintf("omniview-%s/%s (%s/%s)", pluginid.ID, pluginid.Version, runtime.GOOS, runtime.GOARCH)
+}
+
+// userAgentTransport sets the plugin user agent on requests that carry none.
+// Clients built from a pre-authenticated http.Client (EKS) ignore
+// rest.Config.UserAgent, so the header is applied on the transport instead.
+type userAgentTransport struct {
+	base http.RoundTripper
+}
+
+func (t *userAgentTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	base := t.base
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	if req.Header.Get("User-Agent") == "" {
+		req = req.Clone(req.Context())
+		req.Header.Set("User-Agent", userAgent())
+	}
+	return base.RoundTrip(req)
+}
+
+// setEKSUserAgent applies the plugin user agent to the pre-authenticated EKS
+// http client, whose transport is fixed before client-go reads the config.
+func setEKSUserAgent(client *http.Client) {
+	client.Transport = &userAgentTransport{base: client.Transport}
+}
 
 type KubeClientBundle struct {
 	Clientset  *kubernetes.Clientset
@@ -61,10 +114,16 @@ func LoadKubeClients(ctx context.Context, kubeconfigPath string, kubeContext str
 		span.AddEvent("rest_config")
 
 		// Raise rate limits from default (5 QPS / 10 burst) to avoid cascading
-		// timeouts when starting many informers concurrently.
-		restConfig.QPS = 50
-		restConfig.Burst = 100
+		// timeouts when starting many informers concurrently. One limiter is
+		// shared by every client built from this config.
+		restConfig.QPS = ConnectionQPS
+		restConfig.Burst = ConnectionBurst
+		restConfig.RateLimiter = newConnectionRateLimiter()
+		restConfig.UserAgent = userAgent()
 		restConfig.Wrap(diag.Transport)
+		if eks, ok := strategy.(*EKSAuthStrategy); ok && !eks.useDefault {
+			setEKSUserAgent(eks.httpClient)
+		}
 
 		operation = "clientset"
 		clientset, err := strategy.NewForConfig(restConfig)

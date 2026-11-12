@@ -10,6 +10,7 @@ import (
 	"mime"
 	"net/http"
 	"strings"
+	"time"
 
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"k8s.io/client-go/discovery"
@@ -19,6 +20,10 @@ import (
 )
 
 const ResourceResponseLimit = 32 * 1024 * 1024
+
+// ResourceRequestTimeout bounds one finite native resource request, from send
+// through the last body byte. Watches are exempt: they are long-lived by design.
+const ResourceRequestTimeout = 60 * time.Second
 
 // LoadResourceKubeClients opts finite native resource responses into a decoded
 // HTTP body budget. It must not be used for logs, exec, or metrics clients.
@@ -36,7 +41,9 @@ func LoadResourceKubeClients(ctx context.Context, path, kubeContext string) (*Ku
 		return nil, err
 	}
 	config = rest.CopyConfig(config)
-	config.QPS, config.Burst = 50, 100
+	config.QPS, config.Burst = ConnectionQPS, ConnectionBurst
+	config.RateLimiter = newConnectionRateLimiter()
+	config.UserAgent = userAgent()
 	config.AcceptContentTypes = "application/json"
 	config.ContentType = "application/json"
 	var client *http.Client
@@ -45,6 +52,7 @@ func LoadResourceKubeClients(ctx context.Context, path, kubeContext string) (*Ku
 		// Preserve that exact transport, including TLS and token acquisition.
 		copy := *eks.httpClient
 		client = &copy
+		setEKSUserAgent(client)
 	} else {
 		client, err = rest.HTTPClientFor(config)
 		if err != nil {
@@ -61,7 +69,7 @@ func LoadResourceKubeClients(ctx context.Context, path, kubeContext string) (*Ku
 	if err != nil {
 		return nil, err
 	}
-	client.Transport = &resourceResponseTransport{base: client.Transport, lifetime: ctx}
+	client.Transport = &resourceResponseTransport{base: client.Transport, lifetime: ctx, finiteTimeout: ResourceRequestTimeout}
 	clientset, err := kubernetes.NewForConfigAndClient(config, client)
 	if err != nil {
 		return nil, err
@@ -82,16 +90,31 @@ func LoadResourceKubeClients(ctx context.Context, path, kubeContext string) (*Ku
 type resourceResponseTransport struct {
 	base     http.RoundTripper
 	lifetime context.Context
+	// finiteTimeout, when positive, bounds every non-watch request.
+	finiteTimeout time.Duration
 }
 
 func (t *resourceResponseTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	watch := req.URL.Query().Get("watch")
+	watchRequest := watch == "true" || watch == "1"
 	var release func()
-	if t.lifetime != nil {
-		if err := t.lifetime.Err(); err != nil {
-			return nil, err
+	if t.lifetime != nil || (t.finiteTimeout > 0 && !watchRequest) {
+		if t.lifetime != nil {
+			if err := t.lifetime.Err(); err != nil {
+				return nil, err
+			}
 		}
-		ctx, cancel := context.WithCancel(req.Context())
-		stop := context.AfterFunc(t.lifetime, cancel)
+		var ctx context.Context
+		var cancel context.CancelFunc
+		if t.finiteTimeout > 0 && !watchRequest {
+			ctx, cancel = context.WithTimeout(req.Context(), t.finiteTimeout)
+		} else {
+			ctx, cancel = context.WithCancel(req.Context())
+		}
+		stop := func() bool { return true }
+		if t.lifetime != nil {
+			stop = context.AfterFunc(t.lifetime, cancel)
+		}
 		release = func() { stop(); cancel() }
 		req = req.WithContext(ctx)
 	}
@@ -108,8 +131,7 @@ func (t *resourceResponseTransport) RoundTrip(req *http.Request) (*http.Response
 	if err != nil {
 		return nil, err
 	}
-	watch := req.URL.Query().Get("watch")
-	stream := (watch == "true" || watch == "1") && response.StatusCode >= 200 && response.StatusCode < 300
+	stream := watchRequest && response.StatusCode >= 200 && response.StatusCode < 300
 	bodySource := response.Body
 	var reader io.Reader = bodySource
 	var decoded *gzip.Reader
