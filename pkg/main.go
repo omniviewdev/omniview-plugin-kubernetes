@@ -12,6 +12,7 @@ import (
 	pluginmetric "github.com/omniview/kubernetes/pkg/plugin/metric"
 	"github.com/omniview/kubernetes/pkg/plugin/networker"
 	"github.com/omniview/kubernetes/pkg/plugin/resource"
+	"github.com/omniview/kubernetes/pkg/plugin/zapbridge"
 	"github.com/omniview/kubernetes/pkg/pluginid"
 	logging "github.com/omniviewdev/plugin-sdk/log"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
@@ -123,6 +124,10 @@ func main() {
 			},
 		},
 	})
+
+	// sdk.NewPlugin has installed the SDK logger and its level. Route zap's
+	// global logger through it before any capability captures zap.S().
+	zapbridge.Install()
 
 	warnClientLogLevel := func(err error) {
 		logging.Default().Named("klogconfig").Warnw(context.Background(), "failed to apply client log level setting",
