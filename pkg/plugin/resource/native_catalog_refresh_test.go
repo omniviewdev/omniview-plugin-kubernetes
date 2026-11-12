@@ -34,6 +34,7 @@ type refreshHTTPFixture struct {
 	documents map[string]string
 	requests  map[string]int
 	fail      string
+	url       string
 	hook      func(http.ResponseWriter, *http.Request) bool
 }
 
@@ -62,6 +63,7 @@ func newRefreshHTTPFixture(t *testing.T) (*refreshHTTPFixture, *clients.ClientSe
 		_, _ = w.Write([]byte(body))
 	}))
 	t.Cleanup(server.Close)
+	f.url = server.URL
 	d, err := discovery.NewDiscoveryClientForConfig(&rest.Config{Host: server.URL})
 	require.NoError(t, err)
 	return f, &clients.ClientSet{DiscoveryClient: d, KubeClient: k8sfake.NewClientset(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "kube-system", UID: types.UID("http-cluster-uid")}})}

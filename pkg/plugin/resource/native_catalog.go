@@ -205,16 +205,30 @@ func sortedNativeTypes(bindings map[string]nativeType) []resourcev2.ResourceType
 }
 
 // nativeClusterIdentity supplies a backing-identity hint, not a host authority.
-// A route without permission to observe the native UID remains unknown.
+// A route without permission to observe the native UID remains unknown: nil
+// identity and no error. A transient failure to read it (a closed connection,
+// a timeout, 429/5xx) is neither unknown nor a change: it is retried within ctx
+// and then reported as UNAVAILABLE, so callers keep the identity they hold
+// instead of treating the missing answer as a different cluster.
 func nativeClusterIdentity(ctx context.Context, client kubernetes.Interface) (*string, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	namespace, err := client.CoreV1().Namespaces().Get(ctx, "kube-system", metav1.GetOptions{})
+	var uid string
+	err := retryNativeRequest(ctx, func() error {
+		namespace, err := client.CoreV1().Namespaces().Get(ctx, "kube-system", metav1.GetOptions{})
+		if err == nil {
+			uid = string(namespace.UID)
+		}
+		return err
+	})
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if err != nil || namespace.UID == "" {
+	if nativeTransientReason(err) != "" {
+		return nil, &resourcev2.ResourceOperationError{Err: err, Code: "UNAVAILABLE", Message: "Native Kubernetes backing identity could not be read; try again"}
+	}
+	if err != nil || uid == "" {
 		reason := "uid_empty"
 		if err != nil {
 			reason = diag.ClassifyError(err, false).Class
@@ -222,7 +236,7 @@ func nativeClusterIdentity(ctx context.Context, client kubernetes.Interface) (*s
 		zap.S().Named("catalog").Debugw("native cluster identity unavailable", "reason", reason)
 		return nil, nil
 	}
-	identity := string(namespace.UID)
+	identity := uid
 	return &identity, nil
 }
 
