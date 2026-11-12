@@ -89,12 +89,17 @@ jobs:
           cache-dependency-path: ui/pnpm-lock.yaml
 
       - name: Build and package
-        run: hack/package.sh "${{ steps.version.outputs.value }}" $PLATFORMS
+        run: |
+          hack/package.sh "${{ steps.version.outputs.value }}" $PLATFORMS
+          (cd dist && sha256sum *.tar.gz > checksums_sha256.txt)
+          printf 'Kubernetes release source: `%s`\n' "$(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
         with:
           name: plugin-archives
-          path: dist/*.tar.gz
+          path: |
+            dist/*.tar.gz
+            dist/checksums_sha256.txt
           if-no-files-found: error
           retention-days: 7
 
@@ -107,11 +112,10 @@ jobs:
 
   archive-smoke:
     needs: build
-    uses: omniviewdev/omniview/.github/workflows/plugin-archive-smoke.yml@7534abc06430200070984c7df4d1071be6647f7a
+    uses: omniviewdev/omniview/.github/workflows/plugin-archive-smoke.yml@main
     with:
-      host-ref: 7534abc06430200070984c7df4d1071be6647f7a
+      host-ref: main
       archive-artifact: plugin-archives
-      package-version: "0.36.0"
 
   publish:
     needs: [build, archive-smoke]
@@ -122,6 +126,10 @@ jobs:
         with:
           name: plugin-archives
           path: dist
+
+      - name: Verify release archive integrity
+        working-directory: dist
+        run: sha256sum --check --strict checksums_sha256.txt
 
       - uses: actions/download-artifact@v4
         with:
@@ -175,4 +183,6 @@ jobs:
           body_path: release-notes/${{ needs.build.outputs.version }}.md
           generate_release_notes: false
           prerelease: ${{ contains(github.ref_name, '-') }}
-          files: dist/*.tar.gz
+          files: |
+            dist/*.tar.gz
+            dist/checksums_sha256.txt
