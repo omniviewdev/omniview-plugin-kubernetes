@@ -141,8 +141,8 @@ func TestNativeStartSurvivesTransportFaults(t *testing.T) {
 		fault error
 	}{
 		{"connection reset", "/apis/refresh.example/v1", &net.OpError{Op: "read", Net: "tcp", Err: os.NewSyscallError("read", syscall.ECONNRESET)}},
-		{"tls handshake timeout", "/api/v1", timeoutError{"net/http: TLS handshake timeout"}},
-		{"dial timeout", "/apis", &net.OpError{Op: "dial", Net: "tcp", Err: timeoutError{"i/o timeout"}}},
+		{"tls handshake timeout", "/api/v1", fakeTimeoutError{"net/http: TLS handshake timeout"}},
+		{"dial timeout", "/apis", &net.OpError{Op: "dial", Net: "tcp", Err: fakeTimeoutError{"i/o timeout"}}},
 		{"unexpected EOF", "/api", io.ErrUnexpectedEOF},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

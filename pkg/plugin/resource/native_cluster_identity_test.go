@@ -164,7 +164,7 @@ func TestNativeCheckConnectionRetriesHandshakeTimeout(t *testing.T) {
 		WrapTransport: func(base http.RoundTripper) http.RoundTripper {
 			return faultTransport{base: base, fail: func(r *http.Request) error {
 				if r.URL.Path == kubeSystemPath && faults.Add(1) == 1 {
-					return timeoutError{"net/http: TLS handshake timeout"}
+					return fakeTimeoutError{"net/http: TLS handshake timeout"}
 				}
 				return nil
 			}}

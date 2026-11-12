@@ -50,11 +50,11 @@ func recordRetries(t *testing.T, attempts int) *retryRecorder {
 	return recorder
 }
 
-type timeoutError struct{ text string }
+type fakeTimeoutError struct{ text string }
 
-func (e timeoutError) Error() string   { return e.text }
-func (e timeoutError) Timeout() bool   { return true }
-func (e timeoutError) Temporary() bool { return true }
+func (e fakeTimeoutError) Error() string   { return e.text }
+func (e fakeTimeoutError) Timeout() bool   { return true }
+func (e fakeTimeoutError) Temporary() bool { return true }
 
 func TestNativeTransientReason(t *testing.T) {
 	get := func(err error) error { return &url.Error{Op: "Get", URL: "https://cluster.example/api", Err: err} }
@@ -70,8 +70,8 @@ func TestNativeTransientReason(t *testing.T) {
 		{"reset by peer text", get(errors.New("read tcp 127.0.0.1:1->127.0.0.1:2: read: connection reset by peer")), "eof"},
 		{"http2 goaway", get(errors.New("http2: server sent GOAWAY and closed the connection; LastStreamID=1")), "eof"},
 		{"http2 connection lost", get(errors.New("http2: client connection lost")), "http2_connection_lost"},
-		{"tls handshake timeout", get(timeoutError{"net/http: TLS handshake timeout"}), "timeout"},
-		{"dial timeout", get(&net.OpError{Op: "dial", Net: "tcp", Err: timeoutError{"i/o timeout"}}), "timeout"},
+		{"tls handshake timeout", get(fakeTimeoutError{"net/http: TLS handshake timeout"}), "timeout"},
+		{"dial timeout", get(&net.OpError{Op: "dial", Net: "tcp", Err: fakeTimeoutError{"i/o timeout"}}), "timeout"},
 		{"too many requests", k8serrors.NewTooManyRequests("slow down", 0), "too_many_requests"},
 		{"internal error", k8serrors.NewInternalError(errors.New("etcd")), "server_error"},
 		{"bad gateway", &k8serrors.StatusError{ErrStatus: metav1.Status{Code: 502}}, "server_error"},
