@@ -1,9 +1,7 @@
 package networker
 
 import (
-	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -110,7 +108,7 @@ func (f *PodResourceForwarder) ForwardResource(
 	stopCh := make(chan struct{}, 1)
 	readyCh := make(chan struct{}, 1)
 	errCh := make(chan error, 1)
-	out, errOut := new(bytes.Buffer), new(bytes.Buffer)
+	out, errOut := new(lineCountWriter), new(lineCountWriter)
 
 	dialer := spdy.NewDialer(
 		upgrader,
@@ -137,14 +135,14 @@ func (f *PodResourceForwarder) ForwardResource(
 		started := time.Now()
 		log.Info(ctx, "pod port-forward: ForwardPorts starting")
 		diag.PortForward("started")
-		err := fw.ForwardPorts()
+		err := safeCall(ctx, log, "pod port-forward", fw.ForwardPorts)
 		class := diag.ClassifyError(err, false)
 		fields := append([]any{
 			"resource_id", name,
 			"resource_namespace", namespace,
 			"duration_ms", time.Since(started).Milliseconds(),
-			"stdout_lines", forwardLineCount(out),
-			"stderr_lines", forwardLineCount(errOut),
+			"stdout_lines", out.Lines(),
+			"stderr_lines", errOut.Lines(),
 		}, class.LogFields()...)
 		if err != nil {
 			diag.PortForward("failed")
@@ -181,8 +179,6 @@ func (f *PodResourceForwarder) ForwardResource(
 // It resolves the workload to a backing pod via label selectors and
 // auto-reconnects when the connection to the pod is lost.
 type WorkloadResourceForwarder struct{}
-
-const maxReconnectAttempts = 10
 
 func (f *WorkloadResourceForwarder) ForwardResource(
 	ctx context.Context,
@@ -259,82 +255,14 @@ func (f *WorkloadResourceForwarder) ForwardResource(
 		logging.String("namespace", namespace),
 	)
 
-	readyCh := make(chan struct{}, 1)
-	errCh := make(chan error, 1)
-
-	go func() {
-		defer close(errCh)
-
-		sessionStarted := time.Now()
-		localPort := opts.Options.LocalPort
-		firstAttempt := true
-
-		for attempt := range maxReconnectAttempts {
-			if err := ctx.Err(); err != nil {
-				log.Infow(ctx, "workload port-forward: context cancelled, stopping",
-					"duration_ms", time.Since(sessionStarted).Milliseconds(), "outcome", "canceled")
-				return
-			}
-
-			// On reconnect, re-resolve the backing pod.
-			if !firstAttempt {
-				backoff := min(time.Duration(1<<attempt)*time.Second, 30*time.Second)
-				log.Info(ctx, "workload port-forward: reconnecting",
-					logging.String("resource_key", resourceKey),
-					logging.Int("attempt", attempt+1),
-					logging.Duration("backoff", backoff),
-				)
-
-				select {
-				case <-ctx.Done():
-					return
-				case <-time.After(backoff):
-				}
-
-				podName, err = resolveBackingPod(ctx, clients.Clientset, namespace, selector)
-				if err != nil {
-					log.Warnw(ctx, "workload port-forward: failed to resolve backing pod on reconnect",
-						append([]any{"attempt", attempt + 1}, diag.ClassifyError(err, false).LogFields()...)...)
-					continue
-				}
-				log.Info(ctx, "workload port-forward: re-resolved backing pod",
-					logging.String("pod", podName),
-				)
-			}
-			firstAttempt = false
-
-			fwErr := f.forwardToPod(ctx, log, clients, namespace, podName, localPort, remotePort, readyCh)
-			if fwErr == nil {
-				log.Infow(ctx, "workload port-forward: tunnel closed cleanly",
-					"duration_ms", time.Since(sessionStarted).Milliseconds(), "outcome", "success")
-				return // clean shutdown
-			}
-			if errors.Is(fwErr, portforward.ErrLostConnectionToPod) {
-				log.Warn(ctx, "workload port-forward: lost connection to pod, will reconnect",
-					logging.String("pod", podName),
-					logging.String("namespace", namespace),
-				)
-				continue
-			}
-			// Unrecoverable error.
-			log.Errorw(ctx, "workload port-forward: unrecoverable error",
-				append([]any{"resource_id", podName, "duration_ms", time.Since(sessionStarted).Milliseconds()},
-					diag.ClassifyError(fwErr, false).LogFields()...)...)
-			errCh <- remoteerr.Sanitize("port-forward tunnel", fwErr)
-			return
-		}
-
-		log.Error(ctx, "workload port-forward: exceeded max reconnect attempts",
-			logging.Int("max_attempts", maxReconnectAttempts),
-			logging.String("resource_key", resourceKey),
-		)
-		errCh <- fmt.Errorf("exceeded %d reconnect attempts for %s", maxReconnectAttempts, resourceKey)
-	}()
-
-	return &networker.ForwarderResult{
-		Ready: readyCh,
-		ErrCh: errCh,
-	}, nil
+	loop := newReconnectLoop(log, resourceKey, namespace)
+	loop.resolve = func(ctx context.Context) (string, error) {
+		return resolveBackingPod(ctx, clients.Clientset, namespace, selector)
+	}
+	loop.forward = func(ctx context.Context, podName string, ready chan struct{}) error {
+		return f.forwardToPod(ctx, log, clients, namespace, podName, opts.Options.LocalPort, remotePort, ready)
+	}
+	return loop.start(ctx, podName), nil
 }
 
 // forwardToPod establishes an SPDY port-forward tunnel to a specific pod and
@@ -365,7 +293,7 @@ func (f *WorkloadResourceForwarder) forwardToPod(
 	}
 
 	stopCh := make(chan struct{}, 1)
-	out, errOut := new(bytes.Buffer), new(bytes.Buffer)
+	out, errOut := new(lineCountWriter), new(lineCountWriter)
 
 	dialer := spdy.NewDialer(
 		upgrader,
@@ -416,7 +344,7 @@ func (f *WorkloadResourceForwarder) forwardToPod(
 	}
 
 	// Tunnel output can carry remote data; only line counts are logged.
-	stdoutLines, stderrLines := forwardLineCount(out), forwardLineCount(errOut)
+	stdoutLines, stderrLines := out.Lines(), errOut.Lines()
 	if stderrLines > 0 {
 		log.Warnw(ctx, "forwardToPod: stderr", "resource_id", podName, "stdout_lines", stdoutLines, "stderr_lines", stderrLines)
 	} else if stdoutLines > 0 {
@@ -463,19 +391,6 @@ func forwardStopReason(ctx context.Context) string {
 	default:
 		return "cancel_cause"
 	}
-}
-
-// forwardLineCount counts the lines in the tunnel output buffer.
-func forwardLineCount(b *bytes.Buffer) int {
-	data := b.Bytes()
-	if len(data) == 0 {
-		return 0
-	}
-	n := bytes.Count(data, []byte{'\n'})
-	if data[len(data)-1] != '\n' {
-		n++
-	}
-	return n
 }
 
 // loggerFromCtx returns the logger from the plugin context, or a nop logger.
