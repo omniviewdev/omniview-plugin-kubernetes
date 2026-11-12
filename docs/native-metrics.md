@@ -103,6 +103,14 @@ Budgets are shared across all namespaces and continuation pages in one execution
 | Retained source connection lanes | 128; disconnected lanes retire |
 | Authenticated client idle TTL | 10 minutes |
 
+When the 15-second execution deadline ends a query, the namespaces that finished
+are still delivered: the response is incomplete and carries a warning for each
+namespace that did not finish, whether its scan was cut off or never started. The
+namespace whose scan was cut off enters the negative cache, so the next poll does
+not spend the deadline on it again. A caller that cancels, or whose own deadline
+falls first, receives the error instead, as does a query whose source generation
+was retired.
+
 Targets are grouped by namespace. The provider performs namespace LISTs and streams one object at a time, filtering exact requested identities. It requests `limit=1000` but **does not assume metrics-server implements pagination**. It follows `continue` only when the server returns it, and rejects repeated/oversized continuation tokens. An unpaginated namespace is still bounded by decoded byte and scanned-object budgets. A namespace can cost a full inventory scan even for one selected Pod; these bounds are not constant-cost or throughput claims. There are no per-Pod GET fallbacks and no target chunker that repeats the same namespace scan inside one execution.
 
 Each Pod query rotates the starting namespace within its source generation. Repeated identical batches therefore do not always exclude the same trailing namespaces when the shared scan budget is exhausted. Retirement resets this cursor. It stores no samples and schedules no polling.

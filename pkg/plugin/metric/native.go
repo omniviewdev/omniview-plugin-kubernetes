@@ -46,6 +46,9 @@ const (
 	nativePersistentFailureTTL = 30 * time.Second
 	nativeTransientFailureTTL  = 5 * time.Second
 	nativeMaxFailureTTL        = 10 * time.Minute
+	// nativeDeadlineMessage reports a namespace that did not finish because the
+	// query reached its deadline: it was cut off or never started.
+	nativeDeadlineMessage = "Native metrics namespace scan did not finish before the deadline"
 )
 
 // nativeProvider has no polling or metric-result cache. Each source generation
@@ -126,11 +129,12 @@ func (p *nativeProvider) scanFailure(lane *nativeLane, key nativeScanKey) error 
 // nativeFailureCooldown is the initial window in which one failed scan
 // suppresses new reads of its endpoint. A missing or unavailable API or a
 // refused caller stays that way until cluster configuration changes, so it
-// holds for the long window. Everything else, such as a transport error, a
-// truncated body or a server error, often clears by itself and holds only
-// briefly.
+// holds for the long window. So does a scan that ran out of time: repeating it
+// immediately would spend the whole deadline again. Everything else, such as a
+// transport error, a truncated body or a server error, often clears by itself
+// and holds only briefly.
 func nativeFailureCooldown(err error) time.Duration {
-	if apierrors.IsForbidden(err) || apierrors.IsUnauthorized(err) || nativeAPIUnavailable(err) {
+	if apierrors.IsForbidden(err) || apierrors.IsUnauthorized(err) || nativeAPIUnavailable(err) || errors.Is(err, context.DeadlineExceeded) {
 		return nativePersistentFailureTTL
 	}
 	return nativeTransientFailureTTL
@@ -405,6 +409,12 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 	stop := context.AfterFunc(lane.ctx, cancel)
 	defer stop()
 	defer func() { observeNativeAbandon(lane, finalErr) }()
+	// The deadline this plugin sets for the query ends the sweep early, and the
+	// namespaces that finished are still delivered. A caller that gave up, or the
+	// retirement of the source, leaves no one to deliver to.
+	deadlineReached := func() bool {
+		return errors.Is(ctx.Err(), context.DeadlineExceeded) && pc.Context.Err() == nil && lane.ctx.Err() == nil
+	}
 	if lane.ctx.Err() != nil {
 		return nil, resourcev2.NewError("RESET_REQUIRED", "Native metric source generation was retired")
 	}
@@ -422,10 +432,15 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 	}
 	sort.Strings(namespaces)
 	start := int(namespaceTurn % uint64(len(namespaces)))
+	unfinished := 0
 	for offset := range namespaces {
 		namespace := namespaces[(start+offset)%len(namespaces)]
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			if !deadlineReached() {
+				return nil, err
+			}
+			unfinished = len(namespaces) - offset
+			break
 		}
 		indices := groups[namespace]
 		seen := make(map[string]bool, len(indices))
@@ -498,8 +513,12 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 			})
 		}
 		if err != nil {
-			if ctx.Err() != nil {
+			if ctx.Err() != nil && !deadlineReached() {
 				return nil, ctx.Err()
+			}
+			if ctx.Err() != nil || errors.Is(err, context.DeadlineExceeded) {
+				// Whatever the interrupted request reported, only the timeout matters.
+				err = context.DeadlineExceeded
 			}
 			if scanned {
 				p.recordScanFailure(lane, scanKey, err)
@@ -511,6 +530,9 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 			}
 			if err == errNativeBudget {
 				message = "Native metrics scan budget exhausted; unseen targets are not proven missing"
+			}
+			if err == context.DeadlineExceeded {
+				message = nativeDeadlineMessage
 			}
 			response.Warnings = append(response.Warnings, message)
 			if !scanned {
@@ -534,8 +556,9 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 				for offset := range query.MetricIDs {
 					result := &response.Results[index*len(query.MetricIDs)+offset]
 					// Only fully validated pages commit samples. Budget truncation
-					// may retain target samples from earlier completed pages.
-					if result.Status != "unsupported" && (err != errNativeBudget || result.Status == "failed") {
+					// and a deadline may retain target samples from earlier
+					// completed pages.
+					if result.Status != "unsupported" && (err != errNativeBudget && err != context.DeadlineExceeded || result.Status == "failed") {
 						*result = sdkmetric.ResourceMetricResult{ResourceToken: result.ResourceToken, MetricID: result.MetricID, Status: status, Message: message}
 					}
 				}
@@ -557,7 +580,13 @@ func (p *nativeProvider) query(pc *types.PluginContext, query sdkmetric.Resource
 			}
 		}
 	}
-	if err := ctx.Err(); err != nil {
+	if unfinished > 0 {
+		response.Complete = false
+		for range unfinished {
+			response.Warnings = append(response.Warnings, nativeDeadlineMessage)
+		}
+	}
+	if err := ctx.Err(); err != nil && !deadlineReached() {
 		return nil, err
 	}
 	if lane.ctx.Err() != nil || !p.cache.isCurrent(lane.key, clients) {

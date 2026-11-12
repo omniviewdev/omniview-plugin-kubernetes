@@ -14,14 +14,15 @@ import (
 )
 
 // nativeFakeAPI is a metrics API that counts the namespace lists reaching it and
-// answers each with whatever serve says. Node lists count under the empty namespace.
+// answers each with whatever serve says. Node lists count under the empty
+// namespace. serve may block, for example until the request is canceled.
 type nativeFakeAPI struct {
 	mu    sync.Mutex
 	calls map[string]int
-	serve func(request *http.Request, namespace string) *http.Response
+	serve func(request *http.Request, namespace string) (*http.Response, error)
 }
 
-func newNativeFakeAPI(serve func(*http.Request, string) *http.Response) *nativeFakeAPI {
+func newNativeFakeAPI(serve func(*http.Request, string) (*http.Response, error)) *nativeFakeAPI {
 	return &nativeFakeAPI{calls: map[string]int{}, serve: serve}
 }
 
@@ -34,10 +35,10 @@ func (a *nativeFakeAPI) RoundTrip(request *http.Request) (*http.Response, error)
 	a.calls[namespace]++
 	serve := a.serve
 	a.mu.Unlock()
-	return serve(request, namespace), nil
+	return serve(request, namespace)
 }
 
-func (a *nativeFakeAPI) setServe(serve func(*http.Request, string) *http.Response) {
+func (a *nativeFakeAPI) setServe(serve func(*http.Request, string) (*http.Response, error)) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.serve = serve
@@ -60,15 +61,15 @@ func (a *nativeFakeAPI) namespaceCalls(namespace string) int {
 }
 
 // nativeAnswers is a metrics API that serves the sample Pod in every namespace.
-func nativeAnswers(request *http.Request, namespace string) *http.Response {
+func nativeAnswers(request *http.Request, namespace string) (*http.Response, error) {
 	sample := strings.ReplaceAll(nativeSample, `"namespace":"one"`, `"namespace":"`+namespace+`"`)
-	return nativeTestResponse(request, nativePage(sample))
+	return nativeTestResponse(request, nativePage(sample)), nil
 }
 
 // nativeRefuses answers every list with the Kubernetes failure of that code.
-func nativeRefuses(code int, reason string) func(*http.Request, string) *http.Response {
-	return func(request *http.Request, _ string) *http.Response {
-		return nativeFailureStatus(request, code, reason)
+func nativeRefuses(code int, reason string) func(*http.Request, string) (*http.Response, error) {
+	return func(request *http.Request, _ string) (*http.Response, error) {
+		return nativeFailureStatus(request, code, reason), nil
 	}
 }
 
@@ -183,9 +184,9 @@ func TestNativeAbsentMetricsAPIBackoffDoublesToTheCeiling(t *testing.T) {
 }
 
 func TestNativeDeniedNamespaceBacksOffWithoutHoldingBackTheOthers(t *testing.T) {
-	api := newNativeFakeAPI(func(request *http.Request, namespace string) *http.Response {
+	api := newNativeFakeAPI(func(request *http.Request, namespace string) (*http.Response, error) {
 		if namespace == "ns-03" {
-			return nativeFailureStatus(request, http.StatusForbidden, "Forbidden")
+			return nativeFailureStatus(request, http.StatusForbidden, "Forbidden"), nil
 		}
 		return nativeAnswers(request, namespace)
 	})
