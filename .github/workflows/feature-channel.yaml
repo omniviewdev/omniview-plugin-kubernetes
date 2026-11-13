@@ -1,0 +1,139 @@
+name: Publish Feature Channel
+
+on:
+  push:
+    branches: ['feature/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PLATFORMS: darwin_arm64 darwin_amd64 linux_amd64 linux_arm64 windows_amd64
+
+jobs:
+  resolve:
+    runs-on: [omniview]
+    outputs:
+      enabled: ${{ steps.channel.outputs.enabled }}
+      channel: ${{ steps.channel.outputs.channel }}
+      version: ${{ steps.channel.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - id: channel
+        uses: omniviewdev/publish-plugin-action/resolve-channel@v1.2.0
+        with:
+          kind: plugin
+          channels-url: ${{ vars.OMNIVIEW_API_URL }}/v1/plugins/kubernetes/channels
+
+  build:
+    needs: resolve
+    if: needs.resolve.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      platforms: ${{ steps.platforms.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - id: platforms
+        run: echo "value=${PLATFORMS// /,}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        with:
+          version: 12.14.0
+          node-version-file: "false"
+          install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "26.13.0"
+          cache: pnpm
+          cache-dependency-path: ui/pnpm-lock.yaml
+
+      - name: Build and package
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+        run: |
+          hack/package.sh "$VERSION" $PLATFORMS
+          (cd dist && sha256sum *.tar.gz > checksums_sha256.txt)
+          printf 'Kubernetes release source: `%s`\n' "$(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugin-archives
+          path: |
+            dist/*.tar.gz
+            dist/checksums_sha256.txt
+          if-no-files-found: error
+          retention-days: 7
+
+  archive-smoke:
+    needs: build
+    uses: omniviewdev/omniview/.github/workflows/plugin-archive-smoke.yml@main
+    with:
+      host-ref: main
+      archive-artifact: plugin-archives
+
+  publish:
+    needs: [resolve, build, archive-smoke]
+    runs-on: [omniview]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: plugin-archives
+          path: dist
+
+      - name: Verify release archive integrity
+        working-directory: dist
+        run: sha256sum --check --strict checksums_sha256.txt
+
+      - name: Check marketplace
+        env:
+          OMNIVIEW_API_URL: ${{ vars.OMNIVIEW_API_URL }}
+        run: |
+          if [ -z "$OMNIVIEW_API_URL" ]; then
+            echo "::error::Repository variable OMNIVIEW_API_URL is not set"
+            exit 1
+          fi
+          curl -fsS --retry 3 --max-time 15 "${OMNIVIEW_API_URL%/}/v1/health" > /dev/null
+
+      - name: Pin storage host
+        env:
+          STORAGE_HOST: ${{ vars.OMNIVIEW_STORAGE_HOST }}
+        run: |
+          [ -n "$STORAGE_HOST" ] || exit 0
+          for attempt in 1 2 3 4 5; do
+            ip=$(getent ahostsv4 "$STORAGE_HOST" | awk 'NR==1 {print $1}')
+            if [ -n "$ip" ]; then
+              echo "$ip $STORAGE_HOST" | sudo tee -a /etc/hosts
+              exit 0
+            fi
+            echo "lookup of $STORAGE_HOST failed (attempt $attempt), retrying"; sleep 5
+          done
+          exit 1
+
+      - name: Publish to marketplace
+        uses: omniviewdev/publish-plugin-action@v1.2.0
+        with:
+          api-key: ${{ secrets.OMNIVIEW_API_KEY }}
+          api-url: ${{ vars.OMNIVIEW_API_URL }}
+          publisher-slug: omniview
+          plugin-id: kubernetes
+          version: ${{ needs.resolve.outputs.version }}
+          min-ide-version: "0.35.0"
+          artifact-path: dist/
+          architectures: ${{ needs.build.outputs.platforms }}
+          channel: ${{ needs.resolve.outputs.channel }}
