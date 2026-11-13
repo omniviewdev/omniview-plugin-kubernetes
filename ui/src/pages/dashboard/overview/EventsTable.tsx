@@ -165,26 +165,33 @@ const KIND_TO_KEY: Record<string, string> = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function getTimestamp(event: KubeEvent): Date {
+// Timestamps are compared as epoch ms; a missing timestamp is epoch 0 and an
+// unparseable one is NaN, which never compares greater or less than anything.
+function getTimestampMs(event: KubeEvent): number {
   const raw =
     event.lastTimestamp ||
     event.eventTime ||
     event.firstTimestamp ||
     event.metadata?.creationTimestamp;
-  return raw ? new Date(raw) : new Date(0);
+  return raw ? Date.parse(raw) : 0;
 }
 
-function getFirstTimestamp(event: KubeEvent): Date {
+function getFirstTimestampMs(event: KubeEvent): number {
   const raw =
     event.firstTimestamp ||
     event.metadata?.creationTimestamp ||
     event.eventTime ||
     event.lastTimestamp;
-  return raw ? new Date(raw) : new Date(0);
+  return raw ? Date.parse(raw) : 0;
 }
 
-function deduplicateEvents(events: KubeEvent[]): DedupedEvent[] {
-  const map = new Map<string, DedupedEvent>();
+type DedupedAccumulator = Omit<DedupedEvent, 'lastSeen' | 'firstSeen'> & {
+  lastMs: number;
+  firstMs: number;
+};
+
+export function deduplicateEvents(events: KubeEvent[]): DedupedEvent[] {
+  const map = new Map<string, DedupedAccumulator>();
 
   for (const ev of events) {
     const io = ev.involvedObject;
@@ -194,20 +201,20 @@ function deduplicateEvents(events: KubeEvent[]): DedupedEvent[] {
     const reason = ev.reason ?? '';
     const key = `${kind}/${ns}/${name}::${reason}`;
 
-    const lastSeen = getTimestamp(ev);
-    const firstSeen = getFirstTimestamp(ev);
+    const lastMs = getTimestampMs(ev);
+    const firstMs = getFirstTimestampMs(ev);
     const count = ev.count ?? 1;
 
     const existing = map.get(key);
     if (existing) {
       existing.count += count;
-      if (lastSeen > existing.lastSeen) {
-        existing.lastSeen = lastSeen;
+      if (lastMs > existing.lastMs) {
+        existing.lastMs = lastMs;
         existing.message = ev.message ?? existing.message;
         existing.type = ev.type ?? existing.type;
       }
-      if (firstSeen < existing.firstSeen) {
-        existing.firstSeen = firstSeen;
+      if (firstMs < existing.firstMs) {
+        existing.firstMs = firstMs;
       }
     } else {
       map.set(key, {
@@ -219,13 +226,19 @@ function deduplicateEvents(events: KubeEvent[]): DedupedEvent[] {
         reason,
         message: ev.message ?? '',
         count,
-        lastSeen,
-        firstSeen,
+        lastMs,
+        firstMs,
       });
     }
   }
 
-  return Array.from(map.values()).sort((a, b) => b.lastSeen.getTime() - a.lastSeen.getTime());
+  return Array.from(map.values())
+    .sort((a, b) => b.lastMs - a.lastMs)
+    .map(({ lastMs, firstMs, ...event }) => ({
+      ...event,
+      lastSeen: new Date(lastMs),
+      firstSeen: new Date(firstMs),
+    }));
 }
 
 // ---------------------------------------------------------------------------
@@ -335,7 +348,7 @@ const EventsTable: React.FC<Props> = ({ events, loading, connectionID, namespace
   const scrollRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const getItemKey = useCallback(
-    (index: number) => JSON.stringify([connectionID, filtered[index].key]),
+    (index: number) => `${connectionID}\u0000${filtered[index].key}`,
     [connectionID, filtered],
   );
   const virtualizer = useVirtualizer({

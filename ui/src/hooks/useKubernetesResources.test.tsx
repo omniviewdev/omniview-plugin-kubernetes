@@ -159,4 +159,22 @@ describe('useKubernetesResources', () => {
     act(() => result.current.retry());
     expect(refetch).toHaveBeenCalledTimes(1);
   });
+
+  it('decodes only replaced records when a live update retains the others', () => {
+    const rec = (key: string) => ({ key, record: { body: { kind: 'map', value: key } } });
+    mocks.decode.mockImplementation((body: { value: string }) => ({ name: body.value }));
+    const [a, b, c] = [rec('a'), rec('b'), rec('c')];
+    const page = (records: unknown[]) => mocks.resources.mockReturnValue({ resources: { data: { records }, isLoading: false } });
+    page([a, b, c]);
+    const { result, rerender } = renderHook(() => useKubernetesResources({ connectionID: 'selected', resourceType: 'k8s:/pods' }));
+    const first = result.current.bodies;
+    expect(mocks.decode).toHaveBeenCalledTimes(3);
+
+    page([a, rec('b'), c]);
+    rerender();
+    expect(mocks.decode).toHaveBeenCalledTimes(4);
+    expect(result.current.bodies[0]).toBe(first[0]);
+    expect(result.current.bodies[1]).not.toBe(first[1]);
+    expect(result.current.bodies[2]).toBe(first[2]);
+  });
 });

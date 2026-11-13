@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
-import { useResourceTypes, useResolvedResourceTarget, useResources, valueToJSON } from '@omniviewdev/runtime';
+import { useResourceTypes, useResolvedResourceTarget, useResources } from '@omniviewdev/runtime';
 
 import { PLUGIN_ID } from '@/pluginId';
+import { decodeRecordBody } from '../utils/recordBody';
 /** Kubernetes presentation adapter. Only the host resolves authority and membership. */
 export function useKubernetesResources<T>({
   pluginID = PLUGIN_ID, connectionID, resourceType, namespaces = [], enabled = true,
@@ -35,7 +36,7 @@ export function useKubernetesResources<T>({
     live: descriptor?.capabilities.some(({ operation }) => operation === 'sourceUpdates') ?? false,
   });
   const records = result.acquired?.page.records;
-  const bodies = useMemo(() => (records ?? []).map(({ record }) => valueToJSON(record.body) as T), [records]);
+  const bodies = useMemo(() => (records ?? []).map((record) => decodeRecordBody(record) as T), [records]);
   return {
     ...result,
     retry: () => {
