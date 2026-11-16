@@ -108,7 +108,7 @@ func (p *kubernetesProvider) acquireNativeCatalog(ctx context.Context, connectio
 	}
 	var hint *resourcev2.NativeAuthorityHint
 	if identity != nil {
-		hint = &resourcev2.NativeAuthorityHint{Scheme: "kubernetes.namespace-uid.v1", ID: *identity, Continuity: resourcev2.ContinuityConnectionLocal}
+		hint = &resourcev2.NativeAuthorityHint{Scheme: nativeClusterIdentityScheme, ID: *identity, Continuity: resourcev2.ContinuityConnectionLocal}
 	}
 	if previous != nil && previous.identityHint != nil && (hint == nil || hint.ID != previous.identityHint.ID) {
 		return nil, false, resourcev2.NewError("RESET_REQUIRED", "Native Kubernetes backing identity changed; reconnect before acquiring resources")
