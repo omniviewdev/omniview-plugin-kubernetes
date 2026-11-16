@@ -21,6 +21,7 @@ type nativeCatalogSnapshot struct {
 	bindings          map[string]nativeType
 	registrations     map[string]resourcev2.Registration[clients.ClientSet]
 	identityHint      *resourcev2.NativeAuthorityHint
+	environmentFacts  []resourcev2.EnvironmentIdentity
 	schemas           *nativeSchemaState
 	discoveryRevision string
 	nextRefresh       time.Time
