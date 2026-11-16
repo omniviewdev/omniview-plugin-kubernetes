@@ -11,8 +11,8 @@ import (
 )
 
 // assembleNativeCatalog builds support and body-format contracts only.
-func (p *kubernetesProvider) assembleNativeCatalog(ctx context.Context, connectionID string, client *clients.ClientSet, bindings map[string]nativeType, coverage resourcev2.Coverage, identityHint *resourcev2.NativeAuthorityHint, watchScope resourcev2.QueryScope) (*nativeCatalogSnapshot, error) {
-	environment := nativeClusterEnvironment(identityHint)
+func (p *kubernetesProvider) assembleNativeCatalog(ctx context.Context, connectionID string, client *clients.ClientSet, bindings map[string]nativeType, coverage resourcev2.Coverage, identity *nativeIdentity, watchScope resourcev2.QueryScope) (*nativeCatalogSnapshot, error) {
+	identityHint, environment := identity.parts()
 	registrations := make(map[string]resourcev2.Registration[clients.ClientSet], len(bindings))
 	for token, binding := range bindings {
 		versions := nativeServedVersions(binding)
@@ -42,7 +42,7 @@ func (p *kubernetesProvider) assembleNativeCatalog(ctx context.Context, connecti
 		binding.Descriptor.DefaultRepresentation = nativeRepresentationVersion + "/" + binding.GVR.GroupVersion().String()
 		binding.Descriptor.ModelRepresentation = nativeModelRepresentationVersion + "/" + binding.GVR.GroupVersion().String()
 		binding.Descriptor.NativeAuthorityHint = identityHint
-		binding.Descriptor.Environment = environment
+		binding.Descriptor.Environment = cloneNativeEnvironment(environment)
 		if verbSliceContains(binding.API.Verbs, "list") && verbSliceContains(binding.API.Verbs, "watch") {
 			scope := nativeTypeScope(binding)
 			if binding.API.Namespaced {
@@ -65,7 +65,7 @@ func (p *kubernetesProvider) assembleNativeCatalog(ctx context.Context, connecti
 	for index := range catalog.Types {
 		if catalog.Types[index].Type == "helm:releases" {
 			catalog.Types[index].NativeAuthorityHint = identityHint
-			catalog.Types[index].Environment = environment
+			catalog.Types[index].Environment = cloneNativeEnvironment(environment)
 			capabilities := append([]resourcev2.Capability(nil), catalog.Types[index].Capabilities...)
 			for capability := range capabilities {
 				capabilities[capability].Scope = watchScope

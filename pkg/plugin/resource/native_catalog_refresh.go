@@ -120,6 +120,18 @@ func (p *kubernetesProvider) acquireNativeCatalog(ctx context.Context, connectio
 	if previous != nil && coverage.Kind != "complete" {
 		return nil, false, resourcev2.NewError("UNAVAILABLE", "Partial discovery cannot replace installed native support")
 	}
+	// The other fingerprints are read once, when the connection starts. A refresh
+	// carries them forward and re-reads only the namespace UID, which it compares.
+	var facts []resourcev2.EnvironmentIdentity
+	if previous != nil {
+		facts = previous.environmentFacts
+	} else {
+		facts, err = nativeEnvironmentFacts(ctx, client, bindings, watchScope)
+		if err != nil {
+			return nil, false, err
+		}
+	}
+	declared := &nativeIdentity{hint: hint, environment: nativeClusterEnvironment(hint, facts, nativeConfigurationHints(ctx))}
 	encoded, err := json.Marshal(struct {
 		Bindings   map[string]nativeType
 		Coverage   resourcev2.Coverage
@@ -135,10 +147,11 @@ func (p *kubernetesProvider) acquireNativeCatalog(ctx context.Context, connectio
 	if err := ctx.Err(); err != nil {
 		return nil, false, err
 	}
-	snapshot, err := p.assembleNativeCatalog(ctx, connectionID, client, bindings, coverage, hint, watchScope)
+	snapshot, err := p.assembleNativeCatalog(ctx, connectionID, client, bindings, coverage, declared, watchScope)
 	if err != nil {
 		return nil, false, err
 	}
+	snapshot.environmentFacts = facts
 	if previous != nil {
 		if previous.discoveryRevision == revision && previous.catalog.Revision == snapshot.catalog.Revision {
 			return previous, false, nil
