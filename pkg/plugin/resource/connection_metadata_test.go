@@ -3,16 +3,21 @@ package resource
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
+	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 func TestMetadataEndpointSanitization(t *testing.T) {
@@ -114,8 +119,202 @@ func TestConnectionMetadataCanceledRequestKeepsEndpointSibling(t *testing.T) {
 	update, err := connectionMetadata(ctx, types.Connection{ID: "kind-kind"}, &clients.ClientSet{RESTConfig: config, DiscoveryClient: discoveryClient})
 	require.NoError(t, err)
 	require.Equal(t, "success", update.Set["kubernetes.server_url"].State)
-	require.Equal(t, "unavailable", update.Set["kubernetes.server_version"].State)
+	for _, key := range []string{"kubernetes.server_version", "kubernetes.server_platform"} {
+		require.Equal(t, "unavailable", update.Set[key].State)
+		require.Equal(t, "CANCELED", update.Set[key].Error.Code)
+	}
 	require.Equal(t, "kind", update.Set["kubernetes.provider"].Value)
 	require.Equal(t, "connection_config", update.Set["kubernetes.provider_source"].Value)
 	require.Contains(t, update.Remove, "aws.account_id")
+}
+
+// Exercise the actual discovery HTTP request, not a fake discovery interface.
+func TestConnectionMetadataPublicSafeHTTPFailures(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		status int
+		body   string
+		code   string
+	}{
+		{"authentication", http.StatusUnauthorized, "secret-provider-response", "UNAUTHENTICATED"},
+		{"authorization", http.StatusForbidden, "secret-provider-response", "FORBIDDEN"},
+		{"missing version endpoint", http.StatusNotFound, "secret-provider-response", "SERVER_RESPONSE_FAILED"},
+		{"server failure", http.StatusInternalServerError, "secret-provider-response", "SERVER_RESPONSE_FAILED"},
+		{"gateway failure", http.StatusBadGateway, "secret-provider-response", "SERVER_RESPONSE_FAILED"},
+		{"limit", http.StatusOK, strings.Repeat("x", 65537), "RESPONSE_LIMIT"},
+		{"malformed", http.StatusOK, "secret-provider-response", "MALFORMED_RESPONSE"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			calls := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				require.Equal(t, "/version", r.URL.Path)
+				w.WriteHeader(tt.status)
+				_, _ = w.Write([]byte(tt.body))
+			}))
+			defer server.Close()
+			config := &rest.Config{Host: server.URL, BearerToken: "secret-request-token"}
+			client, err := discovery.NewDiscoveryClientForConfig(config)
+			require.NoError(t, err)
+			update, err := connectionMetadata(context.Background(), types.Connection{}, &clients.ClientSet{RESTConfig: config, DiscoveryClient: client})
+			require.NoError(t, err)
+			require.Equal(t, 1, calls)
+			require.Equal(t, server.URL, update.Set["kubernetes.server_url"].Value)
+			for _, key := range []string{"kubernetes.server_version", "kubernetes.server_platform"} {
+				require.Equal(t, tt.code, update.Set[key].Error.Code)
+				require.Equal(t, "unavailable", update.Set[key].State)
+				require.NotContains(t, update.Set[key].Error.Message, "secret-provider-response")
+				require.NotContains(t, update.Set[key].Error.Message, config.BearerToken)
+			}
+		})
+	}
+}
+
+func TestConnectionMetadataTimeout(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { <-r.Context().Done() }))
+	defer server.Close()
+	config := &rest.Config{Host: server.URL}
+	client, err := discovery.NewDiscoveryClientForConfig(config)
+	require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	update, err := connectionMetadata(ctx, types.Connection{}, &clients.ClientSet{RESTConfig: config, DiscoveryClient: client})
+	require.NoError(t, err)
+	for _, key := range []string{"kubernetes.server_version", "kubernetes.server_platform"} {
+		require.Equal(t, "unavailable", update.Set[key].State)
+		require.Equal(t, "TIMEOUT", update.Set[key].Error.Code)
+	}
+	require.Equal(t, server.URL, update.Set["kubernetes.server_url"].Value)
+}
+
+type metadataRoundTripper func(*http.Request) (*http.Response, error)
+
+func (f metadataRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
+	return f(request)
+}
+
+type metadataCancelOnEOFBody struct {
+	io.Reader
+	cancel context.CancelFunc
+}
+
+func (b *metadataCancelOnEOFBody) Read(p []byte) (int, error) {
+	n, err := b.Reader.Read(p)
+	if err == io.EOF {
+		b.cancel()
+	}
+	return n, err
+}
+
+func (b *metadataCancelOnEOFBody) Close() error { return nil }
+
+func TestConnectionMetadataSuccessfulReadSurvivesCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	config := &rest.Config{
+		Host: "https://cluster.example",
+		Transport: metadataRoundTripper(func(request *http.Request) (*http.Response, error) {
+			require.Equal(t, "/version", request.URL.Path)
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body: &metadataCancelOnEOFBody{
+					Reader: strings.NewReader(`{"gitVersion":"v1.35.0","platform":"linux/arm64"}`),
+					cancel: cancel,
+				},
+				Request: request,
+			}, nil
+		}),
+	}
+	client, err := discovery.NewDiscoveryClientForConfig(config)
+	require.NoError(t, err)
+	update, err := connectionMetadata(ctx, types.Connection{}, &clients.ClientSet{RESTConfig: config, DiscoveryClient: client})
+	require.NoError(t, err)
+	require.ErrorIs(t, ctx.Err(), context.Canceled)
+	for key, value := range map[string]string{
+		"kubernetes.server_version":  "v1.35.0",
+		"kubernetes.server_platform": "linux/arm64",
+	} {
+		require.Equal(t, "success", update.Set[key].State)
+		require.Equal(t, value, update.Set[key].Value)
+		require.Nil(t, update.Set[key].Error)
+	}
+}
+
+func TestConnectionMetadataPublicProviderHTTP(t *testing.T) {
+	for _, status := range []int{http.StatusOK, http.StatusNotFound, http.StatusInternalServerError} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/version" {
+					http.NotFound(w, r)
+					return
+				}
+				w.WriteHeader(status)
+				_, _ = w.Write([]byte(`{"gitVersion":"v1.35.0","platform":"linux/arm64"}`))
+			}))
+			defer server.Close()
+			config := &rest.Config{Host: server.URL}
+			client, err := discovery.NewDiscoveryClientForConfig(config)
+			require.NoError(t, err)
+			controller, err := resourcev2.NewController(resourcev2.Config[clients.ClientSet]{
+				Catalog: func(context.Context, resourcev2.CatalogRequest) (resourcev2.Catalog, error) {
+					return resourcev2.Catalog{}, nil
+				},
+				ConnectionMetadata: connectionMetadata,
+				Lifecycle: &resourcev2.Lifecycle[clients.ClientSet]{
+					LoadConnections: func(context.Context) ([]types.Connection, error) {
+						return []types.Connection{{ID: "http-smoke"}}, nil
+					},
+					CreateClient: func(context.Context, types.Connection) (*clients.ClientSet, error) {
+						return &clients.ClientSet{RESTConfig: config, DiscoveryClient: client}, nil
+					},
+					DestroyClient: func(context.Context, *clients.ClientSet) error { return nil },
+				},
+			})
+			require.NoError(t, err)
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			_, err = controller.LoadConnections(ctx)
+			require.NoError(t, err)
+			_, err = controller.StartConnection(ctx, "http-smoke")
+			require.NoError(t, err)
+			defer controller.StopConnection(context.Background(), "http-smoke")
+			require.Eventually(t, func() bool {
+				snapshot, err := controller.GetConnectionMetadata(ctx, "http-smoke")
+				if err != nil || snapshot.Refreshing {
+					return false
+				}
+				version := snapshot.Entries["kubernetes.server_version"]
+				if status == http.StatusOK {
+					return version.State == "current" && version.Value == "v1.35.0"
+				}
+				return version.State == "unavailable" && version.Error != nil && version.Error.Code == "SERVER_RESPONSE_FAILED"
+			}, 2*time.Second, 10*time.Millisecond)
+		})
+	}
+}
+
+// Opt in with an explicitly owned kubeconfig. This exercises only the provider;
+// host profile replacement and SDK generation fencing require the native cohort.
+func TestConnectionMetadataOwnedKind(t *testing.T) {
+	path := os.Getenv("OMNIVIEW_METADATA_SMOKE_KUBECONFIG")
+	if path == "" {
+		t.Skip("requires an explicitly owned kind kubeconfig")
+	}
+	config, err := clientcmd.BuildConfigFromFlags("", path)
+	require.NoError(t, err)
+	client, err := discovery.NewDiscoveryClientForConfig(config)
+	require.NoError(t, err)
+	update, err := connectionMetadata(context.Background(), types.Connection{ID: "owned-kind"}, &clients.ClientSet{RESTConfig: config, DiscoveryClient: client})
+	require.NoError(t, err)
+	require.Equal(t, sanitizedMetadataEndpoint(config), update.Set["kubernetes.server_url"].Value)
+	if code := os.Getenv("OMNIVIEW_METADATA_SMOKE_FAILURE"); code != "" {
+		require.Equal(t, code, update.Set["kubernetes.server_version"].Error.Code)
+		require.Equal(t, code, update.Set["kubernetes.server_platform"].Error.Code)
+		return
+	}
+	require.Equal(t, "success", update.Set["kubernetes.server_version"].State)
+	require.Equal(t, "success", update.Set["kubernetes.server_platform"].State)
+	require.NotEmpty(t, update.Set["kubernetes.server_version"].Value)
+	require.NotEmpty(t, update.Set["kubernetes.server_platform"].Value)
 }

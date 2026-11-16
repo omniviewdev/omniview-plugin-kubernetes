@@ -7,7 +7,7 @@ export type ConnectionMetadataDisplay = {
 };
 
 /** Keep observation detail separate from the value shown in compact surfaces. */
-export function connectionMetadataDisplay(snapshot: ConnectionMetadataSnapshot | undefined, transportAvailable: boolean, key: string): ConnectionMetadataDisplay {
+export function connectionMetadataDisplay(snapshot: ConnectionMetadataSnapshot | undefined, transportAvailable: boolean, key: string, provenance: 'observed' | 'configured' = 'observed'): ConnectionMetadataDisplay {
   const entry = snapshot?.entries[key];
   if (!entry) return { value: '—', state: 'unobserved', detail: 'No observation yet.' };
   if (entry.state === 'unavailable') {
@@ -17,6 +17,15 @@ export function connectionMetadataDisplay(snapshot: ConnectionMetadataSnapshot |
     return { value: '—', state: 'unavailable', detail: 'The server returned an unexpected value.' };
   }
   const stale = !transportAvailable || !snapshot.active || entry.state === 'stale';
+  if (provenance === 'configured') {
+    return {
+      value: entry.value,
+      state: stale ? 'stale' : 'current',
+      detail: stale
+        ? 'Saved configured endpoint; current configuration is not verified. Not proof of reachability.'
+        : 'Configured endpoint; not a network observation or proof of reachability.',
+    };
+  }
   const observed = new Date(entry.observedAt);
   const timestamp = Number.isNaN(observed.getTime())
     ? 'Observation time unavailable.'

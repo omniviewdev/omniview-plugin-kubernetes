@@ -82,6 +82,9 @@ const ClusterDashboardOverviewPage: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
   const { navigate } = usePluginRouter();
   const [namespaces, setNamespaces] = React.useState<string[]>([]);
+  const [nodeDemand, setNodeDemand] = React.useState<string>();
+  const nodesRequested = nodeDemand === id;
+  const loadNodes = React.useCallback(() => setNodeDemand(id), [id]);
   const [timeRange, setTimeRange] = React.useState<ChartTimeRange>(() => ({
     from: new Date(Date.now() - 3600000),
     to: new Date(),
@@ -114,7 +117,7 @@ const ClusterDashboardOverviewPage: React.FC = () => {
 
   // Own Pod ingestion once; health and workload counts share the collection.
   const pods = useKubernetesResources<Pod>({ connectionID: id, resourceType: 'k8s:/pods', namespaces });
-  const nodes = useKubernetesResources<K8sNode>({ connectionID: id, resourceType: 'k8s:/nodes' });
+  const nodes = useKubernetesResources<K8sNode>({ connectionID: id, resourceType: 'k8s:/nodes', enabled: nodesRequested });
   const events = useKubernetesResources<K8sEvent>({ connectionID: id, resourceType: 'k8s:/events', namespaces });
 
   // --- Extension point for dashboard widgets ---
@@ -128,7 +131,9 @@ const ClusterDashboardOverviewPage: React.FC = () => {
     () => filterByNamespace(pods.bodies ?? [], namespaces),
     [pods.bodies, namespaces],
   );
-  const allNodes = nodes.bodies;
+  const nodesKnown = nodesRequested && !!nodes.acquired && !nodes.isLoading && !nodes.error && !nodes.sourceError && !nodes.isSyncing;
+  const allNodes = nodesKnown ? nodes.bodies : undefined;
+  const nodeCount = nodesKnown && nodes.acquired?.page.view?.coverage?.enumeration === 'exhausted' ? nodes.bodies.length : undefined;
   const allEvents = React.useMemo(
     () => filterByNamespace(events.bodies ?? [], namespaces),
     [events.bodies, namespaces],
@@ -142,11 +147,13 @@ const ClusterDashboardOverviewPage: React.FC = () => {
           connectionID={id}
           loading={connection.isLoading}
           nodes={allNodes}
+          nodeCount={nodeCount}
           pods={allPods}
           events={allEvents}
+          onLoadNodes={nodesRequested ? undefined : loadNodes}
         />
         <CollectionStatus {...pods} label="Pods" />
-        <CollectionStatus {...nodes} label="Nodes" />
+        {nodesRequested && <CollectionStatus {...nodes} error={nodes.error ?? (nodes.sourceError ? 'Live Node source unavailable; retry refreshes the collection, not the live source.' : undefined)} label="Nodes" />}
 
         {/* Namespace filter */}
         <Stack direction="row" align="center" spacing={2} style={{ flexWrap: 'wrap', minWidth: 0 }}>
