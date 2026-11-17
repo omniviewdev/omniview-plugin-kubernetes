@@ -5,7 +5,6 @@ import reactHooks from "eslint-plugin-react-hooks";
 import jsxA11y from "eslint-plugin-jsx-a11y-x";
 import importX from "eslint-plugin-import-x";
 import reactRefresh from "eslint-plugin-react-refresh";
-import storybook from "eslint-plugin-storybook";
 import prettierConfig from "eslint-config-prettier";
 import globals from "globals";
 import { noUnescapedEntities } from "./scripts/eslint/jsx-text-rule.mjs";
@@ -13,7 +12,7 @@ import { reactWithPropAllowance } from "./scripts/eslint/react-prop-allowance.mj
 
 export default tseslint.config(
   // Global ignores
-  { ignores: ["dist/**", "node_modules/**", ".storybook/**", "src/**/*.js"] },
+  { ignores: ["dist/**", "node_modules/**", "src/**/*.js"] },
 
   // Base configs
   eslint.configs.recommended,
@@ -30,7 +29,6 @@ export default tseslint.config(
     files: ["src/**/*.{ts,tsx}"],
   },
   jsxA11y.configs.recommended,
-  ...storybook.configs["flat/recommended"],
   prettierConfig,
 
   // Main config for all TS/TSX files
@@ -122,28 +120,6 @@ export default tseslint.config(
       eqeqeq: ["error", "always", { null: "ignore" }],
       "no-var": "error",
       "prefer-const": "warn", // autofix
-    },
-  },
-
-  {
-    files: [
-      "src/components/shared/ResourceMetricPanels.tsx",
-      "src/components/shared/MetricSourcePicker.tsx",
-      "src/components/kubernetes/table/shared/TableMetrics.tsx",
-    ],
-    ignores: ["**/*.test.*", "**/*.stories.*"],
-    rules: {
-      "no-restricted-syntax": [
-        "error",
-        {
-          selector: 'JSXOpeningElement[name.type="JSXIdentifier"][name.name=/^(button|input|select|textarea|progress|meter|details|summary)$/]',
-          message: "Compose @omniviewdev/base-ui controls. Add missing shared capability there instead of a native metrics-view substitute.",
-        },
-        {
-          selector: 'JSXAttribute[name.name="type"][value.value=/^(datetime-local|date|time)$/]',
-          message: "Use the shared date/time components instead of browser-native temporal inputs.",
-        },
-      ],
     },
   },
 

@@ -1,0 +1,8 @@
+[
+  "react",
+  "react/jsx-runtime",
+  "react/compiler-runtime",
+  "react/jsx-dev-runtime",
+  "@omniviewdev/kit",
+  "@omniviewdev/runtime/ui/v1"
+]

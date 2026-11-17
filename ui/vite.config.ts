@@ -1,35 +1,28 @@
-import { fileURLToPath } from "node:url";
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import { omniviewExternals } from "@omniviewdev/vite-plugin";
-import { injectCssIntoEntry } from "./vite/omniview";
-import { resolvePluginId } from "./vite/pluginId";
+import react from '@vitejs/plugin-react';
+import { defineConfig } from 'vite';
+import shared from './vendor/shared-specifiers.json' with { type: 'json' };
+import { foldCssIntoLayer, sealedImports } from './vite/omniview';
+import { resolvePluginId } from './vite/pluginId';
 
+// On `feature/ui-next` this project is the new UI (decision A16 of the host's docs/ui-next/decisions.md): one bundle, `assets/entry.js`, that exports
+// `contributionV1` and imports only what the host shares with it. The shared names are the host's own list, vendored with the packages the plugin builds
+// against (hack/vendor-host.sh); the host's vite plugin preset (step N19b-2) replaces the two plugins below when it exists.
 const pluginId = resolvePluginId();
-// Vite exposes VITE_* process variables as import.meta.env, which it inlines
-// into every module in dev as well as in builds; `define` is not applied to
-// modules the host loads from the dev server.
-process.env.VITE_OMNIVIEW_PLUGIN_ID = pluginId;
 
 // https://vitejs.dev/config/
 export default defineConfig({
   cacheDir: process.env.OMNIVIEW_VITE_CACHE_DIRECTORY,
   plugins: [
-    react({ babel: { plugins: [["babel-plugin-react-compiler", { target: "19" }]] } }),
-    omniviewExternals(),
-    injectCssIntoEntry(pluginId),
+    react({ babel: { plugins: [['babel-plugin-react-compiler', { target: '19' }]] } }),
+    sealedImports(),
+    foldCssIntoLayer(pluginId),
   ],
-  resolve: {
-    alias: {
-      "@": fileURLToPath(new URL("./src", import.meta.url)),
-    },
-  },
   server: {
     host: '127.0.0.1',
     cors: true,
     hmr: {
-      protocol: "ws",
-      host: "127.0.0.1",
+      protocol: 'ws',
+      host: '127.0.0.1',
     },
   },
   build: {
@@ -37,14 +30,17 @@ export default defineConfig({
     cssCodeSplit: false,
     sourcemap: true,
     rollupOptions: {
-      input: "src/entry.ts",
+      input: 'src/entry.ts',
+      // The host serves these names at run time: one React and one kit for the window, and the runtime's curated entry on the host's providers.
+      external: shared,
       output: {
-        entryFileNames: "assets/entry.js",
-        chunkFileNames: "assets/[name].js",
-        assetFileNames: "assets/[name].[ext]",
+        entryFileNames: 'assets/entry.js',
+        // Hashed, so a directory that holds two builds can never mix their chunks (the host's slice document, 1.4).
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name].[ext]',
         format: 'system',
       },
       preserveEntrySignatures: 'exports-only',
-    }
+    },
   },
 });

@@ -24,10 +24,7 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "rootDir": ".",
-    "types": ["vite/client"],
-    "paths": {
-      "@/*": ["./src/*"]
-    }
+    "types": ["vite/client"]
   },
   "include": [
     "src"
