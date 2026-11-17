@@ -41,15 +41,18 @@ export type PodsView = {
   /** A refresh or a resynchronisation is running on a set that is shown. */
   readonly refreshing: boolean;
   /** Starts the connection. Only the caller decides to call it: a read never connects (plan D4). */
-  connect(): Promise<void>;
+  readonly connect: () => Promise<void>;
   /** Asks again for what failed: the connection check, the catalog, the target, or the collection. */
-  retry(): Promise<void>;
+  readonly retry: () => Promise<void>;
   /** The user's Refresh: the rows stay while the collection is refreshed. */
-  refresh(): Promise<void>;
+  readonly refresh: () => Promise<void>;
 };
 
 export type UsePodsOptions = {
-  readonly connectionID: string;
+  /** The id the plugin is installed under, which the host tells a contribution; `PLUGIN_ID` when absent. */
+  readonly pluginID?: string;
+  /** The connection to read. Absent while the plugin's connections are on their way, or when it has none: nothing is read. */
+  readonly connectionID: string | undefined;
   /** The order the user chose; the definition's default when absent. */
   readonly sort?: PodSort;
 };
@@ -74,18 +77,19 @@ async function settled(operation: () => Promise<unknown>): Promise<void> {
  * page of 256 records is read beside it and shown until the collection completes; both give a record the same key, so the hand-over
  * re-keys nothing. Measured and decided in docs/ui-next/status/1a.2.md.
  */
-export function usePods({ connectionID, sort = podDefinition.list.defaultSort }: UsePodsOptions): PodsView {
-  const route = useMemo(() => ({ connection: connectionID }), [connectionID]);
-  const readiness = useConnectionReadiness({ pluginID: PLUGIN_ID, connectionID });
-  const { resourceTypes } = useResourceTypes({ pluginID: PLUGIN_ID, route });
+export function usePods({ pluginID = PLUGIN_ID, connectionID, sort = podDefinition.list.defaultSort }: UsePodsOptions): PodsView {
+  const reading = connectionID !== undefined;
+  const route = useMemo(() => ({ connection: connectionID ?? '' }), [connectionID]);
+  const readiness = useConnectionReadiness({ pluginID, connectionID: route.connection, enabled: reading });
+  const { resourceTypes } = useResourceTypes({ pluginID, route, enabled: reading });
   const podType = resourceTypes.data?.find((type) => type.type === podDefinition.type);
-  const target = useResolvedResourceTarget({ pluginID: PLUGIN_ID, route, type: podDefinition.type, enabled: podType !== undefined });
+  const target = useResolvedResourceTarget({ pluginID, route, type: podDefinition.type, enabled: podType !== undefined });
   const request = target.data === undefined ? undefined : { targetId: target.data.targetId, request: { target: target.data.target, pageSize: FIRST_SET } };
   const live = podType?.capabilities.some((capability) => capability.operation === 'sourceUpdates') ?? false;
 
-  const collection = useResources({ pluginID: PLUGIN_ID, request, collection: true, live });
+  const collection = useResources({ pluginID, request, collection: true, live });
   const everything = collection.resources.data;
-  const firstSet = useResources({ pluginID: PLUGIN_ID, request: everything === undefined ? request : undefined, collection: false });
+  const firstSet = useResources({ pluginID, request: everything === undefined ? request : undefined, collection: false });
 
   const connected = readiness.phase === 'connected';
   const records = connected ? (everything ?? firstSet.resources.data)?.records : undefined;

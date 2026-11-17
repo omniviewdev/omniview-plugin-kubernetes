@@ -98,8 +98,8 @@ describe('the read chain: the old table\'s arguments, unchanged', () => {
 
     render();
 
-    expect(readiness).toHaveBeenCalledWith({ pluginID: 'kubernetes', connectionID: 'kind-a' });
-    expect(resourceTypes).toHaveBeenCalledWith({ pluginID: 'kubernetes', route: { connection: 'kind-a' } });
+    expect(readiness).toHaveBeenCalledWith({ pluginID: 'kubernetes', connectionID: 'kind-a', enabled: true });
+    expect(resourceTypes).toHaveBeenCalledWith({ pluginID: 'kubernetes', route: { connection: 'kind-a' }, enabled: true });
     expect(resolvedTarget).toHaveBeenCalledWith({ pluginID: 'kubernetes', route: { connection: 'kind-a' }, type: 'k8s:/pods', enabled: true });
     expect(resources).toHaveBeenCalledWith({ pluginID: 'kubernetes', request, collection: true, live: true });
     expect(resources).toHaveBeenCalledWith({ pluginID: 'kubernetes', request, collection: false });
@@ -122,6 +122,33 @@ describe('the read chain: the old table\'s arguments, unchanged', () => {
     for (const call of resources.mock.calls) {
       expect(call[0]).toMatchObject({ request: undefined });
     }
+  });
+
+  it('reads through the plugin id it is given: the id the host installed the plugin under', () => {
+    answer();
+
+    renderHook(() => usePods({ pluginID: 'kubernetes-qa', connectionID: 'kind-a' }));
+
+    for (const hook of [readiness, resourceTypes, resolvedTarget, resources]) {
+      expect(hook).toHaveBeenCalledWith(expect.objectContaining({ pluginID: 'kubernetes-qa' }));
+      expect(hook).not.toHaveBeenCalledWith(expect.objectContaining({ pluginID: 'kubernetes' }));
+    }
+  });
+
+  it('reads nothing while there is no connection to read: the connections are on their way, or the plugin has none', () => {
+    answer({ phase: 'checking', types: [], target: false });
+
+    const { result } = renderHook(() => usePods({ connectionID: undefined }));
+
+    expect(readiness).toHaveBeenCalledWith({ pluginID: 'kubernetes', connectionID: '', enabled: false });
+    expect(resourceTypes).toHaveBeenCalledWith({ pluginID: 'kubernetes', route: { connection: '' }, enabled: false });
+    expect(resolvedTarget).toHaveBeenCalledWith(expect.objectContaining({ enabled: false }));
+    for (const call of resources.mock.calls) {
+      expect(call[0]).toMatchObject({ request: undefined });
+    }
+
+    expect(result.current.rows).toEqual([]);
+    expect(result.current.state).toEqual({ kind: 'connecting' });
   });
 
   it('stops reading the first page as soon as the collection is complete', () => {

@@ -29,6 +29,7 @@ async function check(files) {
 for (const [name, files, expectedStatus, pattern] of [
   ['accepts a bundle that imports the shared names and exports contributionV1', { 'entry.js': bundle(HEALTHY) }, 0, /exports contributionV1/],
   ['accepts the export written as an object', { 'entry.js': bundle(HEALTHY, 'exports({ contributionV1: contributionV1, other: other });') }, 0, undefined],
+  ['accepts the export under a minifier\'s name for `exports`', { 'entry.js': bundle(HEALTHY, 'const en=Je("contributionV1",{plugin:{}});') }, 0, undefined],
   ['accepts a chunk of its own', { 'entry.js': bundle([...HEALTHY, './helper-1a2b3c.js']), 'helper-1a2b3c.js': bundle(['react'], '') }, 0, undefined],
   ['accepts folded CSS inside the plugin layer', { 'entry.js': bundle(HEALTHY, undefined, STYLE('@layer ov.plugin {\n.a{}\n}')) }, 0, undefined],
 

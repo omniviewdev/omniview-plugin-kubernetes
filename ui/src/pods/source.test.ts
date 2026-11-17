@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { PodsFailure, PodsState, PodsView } from '../k8s';
+import type { PodsFailure, PodsState, PodsView } from './data';
 import { podsListSource } from './source';
 
 // A view as `usePods` hands it over; only what the mapping reads is real.

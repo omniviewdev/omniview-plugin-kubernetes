@@ -11,8 +11,8 @@ import { noUnescapedEntities } from "./scripts/eslint/jsx-text-rule.mjs";
 import { reactWithPropAllowance } from "./scripts/eslint/react-prop-allowance.mjs";
 
 export default tseslint.config(
-  // Global ignores
-  { ignores: ["dist/**", "node_modules/**", "src/**/*.js"] },
+  // Global ignores. `src/contract/` is the host's, vendored by hack/vendor-host.sh and rewritten by it: not formatted or fixed here.
+  { ignores: ["dist/**", "node_modules/**", "src/**/*.js", "src/contract/**"] },
 
   // Base configs
   eslint.configs.recommended,
@@ -114,6 +114,10 @@ export default tseslint.config(
         },
       ],
       "import-x/no-duplicates": "warn",
+
+      // --- Accessibility ---
+      // The kit's `Status` takes a `role` prop that is a design role (`progress`, `error`), not an ARIA role: check DOM elements only.
+      "jsx-a11y-x/aria-role": ["error", { ignoreNonDOM: true }],
 
       // --- General quality ---
       "no-console": ["warn", { allow: ["warn", "error"] }],

@@ -1,10 +1,10 @@
 import { KindTile, MiddleEllipsis, MissingValue, Status, compactAge, useAge } from '@omniviewdev/kit';
 import { useState } from 'react';
-import { podDefinition, type Cell, type PodField, type PodRow, type PodSortId } from '../k8s';
+import { podDefinition, type Cell, type PodField, type PodRow, type PodSortId } from './data';
 import styles from './cells.module.css';
 
 // What a Pods row draws in its cells, from the Pod definition's closed vocabulary of cells (`text`, `status`, `age`, `none`) and kit atoms. The
-// definition decides what a field says; this file decides how it is drawn. Plugin scaffolding: it imports the kit and the data layer only.
+// definition decides what a field says; this file decides how it is drawn. It imports the kit and the data layer only.
 
 function fieldOf(id: PodSortId): PodField {
   const field = podDefinition.fields.find((candidate) => candidate.id === id);

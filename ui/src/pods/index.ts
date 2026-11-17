@@ -1,4 +1,8 @@
-// The Pods screen as the host mounts it: the screen's data and definition, handed to whatever draws them. The one import of `ui-next/main.tsx` (the
-// scaffold boundary allows a single marked mount point); everything else here is internal to the screen.
-export { PodsPage } from './PodsPage';
-export type { PodsPageParts } from './PodsPage';
+import type { ListPageV1 } from '../contract/v1';
+import type { PodRow } from './data';
+import { podsListDefinition } from './listDefinition';
+import { usePodsPage } from './usePodsPage';
+
+// The Pods list page as the plugin contributes it (`contributionV1.pages`): its definition, which the host's list page draws, and its one data hook.
+// `satisfies` is where the page's types meet the contract's: a definition or a source the host's list page cannot draw does not compile here.
+export const podsPage = { kind: 'list', definition: podsListDefinition, usePage: usePodsPage } satisfies ListPageV1<PodRow>;

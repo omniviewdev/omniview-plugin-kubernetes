@@ -1,10 +1,10 @@
 import type { DataTableColumn } from '@omniviewdev/kit';
 import type { ReactNode } from 'react';
-import { podDefinition, podSearchText, type PodColumn, type PodRow, type PodSortId } from '../k8s';
+import { podDefinition, podSearchText, type PodColumn, type PodRow, type PodSortId } from './data';
 import { AgeCell, IdentityCell, ReadyCell, RestartsCell, StatusCell } from './cells';
 
 // The Pods list page, stated as data: the Pod definition's words, columns and quick filters, with a cell drawn for each column. The host's list page
-// draws it (`ui-next/page/`); this file imports nothing from the host, so the type of the value is checked where the two meet, in `ui-next/main.tsx`.
+// draws it; `index.ts` checks the value against the contribution contract's `ListPageDefinition<PodRow>`.
 
 function specOf(id: PodSortId): PodColumn {
   const spec = podDefinition.columns.find((candidate) => candidate.id === id);

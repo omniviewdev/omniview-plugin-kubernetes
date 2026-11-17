@@ -1,42 +1,42 @@
 /* What a Pods row puts in its cells, drawn the way the design mock draws them (its `.namecell`, `.cell2` and mono rules), from kit atoms. Plugin
-   CSS: layer ov.plugin, below the kit's components, so a part's own rule always wins over this file. */
-@layer ov.plugin {
-  /* A tile and a name over a second line. */
-  .identity {
-    display: flex;
-    align-items: center;
-    gap: var(--ov-spacing-8);
-    min-width: 0;
-  }
+   CSS: the build folds it into the bundle inside `@layer ov.plugin` (vite/omniview.ts), below the kit's components, so a part's own rule always wins
+   over this file. */
 
-  .identity > :first-child {
-    flex: none;
-  }
+/* A tile and a name over a second line. */
+.identity {
+  display: flex;
+  align-items: center;
+  gap: var(--ov-spacing-8);
+  min-width: 0;
+}
 
-  /* The two lines: the name and its namespace. Each clips on its own, as the mock's `.fx .cell2 > *` does. */
-  .lines {
-    display: flex;
-    flex: 1 1 auto;
-    flex-direction: column;
-    gap: 0;
-    min-width: 0;
-  }
+.identity > :first-child {
+  flex: none;
+}
 
-  .lines > * {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
+/* The two lines: the name and its namespace. Each clips on its own, as the mock's `.fx .cell2 > *` does. */
+.lines {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
 
-  .second {
-    color: var(--ov-fg-muted);
-    font-size: var(--ov-fs-12);
-    line-height: var(--ov-lh-16);
-  }
+.lines > * {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
-  /* A count in the code face, as the mock draws Ready and Restarts. */
-  .mono {
-    font-family: var(--ov-font-code);
-  }
+.second {
+  color: var(--ov-fg-muted);
+  font-size: var(--ov-fs-12);
+  line-height: var(--ov-lh-16);
+}
+
+/* A count in the code face, as the mock draws Ready and Restarts. */
+.mono {
+  font-family: var(--ov-font-code);
 }

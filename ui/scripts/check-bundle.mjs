@@ -19,7 +19,9 @@ const directory = resolve(process.argv[2] ?? resolve(process.env.OMNIVIEW_BUILD_
 // The same two patterns as the host's pre-flight: the first registration's dependency list, and the quoted names in it.
 const REGISTRATION = /System\.register\(\s*(?:(['"])(?:(?!\1).)*\1\s*,\s*)?\[([^\]]*)\]/;
 const QUOTED = /(['"])((?:(?!\1).)*)\1/g;
-const EXPORTS_CONTRIBUTION = /\bexports\(\s*(?:(['"])contributionV1\1|\{[^}]*\bcontributionV1\b)/;
+// The `system` format exports through the first parameter of the registered function, which a minifier renames: `x("contributionV1", value)`, or
+// `x({ contributionV1: value })` when a module exports several names.
+const EXPORTS_CONTRIBUTION = /[\w$]\(\s*(?:(['"])contributionV1\1\s*,|\{[^}]*\bcontributionV1\b)/;
 const isLocal = (specifier) => specifier.startsWith('.') || specifier.startsWith('/');
 
 const problems = [];

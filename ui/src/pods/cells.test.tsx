@@ -1,6 +1,6 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PodRow } from '../k8s';
+import type { PodRow } from './data';
 import { AgeCell, IdentityCell, ReadyCell, RestartsCell, StatusCell } from './cells';
 
 const NOW = Date.UTC(2026, 10, 17, 12, 0, 0);

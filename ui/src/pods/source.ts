@@ -1,8 +1,7 @@
-import type { PodRow, PodsFailureKind, PodsView } from '../k8s';
+import type { PodRow, PodsFailureKind, PodsView } from './data';
 
-// What the Pods data layer tells the list page, in the page's words. The page is the host's and this directory is the Kubernetes scaffolding, which
-// imports nothing from it (docs/ui-next/AGENTS.md rule 15): the shape below is the host's `ListSource<PodRow>` written out, and the one place the two
-// meet, the mount point in `ui-next/main.tsx`, checks them against each other.
+// What the Pods data layer tells the list page, in the page's words: the contribution contract's `ListSource<PodRow>` written out (`../contract/page.ts`).
+// The page's `satisfies ListPageV1<PodRow>` in `index.ts` checks the two against each other.
 
 export type PodsListSourceState =
   | { readonly kind: 'loading' }
