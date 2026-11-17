@@ -1,9 +1,0 @@
-.resourceCard {
-  padding: 8px;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.resourceCard:hover {
-  background-color: var(--ov-color-state-hover);
-}

@@ -1,6 +1,13 @@
 packages: []
 linkWorkspacePackages: false
 strictPeerDependencies: true
+# The runtime declares peers the new UI never loads: its `ui/v1` entry reads React and TanStack Query only. The old UI library and the router are
+# the previous shell's, so a plugin of the new shell does not install them (the host's decision R3).
+autoInstallPeers: false
+peerDependencyRules:
+  ignoreMissing:
+    - '@omniviewdev/base-ui'
+    - react-router
 pmOnFail: error
 minimumReleaseAge: 1440
 minimumReleaseAgeExclude:
@@ -8,5 +15,7 @@ minimumReleaseAgeExclude:
 allowBuilds:
   esbuild: true
   unrs-resolver: false
-patchedDependencies:
-  'monaco-editor@0.52.2': patches/monaco-editor@0.52.2.patch
+# `@eslint-react` takes `@typescript-eslint/typescript-estree` as `^8.72.0`. From 8.73 on its optional peer `@typescript/native` wants a TypeScript 7.1
+# build, and this project's native check runs 7.0.2: stay on the version `typescript-eslint` itself resolves until the two meet.
+overrides:
+  '@typescript-eslint/typescript-estree': 8.72.1

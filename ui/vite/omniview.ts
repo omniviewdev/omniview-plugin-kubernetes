@@ -1,37 +1,59 @@
+import path from 'node:path';
 import type { Plugin } from 'vite';
 
 /**
- * The host app only loads `assets/entry.js`, so CSS emitted by the build (CSS
- * modules) would never reach the page. Fold it into the entry chunk as a
- * <style> tag that is added when the plugin bundle is evaluated.
+ * A new-UI bundle imports its own files and the names the host shares with it (`vendor/shared-specifiers.json`: React, the kit and the runtime's
+ * `ui/v1` entry), and nothing else: the host refuses a bundle that imports another bare name before it runs a line of it. Those names are `external` in
+ * the build, so this plugin sees only the others, and it fails the build on the first one: a bundle never carries its own copy of React.
  */
-export function injectCssIntoEntry(pluginId: string): Plugin {
+export function sealedImports(): Plugin {
   return {
-    name: 'omniview-inject-css',
+    name: 'omniview-sealed-imports',
+    apply: 'build',
+    enforce: 'pre',
+    resolveId(source, importer) {
+      if (importer === undefined || source.startsWith('\0') || source.startsWith('virtual:') || source.startsWith('.') || path.isAbsolute(source)) {
+        return null;
+      }
+
+      this.error(`"${source}" (imported by ${importer}) is not on the host's shared list (ui/vendor/shared-specifiers.json); a new-UI bundle imports only its own files and those names`);
+    },
+  };
+}
+
+/**
+ * The host loads only `assets/entry.js`, so CSS the build emits (CSS Modules) would never reach the page. Fold it into the entry chunk as a <style> tag
+ * that is added when the bundle is evaluated, inside the kit's plugin layer: below the kit's components, so the plugin's CSS can style its own elements
+ * and can never beat a kit part.
+ */
+export function foldCssIntoLayer(pluginId: string): Plugin {
+  return {
+    name: 'omniview-fold-css-into-layer',
     apply: 'build',
     enforce: 'post',
     generateBundle(_options, bundle) {
-      const cssFiles = Object.values(bundle).filter(
-        (file) => file.type === 'asset' && file.fileName.endsWith('.css'),
-      );
-      if (cssFiles.length === 0) return;
+      const sheets = Object.values(bundle).filter((file) => file.type === 'asset' && file.fileName.endsWith('.css'));
+      if (sheets.length === 0) {
+        return;
+      }
 
-      const css = cssFiles
-        .map((file) => (file.type === 'asset' ? String(file.source) : ''))
-        .join('\n');
-      for (const file of cssFiles) delete bundle[file.fileName];
+      const css = sheets.map((file) => (file.type === 'asset' ? String(file.source) : '')).join('\n');
+      for (const sheet of sheets) {
+        delete bundle[sheet.fileName];
+      }
 
-      const entry = Object.values(bundle).find(
-        (file) => file.type === 'chunk' && file.isEntry,
-      );
-      if (!entry || entry.type !== 'chunk') return;
+      const entry = Object.values(bundle).find((file) => file.type === 'chunk' && file.isEntry);
+      if (entry?.type !== 'chunk') {
+        return;
+      }
 
-      const attr = `data-omniview-plugin-css`;
+      const layered = `@layer ov.plugin {\n${css}\n}`;
+      const attribute = 'data-omniview-plugin-css';
       entry.code +=
         `\n;(function(){var id=${JSON.stringify(pluginId)};` +
-        `var old=document.querySelector('style[${attr}="'+id+'"]');if(old)old.remove();` +
-        `var s=document.createElement('style');s.setAttribute('${attr}',id);` +
-        `s.textContent=${JSON.stringify(css)};document.head.appendChild(s);})();\n`;
+        `var old=document.querySelector('style[${attribute}="'+id+'"]');if(old)old.remove();` +
+        `var s=document.createElement('style');s.setAttribute('${attribute}',id);` +
+        `s.textContent=${JSON.stringify(layered)};document.head.appendChild(s);})();\n`;
     },
   };
 }

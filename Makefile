@@ -1,11 +1,9 @@
-.PHONY: build build-ui update lint install package storybook storybook-build
+.PHONY: build build-ui update lint install package
 
 # Every Go subprocess uses this module, never an enclosing go.work or GOFLAGS.
 override export GOWORK := off
 override export GOFLAGS :=
 export OMNIVIEW_DEV_CLI
-STORYBOOK_PORT ?= 6006
-STORYBOOK_HOST ?= 127.0.0.1
 
 # Extract version from git tag
 VERSION := $(shell git describe --tags --abbrev=0 | sed 's/^v//')
@@ -55,14 +53,6 @@ package:
 		NAME=omniview-plugin-kubernetes-$(VERSION)-$$MODPLATFORM.tar.gz; \
 		tar -czvf ./build/$$NAME -C .package .; \
 	done
-
-
-	
-storybook:
-	cd ui && pnpm run storybook --port "$(STORYBOOK_PORT)" --host "$(STORYBOOK_HOST)" --ci --exact-port
-
-storybook-build:
-	cd ui && pnpm run build-storybook
 
 # ── Kind test cluster ─────────────────────────────────────────────────
 

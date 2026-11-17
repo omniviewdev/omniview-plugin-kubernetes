@@ -4,7 +4,9 @@ import { fileURLToPath } from 'node:url';
 /**
  * The plugin ID the UI is built for: OMNIVIEW_PLUGIN_ID when set, otherwise
  * the `id` in plugin.yaml. hack/package.sh sets the variable so a build can
- * be published under another ID without editing plugin.yaml.
+ * be published under another ID without editing plugin.yaml. The bundle does
+ * not carry it for its data calls (the host tells a contribution the ID it is
+ * installed under); the build uses it to name the bundle's stylesheet.
  */
 export function resolvePluginId(): string {
   const fromEnv = process.env.OMNIVIEW_PLUGIN_ID?.trim();

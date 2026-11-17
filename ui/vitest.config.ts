@@ -4,9 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
-import { resolvePluginId } from './vite/pluginId';
 
-process.env.VITE_OMNIVIEW_PLUGIN_ID = resolvePluginId();
 // Keep test transforms outside dependency trees owned by the workspace supervisor.
 const testCacheDirectory =
   process.env.OMNIVIEW_TEST_CACHE_DIRECTORY ||
@@ -29,11 +27,6 @@ export default defineConfig({
       }),
     }),
   ],
-  resolve: {
-    alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
-    },
-  },
   test: {
     fsModuleCachePath: join(testCacheDirectory, 'transforms'),
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
