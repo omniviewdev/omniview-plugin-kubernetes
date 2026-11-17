@@ -1,4 +1,0 @@
-/* Row that highlights on hover (was `'&:hover': { bgcolor: 'action.hover' }`). */
-.hoverRow:hover {
-  background-color: var(--ov-color-state-hover);
-}
