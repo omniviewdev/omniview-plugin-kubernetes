@@ -1,10 +1,13 @@
 import * as runtime from '@omniviewdev/runtime/ui/v1';
 import { cleanup, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
 import type { ContextV1 } from '../contract/v1';
+
 import * as data from './data';
-import { podsPage } from './index';
 import { usePodsPage } from './usePodsPage';
+
+import { podsPage } from './index';
 
 // The data layer is its own seam, tested in ./data: here `usePods` answers a view, and the runtime answers the list of connections. What is under
 // test is what the page hands the host: which connection it reads, what it puts in the frame, what the page lists and in what state, and the one

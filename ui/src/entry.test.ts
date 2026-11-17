@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+
 import type { SidebarNodeV1 } from './contract/v1';
 import * as entry from './entry';
 

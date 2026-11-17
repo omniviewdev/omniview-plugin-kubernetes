@@ -1,7 +1,8 @@
 import type { DataTableColumn } from '@omniviewdev/kit';
 import type { ReactNode } from 'react';
-import { podDefinition, podSearchText, type PodColumn, type PodRow, type PodSortId } from './data';
+
 import { AgeCell, IdentityCell, ReadyCell, RestartsCell, StatusCell } from './cells';
+import { podDefinition, podSearchText, type PodColumn, type PodRow, type PodSortId } from './data';
 
 // The Pods list page, stated as data: the Pod definition's words, columns and quick filters, with a cell drawn for each column. The host's list page
 // draws it; `index.ts` checks the value against the contribution contract's `ListPageDefinition<PodRow>`.
