@@ -6,7 +6,8 @@
 # Writes dist/<plugin-id>-<os>_<arch>.tar.gz, the names the publish action
 # uploads. The plugin ID is the id in plugin.yaml unless PLUGIN_ID is set,
 # which publishes the same code under another ID: it is stamped into the
-# packaged plugin.yaml, the Go binary (pkg/pluginid, with the version) and the UI bundle.
+# packaged plugin.yaml, the Go binary (pkg/pluginid, with the version) and the
+# name of the UI bundle's stylesheet (the host tells the UI the ID it is installed under).
 # Each archive holds plugin.yaml, bin/plugin and assets/ at its root, which is
 # the layout the app installs.
 set -euo pipefail

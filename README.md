@@ -17,6 +17,35 @@
 
 ---
 
+## The new UI on `feature/ui-next`
+
+This is the long-lived branch of the new UI (decision A16 of [omniviewdev/omniview](https://github.com/omniviewdev/omniview), `docs/ui-next/decisions.md`).
+On it the `ui/` project **is** the new UI: no flavour switch, no sibling directory, and the old UI is deleted from the build. The Go plugin, `plugin.yaml` and
+`hack/package.sh` are unchanged; `main` keeps the old UI until the flip. Except for this section, the sections below that describe the UI (screens, tables,
+editors, the old UI's tests and tooling) describe `main`; they are rewritten when this branch is promoted.
+
+**The bundle.** `ui/dist/assets/entry.js`, one SystemJS bundle that exports `contributionV1` (`ui/src/entry.ts`): the sidebar entry Workloads › Pods and the
+Pods list page with its data hook. It imports only `react`, `@omniviewdev/kit` and the runtime's curated `@omniviewdev/runtime/ui/v1`, all served by the
+host as shared modules; the host refuses a bundle that imports anything else, before it runs. `ui/vite/omniview.ts` fails the build on any other bare import
+and `ui/scripts/check-bundle.mjs` reads the finished bundle the way the host's loader does.
+
+**Where the Pods code came from.** `ui/src/pods/` is the Pods scaffolding the host kept in `ui-next/k8s/` and `ui-next/pods/` while the plugin had no new UI,
+moved here with its tests: the branch's history has the move byte for byte, then what it changed.
+
+**What it builds against.** The kit and the runtime's `ui/v1` entry are not on npm yet (no dist-tag). `ui/vendor/` holds them as packed tarballs of one commit
+of the host (`ui/vendor/HOST_COMMIT`), next to the host's list of shared names, and `ui/src/contract/` holds the contract's types, vendored as types only.
+To build against another host commit, from a clean checkout of it (never the owner's working tree):
+
+```sh
+git -C <omniview> fetch origin
+git -C <omniview> worktree add <dir> --detach origin/main
+hack/vendor-host.sh <dir>
+```
+
+**Not built on this branch yet.** The managed dev loop (`pnpm run dev` needs the vite plugin's preset for the shared names and the loader's dev path in the host,
+steps N19b-2 and N19b-3 of the host's `docs/ui-next/slices/n19-plugin-seam.md`); the host's archive smoke for a new-shell bundle (N19b-4); the channel
+and its first release (the owner).
+
 Browse, inspect, edit, and manage Kubernetes clusters without leaving Omniview. The Kubernetes plugin provides real-time resource tables, an integrated terminal, log streaming, port forwarding, Helm chart management, cluster metrics, and full YAML editing — all from a single, unified interface.
 
 Resource icons come from the upstream [Kubernetes Icons Set](https://github.com/kubernetes/community/tree/aeee117fa02e25b68298999d699fb45bdc91acb7/icons), bundled under Apache-2.0. Source attribution and license live in `ui/src/icons/kubernetes/NOTICE` and `LICENSE`. The plugin registers one `ResourceIconSetV1` at `omniview/resource/icons`; both sidebar layouts and the host search palette reuse it. Icons use exact native logical Types, independent of served API version. Unknown resources and custom groups use the host fallback.
@@ -67,9 +96,8 @@ runtime setters and rejects the retired notification import before packaging.
 This targeted artifact check does not prove compatibility with every desktop
 API or replace an installed-host render smoke test.
 
-Run the guard regressions with
-`node --test ui/scripts/check-runtime-imports.test.mjs`. After a UI build, inspect
-its assets with `node ui/scripts/check-runtime-imports.mjs ui/dist/assets`.
+On `feature/ui-next` this guard goes with the old bundle: `ui/scripts/check-bundle.mjs` reads the new bundle's `System.register` dependency list instead
+(see "The new UI on `feature/ui-next`").
 Before publishing, install the packaged plugin in the intended desktop release,
 open the cluster list, create and delete a folder, open cluster resources, and
 trigger a resource-link resolution error. Confirm notifications appear and
@@ -308,23 +336,10 @@ so these controls remain visible and interactive inside the browser's top layer.
 
 ## Frontend CI
 
-Every pull request checks out its exact Kubernetes source commit beside host
-`main` and the SDK commit resolved by the host's `e2e/scripts/sdk-source.mjs`.
-The existing `UI checks` job runs the host's owned source runner with
-`--full --kubernetes-checks`. Its managed dependency closure uses the host
-lockfile and selected sources, not a standalone install of published runtime
-packages into the untouched plugin checkout.
-
-The runner performs UI lint, native TypeScript checking, behavior tests, and
-the New York age-clock test once. It reuses the canonical production UI build
-for full application acceptance and export/browser/chunk-retirement contracts.
-Resolved source commits appear in workflow evidence; no published plugin or npm
-release is a prerequisite. Host application E2E and profiling also select
-Kubernetes `main` and the SDK declared by the selected host.
-
-Merge the host runner's `--kubernetes-checks` API into host `main` before merging
-the Kubernetes workflow change. Do not select an unmerged host SHA or branch to
-bypass that dependency.
+On `feature/ui-next` the `UI checks` job of `PR Validation` (`.github/workflows/pr.yml`) runs the plugin's own checks: frozen install, lint, tests, the
+script tests, and the build, which type-checks, bundles and reads the finished bundle with `scripts/check-bundle.mjs`. The host's `--kubernetes-checks`
+runner of `main` is not run here: it drives the old UI, which this branch no longer builds. The kit and the runtime come from `ui/vendor/` (see "The new UI
+on `feature/ui-next`"), so the job needs no npm dist-tag.
 
 ## Resource v2 boundary
 
@@ -1221,8 +1236,8 @@ pnpm install --frozen-lockfile
 pnpm run lint
 pnpm exec node node_modules/@typescript/native/bin/tsc --noEmit
 pnpm test
-TZ=America/New_York pnpm exec vitest run src/utils/ageClock.test.tsx
-pnpm run build
+pnpm run test:scripts
+pnpm run build   # type-checks, bundles, and reads the bundle the way the host's loader does
 ```
 
 PR validation also runs on stacked branches, so each resource-view PR receives
@@ -1230,8 +1245,6 @@ the same checks before merge.
 
 UI persistence tests use the test document's real JSDOM storage, including on
 Node versions that also expose process-global Web Storage.
-Submission behavior tests import the real CSR form before rendering, so admission
-assertions do not race cold lazy-chunk loading.
 
 ### Frontend lint contract
 
@@ -1281,7 +1294,6 @@ operation result. UI edits use the managed Vite feedback loop.
 Optional local tools need their own explicit assignments when used concurrently:
 
 ```sh
-make storybook STORYBOOK_PORT=26061
 make cluster CLUSTER_NAME=my-feature CLUSTER_HTTP_PORT=28080 \
   CLUSTER_HTTPS_PORT=28443 CLUSTER_KUBECONFIG="$FEATURE/.local/kubeconfig"
 ```
@@ -1306,15 +1318,14 @@ to use a production cluster.
 │   ├── portforward/        # Port forwarding
 │   ├── metrics/            # Metrics collection
 │   └── helm/               # Helm integration
-├── ui/                     # React frontend
-│   └── src/
-│       ├── components/
-│       │   ├── kubernetes/ # Resource tables, sidebars, actions
-│       │   ├── helm/       # Helm UI components
-│       │   └── shared/     # Reusable components
-│       ├── pages/          # Route pages (dashboard, clusters, resources)
-│       ├── hooks/          # Custom React hooks
-│       └── utils/          # Utilities
+├── ui/                     # The new UI (this branch): assets/entry.js, which exports contributionV1
+│   ├── src/
+│   │   ├── entry.ts        # the bundle's one export
+│   │   ├── pods/           # the Pods list page: definition, cells, usePodsPage
+│   │   │   └── data/       # the Pods data layer: row model, Pod definition, usePods
+│   │   └── contract/       # the host's contract types, vendored (types only)
+│   ├── vendor/             # the kit and the runtime as packed tarballs of one host commit
+│   └── scripts/            # check-bundle.mjs: the host loader's pre-flight on the build
 ├── plugin.yaml             # Plugin manifest
 └── plugin.json             # Plugin metadata & component registry
 ```

@@ -10,14 +10,46 @@ concurrency:
 
 permissions:
   contents: read
-  packages: read
 
+# On feature/ui-next the plugin's ui/ is the new UI (decision A16 of omniviewdev/omniview). The host's `--kubernetes-checks` runner of `main` drives the
+# old UI, which this branch no longer builds, so the checks here are the plugin's own. They need nothing from the host but the packages vendored in
+# ui/vendor (hack/vendor-host.sh), so no npm dist-tag is a prerequisite of this job.
 jobs:
   ui-checks:
     name: UI checks
-    uses: omniviewdev/omniview/.github/workflows/e2e-runner.yml@main
-    with:
-      host-ref: main
-      kubernetes-repository: ${{ github.event.pull_request.head.repo.full_name }}
-      kubernetes-ref: ${{ github.event.pull_request.head.sha }}
-      kubernetes-checks: true
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        with:
+          version: 12.14.0
+          node-version-file: "false"
+          install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "26.13.0"
+          cache: pnpm
+          cache-dependency-path: ui/pnpm-lock.yaml
+
+      # The lockfile pins the integrity of the two vendored tarballs as well.
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Tests
+        run: pnpm test
+
+      - name: Script tests (the bundle check and the lint rules)
+        run: pnpm run test:scripts
+
+      - name: Type-check, build, and read the bundle as the host's loader does
+        run: pnpm run build
