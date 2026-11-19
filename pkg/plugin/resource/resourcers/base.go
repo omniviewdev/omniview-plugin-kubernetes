@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -257,37 +258,83 @@ func makeSourceHandler(ctx context.Context, events chan<- sourceEvent, overflow 
 	}
 }
 
-func watchNamespaces(scope resource.QueryScope) ([]string, error) {
-	if len(scope) == 0 {
-		return nil, nil
+// watchSelection is what the scope of a source selects, one list per dimension; nil selects every value. A name narrows within the namespaces and never widens them.
+type watchSelection struct {
+	namespaces []string
+	names      []string
+}
+
+// watchSelectionOf reads the namespace and name constraints of a source's scope. An omitted dimension, and any, select every value. oneOf must name at least one
+// value, none empty or repeated, and a name must be one an object can have (clients.NameSelector). Nothing else is a dimension of a Kubernetes kind.
+func watchSelectionOf(scope resource.QueryScope) (watchSelection, error) {
+	var selection watchSelection
+	seen := make(map[string]struct{}, len(scope))
+	for _, constraint := range scope {
+		if _, exists := seen[constraint.Dimension]; exists {
+			return watchSelection{}, resource.NewError("INVALID_REQUEST", "Kubernetes watch scope repeats a dimension")
+		}
+		seen[constraint.Dimension] = struct{}{}
+		var err error
+		switch constraint.Dimension {
+		case "namespace":
+			selection.namespaces, err = watchValues(constraint, "namespace", nil)
+		case "name":
+			selection.names, err = watchValues(constraint, "name", func(name string) error {
+				_, err := clients.NameSelector(name)
+				return err
+			})
+		default:
+			err = resource.NewError("INVALID_REQUEST", "unsupported Kubernetes watch scope")
+		}
+		if err != nil {
+			return watchSelection{}, err
+		}
 	}
-	if len(scope) != 1 || scope[0].Dimension != "namespace" {
-		return nil, resource.NewError("INVALID_REQUEST", "unsupported Kubernetes watch scope")
-	}
-	constraint := scope[0]
+	return selection, nil
+}
+
+// watchValues is the selection of one dimension: nil for any, else the values of a oneOf, which valid (when not nil) admits one by one.
+func watchValues(constraint resource.ScopeConstraint, dimension string, valid func(string) error) ([]string, error) {
 	switch constraint.Match {
 	case resource.ScopeAny:
 		if constraint.Values != nil {
-			return nil, resource.NewError("INVALID_REQUEST", "any namespace scope must not contain values")
+			return nil, resource.NewError("INVALID_REQUEST", "any "+dimension+" scope must not contain values")
 		}
 		return nil, nil
 	case resource.ScopeOneOf:
 		if constraint.Values == nil || len(*constraint.Values) == 0 {
-			return nil, resource.NewError("INVALID_REQUEST", "namespace scope requires values")
+			return nil, resource.NewError("INVALID_REQUEST", dimension+" scope requires values")
 		}
 		seen := make(map[string]struct{}, len(*constraint.Values))
-		for _, namespace := range *constraint.Values {
-			if namespace == "" {
-				return nil, resource.NewError("INVALID_REQUEST", "namespace must not be empty")
+		for _, value := range *constraint.Values {
+			if value == "" {
+				return nil, resource.NewError("INVALID_REQUEST", dimension+" must not be empty")
 			}
-			if _, exists := seen[namespace]; exists {
-				return nil, resource.NewError("INVALID_REQUEST", "namespace scope contains duplicates")
+			if _, exists := seen[value]; exists {
+				return nil, resource.NewError("INVALID_REQUEST", dimension+" scope contains duplicates")
 			}
-			seen[namespace] = struct{}{}
+			seen[value] = struct{}{}
+			if valid != nil {
+				if err := valid(value); err != nil {
+					return nil, err
+				}
+			}
 		}
 		return *constraint.Values, nil
 	default:
 		return nil, resource.NewError("INVALID_REQUEST", "unsupported Kubernetes scope match")
+	}
+}
+
+// hasName keeps the objects of the selected names. The API server's own selection is the first line, one narrowed watch per name; this is the second: a server that
+// ignores the field selector sends the whole namespace, and the source must still hold only its scope. Other objects and tombstones of other types pass to the handler's checks.
+func hasName(names []string) func(any) bool {
+	return func(obj any) bool {
+		if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
+			obj = tombstone.Obj
+		}
+		u, ok := obj.(*unstructured.Unstructured)
+		return !ok || u == nil || slices.Contains(names, u.GetName())
 	}
 }
 
@@ -497,7 +544,8 @@ func newSourceHealthProbe(client *clients.ClientSet) (func(context.Context) erro
 	}, nil
 }
 
-// Source leases informer handlers for one source session.
+// Source leases informer handlers for one source session. The namespace and name constraints of its scope select what it follows: a name is narrowed by the API server
+// (one native LIST and WATCH of that object, shared by every session of it), not read from the namespace and filtered here.
 func (s *KubernetesResourcerBase[T]) Source(ctx context.Context, client *clients.ClientSet, request resource.SourceRequest, emit resource.SourceEmitter) (retErr error) {
 	_, snapshotSpan := diag.Tracer().Start(ctx, "kubernetes.source.snapshot")
 	snapshotSpan.SetAttributes(attribute.String("k8s.resource", s.resourceType.Resource))
@@ -550,12 +598,16 @@ func (s *KubernetesResourcerBase[T]) Source(ctx context.Context, client *clients
 			cancel()
 		}
 	}()
-	namespaces, err := watchNamespaces(request.Target.Scope)
+	selection, err := watchSelectionOf(request.Target.Scope)
 	if err != nil {
 		return err
 	}
+	namespaces, names := selection.namespaces, selection.names
 	if len(namespaces) == 0 {
 		namespaces = []string{""}
+	}
+	if len(names) == 0 {
+		names = []string{""}
 	}
 	events := make(chan sourceEvent, sourceQueueCapacity)
 	var overflow atomic.Bool
@@ -581,7 +633,11 @@ func (s *KubernetesResourcerBase[T]) Source(ctx context.Context, client *clients
 		UpdateFunc: handler.UpdateFunc,
 		DeleteFunc: handler.DeleteFunc,
 	}
-	leases := make([]*clients.InformerLease, 0, len(namespaces))
+	var registered cache.ResourceEventHandler = initialHandler
+	if selection.names != nil {
+		registered = cache.FilteringResourceEventHandler{FilterFunc: hasName(selection.names), Handler: initialHandler}
+	}
+	leases := make([]*clients.InformerLease, 0, len(namespaces)*len(names))
 	defer func() {
 		for _, lease := range leases {
 			if err := lease.Close(); err != nil {
@@ -589,35 +645,44 @@ func (s *KubernetesResourcerBase[T]) Source(ctx context.Context, client *clients
 			}
 		}
 	}()
-	probe := func(ctx context.Context, namespace string) error {
+	probe := func(ctx context.Context, namespace string, options metav1.ListOptions) error {
 		native := client.DynamicClient.Resource(s.resourceType)
 		if namespace == "" {
-			_, err := native.List(ctx, metav1.ListOptions{Limit: 1})
+			_, err := native.List(ctx, options)
 			return err
 		}
-		_, err := native.Namespace(namespace).List(ctx, metav1.ListOptions{Limit: 1})
+		_, err := native.Namespace(namespace).List(ctx, options)
 		return err
 	}
 	for _, namespace := range namespaces {
-		err = probe(ctx, namespace)
-		if err != nil {
-			failureCause = err
-			if errors.Is(err, context.Canceled) {
+		for _, name := range names {
+			// The probe asks what the informer will ask, so a server that cannot answer the selector fails here, classified, not in the reflector's retries.
+			options := metav1.ListOptions{Limit: 1}
+			if name != "" {
+				if options.FieldSelector, err = clients.NameSelector(name); err != nil {
+					return err
+				}
+			}
+			err = probe(ctx, namespace, options)
+			if err != nil {
+				failureCause = err
+				if errors.Is(err, context.Canceled) {
+					return err
+				}
+				classified := classifyWatchError(err)
+				c := diag.ClassifyError(err, false)
+				snapshotSpan.AddEvent("probe_failed", trace.WithAttributes(attribute.String("error.class", c.Class), attribute.String("k8s.reason", c.Reason), attribute.String("watch.code", classified.code)))
+				sourceLog.Warnw("source probe failed", append([]any{"watch_code", classified.code}, c.LogFields()...)...)
+				return resource.NewError(classified.code, classified.message)
+			}
+			lease, err := client.AcquireInformer(ctx, namespace, s.resourceType, registered, clients.ObjectName(name))
+			if err != nil {
+				failureCause = err
+				sourceLog.Warnw("source informer acquisition failed", diag.ClassifyError(err, false).LogFields()...)
 				return err
 			}
-			classified := classifyWatchError(err)
-			c := diag.ClassifyError(err, false)
-			snapshotSpan.AddEvent("probe_failed", trace.WithAttributes(attribute.String("error.class", c.Class), attribute.String("k8s.reason", c.Reason), attribute.String("watch.code", classified.code)))
-			sourceLog.Warnw("source probe failed", append([]any{"watch_code", classified.code}, c.LogFields()...)...)
-			return resource.NewError(classified.code, classified.message)
+			leases = append(leases, lease)
 		}
-		lease, err := client.AcquireInformer(ctx, namespace, s.resourceType, initialHandler)
-		if err != nil {
-			failureCause = err
-			sourceLog.Warnw("source informer acquisition failed", diag.ClassifyError(err, false).LogFields()...)
-			return err
-		}
-		leases = append(leases, lease)
 	}
 	syncCtx, stopSync := context.WithTimeout(ctx, 30*time.Second)
 	defer stopSync()
@@ -709,7 +774,7 @@ func (s *KubernetesResourcerBase[T]) Source(ctx context.Context, client *clients
 	}
 	finishSnapshot(nil)
 	snapshotCompleted = true
-	sourceLog.Debugw("source snapshot delivered", "sync_ms", time.Since(snapshotStart).Milliseconds(), "namespaces", len(namespaces))
+	sourceLog.Debugw("source snapshot delivered", "sync_ms", time.Since(snapshotStart).Milliseconds(), "namespaces", len(namespaces), "names", len(selection.names))
 	watched := make([]watchProgress, len(leases))
 	for i, lease := range leases {
 		watched[i] = lease.Informer

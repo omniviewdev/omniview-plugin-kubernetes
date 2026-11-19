@@ -7,8 +7,8 @@ import { hostRecord } from '../../pods/data/testing';
 
 import { usePod, type PodView } from './usePod';
 
-// `usePod` is the INTERIM seam of the Pod page (see its file): the runtime's curated entry has no single-object read, so it reads the Pod's namespace as a live collection through the fenced
-// hooks and picks the record by its address. What is under test is the arguments of the read chain, which record it picks, and what it says when the Pod is not there.
+// `usePod` is the seam of the Pod page (see its file): it reads the Pod by its namespace and its name. The plugin's catalog declares `name` as a query dimension of every kind, so the resolved target
+// narrows the read to that one object and the source view holds that record and no other. What is under test is the arguments of the read chain, which record it picks, and what it says when the Pod is not there.
 vi.mock('@omniviewdev/runtime/ui/v1', async (importActual) => {
   const actual = await importActual<typeof runtime>();
   return {
@@ -25,8 +25,11 @@ const resourceTypes = vi.mocked(runtime.useResourceTypes);
 const resolvedTarget = vi.mocked(runtime.useResolvedResourceTarget);
 const resources = vi.mocked(runtime.useResources);
 
-const namespaceScope = (namespace: string) => [{ dimension: 'namespace', match: 'oneOf', values: [namespace] }];
-const target = { route: { connection: 'kind-a' }, provider: 'kubernetes', authority: 'local:a', type: 'k8s:/pods', scope: namespaceScope('checkout'), representation: 'kubernetes.object.v1/v1' };
+const podScope = (namespace: string, name: string) => [
+  { dimension: 'namespace', match: 'oneOf', values: [namespace] },
+  { dimension: 'name', match: 'oneOf', values: [name] },
+];
+const target = { route: { connection: 'kind-a' }, provider: 'kubernetes', authority: 'local:a', type: 'k8s:/pods', scope: podScope('checkout', 'cart-api'), representation: 'kubernetes.object.v1/v1' };
 const request = { targetId: 'target-checkout', request: { target, pageSize: 256 } };
 
 const pod = (name: string, namespace = 'checkout', phase = 'Running') => hostRecord({ metadata: { name, namespace }, status: { phase } }, `row:${namespace}/${name}`);
@@ -95,15 +98,15 @@ const FORBIDDEN = envelope(403, 'omniview:resource/forbidden', 'no access');
 const UNAVAILABLE = envelope(503, 'omniview:connection/failed', 'the cluster did not answer');
 const BROKEN = envelope(500, 'omniview:internal', 'source down');
 
-describe('the read chain: the catalog, the resolved target of the namespace, then the namespace as a live collection', () => {
-  it('asks the catalog, resolves the Pod type in the Pod\'s namespace only, and reads that collection live', () => {
+describe('the read chain: the catalog, the resolved target of the Pod, then its one-record source view, live', () => {
+  it('asks the catalog, resolves the Pod type narrowed to the Pod\'s namespace and name, and reads that collection live', () => {
     answer();
 
     render();
 
     expect(readiness).toHaveBeenCalledWith({ pluginID: 'kubernetes', connectionID: 'kind-a', enabled: true });
     expect(resourceTypes).toHaveBeenCalledWith({ pluginID: 'kubernetes', route: { connection: 'kind-a' }, enabled: true });
-    expect(resolvedTarget).toHaveBeenCalledWith({ pluginID: 'kubernetes', route: { connection: 'kind-a' }, type: 'k8s:/pods', scope: namespaceScope('checkout'), enabled: true });
+    expect(resolvedTarget).toHaveBeenCalledWith({ pluginID: 'kubernetes', route: { connection: 'kind-a' }, type: 'k8s:/pods', scope: podScope('checkout', 'cart-api'), enabled: true });
     expect(resources).toHaveBeenCalledWith({ pluginID: 'kubernetes', request, collection: true, live: true });
   });
 
@@ -123,13 +126,32 @@ describe('the read chain: the catalog, the resolved target of the namespace, the
     expect(resources).toHaveBeenCalledWith(expect.objectContaining({ collection: true, live: false }));
   });
 
-  it('reads another namespace\'s collection when the route moves to a Pod of another namespace', () => {
+  it('reads the other Pod when the route moves to a Pod of another namespace', () => {
     answer();
     const { rerender } = render({ namespace: 'checkout' });
 
     rerender({ namespace: 'monitoring', name: 'alertmanager' });
 
-    expect(resolvedTarget).toHaveBeenLastCalledWith(expect.objectContaining({ scope: namespaceScope('monitoring') }));
+    expect(resolvedTarget).toHaveBeenLastCalledWith(expect.objectContaining({ scope: podScope('monitoring', 'alertmanager') }));
+  });
+
+  it('reads the other Pod when the route moves to another Pod of the same namespace: the name is part of what is read', () => {
+    answer();
+    const { rerender } = render({ namespace: 'checkout', name: 'cart-api' });
+
+    rerender({ namespace: 'checkout', name: 'payment-gateway' });
+
+    expect(resolvedTarget).toHaveBeenLastCalledWith(expect.objectContaining({ scope: podScope('checkout', 'payment-gateway') }));
+  });
+
+  it('never asks for the namespace\'s other Pods: no scope of the read leaves the name out', () => {
+    answer();
+
+    render({ namespace: 'bulk', name: 'bulk-0300' });
+
+    for (const [options] of resolvedTarget.mock.calls) {
+      expect(options.scope).toEqual(podScope('bulk', 'bulk-0300'));
+    }
   });
 
   it('does not resolve a target until the catalog lists the Pod type, and reads nothing before the target answers', () => {
@@ -169,7 +191,7 @@ describe('the read chain: the catalog, the resolved target of the namespace, the
   });
 });
 
-describe('which record is the Pod: the one whose address says so', () => {
+describe('which record is the Pod: the one whose address says so, whatever else a view holds', () => {
   it('picks the record of that name in that namespace from the complete snapshot, and reads it as a Pod', () => {
     answer({ collection: [pod('payment-gateway', 'checkout'), pod('cart-api', 'checkout', 'Pending')] });
 
@@ -203,7 +225,7 @@ describe('which record is the Pod: the one whose address says so', () => {
 });
 
 describe('when the Pod is not there', () => {
-  it('says empty, which is not found, when the namespace was read whole and the Pod is not in it', () => {
+  it('says empty, which is not found, when the Pod\'s own snapshot is complete and has no such Pod', () => {
     answer({ collection: [pod('payment-gateway')] });
 
     expect(render().result.current.state).toEqual({ kind: 'empty' });

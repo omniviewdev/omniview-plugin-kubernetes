@@ -35,22 +35,19 @@ func (p *kubernetesProvider) assembleNativeCatalog(ctx context.Context, connecti
 			binding.Actions = descriptors
 		}
 		binding.Actions = append(binding.Actions, editorActionDescriptors(binding)...)
+		served := nativeServedScope(binding.API.Namespaced, watchScope)
 		if len(binding.Actions) != 0 {
-			binding.Descriptor.Capabilities = append(binding.Descriptor.Capabilities, resourcev2.Capability{Operation: resourcev2.OperationAction, Scope: nativeTypeScope(binding)})
+			binding.Descriptor.Capabilities = append(binding.Descriptor.Capabilities, resourcev2.Capability{Operation: resourcev2.OperationAction, Scope: served})
 		}
 		binding.Descriptor.DefaultRepresentation = nativeRepresentationVersion + "/" + binding.GVR.GroupVersion().String()
 		binding.Descriptor.ModelRepresentation = nativeModelRepresentationVersion + "/" + binding.GVR.GroupVersion().String()
 		binding.Descriptor.NativeAuthorityHint = identityHint
 		if verbSliceContains(binding.API.Verbs, "list") && verbSliceContains(binding.API.Verbs, "watch") {
-			scope := nativeTypeScope(binding)
-			if binding.API.Namespaced {
-				scope = watchScope
-			}
-			binding.Descriptor.Capabilities = append(binding.Descriptor.Capabilities, resourcev2.Capability{Operation: resourcev2.OperationSourceUpdates, Scope: scope, Guarantee: resourcev2.ContinuityBestEffort})
+			binding.Descriptor.Capabilities = append(binding.Descriptor.Capabilities, resourcev2.Capability{Operation: resourcev2.OperationSourceUpdates, Scope: served, Guarantee: resourcev2.ContinuityBestEffort})
 		}
 		if binding.API.Namespaced {
 			for index := range binding.Descriptor.Capabilities {
-				binding.Descriptor.Capabilities[index].Scope = watchScope
+				binding.Descriptor.Capabilities[index].Scope = served
 			}
 		}
 		bindings[token] = binding

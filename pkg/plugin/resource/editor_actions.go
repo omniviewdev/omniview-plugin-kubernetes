@@ -126,14 +126,17 @@ func editorAction(ctx context.Context, client *clients.ClientSet, binding native
 	}
 	namespace := ""
 	if request.TypeTarget != nil {
-		namespaces, scopeErr := nativeQueryNamespaces(request.TypeTarget.Scope, binding.API.Namespaced)
+		selection, scopeErr := nativeQuerySelection(request.TypeTarget.Scope, binding.API.Namespaced)
 		if scopeErr != nil {
 			return result, scopeErr
 		}
-		if len(namespaces) != 1 {
+		if selection.names != nil {
+			return result, resourcev2.NewError("INVALID_REQUEST", "A type-level action selects no object: it cannot be narrowed by name")
+		}
+		if len(selection.namespaces) != 1 {
 			return result, resourcev2.NewError("INVALID_REQUEST", "Select exactly one namespace")
 		}
-		namespace = namespaces[0]
+		namespace = selection.namespaces[0]
 	} else {
 		namespace, err = nativeIdentityNamespace(request.Reference.Address.Scope, binding.API.Namespaced)
 		if err != nil {

@@ -44,27 +44,34 @@ func TestNativeCatalogIndependentOperations(t *testing.T) {
 	require.Equal(t, "complete", coverage.Kind)
 	require.Len(t, bindings, 4)
 
+	// The name is a query dimension of every kind, beside the namespace of a namespaced one: a page can narrow a read to one object. Identity stays what it was.
+	inNamespace := resourcev2.QueryScope{{Dimension: "namespace", Match: resourcev2.ScopeAny}, {Dimension: "name", Match: resourcev2.ScopeAny}}
+	inCluster := resourcev2.QueryScope{{Dimension: "name", Match: resourcev2.ScopeAny}}
 	pod := bindings["k8s:/pods"]
 	require.Equal(t, []resourcev2.Dimension{{Name: "namespace", AllowEmpty: false}}, pod.Descriptor.IdentityDimensions)
+	require.Equal(t, []resourcev2.Dimension{{Name: "namespace", AllowEmpty: false}, {Name: "name", AllowEmpty: false}}, pod.Descriptor.QueryDimensions)
 	require.Equal(t, []resourcev2.Capability{
-		{Operation: resourcev2.OperationGet, Scope: resourcev2.QueryScope{{Dimension: "namespace", Match: resourcev2.ScopeAny}}},
-		{Operation: resourcev2.OperationEnumerate, Scope: resourcev2.QueryScope{{Dimension: "namespace", Match: resourcev2.ScopeAny}}},
-		{Operation: resourcev2.OperationNativeQuery, Scope: resourcev2.QueryScope{{Dimension: "namespace", Match: resourcev2.ScopeAny}}},
-		{Operation: resourcev2.OperationCreate, Scope: resourcev2.QueryScope{{Dimension: "namespace", Match: resourcev2.ScopeAny}}},
-		{Operation: resourcev2.OperationMutationUpdate, Scope: resourcev2.QueryScope{{Dimension: "namespace", Match: resourcev2.ScopeAny}}},
-		{Operation: resourcev2.OperationDelete, Scope: resourcev2.QueryScope{{Dimension: "namespace", Match: resourcev2.ScopeAny}}},
+		{Operation: resourcev2.OperationGet, Scope: inNamespace},
+		{Operation: resourcev2.OperationEnumerate, Scope: inNamespace},
+		{Operation: resourcev2.OperationNativeQuery, Scope: inNamespace},
+		{Operation: resourcev2.OperationCreate, Scope: inNamespace},
+		{Operation: resourcev2.OperationMutationUpdate, Scope: inNamespace},
+		{Operation: resourcev2.OperationDelete, Scope: inNamespace},
 	}, pod.Descriptor.Capabilities)
 
 	review := bindings["k8s:authentication.k8s.io/tokenreviews"]
-	require.Equal(t, []resourcev2.Capability{{Operation: resourcev2.OperationCreate, Scope: resourcev2.QueryScope{}}}, review.Descriptor.Capabilities)
+	require.Empty(t, review.Descriptor.IdentityDimensions)
+	require.Equal(t, []resourcev2.Dimension{{Name: "name", AllowEmpty: false}}, review.Descriptor.QueryDimensions)
+	require.Equal(t, []resourcev2.Capability{{Operation: resourcev2.OperationCreate, Scope: inCluster}}, review.Descriptor.Capabilities)
 	component := bindings["k8s:/componentstatuses"]
-	require.Equal(t, []resourcev2.Capability{{Operation: resourcev2.OperationGet, Scope: resourcev2.QueryScope{}}}, component.Descriptor.Capabilities)
+	require.Equal(t, []resourcev2.Dimension{{Name: "name", AllowEmpty: false}}, component.Descriptor.QueryDimensions)
+	require.Equal(t, []resourcev2.Capability{{Operation: resourcev2.OperationGet, Scope: inCluster}}, component.Descriptor.Capabilities)
 	report, ok := bindings["k8s:example.k8s.io/reports"]
 	require.True(t, ok, "custom groups must not be collapsed to a guessed short group")
 	require.Equal(t, "example.k8s.io", report.GVR.Group)
 	require.Equal(t, []resourcev2.Capability{
-		{Operation: resourcev2.OperationEnumerate, Scope: resourcev2.QueryScope{}},
-		{Operation: resourcev2.OperationNativeQuery, Scope: resourcev2.QueryScope{}},
+		{Operation: resourcev2.OperationEnumerate, Scope: inCluster},
+		{Operation: resourcev2.OperationNativeQuery, Scope: inCluster},
 	}, report.Descriptor.Capabilities)
 }
 
@@ -103,7 +110,7 @@ func TestNativeCatalogSourceContinuityAndAcquisition(t *testing.T) {
 				if capability.Operation == resourcev2.OperationSourceUpdates {
 					found = true
 					require.Equal(t, resourcev2.ContinuityBestEffort, capability.Guarantee)
-					require.Equal(t, scope, capability.Scope)
+					require.Equal(t, resourcev2.QueryScope{{Dimension: "namespace", Match: resourcev2.ScopeAny}, {Dimension: "name", Match: resourcev2.ScopeAny}}, capability.Scope, "the source follows the connection's namespaces and any name")
 				}
 			}
 			require.Equal(t, tc.source, found)

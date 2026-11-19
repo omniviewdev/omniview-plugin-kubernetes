@@ -305,7 +305,7 @@ func TestNativeParityConfiguredNamespaceScopeBoundsFiniteAdmission(t *testing.T)
 	require.NoError(t, err)
 	descriptor := snapshot.bindings["k8s:sample.example/widgets"].Descriptor
 	for _, capability := range descriptor.Capabilities {
-		assert.Equal(t, scope, capability.Scope)
+		assert.Equal(t, nativeTestSelection(values("selected"), nil), capability.Scope, "the connection's namespaces, and any name")
 	}
 	var nativeCalls atomic.Int32
 	registration := snapshot.registrations[descriptor.Type]
@@ -322,10 +322,10 @@ func TestNativeParityConfiguredNamespaceScopeBoundsFiniteAdmission(t *testing.T)
 	require.NoError(t, err)
 	catalog, err := controller.Catalog(context.Background(), resourcev2.CatalogRequest{Route: resourcev2.AccessRoute{Connection: "route"}})
 	require.NoError(t, err)
-	request := nativeTestEnumerate(nativeTestAny())
+	request := nativeTestEnumerate(nativeTestSelection(nil, nil))
 	request.Target.Representation = descriptor.DefaultRepresentation
 	ctx := resourcev2.WithCatalogRevisionForRoute(context.Background(), "kubernetes", request.Target.Route, catalog.Revision)
 	_, err = controller.Enumerate(ctx, request)
-	require.Error(t, err)
+	require.Equal(t, "UNSUPPORTED", resourcev2.ErrorCode(err))
 	assert.Zero(t, nativeCalls.Load(), "all-namespace omission must not widen configured namespace selection")
 }
