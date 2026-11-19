@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -124,11 +125,12 @@ func discoverNativeTypes(ctx context.Context, client discovery.DiscoveryInterfac
 				}
 			}
 			dimensions := []resourcev2.Dimension{}
-			scope := resourcev2.QueryScope{}
 			if api.Namespaced {
 				dimensions = append(dimensions, resourcev2.Dimension{Name: "namespace", AllowEmpty: false})
-				scope = append(scope, resourcev2.ScopeConstraint{Dimension: "namespace", Match: resourcev2.ScopeAny})
 			}
+			// The name selects within the namespaces a read covers: a page can narrow its read to one object. It is a query dimension only: an object is its namespace and its id.
+			queryDimensions := append(slices.Clone(dimensions), nativeNameDimension)
+			scope := nativeServedScope(api.Namespaced, resourcev2.QueryScope{{Dimension: "namespace", Match: resourcev2.ScopeAny}})
 			capabilities := []resourcev2.Capability{}
 			if verbSliceContains(api.Verbs, "get") {
 				capabilities = append(capabilities, resourcev2.Capability{Operation: resourcev2.OperationGet, Scope: scope})
@@ -153,7 +155,7 @@ func discoverNativeTypes(ctx context.Context, client discovery.DiscoveryInterfac
 					Type:               token,
 					DisplayName:        api.Kind,
 					IdentityDimensions: dimensions,
-					QueryDimensions:    dimensions,
+					QueryDimensions:    queryDimensions,
 					Representations:    []resourcev2.Representation{},
 					Capabilities:       capabilities,
 				},

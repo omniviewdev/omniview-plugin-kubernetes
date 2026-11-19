@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"go.opentelemetry.io/otel/attribute"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -125,16 +126,17 @@ func nativeEnumerate(ctx context.Context, client dynamic.Interface, gvr schema.G
 	if request.PageSize == 0 || request.PageSize > nativeReadMaxPageSize {
 		return resourcev2.SourcePage{}, resourcev2.NewError("INVALID_REQUEST", "The native source page size must be between 1 and 256")
 	}
-	namespaces, err := nativeQueryNamespaces(request.Target.Scope, namespaced)
+	selection, err := nativeQuerySelection(request.Target.Scope, namespaced)
 	if err != nil {
 		return resourcev2.SourcePage{}, err
 	}
-	crud.span.SetAttributes(attribute.Int("namespaces", len(namespaces)))
-	binding, err := nativeCursorBinding(request, gvr, namespaced, namespaces, selector)
+	slots := selection.slots()
+	crud.span.SetAttributes(attribute.Int("namespaces", len(selection.namespaces)), attribute.Int("names", len(selection.names)))
+	binding, err := nativeCursorBinding(request, gvr, namespaced, selection, selector)
 	if err != nil {
 		return resourcev2.SourcePage{}, err
 	}
-	cursor, err := decodeNativeCursor(request.Cursor, binding, len(namespaces))
+	cursor, err := decodeNativeCursor(request.Cursor, binding, len(slots))
 	if err != nil {
 		return resourcev2.SourcePage{}, err
 	}
@@ -156,7 +158,7 @@ func nativeEnumerate(ctx context.Context, client dynamic.Interface, gvr schema.G
 		Coverage:    nativeRepresentationCoverage(representation),
 		Consistency: resourcev2.ConsistencyBestEffort,
 	}
-	if len(namespaces) == 0 {
+	if len(slots) == 0 {
 		return page, nil
 	}
 	address := resourcev2.ResourceAddress{
@@ -169,8 +171,9 @@ func nativeEnumerate(ctx context.Context, client dynamic.Interface, gvr schema.G
 	// budgetFull marks a page that the wire budget, not the page size, has ended.
 	budgetFull := false
 acquire:
-	for calls := 0; cursor.Namespace < len(namespaces) && len(page.Records) < int(request.PageSize) && calls < int(request.PageSize)+len(namespaces); {
-		namespace := namespaces[cursor.Namespace]
+	for calls := 0; cursor.Slot < len(slots) && len(page.Records) < int(request.PageSize) && calls < int(request.PageSize)+len(slots); {
+		slot := slots[cursor.Slot]
+		namespace := slot.namespace
 		remaining := int(request.PageSize) - len(page.Records)
 		// A continue token names the snapshot and the next key, never the limit,
 		// and resumes after the last item of the List that returned it. Sizing
@@ -178,7 +181,7 @@ acquire:
 		// the page, so the token is always an exact cursor.
 		limit := min(remaining, ceiling)
 		list, err := nativeResourceClient(client, gvr, namespaced, namespace).List(ctx, metav1.ListOptions{
-			Limit: int64(limit), Continue: cursor.Continue, LabelSelector: selector,
+			Limit: int64(limit), Continue: cursor.Continue, LabelSelector: selector, FieldSelector: slot.fieldSelector(),
 		})
 		if err != nil {
 			if apierrors.IsResourceExpired(err) || apierrors.IsGone(err) {
@@ -218,7 +221,7 @@ acquire:
 			return resourcev2.SourcePage{}, resourcev2.NewError("RESET_REQUIRED", "The API server did not advance the native source continuation")
 		}
 		candidate := page
-		if len(namespaces) == 1 {
+		if len(slots) == 1 {
 			observed := nativeOptionalToken(list.GetResourceVersion())
 			if candidate.SourceRevision != nil && observed != nil && *candidate.SourceRevision != *observed {
 				return resourcev2.SourcePage{}, resourcev2.NewError("RESET_REQUIRED", "The native source snapshot revision changed")
@@ -229,11 +232,11 @@ acquire:
 		if continuation != "" {
 			next.Continue = continuation
 		} else {
-			next.Namespace++
+			next.Slot++
 			next.Continue = ""
 		}
 		candidate.NextCursor = nil
-		if next.Namespace < len(namespaces) {
+		if next.Slot < len(slots) {
 			token, err := encodeNativeCursor(next)
 			if err != nil {
 				return resourcev2.SourcePage{}, err
@@ -254,6 +257,9 @@ acquire:
 		for i := range list.Items {
 			if err := ctx.Err(); err != nil {
 				return resourcev2.SourcePage{}, err
+			}
+			if slot.name != "" && list.Items[i].GetName() != slot.name {
+				return resourcev2.SourcePage{}, resourcev2.NewError("INVALID_REQUEST", "The API server returned a resource outside the requested name selection")
 			}
 			record, err := nativeRecord(&list.Items[i], address, namespaced, namespace, representation)
 			if err != nil {
@@ -350,46 +356,115 @@ func nativeIdentityNamespace(scope []resourcev2.ScopeEntry, namespaced bool) (st
 	return scope[0].Value, nil
 }
 
-func nativeQueryNamespaces(scope resourcev2.QueryScope, namespaced bool) ([]string, error) {
-	if !namespaced {
-		if len(scope) != 0 {
-			return nil, resourcev2.NewError("INVALID_REQUEST", "Cluster-scoped Kubernetes queries must not have scope dimensions")
+// nativeSelection is what the scope of a finite read selects. namespaces always has an entry: the empty one is every namespace, or the cluster of a cluster-scoped kind.
+// names is nil for every object, else the names of a oneOf, sorted and unique, possibly none: a valid empty selection matches nothing and is never widened.
+type nativeSelection struct {
+	namespaces []string
+	names      []string
+}
+
+// nativeSlot is one native List: the objects of one namespace, narrowed to one name when it has one.
+type nativeSlot struct {
+	namespace string
+	name      string
+}
+
+// fieldSelector asks the API server for the slot's one object. The name was admitted by nativeQuerySelection, so it has a selector.
+func (s nativeSlot) fieldSelector() string {
+	if s.name == "" {
+		return ""
+	}
+	selector, _ := clients.NameSelector(s.name)
+	return selector
+}
+
+// slots are the Lists that read the selection, namespace by namespace and in each the names in order. There are none when either dimension selects nothing.
+func (s nativeSelection) slots() []nativeSlot {
+	names := s.names
+	if names == nil {
+		names = []string{""}
+	}
+	slots := make([]nativeSlot, 0, len(s.namespaces)*len(names))
+	for _, namespace := range s.namespaces {
+		for _, name := range names {
+			slots = append(slots, nativeSlot{namespace: namespace, name: name})
 		}
-		return []string{""}, nil
 	}
-	if len(scope) == 0 {
-		return []string{metav1.NamespaceAll}, nil
+	return slots
+}
+
+// nativeQuerySelection reads the namespace and name constraints of a scope. An omitted dimension, and any, select every value; a cluster-scoped kind has no namespace.
+// A name must be one an object can have (clients.NameSelector). Nothing else is a dimension of a Kubernetes kind.
+func nativeQuerySelection(scope resourcev2.QueryScope, namespaced bool) (nativeSelection, error) {
+	selection := nativeSelection{namespaces: []string{metav1.NamespaceAll}}
+	seen := make(map[string]bool, len(scope))
+	for _, constraint := range scope {
+		if seen[constraint.Dimension] {
+			return nativeSelection{}, resourcev2.NewError("INVALID_REQUEST", "A Kubernetes query scope must not repeat a dimension")
+		}
+		seen[constraint.Dimension] = true
+		switch constraint.Dimension {
+		case "namespace":
+			if !namespaced {
+				return nativeSelection{}, resourcev2.NewError("INVALID_REQUEST", "Cluster-scoped Kubernetes queries must not have a namespace dimension")
+			}
+			namespaces, err := nativeScopeValues(constraint, "namespace", nil)
+			if err != nil {
+				return nativeSelection{}, err
+			}
+			if namespaces != nil {
+				selection.namespaces = namespaces
+			}
+		case "name":
+			names, err := nativeScopeValues(constraint, "name", func(name string) error {
+				_, err := clients.NameSelector(name)
+				return err
+			})
+			if err != nil {
+				return nativeSelection{}, err
+			}
+			selection.names = names
+		default:
+			return nativeSelection{}, resourcev2.NewError("INVALID_REQUEST", "Kubernetes queries take only namespace and name constraints")
+		}
 	}
-	if len(scope) != 1 || scope[0].Dimension != "namespace" {
-		return nil, resourcev2.NewError("INVALID_REQUEST", "Namespaced Kubernetes queries require exactly one namespace constraint")
-	}
-	constraint := scope[0]
+	return selection, nil
+}
+
+// nativeScopeValues is the selection of one dimension: nil for any, else the values of a oneOf, sorted and unique (none is a non-nil empty list), which valid
+// (when not nil) admits one by one.
+func nativeScopeValues(constraint resourcev2.ScopeConstraint, dimension string, valid func(string) error) ([]string, error) {
 	switch constraint.Match {
 	case resourcev2.ScopeAny:
 		if constraint.Values != nil {
-			return nil, resourcev2.NewError("INVALID_REQUEST", "An any namespace constraint must not contain values")
+			return nil, resourcev2.NewError("INVALID_REQUEST", "An any "+dimension+" constraint must not contain values")
 		}
-		return []string{metav1.NamespaceAll}, nil
+		return nil, nil
 	case resourcev2.ScopeOneOf:
 		if constraint.Values == nil {
-			return nil, resourcev2.NewError("INVALID_REQUEST", "A oneOf namespace constraint requires a values array")
+			return nil, resourcev2.NewError("INVALID_REQUEST", "A oneOf "+dimension+" constraint requires a values array")
 		}
-		namespaces := append([]string{}, (*constraint.Values)...)
-		for _, namespace := range namespaces {
-			if namespace == "" {
-				return nil, resourcev2.NewError("INVALID_REQUEST", "A selected Kubernetes namespace must be nonempty")
+		values := append([]string{}, (*constraint.Values)...)
+		for _, value := range values {
+			if value == "" {
+				return nil, resourcev2.NewError("INVALID_REQUEST", "A selected Kubernetes "+dimension+" must be nonempty")
+			}
+			if valid != nil {
+				if err := valid(value); err != nil {
+					return nil, err
+				}
 			}
 		}
-		sort.Strings(namespaces)
-		unique := namespaces[:0]
-		for _, namespace := range namespaces {
-			if len(unique) == 0 || unique[len(unique)-1] != namespace {
-				unique = append(unique, namespace)
+		sort.Strings(values)
+		unique := values[:0]
+		for _, value := range values {
+			if len(unique) == 0 || unique[len(unique)-1] != value {
+				unique = append(unique, value)
 			}
 		}
 		return unique, nil
 	default:
-		return nil, resourcev2.NewError("INVALID_REQUEST", "The namespace constraint must use any or oneOf")
+		return nil, resourcev2.NewError("INVALID_REQUEST", "The "+dimension+" constraint must use any or oneOf")
 	}
 }
 
@@ -450,20 +525,33 @@ func nativeOptionalToken(value string) *string {
 }
 
 type nativeReadCursor struct {
-	Version    int    `json:"version"`
-	Binding    string `json:"binding"`
-	Namespace  int    `json:"namespace"`
+	Version int    `json:"version"`
+	Binding string `json:"binding"`
+	// Slot is the index of the List the read resumes at: one per namespace, and in it one per selected name.
+	Slot       int    `json:"slot"`
 	Continue   string `json:"continue"`
 	Generation string `json:"generation,omitempty"`
 }
 
-func nativeCursorBinding(request resourcev2.EnumerateRequest, gvr schema.GroupVersionResource, namespaced bool, namespaces []string, selector string) (string, error) {
-	// Normalize only the adapter's namespace selection. Type and ID are opaque;
-	// the caller's discovered GVR, not a parsed type, determines the API endpoint.
+func nativeCursorBinding(request resourcev2.EnumerateRequest, gvr schema.GroupVersionResource, namespaced bool, selection nativeSelection, selector string) (string, error) {
+	// Normalize only the adapter's own selections: the namespaces and the names of a oneOf are a set, so their order and repeats are not another source.
+	// Type and ID are opaque; the caller's discovered GVR, not a parsed type, determines the API endpoint.
 	target := request.Target
-	if namespaced && len(target.Scope) != 0 && target.Scope[0].Match == resourcev2.ScopeOneOf {
-		target.Scope = resourcev2.QueryScope{{Dimension: "namespace", Match: resourcev2.ScopeOneOf, Values: &namespaces}}
+	target.Scope = append(resourcev2.QueryScope(nil), request.Target.Scope...)
+	for i := range target.Scope {
+		if target.Scope[i].Match != resourcev2.ScopeOneOf {
+			continue
+		}
+		switch target.Scope[i].Dimension {
+		case "namespace":
+			namespaces := selection.namespaces
+			target.Scope[i].Values = &namespaces
+		case "name":
+			names := selection.names
+			target.Scope[i].Values = &names
+		}
 	}
+	sort.Slice(target.Scope, func(i, j int) bool { return target.Scope[i].Dimension < target.Scope[j].Dimension })
 	encoded, err := json.Marshal(struct {
 		Target     resourcev2.ReadTarget       `json:"target"`
 		GVR        schema.GroupVersionResource `json:"gvr"`
@@ -478,16 +566,16 @@ func nativeCursorBinding(request resourcev2.EnumerateRequest, gvr schema.GroupVe
 	return hex.EncodeToString(sum[:]), nil
 }
 
-func decodeNativeCursor(token *string, binding string, namespaceCount int) (nativeReadCursor, error) {
+func decodeNativeCursor(token *string, binding string, slotCount int) (nativeReadCursor, error) {
 	if token == nil {
-		return nativeReadCursor{Version: 2, Binding: binding}, nil
+		return nativeReadCursor{Version: 3, Binding: binding}, nil
 	}
 	if len(*token) == 0 || len(*token) > nativeReadMaxCursorBytes {
 		return nativeReadCursor{}, resourcev2.NewError("INVALID_REQUEST", "The native source cursor has an invalid length")
 	}
 	var cursor nativeReadCursor
 	encoded, err := base64.RawURLEncoding.DecodeString(*token)
-	if err != nil || json.Unmarshal(encoded, &cursor) != nil || cursor.Version != 2 || cursor.Binding != binding || cursor.Namespace < 0 || cursor.Namespace >= namespaceCount {
+	if err != nil || json.Unmarshal(encoded, &cursor) != nil || cursor.Version != 3 || cursor.Binding != binding || cursor.Slot < 0 || cursor.Slot >= slotCount {
 		return nativeReadCursor{}, resourcev2.NewError("INVALID_REQUEST", "The native source cursor does not match the requested source")
 	}
 	return cursor, nil

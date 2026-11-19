@@ -30,9 +30,11 @@ var servicesGVR = schema.GroupVersionResource{Version: "v1", Resource: "services
 
 type ownedNativeWatch struct {
 	*watch.RaceFreeFakeWatcher
-	key     informerKey
-	stopped chan struct{}
-	once    sync.Once
+	key informerKey
+	// selector is the field selector the WATCH asked the API server for.
+	selector string
+	stopped  chan struct{}
+	once     sync.Once
 }
 
 func (w *ownedNativeWatch) Stop() {
@@ -49,7 +51,7 @@ func nativeLeaseClient(t *testing.T) (*ClientSet, <-chan *ownedNativeWatch) {
 	})
 	started := make(chan *ownedNativeWatch, 128)
 	dynamicClient.PrependWatchReactor("*", func(action k8stesting.Action) (bool, watch.Interface, error) {
-		w := &ownedNativeWatch{RaceFreeFakeWatcher: watch.NewRaceFreeFake(), key: informerKey{namespace: action.GetNamespace(), resource: action.GetResource()}, stopped: make(chan struct{})}
+		w := &ownedNativeWatch{RaceFreeFakeWatcher: watch.NewRaceFreeFake(), key: informerKey{namespace: action.GetNamespace(), resource: action.GetResource()}, selector: action.(k8stesting.WatchAction).GetWatchRestrictions().Fields.String(), stopped: make(chan struct{})}
 		started <- w
 		return true, w, nil
 	})

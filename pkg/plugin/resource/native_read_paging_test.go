@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
@@ -44,6 +45,8 @@ type nativeChunkAPI struct {
 	perResponse int
 	// ignoreLimit answers every List with the complete result and no token.
 	ignoreLimit bool
+	// ignoreFieldSelector answers every List as if it had no field selector, as an aggregated API may that does not implement them.
+	ignoreFieldSelector bool
 	// driftRevision reports a new snapshot revision on every continued List.
 	driftRevision bool
 	// after runs under the server lock once request n has been answered; it may
@@ -56,6 +59,8 @@ type nativeChunkRequest struct {
 	Limit    int
 	Continue string
 	Returned int
+	// FieldSelector is what the List asked the server to select by: the server answers it as kube-apiserver answers metadata.name and metadata.namespace.
+	FieldSelector string
 }
 
 func newNativeChunkAPI(t *testing.T, objects ...*unstructured.Unstructured) *nativeChunkAPI {
@@ -103,9 +108,15 @@ func (api *nativeChunkAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	fieldSelector, err := fields.ParseSelector(query.Get("fieldSelector"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	var candidates []*unstructured.Unstructured
 	for _, object := range api.objects {
-		if (namespace == "" || object.GetNamespace() == namespace) && selector.Matches(labels.Set(object.GetLabels())) {
+		if (namespace == "" || object.GetNamespace() == namespace) && selector.Matches(labels.Set(object.GetLabels())) &&
+			(api.ignoreFieldSelector || fieldSelector.Matches(fields.Set{"metadata.name": object.GetName(), "metadata.namespace": object.GetNamespace()})) {
 			candidates = append(candidates, object)
 		}
 	}
@@ -142,7 +153,7 @@ func (api *nativeChunkAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if count < len(candidates) {
 		list.SetContinue(base64.RawURLEncoding.EncodeToString([]byte(pinned + "|" + nativeChunkKey(candidates[count-1]))))
 	}
-	api.requests = append(api.requests, nativeChunkRequest{Path: r.URL.Path, Limit: limit, Continue: query.Get("continue"), Returned: count})
+	api.requests = append(api.requests, nativeChunkRequest{Path: r.URL.Path, Limit: limit, Continue: query.Get("continue"), Returned: count, FieldSelector: query.Get("fieldSelector")})
 	if api.after != nil {
 		api.after(len(api.requests))
 	}

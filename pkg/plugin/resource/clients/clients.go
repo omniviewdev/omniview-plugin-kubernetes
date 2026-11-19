@@ -11,6 +11,7 @@ import (
 	"github.com/omniview/kubernetes/pkg/diag"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
@@ -42,7 +43,9 @@ type ClientSet struct {
 
 type informerKey struct {
 	namespace string
-	resource  schema.GroupVersionResource
+	// name is empty for the objects of the namespace and otherwise the one object the source lists and watches.
+	name     string
+	resource schema.GroupVersionResource
 }
 
 type informerSource struct {
@@ -63,7 +66,7 @@ var activeInformerSources atomic.Int64
 func informerLog() *zap.SugaredLogger { return zap.S().Named("informers") }
 
 func informerLogFields(key informerKey, extra ...any) []any {
-	return append([]any{"resource_type", key.resource.Resource, "api_group", key.resource.Group, "namespace", key.namespace}, extra...)
+	return append([]any{"resource_type", key.resource.Resource, "api_group", key.resource.Group, "namespace", key.namespace, "narrowed_to_object", key.name != ""}, extra...)
 }
 
 // retireSpan covers one wait for a native LIST/WATCH to stop. trigger is one of
@@ -151,10 +154,30 @@ func (cs *ClientSet) InformerShutdown() <-chan struct{} {
 	return cs.informerStop
 }
 
-// AcquireInformer shares only an exact namespace/GVR source. A retiring source
+// InformerOption narrows a native source beyond its namespace and resource. Sources share a native LIST/WATCH only when they are narrowed alike.
+type InformerOption func(*informerKey)
+
+// ObjectName narrows the source to the one object of that name, and the API server does the narrowing (NameSelector): it lists and watches that object, not
+// the namespace. The empty name does not narrow. Two interests in one object share one native watch; another object is another watch.
+func ObjectName(name string) InformerOption {
+	return func(key *informerKey) { key.name = name }
+}
+
+// AcquireInformer shares only an exact namespace, object name and GVR source. A retiring source
 // cannot be reused: acquisition waits for its native LIST/WATCH to stop first.
-func (cs *ClientSet) AcquireInformer(ctx context.Context, namespace string, gvr schema.GroupVersionResource, handler cache.ResourceEventHandler) (*InformerLease, error) {
+func (cs *ClientSet) AcquireInformer(ctx context.Context, namespace string, gvr schema.GroupVersionResource, handler cache.ResourceEventHandler, options ...InformerOption) (*InformerLease, error) {
 	key := informerKey{namespace: namespace, resource: gvr}
+	for _, option := range options {
+		option(&key)
+	}
+	var narrow func(*metav1.ListOptions)
+	if key.name != "" {
+		selector, err := NameSelector(key.name)
+		if err != nil {
+			return nil, err
+		}
+		narrow = func(options *metav1.ListOptions) { options.FieldSelector = selector }
+	}
 	for {
 		cs.informersMu.Lock()
 		if err := ctx.Err(); err != nil {
@@ -190,7 +213,7 @@ func (cs *ClientSet) AcquireInformer(ctx context.Context, namespace string, gvr 
 			continue
 		}
 		if source == nil {
-			factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(cs.DynamicClient, DefaultResyncPeriod, namespace, nil)
+			factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(cs.DynamicClient, DefaultResyncPeriod, namespace, narrow)
 			source = &informerSource{key: key, factory: factory, informer: factory.ForResource(gvr).Informer(), stopCh: make(chan struct{}), done: make(chan struct{})}
 			cs.informers[key] = source
 			diag.InformerSources(int(activeInformerSources.Add(1)))

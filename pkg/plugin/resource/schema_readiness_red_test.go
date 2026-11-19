@@ -74,7 +74,7 @@ func schemaReadinessBrowse(ctx context.Context, provider *kubernetesProvider, ro
 	return provider.Enumerate(resourcev2.WithCatalogRevision(ctx, catalog.Revision), resourcev2.EnumerateRequest{
 		Target: resourcev2.ReadTarget{
 			Route: route, Provider: catalog.Provider, Authority: "fixture-host-authority",
-			Type: "k8s:/pods", Scope: nativeTestOneOf("selected"), Representation: "kubernetes.object.v1/v1",
+			Type: "k8s:/pods", Scope: nativeTestSelection(values("selected"), nil), Representation: "kubernetes.object.v1/v1",
 		},
 		PageSize: 2,
 	})

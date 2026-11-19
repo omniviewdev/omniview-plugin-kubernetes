@@ -7,20 +7,20 @@ import { FIRST_SET, PLUGIN_ID, settled } from '../../pods/data/usePods';
 
 import { podDetail, type PodDetail } from './object';
 
-// INTERIM (D1b): how the page of one Pod reads it, behind this one file so that it can be swapped.
+// How the page of one Pod reads it, behind this one file: by its namespace and its name.
 //
-// A single-object read is not in the runtime's curated entry (`@omniviewdev/runtime/ui/v1` offers the catalog, the resolved target and `useResources`: a collection, live when
-// the type advertises `sourceUpdates`); `useResource` (a `Get`) is in the runtime's main barrel only, which a new-UI plugin may not import. So the page reads the Pod's NAMESPACE as
-// a live collection and picks the record by name. That is the cost: a detail tab holds a watch on the whole namespace, and it is a source view of its own (the list's collection
-// is another request, so the two are two views, not one shared). It is correct, though: a Pod deleted while its page is open leaves the collection, and the page says so. A follow-up
-// swaps this file to `useResource` when the curated entry has it.
+// The plugin's catalog declares `name` as a query dimension of every native kind, beside the namespace of a namespaced one, so the resolved target is the Pod itself: `{ namespace oneOf [ns],
+// name oneOf [name] }`. The plugin has the API server do the narrowing (a `metadata.name` field selector on the LIST and on the WATCH), so the source view of a detail tab holds that one record and
+// its cost does not grow with the namespace: one object listed, one watched, one record sent to the page and held there. The view is live when the Pod type advertises `sourceUpdates`, so a Pod
+// deleted while its page is open leaves the view and the page says so. A single `Get` (`useResource`) is not the read: it is one-shot, nothing tells it a Pod was deleted, and the runtime's
+// curated entry does not offer it.
 
 export type PodView = {
-  /** The connection and the read, as the Pods list words them (`readPodsState`): `empty` is a complete namespace in which the Pod is not. */
+  /** The connection and the read, as the Pods list words them (`readPodsState`): `empty` is the Pod's own complete snapshot, which has no such Pod. */
   readonly state: PodsState;
   /** Set beside a Pod that is kept: a read failed after the Pod was shown. Without a Pod the failure is the `state`. */
   readonly failure: PodsFailure | undefined;
-  /** The Pod, once its namespace has been read and it is there. It stays while a refresh runs and after a failure that follows it. */
+  /** The Pod, once its source view has a complete snapshot and the Pod is in it. It stays while a refresh runs and after a failure that follows it. */
   readonly pod: PodDetail | undefined;
   /** The source follows the cluster. */
   readonly live: boolean;
@@ -44,15 +44,15 @@ export type UsePodOptions = {
   readonly name: string;
 };
 
-/** A record is the Pod when its address says so: the host's identity of the object, not a field of its body. */
+/** A record is the Pod when its address says so: the host's identity of the object, not a field of its body. The view holds that one record; the check keeps the page from showing another object should a view ever hold more. */
 function isPod({ record }: HostRecord, namespace: string, name: string): boolean {
   const { address } = record.reference;
   return address.id === name && address.scope.some((entry) => entry.dimension === 'namespace' && entry.value === namespace);
 }
 
 /**
- * One Pod of a connection, read through the runtime's fenced hooks only: the catalog, the resolved target of the Pod's namespace, then the collection of its source view, live when
- * the type advertises it. The record is picked from the namespace's complete snapshot, so a Pod that is not in it is not there (`empty`), and one that leaves it later is gone.
+ * One Pod of a connection, read through the runtime's fenced hooks only: the catalog, the resolved target of that one Pod (its namespace and its name), then the collection of its source view, live when
+ * the type advertises it. The collection is the Pod's own complete snapshot, so a Pod that is not in it is not there (`empty`), and one that leaves it later is gone.
  */
 export function usePod({ pluginID = PLUGIN_ID, connectionID, namespace, name }: UsePodOptions): PodView {
   const reading = connectionID !== undefined && namespace !== '' && name !== '';
@@ -60,7 +60,13 @@ export function usePod({ pluginID = PLUGIN_ID, connectionID, namespace, name }: 
   const readiness = useConnectionReadiness({ pluginID, connectionID: route.connection, enabled: reading });
   const { resourceTypes } = useResourceTypes({ pluginID, route, enabled: reading });
   const podType = resourceTypes.data?.find((type) => type.type === podDefinition.type);
-  const scope = useMemo<QueryScope>(() => [{ dimension: 'namespace', match: 'oneOf', values: [namespace] }], [namespace]);
+  const scope = useMemo<QueryScope>(
+    () => [
+      { dimension: 'namespace', match: 'oneOf', values: [namespace] },
+      { dimension: 'name', match: 'oneOf', values: [name] },
+    ],
+    [namespace, name],
+  );
   const target = useResolvedResourceTarget({ pluginID, route, type: podDefinition.type, scope, enabled: podType !== undefined && reading });
   const request = target.data === undefined ? undefined : { targetId: target.data.targetId, request: { target: target.data.target, pageSize: FIRST_SET } };
   const live = podType?.capabilities.some((capability) => capability.operation === 'sourceUpdates') ?? false;

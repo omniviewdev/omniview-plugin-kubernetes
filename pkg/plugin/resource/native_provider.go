@@ -166,11 +166,17 @@ func (p *kubernetesProvider) retireNativeCatalog(connectionID string) {
 	}
 }
 
-func nativeTypeScope(binding nativeType) resourcev2.QueryScope {
-	if binding.API.Namespaced {
-		return resourcev2.QueryScope{{Dimension: "namespace", Match: resourcev2.ScopeAny}}
+// nativeNameDimension selects the objects of a read by name, within the namespaces it covers. It is a query dimension of every native kind and never an identity
+// dimension: an object is identified by its namespace and its id. No object has an empty name, so none is admitted.
+var nativeNameDimension = resourcev2.Dimension{Name: "name", AllowEmpty: false}
+
+// nativeServedScope is the scope every operation of a native kind is declared over: the namespaces a connection reads, for a kind that has them, and any name.
+func nativeServedScope(namespaced bool, namespaces resourcev2.QueryScope) resourcev2.QueryScope {
+	scope := resourcev2.QueryScope{}
+	if namespaced {
+		scope = append(scope, namespaces...)
 	}
-	return resourcev2.QueryScope{}
+	return append(scope, resourcev2.ScopeConstraint{Dimension: nativeNameDimension.Name, Match: resourcev2.ScopeAny})
 }
 
 func (p *kubernetesProvider) snapshot(route resourcev2.AccessRoute) (*nativeCatalogSnapshot, error) {
