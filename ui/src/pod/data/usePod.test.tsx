@@ -3,7 +3,7 @@ import * as runtime from '@omniviewdev/runtime/ui/v1';
 import { cleanup, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { hostRecord } from '../../pods/data/testing';
+import { hostRecord } from '../../kinds/testing';
 
 import { usePod, type PodView } from './usePod';
 

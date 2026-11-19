@@ -1,8 +1,9 @@
 import type { StatusSummaryItem } from '@omniviewdev/kit';
 
-import { podCreatedAt, podIP, podNode, podReady, podRestarts } from '../../pods/data/fields';
-import type { PodStatus } from '../../pods/data/row';
-import { podStatusWord, stateRole, type StateRole } from '../../pods/data/status';
+import { createdAt } from '../../kinds/fields';
+import { podIP, podNode, podReady, podRestarts } from '../../kinds/pods/fields';
+import { podStatusWord } from '../../kinds/pods/status';
+import { stateRole, type KindStatus, type StateRole } from '../../kinds/status';
 import type { ContainerSpec, ContainerStateDetail, ContainerStatusDetail, PodCondition, PodDetail, VolumeSpec } from '../data/object';
 
 import { bytesText, quantityOf, resourcesText } from './quantity';
@@ -86,7 +87,7 @@ export type PodOverview = {
   readonly header: {
     readonly name: string;
     readonly namespace: string;
-    readonly state: PodStatus | undefined;
+    readonly state: KindStatus | undefined;
     readonly node: string | undefined;
     /** Epoch milliseconds. */
     readonly createdAt: number | undefined;
@@ -130,7 +131,7 @@ function controllerText(pod: PodDetail): string | undefined {
 
 function detailsOf(pod: PodDetail): readonly DetailRow[] {
   const addresses = (pod.status.podIPs ?? []).flatMap((address) => (address.ip === undefined || address.ip === '' ? [] : [address.ip]));
-  const created = podCreatedAt(pod);
+  const created = createdAt(pod);
   const started = Date.parse(pod.status.startTime ?? '');
   const rows: ReadonlyArray<DetailRow | undefined> = [
     detail('node', 'Node', podNode(pod)),
@@ -427,7 +428,7 @@ export function podOverview(pod: PodDetail): PodOverview {
       namespace: pod.metadata.namespace ?? '',
       state: word === undefined ? undefined : { word, role: stateRole(word) },
       node: podNode(pod),
-      createdAt: podCreatedAt(pod),
+      createdAt: createdAt(pod),
     },
     summary: summaryOf(pod),
     details: detailsOf(pod),

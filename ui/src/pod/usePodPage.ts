@@ -3,7 +3,7 @@ import { useEffect, useMemo } from 'react';
 
 import { connectionFace, namespacesFace, useChosenConnection } from '../connection';
 import type { ContextV1, DetailPageViewV1, DetailSource, DetailState } from '../contract/v1';
-import type { PodsFailureKind } from '../pods/data';
+import type { KindFailureKind } from '../kinds/state';
 
 import { usePod, type PodView } from './data/usePod';
 import { notAvailableYet } from './overview/commands';
@@ -19,7 +19,7 @@ import { podView } from './overview/view';
  * sentence (a denial and a sign-in always get the same generic text) or the raw detail of a connection that failed, so the page says the cause itself (the interim of B-02 and B-07 in
  * the host's docs/ui-next/status/D1b.md).
  */
-const SENTENCE: Readonly<Record<PodsFailureKind | 'not-found', string>> = {
+const SENTENCE: Readonly<Record<KindFailureKind | 'not-found', string>> = {
   'needs-sign-in': 'The connection needs you to sign in.',
   denied: 'You do not have access to read this Pod.',
   unreachable: 'The cluster did not answer.',
@@ -28,7 +28,7 @@ const SENTENCE: Readonly<Record<PodsFailureKind | 'not-found', string>> = {
   'not-found': 'This connection no longer exists.',
 };
 
-function failed(kind: PodsFailureKind | 'not-found', message: string | undefined, view: PodView): DetailState {
+function failed(kind: KindFailureKind | 'not-found', message: string | undefined, view: PodView): DetailState {
   const said = kind === 'failed' && message !== undefined && message !== '' ? message : SENTENCE[kind];
   // Where asking again cannot help (a cluster that serves no Pods, a connection that is gone) a Retry would be a button that does nothing.
   if (kind === 'unsupported' || kind === 'not-found') {

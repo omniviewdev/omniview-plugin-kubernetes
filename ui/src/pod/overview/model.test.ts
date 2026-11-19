@@ -4,15 +4,15 @@ import path from 'node:path';
 import type { StatusSummaryItem } from '@omniviewdev/kit';
 import { describe, expect, it } from 'vitest';
 
-import { podObject } from '../../pods/data/pod';
-import { podStatusWord } from '../../pods/data/status';
-import { hostRecord } from '../../pods/data/testing';
+import { podObject } from '../../kinds/pods/pod';
+import { podStatusWord } from '../../kinds/pods/status';
+import { hostRecord } from '../../kinds/testing';
 import { podDetail, toPodDetail } from '../data/object';
 
 import { imageTail, podOverview, utcStamp, type ContainerRow, type ConditionRow, type PodOverview, type TagModel, type VolumeRow } from './model';
 
 // The oracle is the cluster: each Pod below is an object a real API server (kube-apiserver v1.35.0 on kind v0.30.0) served, from the Pods list's fixtures
-// (`../../pods/data/fixtures/pods-table.json`: the slice fixture and the extra states, with the cells kubectl printed for each) and from `fixtures/rich.json` (one Pod made to hold every section:
+// (`../../kinds/pods/fixtures/pods-table.json`: the slice fixture and the extra states, with the cells kubectl printed for each) and from `fixtures/rich.json` (one Pod made to hold every section:
 // `kubectl get pod rich -o json` on the same kind, managed fields removed). Each expectation is what a person reads on the page, checked against the object by hand and, on the live page,
 // against `kubectl get pod -o yaml` and `kubectl describe pod` (docs/ui-next/status/D1b.md).
 
@@ -22,7 +22,7 @@ type Capture = {
   readonly rows: ReadonlyArray<{ readonly cells: readonly string[]; readonly object: { readonly metadata: { readonly name: string; readonly namespace: string } } }>;
 };
 
-const golden = JSON.parse(readFileSync(path.join(import.meta.dirname, '../../pods/data/fixtures/pods-table.json'), 'utf8')) as { captures: readonly Capture[] };
+const golden = JSON.parse(readFileSync(path.join(import.meta.dirname, '../../kinds/pods/fixtures/pods-table.json'), 'utf8')) as { captures: readonly Capture[] };
 const rich: unknown = JSON.parse(readFileSync(path.join(import.meta.dirname, 'fixtures/rich.json'), 'utf8'));
 
 const FIRST_READ = 0;
