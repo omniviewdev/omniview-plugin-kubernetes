@@ -730,7 +730,7 @@ packages:
     resolution: {integrity: sha512-dXn3FZhPv0US+7dtJsIi2R+c7qWYiReoEh5zUntWCf4oSpMNib8FDhSoed6m3QyZdx5hK7iLFkYk3rNxwt8vTA==}
 
   '@omniviewdev/kit@file:vendor/omniviewdev-kit-0.7.4.tgz':
-    resolution: {integrity: sha512-yakSr6L1yUclL2bLBMs/SEf+gT6j9zZQgf67nGDwiImv6DrxsOd+LfxvlRt24feG7rvoaeDYiPa4JUv3s7p1WA==, tarball: file:vendor/omniviewdev-kit-0.7.4.tgz}
+    resolution: {integrity: sha512-HD+tm+pb397CosFxyXDcbUHUH8XCqnpgDzwA31TOPp4kaUwipD4wVe9CtTqVhVCCAmj10SU01mFiKCA27lTvVQ==, tarball: file:vendor/omniviewdev-kit-0.7.4.tgz}
     version: 0.7.4
     peerDependencies:
       react: ^19.3.1

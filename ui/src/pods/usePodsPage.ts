@@ -1,6 +1,6 @@
-import { useConnections } from '@omniviewdev/runtime/ui/v1';
 import { useEffect } from 'react';
 
+import { connectionFace, namespacesFace, useChosenConnection, type PageConnection } from '../connection';
 import type { ContextV1, FrameV1, ListPageViewV1 } from '../contract/v1';
 
 import { usePods, type PodRow } from './data';
@@ -19,21 +19,16 @@ const WAITING: PodsListSource = { state: { kind: 'loading' }, rows: NO_ROWS, com
 const NO_CONNECTIONS: PodsListSource = { ...WAITING, state: { kind: 'failed', message: 'No connections' } };
 
 /**
- * How the page sits in the frame: the tab, the status bar's path and the scope lane, as plain data. `connection` is the connection the route names
- * (`?connection=` in the hash); without one the lane and the path have no connection to show. A value the page learns from its data (the count of Pods,
- * the connection it picked) reaches the frame when the page that owns the data is wired to it (slice 1a.7).
+ * How the page sits in the frame: the tab, the status bar's path and the scope lane, as plain data. The lane is declared from the first render (`connectionFace`): the
+ * connection the page reads, once the plugin's connections have answered, or the one the route names while they are on their way. A value the page learns from its data
+ * (the count of Pods) reaches the frame when the page that owns the data is wired to it (slice 1a.7).
  */
-export function podsFrame(connection: string | undefined): FrameV1 {
+export function podsFrame(connection: Pick<PageConnection, 'named' | 'pending'>): FrameV1 {
+  const { named } = connection;
   return {
     tab: { title: 'Pods', icon: 'box' },
-    path: connection === undefined ? ['Kubernetes', 'Pods'] : ['Kubernetes', connection, 'Pods'],
-    scope:
-      connection === undefined
-        ? undefined
-        : [
-          { label: 'Connection', icon: 'server', text: connection },
-          { label: 'Namespaces', icon: 'folder-tree', text: 'All namespaces' },
-        ],
+    path: named === undefined ? ['Kubernetes', 'Pods'] : ['Kubernetes', named, 'Pods'],
+    scope: [connectionFace(connection), namespacesFace('All namespaces')],
   };
 }
 
@@ -41,10 +36,8 @@ export function podsFrame(connection: string | undefined): FrameV1 {
 // the old table reads it. A connection is never started by a read, so this page starts the one it finds stopped, once: a development shortcut that
 // 1a.7 removes in favour of an explicit Connect (plan D4).
 export function usePodsPage({ plugin, route }: ContextV1): ListPageViewV1<PodRow> {
-  const { connections } = useConnections({ plugin });
-  const list = connections.data ?? [];
-  // Until the scope menus exist (tier C) the plugin owns what an absent connection means: a name the plugin does not know, or none, takes its first one.
-  const chosen = list.find((candidate) => candidate.id === route.connection) ?? list[0];
+  const connection = useChosenConnection(plugin, route.connection);
+  const { chosen, pending } = connection;
   const view = usePods({ pluginID: plugin, connectionID: chosen?.id });
   const { state, connect } = view;
   useEffect(() => {
@@ -53,9 +46,9 @@ export function usePodsPage({ plugin, route }: ContextV1): ListPageViewV1<PodRow
     }
   }, [state.kind, connect]);
 
-  const frame = podsFrame(route.connection);
+  const frame = podsFrame(connection);
   if (chosen === undefined) {
-    return { frame, source: connections.isPending ? WAITING : NO_CONNECTIONS };
+    return { frame, source: pending ? WAITING : NO_CONNECTIONS };
   }
 
   return { frame, source: podsListSource(view) };

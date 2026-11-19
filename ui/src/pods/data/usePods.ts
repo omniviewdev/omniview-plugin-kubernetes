@@ -61,8 +61,8 @@ export type UsePodsOptions = {
 const NO_ROWS: readonly PodRow[] = [];
 
 
-/** The runtime's own errors are the state; a command that fails does not throw into an event handler. */
-async function settled(operation: () => Promise<unknown>): Promise<void> {
+/** The runtime's own errors are the state; a command that fails does not throw into an event handler. The Pod page's read settles its commands the same way. */
+export async function settled(operation: () => Promise<unknown>): Promise<void> {
   try {
     await operation();
   } catch {

@@ -1,0 +1,448 @@
+{
+  "apiVersion": "v1",
+  "kind": "Pod",
+  "metadata": {
+    "annotations": {
+      "example.io/api-token": "do-not-show-this-token",
+      "example.io/change-cause": "kubectl apply -f rich-pod.yaml, a deliberately long change cause so that the value is clamped on screen and whole one hover or focus away",
+      "example.io/owner-team": "payments",
+      "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Pod\",\"metadata\":{\"annotations\":{\"example.io/api-token\":\"do-not-show-this-token\",\"example.io/change-cause\":\"kubectl apply -f rich-pod.yaml, a deliberately long change cause so that the value is clamped on screen and whole one hover or focus away\",\"example.io/owner-team\":\"payments\",\"vault.example.io/secret-path\":\"secret/data/checkout/rich\"},\"labels\":{\"app.kubernetes.io/component\":\"api\",\"app.kubernetes.io/instance\":\"rich-1\",\"app.kubernetes.io/managed-by\":\"kubectl\",\"app.kubernetes.io/name\":\"rich\",\"app.kubernetes.io/part-of\":\"checkout\",\"app.kubernetes.io/version\":\"1.4.2\",\"env\":\"demo\",\"release\":\"stable\",\"team\":\"payments\",\"tier\":\"backend\",\"track\":\"canary\",\"zone-hint\":\"a\"},\"name\":\"rich\",\"namespace\":\"checkout\"},\"spec\":{\"containers\":[{\"command\":[\"sh\",\"-c\",\"sleep 100000\"],\"image\":\"busybox:1.37.0\",\"name\":\"app\",\"ports\":[{\"containerPort\":8080,\"name\":\"http\"},{\"containerPort\":9090,\"protocol\":\"UDP\"}],\"resources\":{\"limits\":{\"cpu\":\"500m\",\"memory\":\"128Mi\"},\"requests\":{\"cpu\":\"100m\",\"memory\":\"64Mi\"}},\"volumeMounts\":[{\"mountPath\":\"/etc/app\",\"name\":\"config\",\"readOnly\":true},{\"mountPath\":\"/work\",\"name\":\"work\"},{\"mountPath\":\"/cache\",\"name\":\"cache\"}]},{\"command\":[\"sh\",\"-c\",\"sleep 100000\"],\"image\":\"busybox:1.37.0\",\"name\":\"sidecar\",\"readinessProbe\":{\"exec\":{\"command\":[\"false\"]},\"periodSeconds\":5},\"volumeMounts\":[{\"mountPath\":\"/etc/creds\",\"name\":\"creds\",\"readOnly\":true}]}],\"initContainers\":[{\"command\":[\"sh\",\"-c\",\"echo ready \\u003e /work/ready\"],\"image\":\"busybox:1.37.0\",\"name\":\"init-config\",\"volumeMounts\":[{\"mountPath\":\"/work\",\"name\":\"work\"}]}],\"serviceAccountName\":\"default\",\"volumes\":[{\"configMap\":{\"name\":\"rich-config\"},\"name\":\"config\"},{\"emptyDir\":{},\"name\":\"work\"},{\"emptyDir\":{\"medium\":\"Memory\",\"sizeLimit\":\"64Mi\"},\"name\":\"cache\"},{\"name\":\"creds\",\"secret\":{\"secretName\":\"rich-secret\"}}]}}\n",
+      "vault.example.io/secret-path": "secret/data/checkout/rich"
+    },
+    "creationTimestamp": "2026-11-18T05:09:11Z",
+    "generation": 1,
+    "labels": {
+      "app.kubernetes.io/component": "api",
+      "app.kubernetes.io/instance": "rich-1",
+      "app.kubernetes.io/managed-by": "kubectl",
+      "app.kubernetes.io/name": "rich",
+      "app.kubernetes.io/part-of": "checkout",
+      "app.kubernetes.io/version": "1.4.2",
+      "env": "demo",
+      "release": "stable",
+      "team": "payments",
+      "tier": "backend",
+      "track": "canary",
+      "zone-hint": "a"
+    },
+    "name": "rich",
+    "namespace": "checkout",
+    "resourceVersion": "1430",
+    "uid": "ea53cea3-7507-4ed8-bdb9-db95dd5cb054"
+  },
+  "spec": {
+    "containers": [
+      {
+        "command": [
+          "sh",
+          "-c",
+          "sleep 100000"
+        ],
+        "image": "busybox:1.37.0",
+        "imagePullPolicy": "IfNotPresent",
+        "name": "app",
+        "ports": [
+          {
+            "containerPort": 8080,
+            "name": "http",
+            "protocol": "TCP"
+          },
+          {
+            "containerPort": 9090,
+            "protocol": "UDP"
+          }
+        ],
+        "resources": {
+          "limits": {
+            "cpu": "500m",
+            "memory": "128Mi"
+          },
+          "requests": {
+            "cpu": "100m",
+            "memory": "64Mi"
+          }
+        },
+        "terminationMessagePath": "/dev/termination-log",
+        "terminationMessagePolicy": "File",
+        "volumeMounts": [
+          {
+            "mountPath": "/etc/app",
+            "name": "config",
+            "readOnly": true
+          },
+          {
+            "mountPath": "/work",
+            "name": "work"
+          },
+          {
+            "mountPath": "/cache",
+            "name": "cache"
+          },
+          {
+            "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+            "name": "kube-api-access-c2ht5",
+            "readOnly": true
+          }
+        ]
+      },
+      {
+        "command": [
+          "sh",
+          "-c",
+          "sleep 100000"
+        ],
+        "image": "busybox:1.37.0",
+        "imagePullPolicy": "IfNotPresent",
+        "name": "sidecar",
+        "readinessProbe": {
+          "exec": {
+            "command": [
+              "false"
+            ]
+          },
+          "failureThreshold": 3,
+          "periodSeconds": 5,
+          "successThreshold": 1,
+          "timeoutSeconds": 1
+        },
+        "resources": {},
+        "terminationMessagePath": "/dev/termination-log",
+        "terminationMessagePolicy": "File",
+        "volumeMounts": [
+          {
+            "mountPath": "/etc/creds",
+            "name": "creds",
+            "readOnly": true
+          },
+          {
+            "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+            "name": "kube-api-access-c2ht5",
+            "readOnly": true
+          }
+        ]
+      }
+    ],
+    "dnsPolicy": "ClusterFirst",
+    "enableServiceLinks": true,
+    "initContainers": [
+      {
+        "command": [
+          "sh",
+          "-c",
+          "echo ready > /work/ready"
+        ],
+        "image": "busybox:1.37.0",
+        "imagePullPolicy": "IfNotPresent",
+        "name": "init-config",
+        "resources": {},
+        "terminationMessagePath": "/dev/termination-log",
+        "terminationMessagePolicy": "File",
+        "volumeMounts": [
+          {
+            "mountPath": "/work",
+            "name": "work"
+          },
+          {
+            "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+            "name": "kube-api-access-c2ht5",
+            "readOnly": true
+          }
+        ]
+      }
+    ],
+    "nodeName": "d1b-pod-detail-control-plane",
+    "preemptionPolicy": "PreemptLowerPriority",
+    "priority": 0,
+    "restartPolicy": "Always",
+    "schedulerName": "default-scheduler",
+    "securityContext": {},
+    "serviceAccount": "default",
+    "serviceAccountName": "default",
+    "terminationGracePeriodSeconds": 30,
+    "tolerations": [
+      {
+        "effect": "NoExecute",
+        "key": "node.kubernetes.io/not-ready",
+        "operator": "Exists",
+        "tolerationSeconds": 300
+      },
+      {
+        "effect": "NoExecute",
+        "key": "node.kubernetes.io/unreachable",
+        "operator": "Exists",
+        "tolerationSeconds": 300
+      }
+    ],
+    "volumes": [
+      {
+        "configMap": {
+          "defaultMode": 420,
+          "name": "rich-config"
+        },
+        "name": "config"
+      },
+      {
+        "emptyDir": {},
+        "name": "work"
+      },
+      {
+        "emptyDir": {
+          "medium": "Memory",
+          "sizeLimit": "64Mi"
+        },
+        "name": "cache"
+      },
+      {
+        "name": "creds",
+        "secret": {
+          "defaultMode": 420,
+          "secretName": "rich-secret"
+        }
+      },
+      {
+        "name": "kube-api-access-c2ht5",
+        "projected": {
+          "defaultMode": 420,
+          "sources": [
+            {
+              "serviceAccountToken": {
+                "expirationSeconds": 3607,
+                "path": "token"
+              }
+            },
+            {
+              "configMap": {
+                "items": [
+                  {
+                    "key": "ca.crt",
+                    "path": "ca.crt"
+                  }
+                ],
+                "name": "kube-root-ca.crt"
+              }
+            },
+            {
+              "downwardAPI": {
+                "items": [
+                  {
+                    "fieldRef": {
+                      "apiVersion": "v1",
+                      "fieldPath": "metadata.namespace"
+                    },
+                    "path": "namespace"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "status": {
+    "conditions": [
+      {
+        "lastProbeTime": null,
+        "lastTransitionTime": "2026-11-18T05:09:12Z",
+        "observedGeneration": 1,
+        "status": "True",
+        "type": "PodReadyToStartContainers"
+      },
+      {
+        "lastProbeTime": null,
+        "lastTransitionTime": "2026-11-18T05:09:12Z",
+        "observedGeneration": 1,
+        "status": "True",
+        "type": "Initialized"
+      },
+      {
+        "lastProbeTime": null,
+        "lastTransitionTime": "2026-11-18T05:09:11Z",
+        "message": "containers with unready status: [sidecar]",
+        "observedGeneration": 1,
+        "reason": "ContainersNotReady",
+        "status": "False",
+        "type": "Ready"
+      },
+      {
+        "lastProbeTime": null,
+        "lastTransitionTime": "2026-11-18T05:09:11Z",
+        "message": "containers with unready status: [sidecar]",
+        "observedGeneration": 1,
+        "reason": "ContainersNotReady",
+        "status": "False",
+        "type": "ContainersReady"
+      },
+      {
+        "lastProbeTime": null,
+        "lastTransitionTime": "2026-11-18T05:09:11Z",
+        "observedGeneration": 1,
+        "status": "True",
+        "type": "PodScheduled"
+      }
+    ],
+    "containerStatuses": [
+      {
+        "allocatedResources": {
+          "cpu": "100m",
+          "memory": "64Mi"
+        },
+        "containerID": "containerd://f33e25ceea13440fb251c268c7e93c791028a657b0fe229f5ab47f7b375062a9",
+        "image": "docker.io/library/busybox:1.37.0",
+        "imageID": "docker.io/library/busybox@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec",
+        "lastState": {},
+        "name": "app",
+        "ready": true,
+        "resources": {
+          "limits": {
+            "cpu": "500m",
+            "memory": "128Mi"
+          },
+          "requests": {
+            "cpu": "100m",
+            "memory": "64Mi"
+          }
+        },
+        "restartCount": 0,
+        "started": true,
+        "state": {
+          "running": {
+            "startedAt": "2026-11-18T05:09:12Z"
+          }
+        },
+        "user": {
+          "linux": {
+            "gid": 0,
+            "supplementalGroups": [
+              0,
+              10
+            ],
+            "uid": 0
+          }
+        },
+        "volumeMounts": [
+          {
+            "mountPath": "/etc/app",
+            "name": "config",
+            "readOnly": true,
+            "recursiveReadOnly": "Disabled"
+          },
+          {
+            "mountPath": "/work",
+            "name": "work"
+          },
+          {
+            "mountPath": "/cache",
+            "name": "cache"
+          },
+          {
+            "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+            "name": "kube-api-access-c2ht5",
+            "readOnly": true,
+            "recursiveReadOnly": "Disabled"
+          }
+        ]
+      },
+      {
+        "containerID": "containerd://58e06f0529ddf9e544e7c900b6f5f0f4cdc431fb7678d75c6970fdf05b723bf7",
+        "image": "docker.io/library/busybox:1.37.0",
+        "imageID": "docker.io/library/busybox@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec",
+        "lastState": {},
+        "name": "sidecar",
+        "ready": false,
+        "resources": {},
+        "restartCount": 0,
+        "started": true,
+        "state": {
+          "running": {
+            "startedAt": "2026-11-18T05:09:12Z"
+          }
+        },
+        "user": {
+          "linux": {
+            "gid": 0,
+            "supplementalGroups": [
+              0,
+              10
+            ],
+            "uid": 0
+          }
+        },
+        "volumeMounts": [
+          {
+            "mountPath": "/etc/creds",
+            "name": "creds",
+            "readOnly": true,
+            "recursiveReadOnly": "Disabled"
+          },
+          {
+            "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+            "name": "kube-api-access-c2ht5",
+            "readOnly": true,
+            "recursiveReadOnly": "Disabled"
+          }
+        ]
+      }
+    ],
+    "hostIP": "172.18.0.3",
+    "hostIPs": [
+      {
+        "ip": "172.18.0.3"
+      }
+    ],
+    "initContainerStatuses": [
+      {
+        "containerID": "containerd://6b80384ede11fb77c81139f5d9b9f5202d02807e268c84842428042e87a7258c",
+        "image": "docker.io/library/busybox:1.37.0",
+        "imageID": "docker.io/library/busybox@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec",
+        "lastState": {},
+        "name": "init-config",
+        "ready": true,
+        "resources": {},
+        "restartCount": 0,
+        "started": false,
+        "state": {
+          "terminated": {
+            "containerID": "containerd://6b80384ede11fb77c81139f5d9b9f5202d02807e268c84842428042e87a7258c",
+            "exitCode": 0,
+            "finishedAt": "2026-11-18T05:09:11Z",
+            "reason": "Completed",
+            "startedAt": "2026-11-18T05:09:11Z"
+          }
+        },
+        "user": {
+          "linux": {
+            "gid": 0,
+            "supplementalGroups": [
+              0,
+              10
+            ],
+            "uid": 0
+          }
+        },
+        "volumeMounts": [
+          {
+            "mountPath": "/work",
+            "name": "work"
+          },
+          {
+            "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+            "name": "kube-api-access-c2ht5",
+            "readOnly": true,
+            "recursiveReadOnly": "Disabled"
+          }
+        ]
+      }
+    ],
+    "observedGeneration": 1,
+    "phase": "Running",
+    "podIP": "10.244.0.20",
+    "podIPs": [
+      {
+        "ip": "10.244.0.20"
+      }
+    ],
+    "qosClass": "Burstable",
+    "startTime": "2026-11-18T05:09:11Z"
+  }
+}

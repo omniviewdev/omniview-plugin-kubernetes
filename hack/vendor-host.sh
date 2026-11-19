@@ -6,7 +6,8 @@
 #   ui/vendor/omniviewdev-runtime-<version>.tgz     `pnpm pack` of packages/omniviewdev-runtime (it holds the `./ui/v1` entry)
 #   ui/vendor/shared-specifiers.json                the names the host's loader serves to a new-UI bundle (ui-next/plugins/loader/specifiers.ts)
 #   ui/vendor/HOST_COMMIT                           the commit all of the above came from
-#   ui/src/contract/{v1,page,shell}.ts              the types of the contribution contract, as the host's ui-next/ declares them (types only)
+#   ui/src/contract/{v1,page,definition,detailDefinition,shell}.ts   the types of the contribution contract, as the host's ui-next/ declares them (types only): the list page's
+#                                                   and the detail page's definitions, the barrel of their type exports (`page.ts`, from ui-next/page/index.ts) and the shell's
 #
 # Until `@omniviewdev/kit` and the runtime's `ui/v1` entry are on npm under a dist-tag (host tracker row N16) the plugin builds against these
 # files, and `ui/package.json` names the two tarballs with `file:` specifiers. Run this from a CLEAN checkout of the host at the commit to
@@ -61,8 +62,22 @@ vendor_types() {
   } >"$contract/$to"
 }
 vendor_types ui-next/plugins/contract/v1.ts v1.ts
-vendor_types ui-next/page/definition.ts page.ts
+vendor_types ui-next/page/definition.ts definition.ts
+vendor_types ui-next/page/detailDefinition.ts detailDefinition.ts
 vendor_types ui-next/shell/registration.ts shell.ts
+
+# `page.ts` is what `v1.ts` reads as the host's `ui-next/page` package: the type exports of that package's index (the list page's and the detail page's definitions), and nothing
+# else (its values are components the plugin never imports). It fails when the index has none, so a host that moved them is noticed here and not by a type error elsewhere.
+node --input-type=module - "$host/ui-next/page/index.ts" "$contract/page.ts" "$(git -C "$host" rev-parse HEAD)" <<'NODE'
+import { readFileSync, writeFileSync } from 'node:fs';
+const [index, target, commit] = process.argv.slice(2);
+const statements = readFileSync(index, 'utf8').match(/^export type \{[^}]*\} from '\.\/(?:definition|detailDefinition)';$/gm) ?? [];
+if (statements.length < 2) {
+  throw new Error(`${index} has ${String(statements.length)} type export statements of its definitions: expected the list page's and the detail page's`);
+}
+const header = `// Vendored from omniviewdev/omniview ${commit} (ui-next/page/index.ts, only its type exports of the definitions): types only. Do not edit; hack/vendor-host.sh writes it.\n`;
+writeFileSync(target, `${header}${statements.join('\n')}\n`);
+NODE
 
 # The two dependencies name the tarballs just written (the version in the file name is the host package's).
 node --input-type=module - "$root/ui/package.json" "$vendor" <<'NODE'
