@@ -22,11 +22,28 @@ describe('the contribution', () => {
 
   it('opens the Pods page, and every entry of its sidebar opens a page of the contribution', () => {
     expect(contributionV1.home).toBe('pods');
-    expect(Object.keys(contributionV1.pages)).toEqual(['pods']);
     expect(leaves(contributionV1.sidebar.nodes).map((leaf) => leaf.id)).toEqual(['pods']);
     for (const leaf of leaves(contributionV1.sidebar.nodes)) {
       expect(contributionV1.pages).toHaveProperty(leaf.id);
     }
+  });
+
+  it('has the Pods list and the page of one Pod, and the page of a Pod has no sidebar entry: it needs an object, so the list\'s links reach it', () => {
+    expect(Object.keys(contributionV1.pages)).toEqual(['pods', 'pod']);
+    expect(contributionV1.pages.pods.kind).toBe('list');
+    expect(contributionV1.pages.pod.kind).toBe('detail');
+    expect(leaves(contributionV1.sidebar.nodes).map((leaf) => leaf.id)).not.toContain('pod');
+  });
+
+  // What the host's admission refuses a detail page for (`admit.ts` in omniviewdev/omniview): it is never `home`, and the list it names is a list page of the contribution.
+  it('has a detail page the host admits: it is not the home page, and the list it is read from is one of the contribution\'s list pages', () => {
+    const { pod } = contributionV1.pages;
+    expect(contributionV1.home).not.toBe('pod');
+    expect(pod.definition.list).toEqual({ page: 'pods', label: 'Pods' });
+    expect(contributionV1.pages[pod.definition.list.page as keyof typeof contributionV1.pages].kind).toBe('list');
+    expect(pod.definition.tabs.length).toBeGreaterThan(0);
+    expect(pod.definition.identity).toEqual({ name: 'name', facets: ['namespace'] });
+    expect(pod.definition.kind).toBe('Pod');
   });
 
   it('has a static skeleton and no per-connection hook yet: the sidebar draws before any data is read', () => {

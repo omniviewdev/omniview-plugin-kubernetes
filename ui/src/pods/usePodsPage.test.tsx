@@ -124,13 +124,61 @@ describe('usePodsPage: what it hands the host', () => {
     });
   });
 
-  it('has no connection to show in the path or the scope lane when the route names none', () => {
-    know('kind-a');
+  it('declares the scope lane and the connection in the path when the route names none: the connection the page picked, the plugin\'s first', () => {
+    know('kind-a', 'kind-b');
     const { frame } = mount().result.current;
-    expect(frame.path).toEqual(['Kubernetes', 'Pods']);
-    expect(frame.scope).toBeUndefined();
+    expect(frame.path).toEqual(['Kubernetes', 'kind-a', 'Pods']);
+    expect(frame.scope).toEqual([
+      { label: 'Connection', icon: 'server', text: 'kind-a' },
+      { label: 'Namespaces', icon: 'folder-tree', text: 'All namespaces' },
+    ]);
   });
 
+  it('shows the connection it reads, not the one the route names, when the plugin does not know that one', () => {
+    know('kind-a');
+    const { frame } = mount('kind-gone').result.current;
+    expect(frame.scope?.[0]).toEqual({ label: 'Connection', icon: 'server', text: 'kind-a' });
+    expect(frame.path).toEqual(['Kubernetes', 'kind-a', 'Pods']);
+  });
+});
+
+// The host reserves the scope lane while a plugin loads and gives it back when the page's first frame has none, so a frame with no scope moves the page by the lane's 40 px
+// (docs/ui-next/status/S1b.md): the lane is declared from the first render, whatever the page does not know yet.
+describe('usePodsPage: the scope lane is there from the first render', () => {
+  const lane = (frame: { readonly scope?: ReadonlyArray<{ readonly label: string; readonly text: string }> | undefined }) => frame.scope?.map((face) => `${face.label}: ${face.text}`);
+
+  it('has both faces while the list of connections is on its way and the route names none, with a word for the connection that is not known yet', () => {
+    connections.mockReturnValue({ connections: { data: undefined, isPending: true } } as never);
+    const { frame } = mount().result.current;
+    expect(lane(frame)).toEqual(['Connection: Loading…', 'Namespaces: All namespaces']);
+    expect(frame.path).toEqual(['Kubernetes', 'Pods']);
+  });
+
+  it('names the connection the route asks for while the list of connections is on its way', () => {
+    connections.mockReturnValue({ connections: { data: undefined, isPending: true } } as never);
+    expect(lane(mount('kind-b').result.current.frame)).toEqual(['Connection: kind-b', 'Namespaces: All namespaces']);
+  });
+
+  it('has both faces when the plugin has no connection, which it says', () => {
+    connections.mockReturnValue({ connections: { data: [], isPending: false } } as never);
+    expect(lane(mount().result.current.frame)).toEqual(['Connection: None', 'Namespaces: All namespaces']);
+  });
+
+  it('has the same two faces, in the same order, in every one of those states: the page never gains or loses the lane', () => {
+    const states = [
+      () => connections.mockReturnValue({ connections: { data: undefined, isPending: true } } as never),
+      () => know('kind-a'),
+      () => connections.mockReturnValue({ connections: { data: [], isPending: false } } as never),
+    ];
+    for (const setUp of states) {
+      setUp();
+      expect(mount().result.current.frame.scope?.map((face) => face.label)).toEqual(['Connection', 'Namespaces']);
+      cleanup();
+    }
+  });
+});
+
+describe('usePodsPage: what else it hands the host', () => {
   it('hands over the rows and the state of what usePods read', () => {
     know('kind-a');
     const rows = [{ key: 'k1', name: 'cart-api-1', namespace: 'checkout' }] as unknown as data.PodsView['rows'];

@@ -24,3 +24,7 @@ The row model, the Pod definition and the hooks behind the Pods list of the new 
 | `testing.ts` | Test support: builds a `HostRecord` the way the host hands one over. Nothing else imports it. |
 
 The acquisition rule of the bounded first set, its measurement, and the capture of what the runtime hooks return for each state are in the host's `docs/ui-next/status/1a.2.md`.
+
+## The page of one Pod reads through this layer too
+
+`ui/src/pod/` (the detail page) uses this layer's `state.ts` (the same words for the connection and the read), `definition.ts`'s Pod type and `usePods.ts`'s `FIRST_SET`, `PLUGIN_ID` and `settled`. Its read is one file, `ui/src/pod/data/usePod.ts`, and it is **interim**: the runtime's curated entry has no live single-object read, so the page reads the Pod's namespace as a live collection (`useResources`, narrowed to that namespace) and picks the record by its address. A Pod that is absent from the complete snapshot is not found. Each shown Pod tab therefore holds its whole namespace and opens a source view of its own, which the Pods list's tab does not share (a measurement is in the host's `docs/ui-next/status/D1b.md`). The proper fix is in the backend, a `name` query dimension with `sourceUpdates` on the native types (the same document, step D1c); `usePod.ts` is the only file that changes when it lands.

@@ -1,4 +1,4 @@
-import { KindTile, MiddleEllipsis, MissingValue, Status, compactAge, useAge } from '@omniviewdev/kit';
+import { KindTile, Link, MiddleEllipsis, MissingValue, Status, compactAge, useAge } from '@omniviewdev/kit';
 import { useState } from 'react';
 
 import styles from './cells.module.css';
@@ -22,19 +22,23 @@ const RESTARTS = fieldOf('restarts');
 const AGE = fieldOf('age');
 
 /**
- * The Name column: the kind's tile, the name, and the namespace under it. A generated name keeps its distinguishing end when it is cut; the kit part
- * reads and copies it once, whole.
+ * The Name column: the kind's tile, the name, and the namespace under it. The name is a link to the Pod's page (the kit's `Link`: the host says where it goes and where it opens:
+ * a click or Enter here, Command or Control, or a middle click, in a background tab). A generated name keeps its distinguishing end when it is cut; the kit part reads and
+ * copies it once, whole. A row with no namespace has no identity to open: its name is plain text.
  */
 export function IdentityCell({ row }: { readonly row: PodRow }) {
   const { second, tail } = podDefinition.list.identity;
   const namespace = second(row);
+  const name = (
+    <MiddleEllipsis data-testid="pod-name" tail={tail(row)}>
+      {row.name}
+    </MiddleEllipsis>
+  );
   return (
     <div className={styles.identity}>
       <KindTile icon="box" tone="blue" />
       <div className={styles.lines}>
-        <MiddleEllipsis data-testid="pod-name" tail={tail(row)}>
-          {row.name}
-        </MiddleEllipsis>
+        {row.namespace === '' ? name : <Link to={{ page: 'pod', params: { namespace: row.namespace, name: row.name } }}>{name}</Link>}
         {namespace === null ? null : (
           <small className={styles.second} data-testid="pod-namespace">
             {namespace}
