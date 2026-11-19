@@ -3,7 +3,7 @@ import { cleanup, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ContextV1, DetailPageViewV1 } from '../contract/v1';
-import { hostRecord } from '../pods/data/testing';
+import { hostRecord } from '../kinds/testing';
 
 import { podDetail } from './data/object';
 import * as read from './data/usePod';

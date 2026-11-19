@@ -22,17 +22,40 @@ describe('the contribution', () => {
 
   it('opens the Pods page, and every entry of its sidebar opens a page of the contribution', () => {
     expect(contributionV1.home).toBe('pods');
-    expect(leaves(contributionV1.sidebar.nodes).map((leaf) => leaf.id)).toEqual(['pods']);
+    expect(leaves(contributionV1.sidebar.nodes).map((leaf) => leaf.id)).toEqual(['pods', 'deployments', 'statefulsets', 'daemonsets', 'jobs']);
     for (const leaf of leaves(contributionV1.sidebar.nodes)) {
       expect(contributionV1.pages).toHaveProperty(leaf.id);
     }
   });
 
-  it('has the Pods list and the page of one Pod, and the page of a Pod has no sidebar entry: it needs an object, so the list\'s links reach it', () => {
-    expect(Object.keys(contributionV1.pages)).toEqual(['pods', 'pod']);
-    expect(contributionV1.pages.pods.kind).toBe('list');
+  it('has Workloads as the one group of the sidebar, its entries in the mock\'s order, each with the glyph of its kind and no count (the data layer gives none cheaply)', () => {
+    const [group, ...others] = contributionV1.sidebar.nodes;
+    expect(others).toEqual([]);
+    expect(group).toMatchObject({ id: 'workloads', label: 'Workloads', icon: 'layers' });
+    expect(group?.children?.map((leaf) => [leaf.id, leaf.label, leaf.icon])).toEqual([
+      ['pods', 'Pods', 'box'],
+      ['deployments', 'Deployments', 'copy'],
+      ['statefulsets', 'StatefulSets', 'columns'],
+      ['daemonsets', 'DaemonSets', 'server'],
+      ['jobs', 'Jobs', 'arrow-right'],
+    ]);
+    for (const leaf of leaves(contributionV1.sidebar.nodes)) {
+      expect(leaf).not.toHaveProperty('count');
+    }
+  });
+
+  it('has the list page of each kind and the page of one Pod, and the page of a Pod has no sidebar entry: it needs an object, so the list\'s links reach it', () => {
+    expect(Object.keys(contributionV1.pages)).toEqual(['pods', 'deployments', 'statefulsets', 'daemonsets', 'jobs', 'pod']);
+    for (const id of ['pods', 'deployments', 'statefulsets', 'daemonsets', 'jobs']) {
+      expect(contributionV1.pages[id as keyof typeof contributionV1.pages].kind, id).toBe('list');
+    }
     expect(contributionV1.pages.pod.kind).toBe('detail');
     expect(leaves(contributionV1.sidebar.nodes).map((leaf) => leaf.id)).not.toContain('pod');
+  });
+
+  it('gives each list page the words of its kind: the heading is the plural the sidebar entry says', () => {
+    const words = leaves(contributionV1.sidebar.nodes).map((leaf) => [leaf.label, contributionV1.pages[leaf.id as keyof typeof contributionV1.pages].definition.title]);
+    expect(words.every(([label, title]) => label === title)).toBe(true);
   });
 
   // What the host's admission refuses a detail page for (`admit.ts` in omniviewdev/omniview): it is never `home`, and the list it names is a list page of the contribution.

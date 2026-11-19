@@ -1,9 +1,9 @@
 import { useConnectionReadiness, useResolvedResourceTarget, useResourceTypes, useResources, type HostRecord, type QueryScope } from '@omniviewdev/runtime/ui/v1';
 import { useCallback, useMemo } from 'react';
 
-import { podDefinition } from '../../pods/data/definition';
-import { readPodsState, type PodsFailure, type PodsState } from '../../pods/data/state';
-import { FIRST_SET, PLUGIN_ID, settled } from '../../pods/data/usePods';
+import { podDefinition } from '../../kinds/pods/definition';
+import { readKindState, type KindFailure, type KindState } from '../../kinds/state';
+import { FIRST_SET, PLUGIN_ID, settled } from '../../kinds/useKindRows';
 
 import { podDetail, type PodDetail } from './object';
 
@@ -16,10 +16,10 @@ import { podDetail, type PodDetail } from './object';
 // curated entry does not offer it.
 
 export type PodView = {
-  /** The connection and the read, as the Pods list words them (`readPodsState`): `empty` is the Pod's own complete snapshot, which has no such Pod. */
-  readonly state: PodsState;
+  /** The connection and the read, as the Pods list words them (`readKindState`): `empty` is the Pod's own complete snapshot, which has no such Pod. */
+  readonly state: KindState;
   /** Set beside a Pod that is kept: a read failed after the Pod was shown. Without a Pod the failure is the `state`. */
-  readonly failure: PodsFailure | undefined;
+  readonly failure: KindFailure | undefined;
   /** The Pod, once its source view has a complete snapshot and the Pod is in it. It stays while a refresh runs and after a failure that follows it. */
   readonly pod: PodDetail | undefined;
   /** The source follows the cluster. */
@@ -79,10 +79,10 @@ export function usePod({ pluginID = PLUGIN_ID, connectionID, namespace, name }: 
   const pod = record === undefined ? undefined : podDetail(record);
   const complete = connected && everything !== undefined;
 
-  const { state, failure } = readPodsState({
+  const { state, failure } = readKindState({
     phase: readiness.phase,
     message: readiness.message,
-    catalog: { loaded: resourceTypes.data !== undefined, offersPods: podType !== undefined, error: resourceTypes.error },
+    catalog: { loaded: resourceTypes.data !== undefined, offersType: podType !== undefined, error: resourceTypes.error },
     target: { error: target.error },
     read: { error: collection.resources.error, source: collection.source },
     rows: pod === undefined ? 0 : 1,

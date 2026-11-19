@@ -1,0 +1,214 @@
+# The workload states the slice fixture of the host (docs/ui-next/slices/1a-pods-list/fixture.yaml) does not make, for the golden fixtures of the Deployments,
+# StatefulSets, DaemonSets and Jobs lists (ui/src/kinds/*/fixtures). Applied on top of that fixture, on one kind node, by capture.mjs's README line:
+#   kubectl apply -f <host>/docs/ui-next/slices/1a-pods-list/fixture.yaml && kubectl apply -f hack/kinds-capture/extra-states.yaml
+# then wait for the first rollout (the patch must land on a Deployment whose old replicas are ready, or the controller makes only the bad ReplicaSet):
+#             kubectl -n states rollout status deploy/stuck-rollout deploy/paused --timeout=300s
+# then, once: kubectl -n states patch deploy/stuck-rollout --type=json -p '[{"op":"replace","path":"/spec/template/spec/containers/0/image","value":"registry.invalid/stuck:2"}]'
+#             kubectl -n states rollout pause deploy/paused
+# Images: busybox:1.37.0 from Docker Hub, and one that cannot be pulled (registry.invalid).
+apiVersion: v1
+kind: Namespace
+metadata: {name: states}
+---
+# Scaled to zero: no replica is wanted.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: scaled-zero, namespace: states}
+spec:
+  replicas: 0
+  selector: {matchLabels: {app: scaled-zero}}
+  template:
+    metadata: {labels: {app: scaled-zero}}
+    spec:
+      containers:
+        - {name: app, image: busybox:1.37.0, command: [sh, -c, "sleep 100000"]}
+---
+# Unavailable: no replica can start.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: bad-image, namespace: states}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: bad-image}}
+  template:
+    metadata: {labels: {app: bad-image}}
+    spec:
+      containers:
+        - {name: app, image: "registry.invalid/does-not-exist:1"}
+---
+# Partially ready: one node, and each replica refuses to share it, so one replica runs and the other waits.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: half-ready, namespace: states}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: half-ready}}
+  template:
+    metadata: {labels: {app: half-ready}}
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector: {matchLabels: {app: half-ready}}
+              topologyKey: kubernetes.io/hostname
+      containers:
+        - {name: app, image: busybox:1.37.0, command: [sh, -c, "sleep 100000"]}
+---
+# Progressing: a rollout that cannot finish (the patch in the header gives the new template an image that cannot be pulled; nothing may go down, one more may come up).
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: stuck-rollout, namespace: states}
+spec:
+  replicas: 2
+  strategy: {type: RollingUpdate, rollingUpdate: {maxSurge: 1, maxUnavailable: 0}}
+  selector: {matchLabels: {app: stuck-rollout}}
+  template:
+    metadata: {labels: {app: stuck-rollout}}
+    spec:
+      containers:
+        - {name: app, image: busybox:1.37.0, command: [sh, -c, "sleep 100000"]}
+---
+# Paused: `kubectl rollout pause`, as the header says.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: paused, namespace: states}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: paused}}
+  template:
+    metadata: {labels: {app: paused}}
+    spec:
+      containers:
+        - {name: app, image: busybox:1.37.0, command: [sh, -c, "sleep 100000"]}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata: {name: scaled-zero, namespace: states}
+spec:
+  serviceName: scaled-zero
+  replicas: 0
+  selector: {matchLabels: {app: sts-scaled-zero}}
+  template:
+    metadata: {labels: {app: sts-scaled-zero}}
+    spec:
+      containers:
+        - {name: app, image: busybox:1.37.0, command: [sh, -c, "sleep 100000"]}
+---
+# Unavailable: its one Pod cannot start.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata: {name: bad-image, namespace: states}
+spec:
+  serviceName: bad-image
+  replicas: 1
+  selector: {matchLabels: {app: sts-bad-image}}
+  template:
+    metadata: {labels: {app: sts-bad-image}}
+    spec:
+      containers:
+        - {name: app, image: "registry.invalid/does-not-exist:1"}
+---
+# Partially ready: both Pods are made at once and refuse to share the node, so one runs and the other waits.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata: {name: half-ready, namespace: states}
+spec:
+  serviceName: half-ready
+  podManagementPolicy: Parallel
+  replicas: 2
+  selector: {matchLabels: {app: sts-half-ready}}
+  template:
+    metadata: {labels: {app: sts-half-ready}}
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector: {matchLabels: {app: sts-half-ready}}
+              topologyKey: kubernetes.io/hostname
+      containers:
+        - {name: app, image: busybox:1.37.0, command: [sh, -c, "sleep 100000"]}
+---
+# Unavailable: its one Pod cannot start.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata: {name: bad-image, namespace: states}
+spec:
+  selector: {matchLabels: {app: ds-bad-image}}
+  template:
+    metadata: {labels: {app: ds-bad-image}}
+    spec:
+      containers:
+        - {name: app, image: "registry.invalid/does-not-exist:1"}
+---
+# Scaled to zero: no node matches, so no Pod is wanted.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata: {name: no-nodes, namespace: states}
+spec:
+  selector: {matchLabels: {app: ds-no-nodes}}
+  template:
+    metadata: {labels: {app: ds-no-nodes}}
+    spec:
+      nodeSelector: {matches: nothing}
+      containers:
+        - {name: app, image: busybox:1.37.0, command: [sh, -c, "sleep 100000"]}
+---
+apiVersion: batch/v1
+kind: Job
+metadata: {name: running, namespace: states}
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - {name: app, image: busybox:1.37.0, command: [sh, -c, "sleep 100000"]}
+---
+apiVersion: batch/v1
+kind: Job
+metadata: {name: suspended, namespace: states}
+spec:
+  suspend: true
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - {name: app, image: busybox:1.37.0, command: [sh, -c, "echo never"]}
+---
+# Failed, by its deadline: it ran and was stopped.
+apiVersion: batch/v1
+kind: Job
+metadata: {name: deadline, namespace: states}
+spec:
+  activeDeadlineSeconds: 5
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - {name: app, image: busybox:1.37.0, command: [sh, -c, "sleep 100"]}
+---
+# Complete, indexed: completions are counted by index.
+apiVersion: batch/v1
+kind: Job
+metadata: {name: indexed, namespace: states}
+spec:
+  completionMode: Indexed
+  completions: 2
+  parallelism: 2
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - {name: app, image: busybox:1.37.0, command: [sh, -c, "echo done"]}
+---
+# No completions count, two at a time: a work queue, which kubectl prints as `1/1 of 2`.
+apiVersion: batch/v1
+kind: Job
+metadata: {name: work-queue, namespace: states}
+spec:
+  parallelism: 2
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - {name: app, image: busybox:1.37.0, command: [sh, -c, "echo done"]}

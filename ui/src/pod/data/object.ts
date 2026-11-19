@@ -2,7 +2,7 @@ import { valueToJSON, type HostRecord } from '@omniviewdev/runtime/ui/v1';
 
 // The part of a Pod that its page reads, and the decoder from a record body (`Value`) to it. A record body is an exact `Value` tree, not a Kubernetes object: `valueToJSON` is
 // the presentation projection (integers become numbers, timestamps stay strings). Anything the object does not hold is absent here, and stays absent downstream: nothing
-// in this layer turns a missing field into 0, an empty string or a word. The type is a superset of the list's narrower `PodObject` (`../../pods/data/pod.ts`), so the
+// in this layer turns a missing field into 0, an empty string or a word. The type is a superset of the list's narrower `PodObject` (`../../kinds/pods/pod.ts`), so the
 // list's rules (kubectl's STATUS word, the ready count) read a `PodDetail` as they read a row's object, and `model.test.ts` ("every Pod of the list fixtures") holds the two to the same answers.
 
 /** Resource quantities by name, as the API writes them (`100m`, `64Mi`). */

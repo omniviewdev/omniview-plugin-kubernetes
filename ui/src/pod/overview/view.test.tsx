@@ -6,7 +6,7 @@ import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { DetailKvSection, DetailSection, DetailTagsSection, DetailView } from '../../contract/v1';
-import { hostRecord } from '../../pods/data/testing';
+import { hostRecord } from '../../kinds/testing';
 import { podDetail } from '../data/object';
 
 import { NOT_AVAILABLE_YET } from './commands';
@@ -21,7 +21,7 @@ afterEach(cleanup);
 type Capture = { readonly rows: ReadonlyArray<{ readonly object: { readonly metadata: { readonly name: string } } }> };
 
 const rich: unknown = JSON.parse(readFileSync(path.join(import.meta.dirname, 'fixtures/rich.json'), 'utf8'));
-const pods: { readonly captures: readonly Capture[] } = JSON.parse(readFileSync(path.join(import.meta.dirname, '../../pods/data/fixtures/pods-table.json'), 'utf8'));
+const pods: { readonly captures: readonly Capture[] } = JSON.parse(readFileSync(path.join(import.meta.dirname, '../../kinds/pods/fixtures/pods-table.json'), 'utf8'));
 
 const inputs = { age: '10m', invoke: vi.fn() };
 const viewOf = (object: unknown, age = '10m'): DetailView => podView(podOverview(podDetail(hostRecord(object))), { ...inputs, age });
