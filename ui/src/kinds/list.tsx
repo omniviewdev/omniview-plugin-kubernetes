@@ -48,7 +48,8 @@ function tableColumn<TRow extends KindRow>(kind: KindDefinition<TRow>, spec: Kin
 
 /**
  * The columns the list shows by default (`defaultHidden` ones wait for the Columns chooser, plan 1a.9). No column sorts yet: the source's order is the list's (plan 1a.2), and the
- * table's own sorting stays off until 1a.7 gives it a state to keep.
+ * table's own sorting stays off until 1a.7 gives it a state to keep. A kind whose mock definition has no quick filters has no strip: a strip with only All filters nothing. Every list has
+ * two lines in a row, whether or not its kind has a second line: the rows of the mock's lists are all 40 px (measured, K2b-1).
  */
 export function listDefinition<TRow extends KindRow>(kind: KindDefinition<TRow>): ListPageDefinition<TRow> {
   return {
@@ -58,11 +59,15 @@ export function listDefinition<TRow extends KindRow>(kind: KindDefinition<TRow>)
     lines: 2,
     getRowKey: (row) => row.key,
     searchText: kind.model.searchText,
-    quickFilters: {
-      // "Pod state": what the filters are about, named in the singular as the mock names it.
-      label: `${kind.kind} state`,
-      filters: kind.list.quickFilters,
-    },
+    ...(kind.list.quickFilters.length === 0
+      ? {}
+      : {
+        quickFilters: {
+          // "Pod state": what the filters are about, named in the singular as the mock names it.
+          label: `${kind.kind} state`,
+          filters: kind.list.quickFilters,
+        },
+      }),
   };
 }
 

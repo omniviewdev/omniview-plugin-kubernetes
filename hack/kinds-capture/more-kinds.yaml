@@ -1,0 +1,369 @@
+# The objects the golden fixtures of the K2b-1 lists need beyond the slice fixture of the host (docs/ui-next/slices/1a-pods-list/fixture.yaml) and extra-states.yaml of this
+# directory: ReplicaSets, CronJobs, ConfigMaps, Secrets, Services, Ingresses, and a Namespace that is being deleted. `more-kinds.sh` applies it and does what a manifest cannot say
+# (waits for a rollout, patches a status, suspends a CronJob once it has run, starts a deletion that cannot finish).
+#
+# Every Secret holds made-up values that name themselves ("sentinel-..."): the tests prove that no list reads or shows a value, and `capture.mjs` keeps none of them in a fixture.
+# Images: busybox:1.37.0 from Docker Hub, and one that cannot be pulled (registry.invalid).
+apiVersion: v1
+kind: Namespace
+metadata: {name: more}
+---
+# ---- ReplicaSets: the ones a Deployment makes come with the other fixtures; these have no owner, and the states a rule over the counts says ----
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata: {name: standalone, namespace: more}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: rs-standalone}}
+  template:
+    metadata: {labels: {app: rs-standalone}}
+    spec:
+      containers:
+        - {name: app, image: busybox:1.37.0, command: [sh, -c, "sleep 100000"]}
+---
+# Scaled to zero: no replica is wanted.
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata: {name: scaled-zero, namespace: more}
+spec:
+  replicas: 0
+  selector: {matchLabels: {app: rs-scaled-zero}}
+  template:
+    metadata: {labels: {app: rs-scaled-zero}}
+    spec:
+      containers:
+        - {name: app, image: busybox:1.37.0, command: [sh, -c, "sleep 100000"]}
+---
+# Unavailable: its one Pod cannot start.
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata: {name: bad-image, namespace: more}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: rs-bad-image}}
+  template:
+    metadata: {labels: {app: rs-bad-image}}
+    spec:
+      containers:
+        - {name: app, image: "registry.invalid/does-not-exist:1"}
+---
+# Partially ready: one node, and each replica refuses to share it, so one replica runs and the other waits.
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata: {name: half-ready, namespace: more}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: rs-half-ready}}
+  template:
+    metadata: {labels: {app: rs-half-ready}}
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector: {matchLabels: {app: rs-half-ready}}
+              topologyKey: kubernetes.io/hostname
+      containers:
+        - {name: app, image: busybox:1.37.0, command: [sh, -c, "sleep 100000"]}
+---
+# A Deployment that is rolled out once: the ReplicaSet of its first template is left with no replica (a Deployment keeps it for a rollback), and its owner is a Deployment.
+# more-kinds.sh changes the template after the first rollout.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: rolled, namespace: more}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: rolled}}
+  template:
+    metadata: {labels: {app: rolled}}
+    spec:
+      containers:
+        - {name: app, image: busybox:1.37.0, command: [sh, -c, "sleep 100000"]}
+---
+# ---- CronJobs ----
+# Active, and a Job that is still running: Forbid keeps the schedule from making a second one, so the cluster stops changing after the first minute.
+apiVersion: batch/v1
+kind: CronJob
+metadata: {name: forbid, namespace: more}
+spec:
+  schedule: "*/1 * * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - {name: app, image: busybox:1.37.0, command: [sh, -c, "sleep 100000"]}
+---
+# Suspended after it has run once (more-kinds.sh suspends it): a last schedule, no active Job, and the word Suspended.
+apiVersion: batch/v1
+kind: CronJob
+metadata: {name: done, namespace: more}
+spec:
+  schedule: "*/1 * * * *"
+  successfulJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - {name: app, image: busybox:1.37.0, command: [sh, -c, "echo done"]}
+---
+# Active, and it has never run: no last schedule. With a time zone.
+apiVersion: batch/v1
+kind: CronJob
+metadata: {name: never, namespace: more}
+spec:
+  schedule: "0 0 1 1 *"
+  timeZone: Europe/Berlin
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - {name: app, image: busybox:1.37.0, command: [sh, -c, "echo never"]}
+---
+# Suspended from the start.
+apiVersion: batch/v1
+kind: CronJob
+metadata: {name: suspended, namespace: more}
+spec:
+  schedule: "0 3 * * *"
+  suspend: true
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - {name: app, image: busybox:1.37.0, command: [sh, -c, "echo never"]}
+---
+# ---- ConfigMaps ----
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: empty, namespace: more}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: app-settings, namespace: more}
+data:
+  log-level: info
+  region: eu-west-1
+  feature-flags: "checkout-v2=on,search-v3=off"
+---
+# More names than the list prints: the first three and the number of the rest.
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: many-keys, namespace: more}
+data:
+  alpha: "1"
+  bravo: "2"
+  charlie: "3"
+  delta: "4"
+  echo: "5"
+---
+# A key of binaryData: the bytes it decodes to count (ten here), not its base64 text.
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: binary, namespace: more}
+data: {readme: "binary values are base64"}
+binaryData: {blob: "AAECAwQFBgcICQ=="}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: locked, namespace: more}
+immutable: true
+data: {pinned: "1.4.2"}
+---
+# About 1.2 KiB of values: the size reads in KiB.
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: bulk, namespace: more}
+data:
+  rules.conf: |
+    # 1.2 KiB of text, so that the Size column has a unit other than B
+    allow 10.0.0.0/8 to 10.1.0.0/16 port 443 proto tcp comment "payments to the ledger"
+    allow 10.2.0.0/16 to 10.1.0.0/16 port 5432 proto tcp comment "reports to the replica"
+    allow 10.3.0.0/16 to 10.1.0.0/16 port 6379 proto tcp comment "sessions to the cache"
+    allow 10.4.0.0/16 to 10.1.0.0/16 port 9092 proto tcp comment "events to the log"
+    deny  0.0.0.0/0   to 10.1.0.0/16 port any proto any comment "everything else"
+    allow 10.5.0.0/16 to 10.6.0.0/16 port 8443 proto tcp comment "console to the gateway"
+    allow 10.5.0.0/16 to 10.7.0.0/16 port 9200 proto tcp comment "console to the search"
+    allow 10.5.0.0/16 to 10.8.0.0/16 port 3000 proto tcp comment "console to the dashboards"
+    allow 10.9.0.0/16 to 10.1.0.0/16 port 2379 proto tcp comment "control plane to the store"
+    allow 10.9.0.0/16 to 10.1.0.0/16 port 2380 proto tcp comment "control plane peers"
+    deny  10.99.0.0/16 to 0.0.0.0/0 port any proto any comment "quarantine"
+    allow 10.10.0.0/16 to 10.11.0.0/16 port 8080 proto tcp comment "batch to the scheduler"
+    allow 10.10.0.0/16 to 10.12.0.0/16 port 8081 proto tcp comment "batch to the registry"
+    allow 10.13.0.0/16 to 10.14.0.0/16 port 4317 proto tcp comment "agents to the collector"
+    allow 10.13.0.0/16 to 10.15.0.0/16 port 9090 proto tcp comment "agents to the metrics"
+---
+# ---- Secrets: made-up values that name themselves; no list may read or show one ----
+apiVersion: v1
+kind: Secret
+metadata: {name: credentials, namespace: more}
+type: Opaque
+stringData:
+  username: sentinel-username-4f1c
+  password: sentinel-password-9b7e
+  note: sentinel-note-2d8a
+---
+apiVersion: v1
+kind: Secret
+metadata: {name: registry-login, namespace: more}
+type: kubernetes.io/dockerconfigjson
+stringData:
+  .dockerconfigjson: '{"auths":{"registry.invalid":{"auth":"c2VudGluZWwtYXV0aC0zYTkx"}}}'
+---
+apiVersion: v1
+kind: Secret
+metadata: {name: site-tls, namespace: more}
+type: kubernetes.io/tls
+stringData:
+  tls.crt: sentinel-certificate-7c20
+  tls.key: sentinel-key-material-1e5d
+---
+# No keys at all: DATA 0.
+apiVersion: v1
+kind: Secret
+metadata: {name: empty-secret, namespace: more}
+type: Opaque
+---
+# The controller fills in the three keys (ca.crt, namespace, token).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: sa-token
+  namespace: more
+  annotations: {kubernetes.io/service-account.name: default}
+type: kubernetes.io/service-account-token
+---
+# ---- Services ----
+apiVersion: v1
+kind: Service
+metadata: {name: web, namespace: more}
+spec:
+  selector: {app: web}
+  ports:
+    - {port: 80, targetPort: 8080}
+---
+# Three ports, one of them UDP.
+apiVersion: v1
+kind: Service
+metadata: {name: multi, namespace: more}
+spec:
+  selector: {app: multi}
+  ports:
+    - {name: http, port: 80, targetPort: 8080}
+    - {name: https, port: 443, targetPort: 8443}
+    - {name: dns, port: 53, protocol: UDP}
+---
+# A node port, printed beside its port.
+apiVersion: v1
+kind: Service
+metadata: {name: nodeport, namespace: more}
+spec:
+  type: NodePort
+  selector: {app: nodeport}
+  ports:
+    - {name: http, port: 80, nodePort: 30080}
+    - {name: https, port: 443, nodePort: 30443}
+---
+# No cloud controller makes an address on kind: the external address stays pending.
+apiVersion: v1
+kind: Service
+metadata: {name: lb, namespace: more}
+spec:
+  type: LoadBalancer
+  selector: {app: lb}
+  ports:
+    - {port: 80}
+---
+# No cluster address and no ports.
+apiVersion: v1
+kind: Service
+metadata: {name: external, namespace: more}
+spec:
+  type: ExternalName
+  externalName: example.com
+---
+apiVersion: v1
+kind: Service
+metadata: {name: headless, namespace: more}
+spec:
+  clusterIP: None
+  selector: {app: headless}
+  ports:
+    - {port: 5432}
+---
+# Headless with no ports: the cluster address is the word None, and there is nothing to print for ports.
+apiVersion: v1
+kind: Service
+metadata: {name: headless-no-ports, namespace: more}
+spec:
+  clusterIP: None
+  selector: {app: headless-no-ports}
+---
+# ---- Ingresses (no controller runs: none has an address until more-kinds.sh gives one a status) ----
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata: {name: plain, namespace: more}
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: shop.example.test
+      http:
+        paths:
+          - {path: /, pathType: Prefix, backend: {service: {name: web, port: {number: 80}}}}
+---
+# Two hosts and a TLS section: the ports are 80 and 443.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata: {name: tls, namespace: more}
+spec:
+  ingressClassName: nginx
+  tls:
+    - {hosts: [shop.example.test, api.example.test], secretName: site-tls}
+  rules:
+    - host: shop.example.test
+      http:
+        paths:
+          - {path: /, pathType: Prefix, backend: {service: {name: web, port: {number: 80}}}}
+    - host: api.example.test
+      http:
+        paths:
+          - {path: /, pathType: Prefix, backend: {service: {name: multi, port: {number: 443}}}}
+---
+# No class and no host: a default backend alone. The class is none, the hosts are all of them.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata: {name: default-backend, namespace: more}
+spec:
+  defaultBackend:
+    service: {name: web, port: {number: 80}}
+---
+# Has an address (more-kinds.sh writes the status a controller would write).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata: {name: addressed, namespace: more}
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: console.example.test
+      http:
+        paths:
+          - {path: /, pathType: Prefix, backend: {service: {name: web, port: {number: 80}}}}
+---
+# ---- A Namespace that is being deleted and cannot finish: the object in it holds a finalizer. more-kinds.sh deletes the Namespace. ----
+apiVersion: v1
+kind: Namespace
+metadata: {name: terminating}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: holds-the-namespace
+  namespace: terminating
+  finalizers: [k2b1.example.com/hold]

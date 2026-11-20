@@ -5,11 +5,15 @@ import type { ObjectMeta } from './object';
 // What a list says of an object that every kind says the same way, derived from the object a cluster served (docs/ui-next/slices/1a-pods-list.md 1.3). A value the object does not hold
 // is undefined: the cell draws a dash with its reason, never 0, an empty string or a word (ch13 D7).
 
+/** A timestamp the API wrote, as epoch milliseconds; undefined when there is none or it is not a time. */
+export function timeOf(timestamp: string | undefined): number | undefined {
+  const time = timestamp === undefined ? Number.NaN : Date.parse(timestamp);
+  return Number.isNaN(time) ? undefined : time;
+}
+
 /** `metadata.creationTimestamp` as epoch milliseconds. */
 export function createdAt(object: { readonly metadata?: ObjectMeta }): number | undefined {
-  const created = object.metadata?.creationTimestamp;
-  const time = created === undefined ? Number.NaN : Date.parse(created);
-  return Number.isNaN(time) ? undefined : time;
+  return timeOf(object.metadata?.creationTimestamp);
 }
 
 /** How many trailing characters ("-7x5nx") a cell keeps whole when it has to cut a generated name; 0 when the name has no such tail. */
@@ -102,3 +106,29 @@ export const spanSince: AgeFormatter = (date, now) => {
   const step = elapsed < 3600 ? 1 : elapsed < 86400 ? 60 : 3600;
   return { text: spanText(elapsed), changesAt: start + (Math.floor(elapsed / step) + 1) * step * 1000 };
 };
+
+const grouped = (value: number): string => Math.round(value).toLocaleString('en-US');
+const oneDecimal = (value: number): string => String(Number(value.toFixed(1)));
+
+/** A size as the mock says it (`bytesText`, K61.1): bytes below a KiB, then a whole number of KiB and MiB with thousands grouped, then GiB and TiB with one decimal (`1,558 MiB`, `32 GiB`). */
+export function bytesText(bytes: number): string {
+  const magnitude = Math.abs(bytes);
+  if (magnitude >= 1024 ** 4) {
+    return `${oneDecimal(bytes / 1024 ** 4)} TiB`;
+  }
+
+  if (magnitude >= 1024 ** 3) {
+    return `${oneDecimal(bytes / 1024 ** 3)} GiB`;
+  }
+
+  if (magnitude >= 1024 ** 2) {
+    return `${grouped(bytes / 1024 ** 2)} MiB`;
+  }
+
+  return magnitude >= 1024 ? `${grouped(bytes / 1024)} KiB` : `${grouped(bytes)} B`;
+}
+
+/** The first `max` names of a list, the number of the rest (`a, b, c +2`), and the whole list for the tip when the text is not all of it (the mock's `listText`). */
+export function namesText(names: readonly string[], max: number): { readonly text: string; readonly tip?: string } {
+  return names.length > max ? { text: `${names.slice(0, max).join(', ')} +${names.length - max}`, tip: names.join(', ') } : { text: names.join(', ') };
+}

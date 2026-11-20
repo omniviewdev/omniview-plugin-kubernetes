@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createdAt, formatAge, nameTail, spanSince, spanText } from './fields';
+import { bytesText, createdAt, formatAge, nameTail, namesText, spanSince, spanText } from './fields';
 
 // What every kind's list says the same way, from the object a cluster served (plan 1.3): when it was made, how old it is, and the end of a generated name.
 // A value the object does not hold is undefined, never zero, empty or "Unknown" (ch13 D7).
@@ -96,5 +96,33 @@ describe('spanSince: the time since a start, for the page\'s age clock', () => {
 
   it('reads 0 s until a start in the future comes', () => {
     expect(spanSince(new Date(start), start - 5000)).toEqual({ text: '0 s', changesAt: start });
+  });
+});
+
+describe('bytesText: a size in the mock\'s human units (K61.1)', () => {
+  it('is bytes below a KiB, a whole number of KiB and MiB with thousands grouped, and one decimal of GiB and TiB', () => {
+    expect(bytesText(0)).toBe('0 B');
+    expect(bytesText(12)).toBe('12 B');
+    expect(bytesText(1023)).toBe('1,023 B');
+    expect(bytesText(1024)).toBe('1 KiB');
+    expect(bytesText(1337)).toBe('1 KiB');
+    expect(bytesText(1536)).toBe('2 KiB');
+    expect(bytesText(1024 ** 2)).toBe('1 MiB');
+    expect(bytesText(1000 * 1024 ** 2)).toBe('1,000 MiB');
+    expect(bytesText(1558 * 1024 ** 2)).toBe('1.5 GiB');
+    expect(bytesText(32 * 1024 ** 3)).toBe('32 GiB');
+    expect(bytesText(1.25 * 1024 ** 3)).toBe('1.3 GiB');
+    expect(bytesText(2.5 * 1024 ** 4)).toBe('2.5 TiB');
+  });
+});
+
+describe('namesText: the first names of a list, the number of the rest, and every name in the tip', () => {
+  it('says the names whole when they are as many as the list holds', () => {
+    expect(namesText(['a', 'b', 'c'], 3)).toEqual({ text: 'a, b, c' });
+    expect(namesText(['only'], 3)).toEqual({ text: 'only' });
+  });
+
+  it('says the first names and how many more, and keeps the whole list for the tip', () => {
+    expect(namesText(['a', 'b', 'c', 'd', 'e'], 3)).toEqual({ text: 'a, b, c +2', tip: 'a, b, c, d, e' });
   });
 });

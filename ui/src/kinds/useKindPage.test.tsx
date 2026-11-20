@@ -6,8 +6,10 @@ import type { ContextV1 } from '../contract/v1';
 
 import { deploymentDefinition } from './deployments/definition';
 import { listPage } from './list';
+import { nodeDefinition } from './nodes/definition';
 import { podDefinition } from './pods/definition';
 import type { PodRow } from './pods/row';
+import { replicaSetDefinition } from './replicasets/definition';
 import * as kindRows from './useKindRows';
 
 const podsPage = listPage(podDefinition);
@@ -268,5 +270,38 @@ describe('the same page for another kind: the definition is the only thing that 
     connections.mockReturnValue({ connections: { data: [], isPending: false } } as never);
     const { result } = mountDeployments();
     expect(result.current.source.state).toEqual({ kind: 'failed', message: 'No connections' });
+  });
+});
+
+// A kind whose mock definition has no state field has no strip of quick filters, and a kind that lives in no namespace is read through the same chain: the page asks the data layer for the
+// kind and the connection, and no namespace comes into it.
+describe('a kind with no quick filters, and a kind of the cluster', () => {
+  const nodesPage = listPage(nodeDefinition);
+  const mountNodes = () =>
+    renderHook((props: ContextV1) => nodesPage.usePage(props), { initialProps: { plugin: 'kubernetes', route: { page: 'nodes', connection: 'kind-a', params: {} } } as ContextV1 });
+
+  it('hands the host no strip for a kind that has none: a strip with only All would be a control that filters nothing', () => {
+    const { definition } = listPage(replicaSetDefinition);
+    expect(definition.title).toBe('ReplicaSets');
+    expect(definition).not.toHaveProperty('quickFilters');
+  });
+
+  it('hands the host the strip of a kind that has one, under the kind\'s name for its states', () => {
+    const { definition } = nodesPage;
+    expect(definition.quickFilters?.label).toBe('Node state');
+    expect(definition.quickFilters?.filters.map((filter) => filter.label)).toEqual(['Ready', 'NotReady', 'Scheduling disabled']);
+  });
+
+  it('reads a Node through the connection the route names, as it reads every kind: the kind and the connection, and no namespace', () => {
+    know('kind-a');
+    mountNodes();
+    expect(usePods).toHaveBeenCalledWith(nodeDefinition, { pluginID: 'kubernetes', connectionID: 'kind-a' });
+  });
+
+  it('puts a Node page in the frame as the kind\'s plural with the kind\'s tile glyph', () => {
+    know('kind-a');
+    const { frame } = mountNodes().result.current;
+    expect(frame.tab).toEqual({ title: 'Nodes', icon: nodeDefinition.tile.icon });
+    expect(frame.path).toEqual(['Kubernetes', 'kind-a', 'Nodes']);
   });
 });

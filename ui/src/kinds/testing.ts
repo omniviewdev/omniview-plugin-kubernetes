@@ -35,6 +35,13 @@ export function hostRecord(object: unknown, key = `row:${++sequence}`, type = 'k
 // The goldens: each kind's fixture is one response of a real API server, the objects and the cells its printer made of them (`hack/kinds-capture/capture.mjs`; the Pods fixture was made the
 // same way by hand). The oracle is what `kubectl get` prints, so a golden test compares a row with the printed cells.
 
+/** What a fixture row says of its object, besides the object itself: the identity and the owner that the golden tests read. A cluster-scoped object has no namespace. */
+export type CapturedObject = {
+  readonly apiVersion: string;
+  readonly kind: string;
+  readonly metadata: { readonly name: string; readonly namespace?: string; readonly ownerReferences?: ReadonlyArray<{ readonly kind: string }> };
+};
+
 /** One capture of a fixture file: the Table's columns and, per object, the cells the server printed for it. */
 export type Capture = {
   readonly label: string;
@@ -43,9 +50,14 @@ export type Capture = {
   readonly columns: readonly string[];
   readonly rows: ReadonlyArray<{
     readonly cells: readonly (string | number)[];
-    readonly object: { readonly apiVersion: string; readonly kind: string; readonly metadata: { readonly name: string; readonly namespace: string } };
+    readonly object: CapturedObject;
   }>;
 };
+
+/** `namespace/name`, or the name alone for an object that lives in no namespace: how a golden test says which object it is checking. */
+export function idOf({ metadata }: CapturedObject): string {
+  return metadata.namespace === undefined ? metadata.name : `${metadata.namespace}/${metadata.name}`;
+}
 
 const UNIT_SECONDS: Readonly<Record<string, number>> = { y: 365 * 86400, d: 86400, h: 3600, m: 60, s: 1 };
 

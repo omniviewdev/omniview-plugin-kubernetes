@@ -15,10 +15,11 @@ export type Ratio = {
 
 /** The closed vocabulary of cells a page draws. */
 export type Cell =
-  | { readonly kind: 'text'; readonly text: string; readonly mono?: true }
+  /** `tip` says what the cell cuts or abbreviates: the whole list behind `a, b, c +2`, the whole version behind `v1.31.4`. */
+  | { readonly kind: 'text'; readonly text: string; readonly mono?: true; readonly tip?: string }
   /** A state: the glyph of its role beside the word. `tip` explains a state the word alone does not (Ready `1/2` on a Deployment: "1 of 2 ready"). */
   | { readonly kind: 'status'; readonly raw: string; readonly label: string; readonly role: StateRole; readonly tip?: string }
-  /** The time since an object was made: `text` is the one unit at the moment of reading and the page's age clock keeps it current; `long` is the tip. */
+  /** The time since an instant: `text` is the one unit at the moment of reading and the page's age clock keeps it current; `long` is the tip. The instant is the creation of an object, or when a CronJob last ran. */
   | { readonly kind: 'age'; readonly createdAt: number; readonly text: string; readonly long: string }
   /** The time since a start, still running: `text` is the span at the moment of reading and the page's age clock keeps it current (a Job that has not finished). */
   | { readonly kind: 'elapsed'; readonly since: number; readonly text: string }
@@ -106,7 +107,10 @@ export type KindDefinition<TRow extends KindRow> = {
   readonly nouns: { readonly one: string; readonly other: string };
   /** The id of the list page that shows the kind: the key of `contributionV1.pages` and the id of its sidebar entry. */
   readonly page: string;
-  /** The kind's tile, before the name in each row, and its glyph in the sidebar and the tab. The kit's registry is closed: a glyph the registry lacks is the kit's to add. */
+  /**
+   * The kind's tile, before the name in each row, and its glyph in the sidebar and the tab. The kit's registry is closed: a glyph the registry lacks is the kit's to add, and a kind that waits for
+   * one wears the generic tile (`GENERIC_TILE`) rather than the glyph of another kind.
+   */
   readonly tile: { readonly icon: IconName; readonly tone: KindTileTone };
   readonly model: RowModel<TRow>;
   readonly columns: readonly KindColumn[];
@@ -114,8 +118,10 @@ export type KindDefinition<TRow extends KindRow> = {
   readonly list: {
     readonly defaultSort: KindSort;
     readonly identity: {
-      /** The one line under the name: the namespace. */
+      /** The one line under the name: the namespace of a namespaced kind, a Node's address, none for a Namespace. */
       readonly second: (row: TRow) => string | null;
+      /** What the second line is, as the test id of the cell says it (`pod-namespace`, `node-address`). The namespace when absent. */
+      readonly line?: 'address';
       /** Trailing characters of the name a cell keeps whole when it cuts the name. */
       readonly tail: (row: TRow) => number;
     };
@@ -135,6 +141,13 @@ export type KindDefinition<TRow extends KindRow> = {
 export function typeOf({ group, resource }: KindDefinition<KindRow>['identity']): string {
   return `k8s:${group}/${resource}`;
 }
+
+/**
+ * The tile of a kind the kit's registry has no glyph for yet (the mock gives each kind its own: a rocket for a Deployment, a calendar with a clock for a CronJob, a key for a Secret). The registry's
+ * `box` is the mock's own fallback for a kind with no glyph of its own (`kindIcon`), and no other kind's glyph is taken for the missing one, so a tile never says a kind it is not. A kind wears
+ * this tile until the kit has its glyph, and then names it.
+ */
+export const GENERIC_TILE = { icon: 'box', tone: 'blue' } as const satisfies KindDefinition<KindRow>['tile'];
 
 /** A column of the mock's definition record: its words, how it takes width, its width, its side and how it sorts. */
 export const column = (id: string, label: string, fit: KindColumn['fit'], width: number, align: KindColumn['align'], sort: SortKind, rest: Partial<Pick<KindColumn, 'defaultHidden' | 'required'>> = {}): KindColumn =>
