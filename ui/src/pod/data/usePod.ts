@@ -22,6 +22,8 @@ export type PodView = {
   readonly failure: KindFailure | undefined;
   /** The Pod, once its source view has a complete snapshot and the Pod is in it. It stays while a refresh runs and after a failure that follows it. */
   readonly pod: PodDetail | undefined;
+  /** The record the Pod was decoded from, as the host holds it (its body, the reference it was admitted under, the connection it was admitted for): what a log session is opened from. Present with `pod`. */
+  readonly record: HostRecord | undefined;
   /** The source follows the cluster. */
   readonly live: boolean;
   /** A refresh or a resynchronisation is running on a Pod that is shown. */
@@ -116,6 +118,7 @@ export function usePod({ pluginID = PLUGIN_ID, connectionID, namespace, name }: 
     state,
     failure,
     pod,
+    record,
     live: collection.isLive,
     refreshing: complete && (collection.resources.isFetching || collection.isSyncing),
     connect,

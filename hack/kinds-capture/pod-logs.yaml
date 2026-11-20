@@ -1,0 +1,78 @@
+# The Pods a log session is proved on (P1b-3b, docs/ui-next/status/P1b-3b.md of omniviewdev/omniview), on top of the slice fixture of the host
+# (docs/ui-next/slices/1a-pods-list/fixture.yaml), whose `checkout/crashloop` (exits 2 and writes nothing) is the empty case of a crash loop:
+#   kubectl apply -f <host>/docs/ui-next/slices/1a-pods-list/fixture.yaml && kubectl apply -f hack/kinds-capture/pod-logs.yaml
+#   kubectl -n logs wait --for=condition=Ready pod/counter pod/victim pod/duo pod/withinit --timeout=180s
+# Every Pod writes plain text lines that name themselves ("counter 17"), so what a session shows can be compared with `kubectl logs <pod> --timestamps` line by line.
+# Images: busybox:1.37.0 from Docker Hub.
+apiVersion: v1
+kind: Namespace
+metadata: {name: logs}
+---
+# Writes a counter every 100 ms for ever: a session follows it, and its lines are what `kubectl logs counter --timestamps` prints.
+apiVersion: v1
+kind: Pod
+metadata: {name: counter, namespace: logs}
+spec:
+  containers:
+    - name: counter
+      image: busybox:1.37.0
+      command: [sh, -c, 'i=0; while true; do i=$((i+1)); echo "counter $i"; sleep 0.1; done']
+---
+# The same, to be deleted with kubectl while its session streams. The container ignores SIGTERM as a shell that is PID 1 does, so a short grace period keeps the wait to 5 s.
+apiVersion: v1
+kind: Pod
+metadata: {name: victim, namespace: logs}
+spec:
+  terminationGracePeriodSeconds: 5
+  containers:
+    - name: victim
+      image: busybox:1.37.0
+      command: [sh, -c, 'i=0; while true; do i=$((i+1)); echo "victim $i"; sleep 0.1; done']
+---
+# A burst of 500 lines, then it exits and stays Completed: its session reads the log to its end, and ends.
+apiVersion: v1
+kind: Pod
+metadata: {name: burst, namespace: logs}
+spec:
+  restartPolicy: Never
+  containers:
+    - name: burst
+      image: busybox:1.37.0
+      command: [sh, -c, 'i=0; while [ $i -lt 500 ]; do i=$((i+1)); echo "burst $i"; done']
+---
+# Two containers, each writing its own counter at its own pace: one session follows both, and `kubectl logs duo -c <name> --timestamps` is what each of them must equal.
+apiVersion: v1
+kind: Pod
+metadata: {name: duo, namespace: logs}
+spec:
+  containers:
+    - name: first
+      image: busybox:1.37.0
+      command: [sh, -c, 'i=0; while true; do i=$((i+1)); echo "first $i"; sleep 0.2; done']
+    - name: second
+      image: busybox:1.37.0
+      command: [sh, -c, 'i=0; while true; do i=$((i+1)); echo "second $i"; sleep 0.3; done']
+---
+# An init container that writes three lines and finishes, then a container that writes for ever: the init container is a source of the session too.
+apiVersion: v1
+kind: Pod
+metadata: {name: withinit, namespace: logs}
+spec:
+  initContainers:
+    - name: prepare
+      image: busybox:1.37.0
+      command: [sh, -c, 'echo "prepare 1"; echo "prepare 2"; echo "prepare 3"']
+  containers:
+    - name: main
+      image: busybox:1.37.0
+      command: [sh, -c, 'i=0; while true; do i=$((i+1)); echo "main $i"; sleep 0.5; done']
+---
+# A crash loop that says why: three lines of three levels, then exit 1. Its session shows the last run's lines, and ends.
+apiVersion: v1
+kind: Pod
+metadata: {name: crashing, namespace: logs}
+spec:
+  containers:
+    - name: app
+      image: busybox:1.37.0
+      command: [sh, -c, 'echo "INFO starting"; echo "WARN config file not found, using defaults"; echo "ERROR fatal: cannot open the database"; exit 1']

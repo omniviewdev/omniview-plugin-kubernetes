@@ -222,6 +222,19 @@ describe('which record is the Pod: the one whose address says so, whatever else 
 
     expect(result.current.pod).toBe(first);
   });
+
+  it('hands over the record the Pod was decoded from, as the host holds it: the Logs command opens its stream from the record\'s body, its reference and the route it was admitted for', () => {
+    const record = pod('cart-api');
+    answer({ collection: [pod('payment-gateway', 'checkout'), record] });
+
+    expect(render().result.current.record).toBe(record);
+  });
+
+  it('has no record while it has no Pod', () => {
+    answer({ collection: [pod('cart-api', 'staging')] });
+
+    expect(render().result.current.record).toBeUndefined();
+  });
 });
 
 describe('when the Pod is not there', () => {

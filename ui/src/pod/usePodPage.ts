@@ -6,6 +6,7 @@ import type { ContextV1, DetailPageViewV1, DetailSource, DetailState } from '../
 import type { KindFailureKind } from '../kinds/state';
 
 import { usePod, type PodView } from './data/usePod';
+import { podLogsCommand } from './logs/command';
 import { notAvailableYet } from './overview/commands';
 import { podOverview } from './overview/model';
 import { podView } from './overview/view';
@@ -72,13 +73,14 @@ export function detailState(view: PodView, namespace: string, name: string): Det
 }
 
 // The read chain is `usePod` (INTERIM, see its file). A connection is never started by a read, so this page starts the one it finds stopped, once: the same development shortcut as
-// the Pods page, which 1a.7 removes in favour of an explicit Connect (plan D4).
-export function usePodPage({ plugin, route }: ContextV1): DetailPageViewV1 {
+// the Pods page, which 1a.7 removes in favour of an explicit Connect (plan D4). The header's Logs command is the page's own (`./logs/command.ts`): it opens a session in the host's Logs tool through
+// the panel handle the host gave the page, from the record this hook holds.
+export function usePodPage({ plugin, route, panel }: ContextV1): DetailPageViewV1 {
   const namespace = route.params.namespace ?? '';
   const name = route.params.name ?? '';
   const connection = useChosenConnection(plugin, route.connection);
   const view = usePod({ pluginID: plugin, connectionID: connection.chosen?.id, namespace, name });
-  const { pod, state, connect } = view;
+  const { pod, record, state, connect } = view;
   useEffect(() => {
     if (state.kind === 'disconnected') {
       void connect();
@@ -93,7 +95,10 @@ export function usePodPage({ plugin, route }: ContextV1): DetailPageViewV1 {
   const source: DetailSource = {
     state: status,
     // The Pod is on screen while it is read, and after a failure that came once it was: a failure does not take away what was shown.
-    view: overview !== undefined && (status.kind === 'ready' || status.kind === 'failed') ? podView(overview, { age, invoke: notAvailableYet }) : undefined,
+    view:
+      overview !== undefined && pod !== undefined && record !== undefined && (status.kind === 'ready' || status.kind === 'failed')
+        ? podView(overview, { age, invoke: notAvailableYet, logs: podLogsCommand({ plugin, panel, record, pod, namespace, name, scope: connection.named ?? '', route }) })
+        : undefined,
     refreshing: view.refreshing,
     refresh: view.refresh,
   };

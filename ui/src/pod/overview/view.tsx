@@ -1,6 +1,7 @@
 import { MissingValue, type DataTableColumn, type KeyValueRow, type PageHeaderFact, type PageHeaderState, type TagItem } from '@omniviewdev/kit';
 
 import type { DetailSection, DetailTableSection, DetailView } from '../../contract/v1';
+import type { PodLogsCommand } from '../logs/command';
 
 import { ImageCell, ReadyCell, Run, Since, StateCell } from './cells';
 import { podCommands, type PodAction } from './commands';
@@ -138,16 +139,18 @@ function sectionsOf(overview: PodOverview): readonly DetailSection[] {
 export type PodViewInputs = {
   /** The Pod's age, as the clock keeps it ("8m"): the page's hook reads it, so the header stays current. Empty when the Pod has no creation time. */
   readonly age: string;
-  /** Where a command reports that it was invoked (`commands.ts`). */
+  /** Where a command that is not wired reports that it was invoked (`commands.ts`). */
   readonly invoke: (action: PodAction) => void;
+  /** The Logs command: the page's own (`../logs/command.ts`), which opens a session in the host's Logs tool, or says why it cannot. */
+  readonly logs: PodLogsCommand;
 };
 
-/** The page's view of the Pod: what the host draws while the object is there. A function of the Pod's overview, and of the age the clock gives it. */
-export function podView(overview: PodOverview, { age, invoke }: PodViewInputs): DetailView {
+/** The page's view of the Pod: what the host draws while the object is there. A function of the Pod's overview, of the age the clock gives it and of the Logs command the page gives the header. */
+export function podView(overview: PodOverview, { age, invoke, logs }: PodViewInputs): DetailView {
   return {
     state: stateOf(overview.header.state),
     facts: factsOf(overview.header, age),
-    commands: podCommands(invoke),
+    commands: podCommands(invoke, logs),
     tabs: { overview: { kind: 'overview', summary: overview.summary, sections: sectionsOf(overview) } },
   };
 }

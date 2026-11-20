@@ -2,7 +2,7 @@ import * as runtime from '@omniviewdev/runtime/ui/v1';
 import { cleanup, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { ContextV1, DetailPageViewV1 } from '../contract/v1';
+import type { ContextV1, DetailPageViewV1, PanelHostV1 } from '../contract/v1';
 import { hostRecord } from '../kinds/testing';
 
 import { podDetail } from './data/object';
@@ -12,14 +12,15 @@ import { detailState, usePodPage } from './usePodPage';
 import { podPage, podPageDefinition } from './index';
 
 // The read is its own seam, tested in ./data: here `usePod` answers a view, and the runtime answers the list of connections. What is under test is what the page hands the host: which
-// Pod it reads and in which connection, the lane it declares, the state of the page and the view it keeps beside a failure, and the one connection it starts.
+// Pod it reads and in which connection, the lane it declares, the state of the page and the view it keeps beside a failure, the one connection it starts, and the Logs command it gives the header.
 vi.mock('@omniviewdev/runtime/ui/v1', async (importActual) => {
   const actual = await importActual<typeof runtime>();
-  return { ...actual, useConnections: vi.fn() };
+  return { ...actual, useConnections: vi.fn(), openLogStream: vi.fn() };
 });
 vi.mock('./data/usePod', () => ({ usePod: vi.fn() }));
 
 const connections = vi.mocked(runtime.useConnections);
+const openLogStream = vi.mocked(runtime.openLogStream);
 const usePod = vi.mocked(read.usePod);
 const connect = vi.fn(async () => undefined);
 const retry = vi.fn(async () => undefined);
@@ -27,20 +28,22 @@ const refresh = vi.fn(async () => undefined);
 
 const NOW = Date.UTC(2026, 10, 17, 12, 0, 0);
 const object = { metadata: { name: 'cart-api', namespace: 'checkout', creationTimestamp: new Date(NOW - 8 * 60_000).toISOString() }, spec: { nodeName: 'node-1', containers: [{ name: 'app', image: 'busybox:1' }] }, status: { phase: 'Running' } };
-const POD = podDetail(hostRecord(object));
+const RECORD = { ...hostRecord(object), route: { connection: 'kind-a' } };
+const POD = podDetail(RECORD);
 
 function view(over: Partial<read.PodView> = {}): read.PodView {
-  return { state: { kind: 'loaded' }, failure: undefined, pod: POD, live: true, refreshing: false, connect, retry, refresh, ...over };
+  return { state: { kind: 'loaded' }, failure: undefined, pod: POD, record: RECORD, live: true, refreshing: false, connect, retry, refresh, ...over };
 }
 
 const know = (...ids: readonly string[]) => {
   connections.mockReturnValue({ connections: { data: ids.map((id) => ({ id })), isPending: false } } as never);
 };
 
-/** What the host tells the page: the plugin it is installed under, and the route (the connection the hash names, and the Pod's identity). */
-const context = (over: { readonly connection?: string; readonly params?: Record<string, string>; readonly plugin?: string } = {}): ContextV1 => ({
+/** What the host tells the page: the plugin it is installed under, the route (the connection the hash names, and the Pod's identity) and, on a host that has it, the panel handle. */
+const context = (over: { readonly connection?: string; readonly params?: Record<string, string>; readonly plugin?: string; readonly panel?: PanelHostV1 } = {}): ContextV1 => ({
   plugin: over.plugin ?? 'kubernetes',
   route: { page: 'pod', connection: over.connection, params: over.params ?? { namespace: 'checkout', name: 'cart-api' } },
+  ...(over.panel === undefined ? {} : { panel: over.panel }),
 });
 
 const mount = (over: Parameters<typeof context>[0] = {}) => renderHook((props: ContextV1) => usePodPage(props), { initialProps: context(over) });
@@ -254,6 +257,90 @@ describe('usePodPage: the connection it starts (a development shortcut: a read n
     }
 
     expect(connect).not.toHaveBeenCalled();
+  });
+});
+
+describe('usePodPage: the Logs command of the header (P1b-3b)', () => {
+  const started = { ...object, status: { phase: 'Running', containerStatuses: [{ name: 'app', state: { running: { startedAt: new Date(NOW - 60_000).toISOString() } } }] } };
+  const startedRecord = { ...hostRecord(started), route: { connection: 'kind-a' } };
+  const stream = { id: 'stream-1' } as unknown as runtime.LogStream;
+
+  /** A panel handle that records what it is asked, and the one command of the header the page gives for Logs. */
+  function pressed(over: Parameters<typeof context>[0] = {}) {
+    const open = vi.fn<PanelHostV1['logs']['open']>(() => ({ id: 'session-1', close: vi.fn() }));
+    const mounted = mount({ panel: { logs: { open } }, ...over });
+    const command = mounted.result.current.source.view?.commands?.primary;
+    return { open, command, mounted };
+  }
+
+  beforeEach(() => {
+    usePod.mockReturnValue(view({ pod: podDetail(startedRecord), record: startedRecord }));
+    openLogStream.mockReturnValue(stream);
+  });
+
+  it('opens a session in the Logs tool through the host\'s panel handle for the Pod the page shows, named by the connection the page reads', () => {
+    const { open, command } = pressed();
+    expect(command).toMatchObject({ id: 'logs', label: 'Logs' });
+    expect(command?.disabledReason).toBeUndefined();
+    command?.onSelect();
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'pod/kind-a/checkout/cart-api',
+        title: 'cart-api',
+        scope: 'kind-a',
+        resource: { label: 'Pod cart-api', kind: 'Pod', icon: 'box', route: { page: 'pod', connection: undefined, params: { namespace: 'checkout', name: 'cart-api' } } },
+      }),
+    );
+  });
+
+  it('names the connection as the scope lane does: the one the page reads, when the route names none', () => {
+    know('kind-a', 'kind-b');
+    const { open, command } = pressed();
+    command?.onSelect();
+    expect(open.mock.calls[0]?.[0].scope).toBe('kind-a');
+    expect(open.mock.calls[0]?.[0].scope).toBe(mount().result.current.scope?.[0]?.text);
+  });
+
+  it('opens the stream of the Pod\'s own record when the host asks for it, through the plugin it is installed under', () => {
+    const { open, command } = pressed({ plugin: 'kubernetes-qa' });
+    command?.onSelect();
+    expect(openLogStream).not.toHaveBeenCalled();
+    const feed = open.mock.calls[0]?.[0].open();
+    expect(feed).toBe(stream);
+    expect(openLogStream).toHaveBeenCalledWith(
+      expect.objectContaining({ plugin: 'kubernetes-qa', connection: 'kind-a', resourceKey: 'k8s:/pods', resourceId: 'cart-api', resourceData: startedRecord.record.body, reference: startedRecord.record.reference, route: startedRecord.route, target: '' }),
+    );
+  });
+
+  it('says this host cannot show logs when the host gave the page no panel handle', () => {
+    const command = mount().result.current.source.view?.commands?.primary;
+    expect(command?.disabledReason).toBe('This version of Omniview cannot show logs here.');
+  });
+
+  it('says no container has started for a Pod that has none, the Pods\' own words for a Pod that was never run', () => {
+    usePod.mockReturnValue(view());
+    const { open, command } = pressed();
+    expect(command?.disabledReason).toBe('No container of this Pod has started, so it has no logs yet.');
+    command?.onSelect();
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it('gives the Pod\'s Logs command a reason that follows the Pod: the Pod that starts a container is the next render\'s enabled command', () => {
+    usePod.mockReturnValue(view());
+    const open = vi.fn<PanelHostV1['logs']['open']>(() => undefined);
+    const { result, rerender } = mount({ panel: { logs: { open } } });
+    expect(result.current.source.view?.commands?.primary?.disabledReason).toBe('No container of this Pod has started, so it has no logs yet.');
+    usePod.mockReturnValue(view({ pod: podDetail(startedRecord), record: startedRecord }));
+    rerender(context({ panel: { logs: { open } } }));
+    expect(result.current.source.view?.commands?.primary?.disabledReason).toBeUndefined();
+  });
+
+  it('says no more about Logs in the line it prints for the commands that cannot be used: the other two are the ones left', () => {
+    const { command, mounted } = pressed();
+    expect(command?.disabledReason).toBeUndefined();
+    const { commands } = mounted.result.current.source.view ?? {};
+    expect([commands?.secondary?.[0]?.disabledReason, commands?.danger?.disabledReason]).toEqual(['Shell and Delete are not available yet', 'Shell and Delete are not available yet']);
   });
 });
 
