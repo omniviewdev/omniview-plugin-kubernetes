@@ -116,7 +116,7 @@ func NativeQuery(ctx context.Context, client dynamic.Interface, gvr schema.Group
 func nativeEnumerate(ctx context.Context, client dynamic.Interface, gvr schema.GroupVersionResource, namespaced bool, request resourcev2.EnumerateRequest, representation resourcev2.Representation, selector string) (result resourcev2.SourcePage, retErr error) {
 	ctx, crud := startNativeCRUD(ctx, "list", request.Target.Type, "", "")
 	defer func() {
-		crud.end(retErr, attribute.Int("items", len(result.Records)), attribute.Bool("selector", selector != ""), attribute.Bool("continued", request.Cursor != nil))
+		crud.end(retErr, attribute.Int("items", len(result.Records)), attribute.Bool("selector", selector != ""), attribute.Bool("continued", request.Cursor != nil), attribute.String("count", result.Count.Kind))
 	}()
 	if err := ctx.Err(); err != nil {
 		return resourcev2.SourcePage{}, err
@@ -160,6 +160,8 @@ func nativeEnumerate(ctx context.Context, client dynamic.Interface, gvr schema.G
 		Consistency: resourcev2.ConsistencyBestEffort,
 	}
 	if len(slots) == 0 {
+		// A selection that selects nothing has no member: its count is zero, exactly.
+		page.Count = nativeCount("exact", 0)
 		return page, nil
 	}
 	address := resourcev2.ResourceAddress{
@@ -171,6 +173,8 @@ func nativeEnumerate(ctx context.Context, client dynamic.Interface, gvr schema.G
 	ceiling := int(request.PageSize)
 	// budgetFull marks a page that the wire budget, not the page size, has ended.
 	budgetFull := false
+	// serverRemaining is how many objects the API server said remain after the last List the page took, when it said.
+	var serverRemaining *int64
 acquire:
 	for calls := 0; cursor.Slot < len(slots) && len(page.Records) < int(request.PageSize) && calls < int(request.PageSize)+len(slots); {
 		slot := slots[cursor.Slot]
@@ -320,6 +324,7 @@ acquire:
 		recordBytes += addedBytes
 		recordNodes += addedNodes
 		recordFields += addedFields
+		serverRemaining = list.GetRemainingItemCount()
 		page = candidate
 		cursor = next
 		calls++
@@ -327,6 +332,7 @@ acquire:
 			break
 		}
 	}
+	page.Count = nativePageCount(page, request.Cursor != nil, selector == "" && len(slots) == 1 && slots[0].name == "", serverRemaining)
 	if err := resourcev2.ValidateSourcePage(page); err != nil {
 		return resourcev2.SourcePage{}, err
 	}

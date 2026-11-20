@@ -255,7 +255,7 @@ func (p *kubernetesProvider) nativeRegistration(route resourcev2.AccessRoute, bi
 			if err != nil {
 				return resourcev2.SourcePage{}, err
 			}
-			return NativeEnumerate(ctx, client.DynamicClient, served.GVR, served.API.Namespaced, request, representation)
+			return nativeEnumerateCounted(ctx, client, binding.GVR, served, representation, request)
 		}
 		registration.NativeQuery = func(ctx context.Context, client *clients.ClientSet, request resourcev2.NativeQueryRequest) (resourcev2.SourcePage, error) {
 			served, representation, err := nativeRepresentation(binding, request.Target.Representation, "list")
