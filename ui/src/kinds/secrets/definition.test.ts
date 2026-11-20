@@ -96,6 +96,13 @@ describe('the row: the type and the number of keys, and nothing a key holds', ()
     expect(credentials).toMatchObject({ name: 'credentials', namespace: 'more', type: 'Opaque', keys: 3 });
   });
 
+  it('counts the keys of what the backend sends of a Secret: one entry for each key, holding its size in bytes and no value', () => {
+    // pkg/plugin/resource/resourcers/projection.go: `data` is { <key>: { size } }, and the manifest annotation is left out.
+    const projected = row({ metadata, type: 'Opaque', data: { username: { size: 20 }, password: { size: 24 }, note: { size: 0 } } });
+    expect(projected).toMatchObject({ name: 'credentials', namespace: 'more', type: 'Opaque', keys: 3 });
+    expect(`${JSON.stringify(projected)}\n${secretSearchText(projected)}`).not.toMatch(/username|password|note/);
+  });
+
   it('holds no key name and no value: not in the row, and not in the text a search reads', () => {
     const everything = `${JSON.stringify(credentials)}\n${secretSearchText(credentials)}`;
     for (const value of Object.values(SENTINELS)) {

@@ -16,7 +16,7 @@ const sourceEncodingRecords = 256 // resource.MaxSourceBatchItems: one full snap
 // the compact record and metadata.
 func convertBenchmarkObservation(b *testing.B, u *unstructured.Unstructured) resource.SourceObservation {
 	b.Helper()
-	record, err := watchRecord(testWatchTarget(), testWatchRepresentation(), u)
+	record, err := watchRecord(testGVR, testWatchTarget(), testWatchRepresentation(), u)
 	if err != nil {
 		b.Fatal(err)
 	}

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
+	"github.com/omniview/kubernetes/pkg/plugin/resource/resourcers"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"go.opentelemetry.io/otel/attribute"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -62,7 +63,7 @@ func NativeGet(ctx context.Context, client dynamic.Interface, gvr schema.GroupVe
 	if request.Reference.Incarnation != nil && *request.Reference.Incarnation != string(object.GetUID()) {
 		return resourcev2.Record{}, resourcev2.NewError("RESET_REQUIRED", "The Kubernetes resource incarnation has changed")
 	}
-	record, err := nativeRecord(object, request.Reference.Address, namespaced, namespace, representation)
+	record, err := nativeRecord(object, gvr, request.Reference.Address, namespaced, namespace, representation)
 	if err != nil {
 		return resourcev2.Record{}, err
 	}
@@ -155,7 +156,7 @@ func nativeEnumerate(ctx context.Context, client dynamic.Interface, gvr schema.G
 	page := resourcev2.SourcePage{
 		Records:     []resourcev2.Record{},
 		Count:       resourcev2.Count{Kind: "unknown"},
-		Coverage:    nativeRepresentationCoverage(representation),
+		Coverage:    nativeRepresentationCoverage(gvr, representation),
 		Consistency: resourcev2.ConsistencyBestEffort,
 	}
 	if len(slots) == 0 {
@@ -261,7 +262,7 @@ acquire:
 			if slot.name != "" && list.Items[i].GetName() != slot.name {
 				return resourcev2.SourcePage{}, resourcev2.NewError("INVALID_REQUEST", "The API server returned a resource outside the requested name selection")
 			}
-			record, err := nativeRecord(&list.Items[i], address, namespaced, namespace, representation)
+			record, err := nativeRecord(&list.Items[i], gvr, address, namespaced, namespace, representation)
 			if err != nil {
 				if resourcev2.ErrorCode(err) != "RESOURCE_LIMIT" {
 					return resourcev2.SourcePage{}, err
@@ -468,7 +469,9 @@ func nativeScopeValues(constraint resourcev2.ScopeConstraint, dimension string, 
 	}
 }
 
-func nativeRecord(object *unstructured.Unstructured, address resourcev2.ResourceAddress, namespaced bool, namespace string, representation resourcev2.Representation) (resourcev2.Record, error) {
+// nativeRecord is the record of one object a finite read or a mutation returns. It is made from the object that the kind's projection sends (resourcers.ProjectObject): a Secret is never made into a record
+// whole, so no read of it and no result of changing it can carry what it holds.
+func nativeRecord(object *unstructured.Unstructured, gvr schema.GroupVersionResource, address resourcev2.ResourceAddress, namespaced bool, namespace string, representation resourcev2.Representation) (resourcev2.Record, error) {
 	if object.GetName() == "" {
 		return resourcev2.Record{}, resourcev2.NewError("INVALID_REQUEST", "The API server returned a resource without metadata.name")
 	}
@@ -481,8 +484,8 @@ func nativeRecord(object *unstructured.Unstructured, address resourcev2.Resource
 	if namespaced {
 		address.Scope = []resourcev2.ScopeEntry{{Dimension: "namespace", Value: actualNamespace}}
 	}
-	// Copy only the two maps changed by projection, never the resource body.
-	bodyObject := object.Object
+	// Copy only the maps changed by projection, never the resource body.
+	bodyObject := resourcers.ProjectObject(gvr, object.Object)
 	if strings.HasPrefix(representation.ID, nativeModelRepresentationVersion+"/") {
 		if metadata, ok := bodyObject["metadata"].(map[string]any); ok {
 			if _, present := metadata["managedFields"]; present {
@@ -501,16 +504,26 @@ func nativeRecord(object *unstructured.Unstructured, address resourcev2.Resource
 		Reference:      resourcev2.ResourceReference{Address: address, Incarnation: nativeOptionalToken(string(object.GetUID()))},
 		Body:           body,
 		Representation: representation,
-		Coverage:       nativeRepresentationCoverage(representation),
+		Coverage:       nativeRepresentationCoverage(gvr, representation),
 		SourceRevision: nativeOptionalToken(object.GetResourceVersion()),
 	}, nil
 }
 
-func nativeRepresentationCoverage(representation resourcev2.Representation) resourcev2.Coverage {
+// nativeRepresentationCoverage says what a record of the representation leaves out: the model's managed fields, and what the kind's projection limits.
+func nativeRepresentationCoverage(gvr schema.GroupVersionResource, representation resourcev2.Representation) resourcev2.Coverage {
+	var paths, reasons []string
 	if strings.HasPrefix(representation.ID, nativeModelRepresentationVersion+"/") {
-		return resourcev2.Coverage{Kind: "partial", Paths: []string{"/metadata/managedFields"}, Reason: "Kubernetes model projection omits metadata.managedFields"}
+		paths = append(paths, "/metadata/managedFields")
+		reasons = append(reasons, "Kubernetes model projection omits metadata.managedFields")
 	}
-	return nativeCompleteCoverage()
+	if limited, reason := resourcers.ProjectionLimits(gvr); len(limited) != 0 {
+		paths = append(paths, limited...)
+		reasons = append(reasons, reason)
+	}
+	if len(paths) == 0 {
+		return nativeCompleteCoverage()
+	}
+	return resourcev2.Coverage{Kind: "partial", Paths: paths, Reason: strings.Join(reasons, "; ")}
 }
 
 func nativeCompleteCoverage() resourcev2.Coverage {

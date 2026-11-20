@@ -41,6 +41,10 @@ The acquisition rule of the bounded first set, its measurement, and the capture 
 
 `index.test.ts` holds every definition to the facts the generic page and hook rely on.
 
+## A Secret's values never reach the page
+
+The plugin's backend sends no Secret value on any read: a list, a page, a Get, the result of a mutation, the live source, the source narrowed to one object (`pkg/plugin/resource/resourcers/projection.go`). The record of a Secret holds its metadata, its type, whether it is immutable and, for each key of `data`, the key's name and its size in bytes (`data: { <key>: { size } }`); the annotation that `kubectl apply` fills with the manifest (`last-applied-configuration`, which holds `stringData` in the clear) is left out. The record's coverage says so (`partial`, with those paths). `secrets/object.ts` counts the entries of `data` and still never reads one, so what a backend should send by mistake would reach no row. A Reveal of one key is not built: the runtime's curated entry (`ui/v1`) has no operation that asks for one value without caching it, so it waits for one (the host's `docs/ui-next/status/SEC1.md`, Backend catalog).
+
 ## The page of one Pod reads through this layer too
 
 `ui/src/pod/` (the detail page) uses this layer's `state.ts` (the same words for the connection and the read), the Pod definition's type and `useKindRows.ts`'s `FIRST_SET`, `PLUGIN_ID` and `settled`. Its read is one file, `ui/src/pod/data/usePod.ts`: the page narrows the read to its Pod by namespace and name (a query dimension of every native kind, D1c), so its source view holds that one object. A generic detail Overview driven by the same definitions is the next step (K2b).

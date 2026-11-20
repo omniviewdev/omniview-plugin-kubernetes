@@ -80,7 +80,7 @@ func openEnvtestSource(t *testing.T, config *rest.Config, start chan<- struct{},
 			}
 			page := resource.SourcePage{Records: make([]resource.Record, 0, len(list.Items)), Coverage: resource.Coverage{Kind: "complete", Paths: []string{}}, Count: resource.Count{Kind: "unknown"}, Consistency: resource.ConsistencyBestEffort}
 			for i := range list.Items {
-				record, err := watchRecord(request.Target, representation, &list.Items[i])
+				record, err := watchRecord(envtestConfigMaps, request.Target, representation, &list.Items[i])
 				if err != nil {
 					return resource.SourcePage{}, err
 				}

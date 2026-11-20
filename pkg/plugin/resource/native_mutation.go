@@ -50,7 +50,7 @@ func NativeMutate(ctx context.Context, client dynamic.Interface, gvr schema.Grou
 		if request.ExpectedRevision != nil && object.GetResourceVersion() != *request.ExpectedRevision {
 			return resourcev2.Record{}, resourcev2.NewError("CONFLICT", "Kubernetes object revision changed")
 		}
-		record, err := nativeRecord(object, request.Reference.Address, namespaced, namespace, representation)
+		record, err := nativeRecord(object, gvr, request.Reference.Address, namespaced, namespace, representation)
 		if err != nil {
 			return resourcev2.Record{}, err
 		}
@@ -93,7 +93,7 @@ func NativeMutate(ctx context.Context, client dynamic.Interface, gvr schema.Grou
 		if err != nil {
 			return resourcev2.Record{}, err
 		}
-		return nativeRecord(created, request.Reference.Address, namespaced, namespace, representation)
+		return nativeRecord(created, gvr, request.Reference.Address, namespaced, namespace, representation)
 	}
 	if request.Reference.Incarnation != nil {
 		if object.GetUID() != "" && string(object.GetUID()) != *request.Reference.Incarnation {
@@ -111,7 +111,7 @@ func NativeMutate(ctx context.Context, client dynamic.Interface, gvr schema.Grou
 	if err != nil {
 		return resourcev2.Record{}, err
 	}
-	return nativeRecord(updated, request.Reference.Address, namespaced, namespace, representation)
+	return nativeRecord(updated, gvr, request.Reference.Address, namespaced, namespace, representation)
 }
 
 // Kubernetes unstructured JSON has signed integers and date-time strings. This

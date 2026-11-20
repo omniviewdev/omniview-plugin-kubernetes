@@ -150,7 +150,7 @@ func TestSourceSnapshotAndOrderedChanges(t *testing.T) {
 	require.Equal(t, "initial", snapshot[0].Record.Reference.Address.ID)
 	require.Equal(t, "initial-uid", *snapshot[0].Record.Reference.Incarnation)
 	require.Equal(t, "1", *snapshot[0].Record.SourceRevision)
-	record, err := watchRecord(testWatchTarget(), testWatchRepresentation(), initial)
+	record, err := watchRecord(testGVR, testWatchTarget(), testWatchRepresentation(), initial)
 	require.NoError(t, err)
 	require.Equal(t, resource.CompactSourceRecord(record), snapshot[0].Record)
 	encoded, err := json.Marshal(snapshot[0].Record)
@@ -329,7 +329,7 @@ func TestSourceReconcilesQueuedStartupUpdate(t *testing.T) {
 			}
 		}
 		require.Len(t, snapshot, 1)
-		expected, err := watchRecord(target, testWatchRepresentation(), updated)
+		expected, err := watchRecord(testGVR, target, testWatchRepresentation(), updated)
 		require.NoError(t, err)
 		require.Equal(t, resource.CompactSourceRecord(expected), snapshot[0].Record)
 		require.NotNil(t, snapshot[0].Metadata)

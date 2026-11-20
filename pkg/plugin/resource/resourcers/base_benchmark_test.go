@@ -201,7 +201,7 @@ func BenchmarkBase_ListRepresentativePods(b *testing.B) {
 					}
 					records := make([]resource.Record, 0, len(native.Items))
 					for i := range native.Items {
-						record, err := watchRecord(testWatchTarget(), testWatchRepresentation(), &native.Items[i])
+						record, err := watchRecord(testGVR, testWatchTarget(), testWatchRepresentation(), &native.Items[i])
 						if err != nil {
 							return nil, err
 						}
@@ -229,7 +229,7 @@ func BenchmarkBase_ListRepresentativePods(b *testing.B) {
 						native := lease.Informer.GetStore().List()
 						records := make([]resource.Record, 0, len(native))
 						for _, obj := range native {
-							record, err := watchRecord(testWatchTarget(), testWatchRepresentation(), obj.(*unstructured.Unstructured))
+							record, err := watchRecord(testGVR, testWatchTarget(), testWatchRepresentation(), obj.(*unstructured.Unstructured))
 							if err != nil {
 								return nil, err
 							}
