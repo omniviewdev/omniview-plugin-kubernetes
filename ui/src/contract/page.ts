@@ -1,4 +1,4 @@
-// Vendored from omniviewdev/omniview 3e3a311e5d557b4f040cf61255d67d3358365f2e (ui-next/page/index.ts, only its type exports of the definitions): types only. Do not edit; hack/vendor-host.sh writes it.
+// Vendored from omniviewdev/omniview 15f67c4b6de15b12f3e33eeb7fefbe477459f308 (ui-next/page/index.ts, only its type exports of the definitions): types only. Do not edit; hack/vendor-host.sh writes it.
 export type { ListPageDefinition, ListQuickFilter, ListQuickFilters, ListSource, ListSourceState } from './definition';
 export type {
   DetailIdentity,

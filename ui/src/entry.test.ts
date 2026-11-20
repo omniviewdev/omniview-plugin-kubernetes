@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { SidebarNodeV1 } from './contract/v1';
 import * as entry from './entry';
 import { podLogsCard } from './pod/logs/card';
+import { useSidebarNodes } from './sidebar/useSidebarNodes';
 
 // What the host checks before it builds anything from the bundle (`admit.ts` in omniviewdev/omniview): the export is `contributionV1`, `home` names a
 // page, and a sidebar entry that opens no page is refused (no stub ships). The host's own admission runs on the real bundle in the end-to-end check;
@@ -51,7 +52,7 @@ describe('the contribution', () => {
     ]);
   });
 
-  it('has, in each group, its entries in the mock\'s order, each with the glyph of its kind (the generic tile for a kind the kit has no glyph for yet) and no count (the data layer gives none cheaply)', () => {
+  it('has, in each group, its entries in the mock\'s order, each with the glyph of its kind (the generic tile for a kind the kit has no glyph for yet) and its count slot held (`count: null`: the counts arrive from the sidebar\'s hook)', () => {
     const [nodes, namespaces, workloads, config, network, storage, access] = contributionV1.sidebar.nodes;
     expect([nodes, namespaces].map((node) => [node?.id, node?.icon])).toEqual([['nodes', 'box'], ['namespaces', 'box']]);
     expect(workloads?.icon).toBe('layers');
@@ -94,8 +95,14 @@ describe('the contribution', () => {
       ['rolebindings', 'RoleBindings', 'box'],
       ['clusterrolebindings', 'ClusterRoleBindings', 'box'],
     ]);
+    // The slot is declared on every entry of a kind from the first frame, so that a count that arrives moves no label; a host that predates the slot refuses a `null` count by name, so the bundle is never drawn wrong there. A group has no count.
     for (const leaf of leaves(contributionV1.sidebar.nodes)) {
-      expect(leaf).not.toHaveProperty('count');
+      expect(leaf.count, leaf.id).toBeNull();
+    }
+    for (const node of contributionV1.sidebar.nodes) {
+      if (node.children !== undefined) {
+        expect(node).not.toHaveProperty('count');
+      }
     }
   });
 
@@ -124,9 +131,10 @@ describe('the contribution', () => {
     expect(pod.definition.kind).toBe('Pod');
   });
 
-  it('has a static skeleton and no per-connection hook yet: the sidebar draws before any data is read', () => {
-    expect(contributionV1.sidebar).not.toHaveProperty('useNodes');
+  it('has a static skeleton that draws before any data is read, and the hook that fills its counts in once a connection is known', () => {
     expect(contributionV1.sidebar.label).toBe('Kubernetes resources');
+    expect(contributionV1.sidebar.title).toBe('Resources');
+    expect(contributionV1.sidebar.useNodes).toBe(useSidebarNodes);
   });
 
   // What the host's admission refuses a `panel` for (`admit.ts`): a tool with no body, a third tool. The plugin brings no tool of its own, and says how the sessions it opens in a tool of the host read.

@@ -2,6 +2,9 @@ import { useEffect } from 'react';
 
 import { connectionFace, namespacesFace, useChosenConnection, type PageConnection } from '../connection';
 import type { ContextV1, FrameV1, ListPageViewV1 } from '../contract/v1';
+import { sidebarCount } from '../sidebar/count';
+import { openKey, publishOpenCount } from '../sidebar/openCounts';
+import { ALL_NAMESPACES } from '../sidebar/scope';
 
 import type { KindDefinition, KindRow } from './definition';
 import { kindListSource, type KindListSource } from './source';
@@ -36,6 +39,9 @@ export function kindFrame(kind: Pick<KindDefinition<KindRow>, 'nouns' | 'tile'>,
 // The read chain is `useKindRows`: the catalog, the resolved target, then the collection of its source view, live when the type advertises it, exactly as
 // the old table reads it. A connection is never started by a read, so this page starts the one it finds stopped, once: a development shortcut that
 // 1a.7 removes in favour of an explicit Connect (plan D4).
+//
+// A page that is open says how many objects its kind has to the sidebar (`sidebar/openCounts.ts`), which draws that number for the kind and reads no page of one for it (Q2): the count is the list's own, live,
+// from the very source it lists. It is the number of the rows once the whole set is here, and until then the count the first page says it holds (exact, an estimate, or none). The page takes it back when it goes.
 export function useKindPage<TRow extends KindRow>(kind: KindDefinition<TRow>, { plugin, route }: ContextV1): ListPageViewV1<TRow> {
   const connection = useChosenConnection(plugin, route.connection);
   const { chosen, pending } = connection;
@@ -47,10 +53,24 @@ export function useKindPage<TRow extends KindRow>(kind: KindDefinition<TRow>, { 
     }
   }, [state.kind, connect]);
 
+  const connectionId = chosen?.id;
+  // A list that was refused says no count, whatever it still holds: the rows kept beside a refusal are what the user could list before it, not how many objects the kind has now, and the refusal is the page's one answer.
+  const refused = view.state.kind === 'denied' || view.failure?.kind === 'denied';
+  const countKind = refused ? undefined : view.complete ? 'exact' : view.firstCount?.kind;
+  const countValue = refused ? undefined : view.complete ? String(view.rows.length) : view.firstCount?.value;
+  useEffect(() => {
+    if (connectionId === undefined) {
+      return undefined;
+    }
+
+    return publishOpenCount(openKey(plugin, connectionId, kind.type), sidebarCount(countKind === undefined ? undefined : { kind: countKind, value: countValue }));
+  }, [plugin, connectionId, kind.type, countKind, countValue]);
+
   const frame = kindFrame(kind, connection);
   if (chosen === undefined) {
     return { frame, source: pending ? WAITING : NO_CONNECTIONS };
   }
 
-  return { frame, source: kindListSource(view, kind.nouns.other) };
+  // A list reads every namespace, as the lane says; there is no namespace menu yet.
+  return { frame, source: kindListSource(view, kind.nouns.other, ALL_NAMESPACES) };
 }

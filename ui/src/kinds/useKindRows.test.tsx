@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { KindSort } from './definition';
 import { deploymentDefinition } from './deployments/definition';
 import type { DeploymentRow } from './deployments/row';
+import { nodeDefinition } from './nodes/definition';
 import { podDefinition } from './pods/definition';
 import type { PodRow } from './pods/row';
 import { hostRecord } from './testing';
@@ -44,7 +45,8 @@ const refetchTarget = vi.fn(async () => undefined);
 type Answer = {
   readonly phase?: string;
   readonly message?: string;
-  readonly types?: ReadonlyArray<{ readonly type: string; readonly operations?: readonly string[] }>;
+  /** The catalog's types; one that is not `namespaced: false` has the namespace among its query dimensions, as the plugin's catalog gives a namespaced kind. */
+  readonly types?: ReadonlyArray<{ readonly type: string; readonly operations?: readonly string[]; readonly namespaced?: boolean }>;
   readonly catalogError?: unknown;
   readonly target?: boolean;
   readonly targetError?: unknown;
@@ -58,15 +60,25 @@ type Answer = {
   readonly syncing?: boolean;
   /** The first explicit page. */
   readonly page?: readonly HostRecord[];
+  /** What the first explicit page says it holds (`sourcePage.count`): a page that says nothing carries an unknown count, as the plugin's backend sends one. */
+  readonly pageCount?: { readonly kind: string; readonly value?: string };
 };
 
 const podType = { type: 'k8s:/pods', operations: ['enumerate', 'sourceUpdates'] };
 
-function answer({ phase = 'connected', message, types = [podType], catalogError = null, target: targetReady = true, targetError = null, collection, collectionError = null, count, source, fetching = false, live = false, syncing = false, page }: Answer = {}) {
+const dimension = (name: string) => ({ name, allowEmpty: false });
+
+function answer({ phase = 'connected', message, types = [podType], catalogError = null, target: targetReady = true, targetError = null, collection, collectionError = null, count, source, fetching = false, live = false, syncing = false, page, pageCount = { kind: 'unknown' } }: Answer = {}) {
   readiness.mockReturnValue({ phase, message, connect, retry } as never);
   resourceTypes.mockReturnValue({
     resourceTypes: {
-      data: catalogError === null ? types.map(({ type, operations = [] }) => ({ type, capabilities: operations.map((operation) => ({ operation, scope: [] })) })) : undefined,
+      data: catalogError === null
+        ? types.map(({ type, operations = [], namespaced = true }) => ({
+          type,
+          queryDimensions: namespaced ? [dimension('namespace'), dimension('name')] : [dimension('name')],
+          capabilities: operations.map((operation) => ({ operation, scope: [] })),
+        }))
+        : undefined,
       error: catalogError,
       refetch: refetchCatalog,
     },
@@ -74,13 +86,13 @@ function answer({ phase = 'connected', message, types = [podType], catalogError 
   resolvedTarget.mockReturnValue({ data: targetReady ? { targetId: 'target-1', target } : undefined, error: targetError, refetch: refetchTarget } as never);
   resources.mockImplementation(((options: { collection?: boolean }) => options.collection
     ? {
-      resources: { data: collection ? { records: collection } : undefined, error: collectionError, isFetching: fetching, refetch: refetchCollection },
+      resources: { data: collection ? { records: collection, sourcePage: { count: { kind: 'exact', value: String(collection.length) } } } : undefined, error: collectionError, isFetching: fetching, refetch: refetchCollection },
       view: collection && count ? { count } : undefined,
       source,
       isLive: live,
       isSyncing: syncing,
     }
-    : { resources: { data: page ? { records: page } : undefined, error: null } }) as never);
+    : { resources: { data: page ? { records: page, sourcePage: { count: pageCount } } : undefined, error: null } }) as never);
 }
 
 beforeEach(() => {
@@ -280,6 +292,72 @@ describe('the bounded first set (owner decision A10)', () => {
     answer({ collection: [pod('a'), pod('b'), pod('c')], count: { kind: 'exact', value: '2' } });
 
     expect(render().result.current.count).toEqual({ kind: 'exact', value: '3' });
+  });
+});
+
+// What the sidebar draws for a kind whose list is open is what the list knows (Q2): the count its first page says it holds, until the whole set is here, and then the number of its rows. The first is
+// the page's `sourcePage.count`, which the plugin's backend sets (Q1: exact when the page ends the read, an estimate when more follows, unknown otherwise).
+describe('the count of the first page, for the sidebar', () => {
+  it('is what the first page says it holds while the set is not complete: an exact count, an estimate or an unknown one', () => {
+    for (const pageCount of [{ kind: 'exact', value: '40' }, { kind: 'estimate', value: '5025' }, { kind: 'unknown' }]) {
+      answer({ page: [pod('a')], pageCount });
+
+      expect(render().result.current.firstCount).toEqual(pageCount);
+      cleanup();
+    }
+  });
+
+  it('is nothing before the first page has arrived', () => {
+    answer();
+
+    expect(render().result.current.firstCount).toBeUndefined();
+  });
+
+  it('is nothing once the collection is complete: the first page is not read any more, and the count of the set is its rows', () => {
+    answer({ page: [pod('a')], pageCount: { kind: 'estimate', value: '5025' }, collection: [pod('a'), pod('b')] });
+
+    const { result } = render();
+
+    expect(result.current.firstCount).toBeUndefined();
+    expect(result.current.count).toEqual({ kind: 'exact', value: '2' });
+  });
+
+  it('is nothing for a connection that is not connected, whatever the hooks still hold: an old count never speaks for a connection the runtime has replaced', () => {
+    answer({ phase: 'disconnected', page: [pod('a')], pageCount: { kind: 'exact', value: '1' } });
+
+    expect(render().result.current.firstCount).toBeUndefined();
+  });
+
+  it('leaves the count of the footer as it was: it counts the rows it holds, and says how many are loaded while the set is not complete', () => {
+    answer({ page: [pod('a'), pod('b')], pageCount: { kind: 'estimate', value: '5025' } });
+
+    expect(render().result.current.count).toEqual({ kind: 'unknown', loaded: '2' });
+  });
+});
+
+// Whether the kind lives in a namespace is the catalog's word (the namespace is, or is not, among the type's query dimensions): the list's words for a refusal name the namespaces a read covers, or the cluster.
+describe('whether the kind is namespaced, from the catalog', () => {
+  it('is true for a type that has the namespace among its query dimensions', () => {
+    answer({ types: [{ type: 'k8s:/pods', namespaced: true }] });
+
+    expect(render().result.current.namespaced).toBe(true);
+  });
+
+  it('is false for a type that has none, as a Node does', () => {
+    answer({ types: [{ type: 'k8s:/nodes', operations: ['enumerate'], namespaced: false }] });
+
+    const { result } = renderHook(() => useKindRows(nodeDefinition, { connectionID: 'kind-a' }));
+
+    expect(result.current.namespaced).toBe(false);
+  });
+
+  it('is not known until the catalog has answered, and not known for a cluster that does not serve the type', () => {
+    answer({ catalogError: { type: 'omniview:internal', title: 'x', status: 500, detail: 'y' }, target: false });
+    expect(render().result.current.namespaced).toBeUndefined();
+    cleanup();
+
+    answer({ types: [{ type: 'k8s:apps/deployments' }], target: false });
+    expect(render().result.current.namespaced).toBeUndefined();
   });
 });
 

@@ -107,6 +107,16 @@ describe('connected: the rows', () => {
     expect(readKindState(reads({ read: { error: new Error('boom'), source: undefined } })).state).toMatchObject({ kind: 'failed' });
   });
 
+  // A refusal is the host's FORBIDDEN, which its envelope maps to a 403 (`parseAppError`); either says it, so a read whose envelope carries one and not the other is still a list the user may not read.
+  it('files a refusal by its code or by its status: FORBIDDEN is denied whatever status the envelope carries, and so is a 403 whatever its code', () => {
+    const byCode = envelope(500, 'omniview:internal', 'FORBIDDEN');
+    const byStatus = envelope(403, 'omniview:resource/forbidden', 'INTERNAL');
+
+    expect(readKindState(reads({ read: { error: byCode, source: undefined } })).state).toMatchObject({ kind: 'denied' });
+    expect(readKindState(reads({ read: { error: byStatus, source: undefined } })).state).toMatchObject({ kind: 'denied' });
+    expect(readKindState(reads({ read: { error: envelope(500, 'omniview:internal', 'INTERNAL'), source: undefined } })).state).toMatchObject({ kind: 'failed' });
+  });
+
   it('ignores a cancelled read: the runtime cancels on every change of the connection, and that is not a failure', () => {
     expect(readKindState(reads({ read: { error: 'cancelled', source: undefined } })).state).toEqual({ kind: 'loading' });
     expect(readKindState(reads({ read: { error: { name: 'AbortError' }, source: undefined } })).state).toEqual({ kind: 'loading' });

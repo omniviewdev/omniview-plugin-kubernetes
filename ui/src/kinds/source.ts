@@ -1,3 +1,5 @@
+import { scopeText, type NamespaceScope } from '../sidebar/scope';
+
 import type { KindRow } from './definition';
 import type { KindFailureKind } from './state';
 import type { KindView } from './useKindRows';
@@ -18,11 +20,13 @@ export type KindListSource<TRow extends KindRow> = {
   readonly refresh: () => Promise<void>;
 };
 
-/** What each failure means when the runtime sent no words of its own. `plural` is what the user calls the kind ("Pods"). */
-function sentence(kind: KindFailureKind | 'not-found', plural: string): string {
+/** The words a failure is said in: what the user calls the kind ("Pods"), and the sentence for a list the user may not read. */
+type Words = { readonly plural: string; readonly refusal: string };
+
+/** What each failure means when the runtime sent no words of its own. A refusal is not here: it is never said in the runtime's words, or in words the runtime may have sent (`failed`). */
+function sentence(kind: Exclude<KindFailureKind | 'not-found', 'denied'>, plural: string): string {
   switch (kind) {
     case 'needs-sign-in': return 'The connection needs you to sign in.';
-    case 'denied': return `You do not have access to list ${plural}.`;
     case 'unreachable': return 'The cluster did not answer.';
     case 'unsupported': return `This cluster does not serve ${plural}.`;
     case 'failed': return `${plural} could not be read.`;
@@ -30,7 +34,13 @@ function sentence(kind: KindFailureKind | 'not-found', plural: string): string {
   }
 }
 
-function failed<TRow extends KindRow>(kind: KindFailureKind | 'not-found', message: string | undefined, view: KindView<TRow>, plural: string): KindListSourceState {
+function failed<TRow extends KindRow>(kind: KindFailureKind | 'not-found', message: string | undefined, view: KindView<TRow>, { plural, refusal }: Words): KindListSourceState {
+  // A list the user may not read: asking again cannot change that, so the page offers no Retry (the contract draws one only when the source gives it), and the words are the plugin's own. The runtime's
+  // text for a refusal is a fixed one that says nothing, and what a server wrote is not put on the screen, so `message` is not shown.
+  if (kind === 'denied') {
+    return { kind: 'failed', message: refusal };
+  }
+
   const said = message ?? sentence(kind, plural);
   // Where asking again cannot help (a cluster that serves no such type, a connection that is gone) a Retry would be a button that does nothing.
   if (kind === 'unsupported' || kind === 'not-found') {
@@ -46,7 +56,7 @@ function failed<TRow extends KindRow>(kind: KindFailureKind | 'not-found', messa
   };
 }
 
-function stateOf<TRow extends KindRow>(view: KindView<TRow>, plural: string): KindListSourceState {
+function stateOf<TRow extends KindRow>(view: KindView<TRow>, words: Words): KindListSourceState {
   const { state, failure } = view;
   switch (state.kind) {
     // The page starts a connection it finds stopped (a dev shortcut that 1a.7 removes), so a stopped one is a wait.
@@ -58,19 +68,24 @@ function stateOf<TRow extends KindRow>(view: KindView<TRow>, plural: string): Ki
       return { kind: 'ready' };
     case 'loaded':
       // A failure that came after rows is kept beside them: the page keeps listing and does not call a refresh an update.
-      return failure === undefined ? { kind: 'ready' } : failed(failure.kind, failure.message, view, plural);
+      return failure === undefined ? { kind: 'ready' } : failed(failure.kind, failure.message, view, words);
     case 'unsupported':
-      return failed('unsupported', undefined, view, plural);
+      return failed('unsupported', undefined, view, words);
     case 'needs-sign-in':
     case 'denied':
     case 'unreachable':
     case 'not-found':
     case 'failed':
-      return failed(state.kind, state.message, view, plural);
+      return failed(state.kind, state.message, view, words);
   }
 }
 
-/** A kind's view as the list page's source. `plural` is what the user calls the kind ("Pods"), for the words of a failure. */
-export function kindListSource<TRow extends KindRow>(view: KindView<TRow>, plural: string): KindListSource<TRow> {
-  return { state: stateOf(view, plural), rows: view.rows, complete: view.complete, refreshing: view.refreshing, refresh: view.refresh };
+/**
+ * A kind's view as the list page's source. `plural` is what the user calls the kind ("Pods"), for the words of a failure; `scope` is the namespaces the list reads (there is no namespace menu yet, so the page
+ * says all of them), which the words of a refusal name for a kind that lives in a namespace, and "this cluster" for one that does not (and when the catalog has not said which it is: true of either).
+ */
+export function kindListSource<TRow extends KindRow>(view: KindView<TRow>, plural: string, scope: NamespaceScope): KindListSource<TRow> {
+  const where = view.namespaced === true ? scopeText(scope) : 'this cluster';
+  const words = { plural, refusal: `You do not have permission to list ${plural} in ${where}.` };
+  return { state: stateOf(view, words), rows: view.rows, complete: view.complete, refreshing: view.refreshing, refresh: view.refresh };
 }

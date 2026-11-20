@@ -1,5 +1,7 @@
-import { useConnectionReadiness, useResolvedResourceTarget, useResourceTypes, useResources } from '@omniviewdev/runtime/ui/v1';
+import { useConnectionReadiness, useResolvedResourceTarget, useResourceTypes, useResources, type Count } from '@omniviewdev/runtime/ui/v1';
 import { useCallback, useMemo } from 'react';
+
+import { isNamespaced } from '../sidebar/scope';
 
 import type { KindDefinition, KindRow, KindSort } from './definition';
 import { sortRows } from './sort';
@@ -36,6 +38,14 @@ export type KindView<TRow extends KindRow> = {
   /** The whole set has arrived. Until then the count and the sort order are provisional. */
   readonly complete: boolean;
   readonly count: KindCount;
+  /**
+   * What the first explicit page says it holds (`sourcePage.count`: exact, an estimate or unknown) while the set is not complete: the number the sidebar draws for a kind whose list is open until the whole
+   * set is here, and the rows' own count after that. Absent before the page arrives, once the set is complete (the first page is not read any more) and for a connection that is not connected. A view
+   * that has no first page leaves it out.
+   */
+  readonly firstCount?: Count | undefined;
+  /** Whether the kind lives in a namespace, as the catalog says (the namespace is among the type's query dimensions). Not known until the catalog has answered, or for a cluster that does not serve the type. */
+  readonly namespaced: boolean | undefined;
   /** The source follows the cluster. */
   readonly live: boolean;
   /** A refresh or a resynchronisation is running on a set that is shown. */
@@ -138,6 +148,9 @@ export function useKindRows<TRow extends KindRow>(kind: KindDefinition<TRow>, { 
     complete,
     // The count of the source view is not kept live (an object added after the snapshot left it one short), so a complete set is counted by its records.
     count: complete ? { kind: 'exact', value: String(rows.length) } : { kind: 'unknown', loaded: String(rows.length) },
+    // What the first page says it holds, while it is the page that is read: nothing is said for a connection that is not connected, or once the collection is here.
+    firstCount: connected && !complete ? firstSet.resources.data?.sourcePage.count : undefined,
+    namespaced: served === undefined ? undefined : isNamespaced(served),
     live: collection.isLive,
     refreshing: complete && (collection.resources.isFetching || collection.isSyncing),
     connect,
