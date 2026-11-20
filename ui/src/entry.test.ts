@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { SidebarNodeV1 } from './contract/v1';
 import * as entry from './entry';
+import { podLogsCard } from './pod/logs/card';
 
 // What the host checks before it builds anything from the bundle (`admit.ts` in omniviewdev/omniview): the export is `contributionV1`, `home` names a
 // page, and a sidebar entry that opens no page is refused (no stub ships). The host's own admission runs on the real bundle in the end-to-end check;
@@ -89,5 +90,10 @@ describe('the contribution', () => {
   it('has a static skeleton and no per-connection hook yet: the sidebar draws before any data is read', () => {
     expect(contributionV1.sidebar).not.toHaveProperty('useNodes');
     expect(contributionV1.sidebar.label).toBe('Kubernetes resources');
+  });
+
+  // What the host's admission refuses a `panel` for (`admit.ts`): a tool with no body, a third tool. The plugin brings no tool of its own, and says how the sessions it opens in a tool of the host read.
+  it('brings no tool to the panel, and says how the card of the Logs sessions it opens reads', () => {
+    expect(contributionV1.panel).toEqual({ sessions: { logs: { card: podLogsCard } } });
   });
 });

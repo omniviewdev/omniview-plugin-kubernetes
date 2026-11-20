@@ -23,7 +23,8 @@ type Capture = { readonly rows: ReadonlyArray<{ readonly object: { readonly meta
 const rich: unknown = JSON.parse(readFileSync(path.join(import.meta.dirname, 'fixtures/rich.json'), 'utf8'));
 const pods: { readonly captures: readonly Capture[] } = JSON.parse(readFileSync(path.join(import.meta.dirname, '../../kinds/pods/fixtures/pods-table.json'), 'utf8'));
 
-const inputs = { age: '10m', invoke: vi.fn() };
+const logs = { onSelect: vi.fn(), disabledReason: undefined };
+const inputs = { age: '10m', invoke: vi.fn(), logs };
 const viewOf = (object: unknown, age = '10m'): DetailView => podView(podOverview(podDetail(hostRecord(object))), { ...inputs, age });
 const fixture = (name: string): unknown => {
   const found = pods.captures[1]?.rows.find(({ object }) => object.metadata.name === name);
@@ -114,17 +115,20 @@ describe('the header', () => {
     expect(viewOf(fixture('unschedulable'), '').facts).toEqual([{ text: 'checkout' }]);
   });
 
-  it('has the commands of `podCommands`, each with the reason the three of them cannot be used yet', () => {
+  it('has the commands of `podCommands`: the Logs command the page gave it, and the reason the two that are not wired cannot be used yet', () => {
     const { commands } = viewOf(rich);
-    expect(commands?.primary).toMatchObject({ id: 'logs', label: 'Logs', disabledReason: NOT_AVAILABLE_YET });
+    expect(commands?.primary).toMatchObject({ id: 'logs', label: 'Logs', onSelect: logs.onSelect });
+    expect(commands?.primary).not.toHaveProperty('disabledReason', expect.any(String));
     expect(commands?.secondary?.[0]).toMatchObject({ id: 'shell', label: 'Shell', disabledReason: NOT_AVAILABLE_YET });
     expect(commands?.danger).toMatchObject({ id: 'delete', label: 'Delete', disabledReason: NOT_AVAILABLE_YET });
   });
 
-  it('reports an invoked command to the place it was given', () => {
+  it('carries the reason the page gives for Logs, and reports an invoked command that is not wired to the place it was given', () => {
     const invoke = vi.fn();
-    podView(podOverview(podDetail(hostRecord(rich))), { age: '1m', invoke }).commands?.primary?.onSelect();
-    expect(invoke).toHaveBeenCalledWith('logs');
+    const view = podView(podOverview(podDetail(hostRecord(rich))), { age: '1m', invoke, logs: { onSelect: vi.fn(), disabledReason: 'No container of this Pod has started, so it has no logs yet.' } });
+    expect(view.commands?.primary?.disabledReason).toBe('No container of this Pod has started, so it has no logs yet.');
+    view.commands?.secondary?.[0]?.onSelect();
+    expect(invoke).toHaveBeenCalledWith('shell');
   });
 });
 
