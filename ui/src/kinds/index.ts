@@ -1,6 +1,7 @@
 import type { IconName } from '@omniviewdev/kit';
 
 import type { ListPageV1, SidebarNodeV1 } from '../contract/v1';
+import type { SidebarCounts } from '../sidebar/count';
 
 import { clusterRoleBindingDefinition } from './clusterrolebindings/definition';
 import { clusterRoleDefinition } from './clusterroles/definition';
@@ -75,14 +76,22 @@ export const SIDEBAR_GROUPS = [
 /** Every kind, in the order of the sidebar: the pages are made from it. */
 export const KINDS: readonly AnyKind[] = [...CLUSTER, ...WORKLOADS, ...CONFIG, ...NETWORK, ...STORAGE, ...ACCESS];
 
-const entryOf = (kind: AnyKind): SidebarNodeV1 => ({ id: kind.page, label: kind.nouns.other, icon: kind.tile.icon });
+/** The kinds whose entries are on screen: the top level, which always is, and the kinds of each group that is open, in the order of the sidebar whatever order the groups are given in. */
+export function kindsOnScreen(open: readonly string[]): readonly AnyKind[] {
+  return [...CLUSTER, ...SIDEBAR_GROUPS.filter((group) => open.includes(group.id)).flatMap((group) => group.kinds)];
+}
+
+const entryOf = (kind: AnyKind, counts: SidebarCounts | undefined): SidebarNodeV1 => ({ id: kind.page, label: kind.nouns.other, icon: kind.tile.icon, count: counts?.get(kind.page) ?? null });
 
 /**
- * The sidebar's nodes: the entries of the top level, then the groups, and in each group one entry per kind, with the kind's glyph. An entry has no count: the data layer gives none cheaply (a count is the
- * length of a complete collection, and a collection is a source view held open for every kind the sidebar names), so the 12 px slot of the mock (ch12 SB1) stays empty until the plugin's backend can say it.
+ * The sidebar's nodes: the entries of the top level, then the groups, and in each group one entry per kind, with the kind's glyph and its count. A group has no count. `counts` says what each entry draws, by the
+ * id of its page (`ui/src/sidebar/`: a number, an approximate number, or `null`); an entry it says nothing of draws `null` too, which holds the entry's slot at the width of a count with nothing in it, so that a
+ * count that arrives moves no label. Called with no counts it is the static skeleton the host reads at admission, which is why every entry of a kind declares its slot there: a host that predates the slot
+ * refuses a `null` count by name, so the bundle is never drawn wrong on it.
  */
-export function sidebarNodes(): readonly SidebarNodeV1[] {
-  return [...CLUSTER.map(entryOf), ...SIDEBAR_GROUPS.map((group) => ({ id: group.id, label: group.label, icon: group.icon, children: group.kinds.map(entryOf) }))];
+export function sidebarNodes(counts?: SidebarCounts): readonly SidebarNodeV1[] {
+  const entry = (kind: AnyKind) => entryOf(kind, counts);
+  return [...CLUSTER.map(entry), ...SIDEBAR_GROUPS.map((group) => ({ id: group.id, label: group.label, icon: group.icon, children: group.kinds.map(entry) }))];
 }
 
 /** The list page of each kind, by the id of its page. */

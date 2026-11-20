@@ -51,7 +51,7 @@ export type KindReads = {
 const WHOLE = { failure: undefined } as const;
 
 /**
- * How an error files, by the status the host's error carries (`parseAppError` decodes what Wails and the SDK deliver). A cancelled
+ * How an error files, by the status the host's error carries (`parseAppError` decodes what Wails and the SDK deliver). A refusal is the host's FORBIDDEN, which it maps to a 403: either says it. A cancelled
  * read is no failure: the runtime cancels every read of a connection that changes.
  */
 export function kindFailure(error: unknown): KindFailure | undefined {
@@ -59,12 +59,12 @@ export function kindFailure(error: unknown): KindFailure | undefined {
     return undefined;
   }
 
-  const { type, status, recovery, detail } = parseAppError(error);
+  const { type, status, code, recovery, detail } = parseAppError(error);
   // The server did not answer: the host says so by its type, its status, or by asking for a reconnect.
   const unanswered = recovery === 'reconnect' || type === ErrorTypes.CONNECTION_FAILED || type === ErrorTypes.RESOURCE_TIMEOUT || status === 502 || status === 503 || status === 504;
   const kind: KindFailureKind
     = status === 401 ? 'needs-sign-in'
-      : status === 403 ? 'denied'
+      : status === 403 || code === 'FORBIDDEN' ? 'denied'
         : status === 501 ? 'unsupported'
           : unanswered ? 'unreachable'
             : 'failed';

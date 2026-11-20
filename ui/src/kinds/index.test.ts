@@ -4,10 +4,12 @@ import path from 'node:path';
 import { isIconName } from '@omniviewdev/kit';
 import { describe, expect, it } from 'vitest';
 
+import type { SidebarNodeV1 } from '../contract/v1';
+
 import { GENERIC_TILE, typeOf } from './definition';
 import type { Capture } from './testing';
 
-import { ACCESS, CLUSTER, CONFIG, KINDS, NETWORK, SIDEBAR_GROUPS, STORAGE, WORKLOADS, kindPages, sidebarNodes } from './index';
+import { ACCESS, CLUSTER, CONFIG, KINDS, NETWORK, SIDEBAR_GROUPS, STORAGE, WORKLOADS, kindPages, kindsOnScreen, sidebarNodes } from './index';
 
 // The registry of the kinds the plugin lists: the order the mock's sidebar names them (K61.2), and the facts every definition must hold for the one generic list page and the one data
 // hook to serve it. A kind is added by a definition and a line in the registry; these cases are what a definition is held to.
@@ -55,12 +57,19 @@ describe('the sidebar of the mock (K61.2): the kinds this plugin lists so far, i
     expect(ACCESS.map((kind) => kind.page)).toEqual(['serviceaccounts', 'roles', 'clusterroles', 'rolebindings', 'clusterrolebindings']);
   });
 
-  it('is the top-level entries, then the groups Workloads, Config, Network, Storage and Access control: an entry for each kind, with the kind\'s glyph and no count (no cheap count exists in the data layer)', () => {
-    const entry = (kind: (typeof KINDS)[number]) => ({ id: kind.page, label: kind.nouns.other, icon: kind.tile.icon });
+  // The skeleton is read at admission by a host: a host that predates the count slot refuses a `null` count by name, and one that has it holds the slot at the width of a count from the first frame, so a count that
+  // arrives moves no label. So every entry of a kind declares its slot (`count: null`); a group has no count, and so no slot.
+  it('is the top-level entries, then the groups Workloads, Config, Network, Storage and Access control: an entry for each kind, with the kind\'s glyph and its count slot held (`count: null`), and no count on a group', () => {
+    const entry = (kind: (typeof KINDS)[number]) => ({ id: kind.page, label: kind.nouns.other, icon: kind.tile.icon, count: null });
     expect(sidebarNodes()).toEqual([
       ...CLUSTER.map(entry),
       ...SIDEBAR_GROUPS.map((group) => ({ id: group.id, label: group.label, icon: group.icon, children: group.kinds.map(entry) })),
     ]);
+    for (const node of sidebarNodes()) {
+      if (node.children !== undefined) {
+        expect(node).not.toHaveProperty('count');
+      }
+    }
     expect(SIDEBAR_GROUPS.map((group) => [group.id, group.label])).toEqual([['workloads', 'Workloads'], ['config', 'Config'], ['network', 'Network'], ['storage', 'Storage'], ['access', 'Access control']]);
     expect(SIDEBAR_GROUPS.map((group) => group.kinds)).toEqual([WORKLOADS, CONFIG, NETWORK, STORAGE, ACCESS]);
   });
@@ -71,6 +80,76 @@ describe('the sidebar of the mock (K61.2): the kinds this plugin lists so far, i
     for (const page of Object.values(pages)) {
       expect(page.kind).toBe('list');
     }
+  });
+});
+
+// The counts the sidebar draws are the plugin's to read (`ui/src/sidebar/`); the registry only says where each one goes: on the entry of the kind, by the id of its page, and on nothing else.
+describe('sidebarNodes: the counts of the entries', () => {
+  const leavesOf = (nodes: readonly SidebarNodeV1[]): readonly SidebarNodeV1[] => nodes.flatMap((node) => (node.children === undefined ? [node] : leavesOf(node.children)));
+  const countOf = (nodes: readonly SidebarNodeV1[], id: string) => leavesOf(nodes).find((leaf) => leaf.id === id)?.count;
+
+  it('puts the count it is given on the entry of the page it is given it for: a number, an approximate number, or none', () => {
+    const nodes = sidebarNodes(new Map([['pods', 12], ['deployments', { value: 300, approximate: true }], ['secrets', null]]));
+
+    expect(countOf(nodes, 'pods')).toBe(12);
+    expect(countOf(nodes, 'deployments')).toEqual({ value: 300, approximate: true });
+    expect(countOf(nodes, 'secrets')).toBeNull();
+  });
+
+  it('puts zero on an entry: it is a count', () => {
+    expect(countOf(sidebarNodes(new Map([['pods', 0]])), 'pods')).toBe(0);
+  });
+
+  it('holds the slot of an entry it is given nothing for: no number yet', () => {
+    const nodes = sidebarNodes(new Map([['pods', 12]]));
+
+    for (const leaf of leavesOf(nodes)) {
+      if (leaf.id !== 'pods') {
+        expect(leaf.count, leaf.id).toBeNull();
+      }
+    }
+  });
+
+  it('is the skeleton when it is given no counts, or none that name an entry', () => {
+    expect(sidebarNodes(new Map())).toEqual(sidebarNodes());
+    expect(sidebarNodes(new Map([['nowhere', 3]]))).toEqual(sidebarNodes());
+  });
+
+  it('gives a group no count, whatever it is given for the id of the group', () => {
+    const nodes = sidebarNodes(new Map([['workloads', 5], ['nodes', 2]]));
+    const workloads = nodes.find((node) => node.id === 'workloads');
+
+    expect(workloads).toBeDefined();
+    expect(workloads).not.toHaveProperty('count');
+    expect(countOf(nodes, 'nodes')).toBe(2);
+  });
+
+  it('keeps the words, the glyphs and the order of the skeleton, whatever it is given', () => {
+    const strip = (nodes: readonly SidebarNodeV1[]): unknown => nodes.map(({ count: _count, children, ...rest }) => ({ ...rest, ...(children === undefined ? {} : { children: strip(children) }) }));
+
+    expect(strip(sidebarNodes(new Map(KINDS.map((kind, index) => [kind.page, index]))))).toEqual(strip(sidebarNodes()));
+  });
+});
+
+describe('kindsOnScreen: the kinds whose entries the user can see', () => {
+  it('is the top level and nothing else while no group is open: Nodes and Namespaces are always on screen', () => {
+    expect(kindsOnScreen([])).toEqual(CLUSTER);
+  });
+
+  it('adds the kinds of each group that is open, after the top level', () => {
+    expect(kindsOnScreen(['network'])).toEqual([...CLUSTER, ...NETWORK]);
+  });
+
+  it('lists them in the order of the sidebar, whatever order the groups are given in', () => {
+    expect(kindsOnScreen(['storage', 'workloads', 'access'])).toEqual([...CLUSTER, ...WORKLOADS, ...STORAGE, ...ACCESS]);
+  });
+
+  it('is every kind when every group is open', () => {
+    expect(kindsOnScreen(SIDEBAR_GROUPS.map((group) => group.id))).toEqual(KINDS);
+  });
+
+  it('names a group once, and takes no notice of an id that is no group of the sidebar: a page is not a group, and neither is the top level', () => {
+    expect(kindsOnScreen(['workloads', 'workloads', 'nowhere', 'pods', 'nodes'])).toEqual([...CLUSTER, ...WORKLOADS]);
   });
 });
 

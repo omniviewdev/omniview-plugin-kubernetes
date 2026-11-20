@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { ALL_NAMESPACES, type NamespaceScope } from '../sidebar/scope';
+
 import type { PodRow } from './pods/row';
 import { kindListSource } from './source';
 import type { KindFailure as PodsFailure, KindState as PodsState } from './state';
@@ -7,8 +9,8 @@ import type { KindView } from './useKindRows';
 
 type PodsView = KindView<PodRow>;
 
-/** The mapping for the Pods list: the words of a failure name the kind in the plural. */
-const podsListSource = (pods: PodsView) => kindListSource(pods, 'Pods');
+/** The mapping for the Pods list: the words of a failure name the kind in the plural. A list reads every namespace (there is no namespace menu yet). */
+const podsListSource = (pods: PodsView) => kindListSource(pods, 'Pods', ALL_NAMESPACES);
 
 // A view as `useKindRows` hands it over; only what the mapping reads is real.
 function view(over: Partial<PodsView> & { readonly state: PodsState }): PodsView {
@@ -20,6 +22,7 @@ function view(over: Partial<PodsView> & { readonly state: PodsState }): PodsView
     count: { kind: 'unknown', loaded: '0' },
     live: false,
     refreshing: false,
+    namespaced: true,
     connect: vi.fn(async () => undefined),
     retry: vi.fn(async () => undefined),
     refresh: vi.fn(async () => undefined),
@@ -63,7 +66,6 @@ describe('kindListSource: the state of the connection and the read, as the page 
 
   it.each<[PodsState, string]>([
     [{ kind: 'needs-sign-in' }, 'The connection needs you to sign in.'],
-    [{ kind: 'denied' }, 'You do not have access to list Pods.'],
     [{ kind: 'unreachable' }, 'The cluster did not answer.'],
     [{ kind: 'failed' }, 'Pods could not be read.'],
   ])('says in its own words what %j means when the runtime gave none', (state, message) => {
@@ -86,11 +88,76 @@ describe('kindListSource: the state of the connection and the read, as the page 
 
 describe('kindListSource: the words of a failure name the kind the page lists', () => {
   it('says the plural it is given, where the words name the kind and nowhere else', () => {
-    const deployments = (state: PodsState) => kindListSource(view({ state }), 'Deployments').state;
+    const deployments = (state: PodsState) => kindListSource(view({ state }), 'Deployments', ALL_NAMESPACES).state;
 
-    expect(deployments({ kind: 'denied' })).toMatchObject({ message: 'You do not have access to list Deployments.' });
+    expect(deployments({ kind: 'denied' })).toMatchObject({ message: 'You do not have permission to list Deployments in all namespaces.' });
     expect(deployments({ kind: 'failed' })).toMatchObject({ message: 'Deployments could not be read.' });
     expect(deployments({ kind: 'unsupported' })).toEqual({ kind: 'failed', message: 'This cluster does not serve Deployments.' });
     expect(deployments({ kind: 'unreachable' })).toMatchObject({ message: 'The cluster did not answer.' });
+  });
+});
+
+// A list the user may not read (the host answered FORBIDDEN, which is a 403). Asking again cannot change that, so the page offers no Retry (the contract draws a Retry only when the source gives one), and the
+// words are the plugin's own: the runtime's text for a refusal is a fixed one ("The operation could not be completed.") that says nothing, and the page does not put what came over the wire on the screen.
+describe('kindListSource: a list the user may not read', () => {
+  const refused = (over: Partial<PodsView> = {}, plural = 'Pods', scope: NamespaceScope = ALL_NAMESPACES) =>
+    kindListSource(view({ state: { kind: 'denied', message: 'The operation could not be completed.' }, ...over }), plural, scope).state;
+
+  it('says that the user may not list the kind, in every namespace, and offers no Retry', () => {
+    const state = refused();
+
+    expect(state).toEqual({ kind: 'failed', message: 'You do not have permission to list Pods in all namespaces.' });
+    expect(state).not.toHaveProperty('retry');
+  });
+
+  it('never shows the words the runtime gave: not a message of the connection\'s, not the host\'s fixed text, not what a server wrote', () => {
+    for (const message of ['The operation could not be completed.', 'pods is forbidden: User "system:anonymous" cannot list resource "pods"', undefined]) {
+      expect(refused({ state: { kind: 'denied', message } })).toEqual({ kind: 'failed', message: 'You do not have permission to list Pods in all namespaces.' });
+    }
+  });
+
+  it('names the kind it is given, in the plural', () => {
+    expect(refused({}, 'Roles')).toEqual({ kind: 'failed', message: 'You do not have permission to list Roles in all namespaces.' });
+    expect(refused({}, 'NetworkPolicies')).toEqual({ kind: 'failed', message: 'You do not have permission to list NetworkPolicies in all namespaces.' });
+  });
+
+  it('says this cluster for a kind that lives in no namespace: there is no namespace to name', () => {
+    expect(refused({ namespaced: false }, 'Nodes')).toEqual({ kind: 'failed', message: 'You do not have permission to list Nodes in this cluster.' });
+    expect(refused({ namespaced: false }, 'ClusterRoles')).toEqual({ kind: 'failed', message: 'You do not have permission to list ClusterRoles in this cluster.' });
+  });
+
+  it('says this cluster when the catalog has not said whether the kind is namespaced: true of either', () => {
+    expect(refused({ namespaced: undefined })).toEqual({ kind: 'failed', message: 'You do not have permission to list Pods in this cluster.' });
+  });
+
+  it('names the namespace of a namespaced kind that is read in one: the scope the list reads', () => {
+    expect(refused({}, 'Pods', { kind: 'oneOf', namespaces: ['checkout'] })).toEqual({ kind: 'failed', message: 'You do not have permission to list Pods in the namespace checkout.' });
+  });
+
+  it('names two namespaces with "and", and more with commas and a last "and", sorted', () => {
+    expect(refused({}, 'Pods', { kind: 'oneOf', namespaces: ['dev', 'checkout'] }).kind).toBe('failed');
+    expect(refused({}, 'Pods', { kind: 'oneOf', namespaces: ['dev', 'checkout'] })).toMatchObject({ message: 'You do not have permission to list Pods in the namespaces checkout and dev.' });
+    expect(refused({}, 'Pods', { kind: 'oneOf', namespaces: ['c', 'a', 'b'] })).toMatchObject({ message: 'You do not have permission to list Pods in the namespaces a, b and c.' });
+  });
+
+  it('says this cluster for a cluster-scoped kind whatever the scope: a scope of namespaces does not narrow it', () => {
+    expect(refused({ namespaced: false }, 'Nodes', { kind: 'oneOf', namespaces: ['checkout'] })).toMatchObject({ message: 'You do not have permission to list Nodes in this cluster.' });
+  });
+
+  it('is the same when the refusal came after rows were shown: the failure kept beside them has no Retry and the same words', () => {
+    const failure: PodsFailure = { kind: 'denied', message: 'The operation could not be completed.' };
+    const state = podsListSource(view({ state: { kind: 'loaded' }, failure, rows: [{ key: 'a' }] as unknown as PodsView['rows'] })).state;
+
+    expect(state).toEqual({ kind: 'failed', message: 'You do not have permission to list Pods in all namespaces.' });
+    expect(state).not.toHaveProperty('retry');
+  });
+
+  it('does not take Retry from the other failures: a cluster that did not answer is still asked again', () => {
+    const retry = vi.fn(async () => undefined);
+    const state = podsListSource(view({ state: { kind: 'unreachable' }, retry })).state;
+
+    expect(state).toHaveProperty('retry');
+    expect(podsListSource(view({ state: { kind: 'failed' } })).state).toHaveProperty('retry');
+    expect(podsListSource(view({ state: { kind: 'needs-sign-in' } })).state).toHaveProperty('retry');
   });
 });
