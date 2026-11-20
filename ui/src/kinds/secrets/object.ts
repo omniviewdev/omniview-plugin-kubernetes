@@ -3,8 +3,12 @@ import type { HostRecord, Value } from '@omniviewdev/runtime/ui/v1';
 import type { ObjectMeta } from '../object';
 
 // The part of a Secret that the list reads: its identity, its type and how many keys it has, and nothing that a key holds. The record's body is an exact `Value` tree, and this file walks it
-// to those few members and counts the entries of `data`. It never converts the tree to JSON (that would read every value) and never looks into an entry: the values of `data`, `stringData`
-// and the annotations (`last-applied-configuration` can hold the values whole) are not read by anything in the list, and a test hands it a record whose values throw when touched.
+// to those few members and counts the entries of `data`.
+//
+// The plugin's backend sends no value of a Secret (pkg/plugin/resource/resourcers/projection.go): `data` holds one entry for each key, under the key's name, and the entry is `{ size }`, the size of the
+// value in bytes; the annotation that holds the applied manifest (`last-applied-configuration`, values and all) is left out. So the entries counted here are keys and sizes. This file still never
+// converts the tree to JSON (that would read every entry) and never looks into an entry, so that what a backend should send by mistake would reach no row, and a test hands it a record whose
+// entries throw when touched.
 
 export type SecretObject = {
   readonly metadata?: ObjectMeta;

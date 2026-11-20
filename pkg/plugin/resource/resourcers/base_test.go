@@ -58,7 +58,7 @@ func TestWatchRecordPreservesCanonicalIdentity(t *testing.T) {
 	obj := newTestPod("native-name", "team-a")
 	obj.SetUID("native-uid")
 	obj.SetResourceVersion("opaque/revision")
-	record, err := watchRecord(target, testWatchRepresentation(), obj)
+	record, err := watchRecord(testGVR, target, testWatchRepresentation(), obj)
 	require.NoError(t, err)
 	assert.Equal(t, target.Provider, record.Reference.Address.Provider)
 	assert.Equal(t, target.Authority, record.Reference.Address.Authority)
@@ -73,7 +73,7 @@ func TestWatchRecordPreservesCanonicalIdentity(t *testing.T) {
 	assert.Equal(t, "map", record.Body.Kind)
 }
 func TestWatchRecordAbsentIncarnationAndRevision(t *testing.T) {
-	record, err := watchRecord(testWatchTarget(), testWatchRepresentation(), newTestPod("cluster-name", ""))
+	record, err := watchRecord(testGVR, testWatchTarget(), testWatchRepresentation(), newTestPod("cluster-name", ""))
 	require.NoError(t, err)
 	assert.Empty(t, record.Reference.Address.Scope)
 	assert.Nil(t, record.Reference.Incarnation)

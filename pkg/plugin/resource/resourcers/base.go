@@ -166,8 +166,9 @@ func classifyTransientWatchError(err error) (watchErrorClassification, bool) {
 	return watchErrorClassification{}, false
 }
 
-func watchRecord(target resource.ReadTarget, representation resource.Representation, u *unstructured.Unstructured) (resource.Record, error) {
-	body, err := resource.ValueFromNative(u.Object)
+// watchRecord is the record of one object of a source. It is made from the object the kind's projection sends (ProjectObject), never from the object itself, and its coverage says what that leaves out.
+func watchRecord(gvr schema.GroupVersionResource, target resource.ReadTarget, representation resource.Representation, u *unstructured.Unstructured) (resource.Record, error) {
+	body, err := resource.ValueFromNative(ProjectObject(gvr, u.Object))
 	if err != nil {
 		return resource.Record{}, err
 	}
@@ -179,7 +180,11 @@ func watchRecord(target resource.ReadTarget, representation resource.Representat
 	if uid := string(u.GetUID()); uid != "" {
 		ref.Incarnation = &uid
 	}
-	record := resource.Record{Reference: ref, Body: body, Representation: representation, Coverage: resource.Coverage{Kind: "complete", Paths: []string{}}}
+	coverage := resource.Coverage{Kind: "complete", Paths: []string{}}
+	if limited, reason := ProjectionLimits(gvr); len(limited) != 0 {
+		coverage = resource.Coverage{Kind: "partial", Paths: limited, Reason: reason}
+	}
+	record := resource.Record{Reference: ref, Body: body, Representation: representation, Coverage: coverage}
 	if revision := u.GetResourceVersion(); revision != "" {
 		record.SourceRevision = &revision
 	}
@@ -718,7 +723,7 @@ func (s *KubernetesResourcerBase[T]) Source(ctx context.Context, client *clients
 		}
 	}
 	observation := diag.LabelFunc(ctx, diag.PhaseConvert, request.Target.Route.Connection, func(u *unstructured.Unstructured) (resource.SourceObservation, error) {
-		record, err := watchRecord(request.Target, request.Representation, u)
+		record, err := watchRecord(s.resourceType, request.Target, request.Representation, u)
 		if err != nil {
 			return resource.SourceObservation{}, err
 		}

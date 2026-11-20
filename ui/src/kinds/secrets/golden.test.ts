@@ -20,6 +20,21 @@ type SecretCapture = Omit<Capture, 'rows'> & { readonly rows: ReadonlyArray<{ re
 
 const golden = JSON.parse(readFileSync(path.join(import.meta.dirname, 'fixtures/secrets-table.json'), 'utf8')) as { captures: readonly SecretCapture[] };
 
+/**
+ * What the page receives of a captured Secret: the plugin's backend sends each key of `data` as `{ size }` and leaves the manifest annotation out (pkg/plugin/resource/resourcers/projection.go). The fixture's
+ * values are emptied, so each size is zero; the keys are the real ones.
+ */
+function received(object: CapturedObject & Held): unknown {
+  const { annotations = {}, ...metadata } = object.metadata;
+  const kept = Object.fromEntries(Object.entries(annotations).filter(([name]) => name !== 'kubectl.kubernetes.io/last-applied-configuration'));
+  const { data, ...rest } = object;
+  return {
+    ...rest,
+    metadata: Object.keys(kept).length === 0 ? metadata : { ...metadata, annotations: kept },
+    ...(data === undefined ? {} : { data: Object.fromEntries(Object.keys(data).map((key) => [key, { size: 0 }])) }),
+  };
+}
+
 const field = (id: string) => secretDefinition.fields.find((candidate) => candidate.id === id)!;
 
 for (const capture of golden.captures) {
@@ -32,7 +47,7 @@ for (const capture of golden.captures) {
       const id = idOf(object);
 
       describe(id, () => {
-        const row = secretRow(hostRecord(object, undefined, secretDefinition.type));
+        const row = secretRow(hostRecord(received(object), undefined, secretDefinition.type));
 
         it('Type: the type kubectl prints, as the platform spells it', () => {
           expect(row.type).toBe(cell(cells, 'Type'));
