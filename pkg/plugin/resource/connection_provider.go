@@ -92,7 +92,9 @@ func (p *kubeConnectionProvider) DestroyClient(_ context.Context, client *client
 	return nil
 }
 
-// LoadConnections loads all available kubeconfig connections.
+// LoadConnections loads all available kubeconfig connections. It runs when the plugin starts and
+// after the settings change, and builds the inventory the same way as the refresh of a watched
+// file does (see buildInventory).
 func (p *kubeConnectionProvider) LoadConnections(ctx context.Context) ([]types.Connection, error) {
 	session, ok := resource.SessionFromContext(ctx)
 	if !ok || session.PluginConfig == nil {
@@ -104,21 +106,7 @@ func (p *kubeConnectionProvider) LoadConnections(ctx context.Context) ([]types.C
 		return nil, fmt.Errorf("failed to get kubeconfigs from settings: %w", err)
 	}
 
-	connections := make([]types.Connection, 0, len(kubeconfigs)*EstimatedContexts)
-	for i, kubeconfigPath := range kubeconfigs {
-		kubeconfigConnections, err := connectionsFromKubeconfig(kubeconfigPath)
-		if err != nil {
-			logKubeconfigSkipped(ctx, logging.LevelWarn, i, err)
-			continue
-		}
-		connections = append(connections, kubeconfigConnections...)
-	}
-
-	sort.Slice(connections, func(i, j int) bool {
-		return connections[i].Name < connections[j].Name
-	})
-
-	return connections, nil
+	return buildInventory(ctx, kubeconfigs, logging.LevelWarn), nil
 }
 
 // CheckConnection validates connectivity to the cluster.
@@ -505,19 +493,6 @@ func extractStringSlice(data map[string]any, key string) []string {
 
 // loadConnectionsFromPaths loads connections from a set of kubeconfig paths (no session needed).
 func (p *kubeConnectionProvider) loadConnectionsFromPaths(kubeconfigs []string) ([]types.Connection, error) {
-	connections := make([]types.Connection, 0, len(kubeconfigs)*EstimatedContexts)
-	for i, kubeconfigPath := range kubeconfigs {
-		kubeconfigConnections, err := connectionsFromKubeconfig(kubeconfigPath)
-		if err != nil {
-			// refreshes run on every file event; a missing file would warn repeatedly.
-			logKubeconfigSkipped(context.Background(), logging.LevelDebug, i, err)
-			continue
-		}
-		connections = append(connections, kubeconfigConnections...)
-	}
-
-	sort.Slice(connections, func(i, j int) bool {
-		return connections[i].Name < connections[j].Name
-	})
-	return connections, nil
+	// refreshes run on every file event; a missing file, or a repeated one, would warn repeatedly.
+	return buildInventory(context.Background(), kubeconfigs, logging.LevelDebug), nil
 }

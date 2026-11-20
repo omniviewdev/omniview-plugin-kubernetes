@@ -97,7 +97,8 @@ type KubeClientBundle struct {
 }
 
 // LoadKubeClients loads the various clients necessary to interact with the api, given a kubeconfig path and
-// and active kubeconfig context to use
+// the kubeconfig context to use, which is the name of a context in that file. The diagnostics of the build
+// are labelled with the connection that WithConnectionID put in ctx, and else with the context.
 func LoadKubeClients(ctx context.Context, kubeconfigPath string, kubeContext string) (*KubeClientBundle, error) {
 	if ctx == nil {
 		return nil, errors.New("native client construction requires a context")
@@ -107,7 +108,8 @@ func LoadKubeClients(ctx context.Context, kubeconfigPath string, kubeContext str
 	}
 
 	ctx, span := diag.Tracer().Start(ctx, "kubernetes.client.build")
-	span.SetAttributes(attribute.String("connection", kubeContext))
+	connection := connectionLabel(ctx, kubeContext)
+	span.SetAttributes(attribute.String("connection", connection))
 	started := time.Now()
 	logger := authLogger()
 	strategyName := "unknown"
@@ -174,7 +176,7 @@ func LoadKubeClients(ctx context.Context, kubeconfigPath string, kubeContext str
 	span.SetAttributes(attribute.String("operation", operation))
 	c := diag.EndSpan(span, err, false)
 	diag.ClientBuild(operation, c.Outcome)
-	fields := append([]any{"connection", kubeContext, "operation", operation, "auth_strategy", strategyName,
+	fields := append([]any{"connection", connection, "operation", operation, "auth_strategy", strategyName,
 		"duration_ms", time.Since(started).Milliseconds()}, c.LogFields()...)
 	if err != nil {
 		logger.Warnw(ctx, "kubernetes client build failed", fields...)

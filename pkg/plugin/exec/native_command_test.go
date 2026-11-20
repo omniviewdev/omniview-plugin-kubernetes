@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/omniview/kubernetes/pkg/connid"
 	"github.com/omniview/kubernetes/pkg/pluginid"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
@@ -27,6 +28,14 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
+// The selected connection's ID is derived: it is not the kubeconfig context. The context,
+// which kubectl and client-go are given, is the one its data names.
+const selectedContext = "selected context;$(literal)"
+
+func selectedConnectionID(path string) string {
+	return connid.ID(connid.KindFile, path, selectedContext)
+}
+
 type nativeFixture struct {
 	ctx    *types.PluginContext
 	opts   exec.SessionOptions
@@ -45,8 +54,9 @@ func newNativeFixture(t *testing.T) *nativeFixture {
 	f := &nativeFixture{
 		path: path,
 		ctx: &types.PluginContext{Context: context.Background(), Connection: &types.Connection{
-			ID:   "selected context;$(literal)",
-			Data: map[string]interface{}{"kubeconfig": path, "cluster": "selected", "user": "selected"},
+			ID:   selectedConnectionID(path),
+			Name: selectedContext,
+			Data: map[string]interface{}{"kubeconfig": path, connid.DataKeyContext: selectedContext, "cluster": "selected", "user": "selected"},
 		}},
 		opts: exec.SessionOptions{
 			ResourcePlugin: pluginid.ResourceProvider, ResourceKey: "k8s:/pods", TTY: true,
@@ -54,7 +64,7 @@ func newNativeFixture(t *testing.T) *nativeFixture {
 				Provider: pluginid.ResourceProvider, Authority: "host-issued-authority", Type: "k8s:/pods",
 				Scope: []resourcev2.ScopeEntry{{Dimension: "namespace", Value: "chosen-namespace"}}, ID: "chosen-pod",
 			}, Incarnation: &uid},
-			Route:  &resourcev2.AccessRoute{Connection: "selected context;$(literal)"},
+			Route:  &resourcev2.AccessRoute{Connection: selectedConnectionID(path)},
 			Params: map[string]string{"container": "app"}, Command: []string{"/bin/sh", "-c", "printf '%s' '$literal;$(not-expanded)'", "", "space value"},
 		},
 		pod: &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "chosen-pod", Namespace: "chosen-namespace", UID: k8stypes.UID(uid)},
@@ -69,8 +79,8 @@ func newNativeFixture(t *testing.T) *nativeFixture {
 				"selected": {Token: "fixture-secret-must-stay-in-file"}, "wrong": {Token: "wrong-fixture-token"},
 			},
 			Contexts: map[string]*clientcmdapi.Context{
-				"selected context;$(literal)": {Cluster: "selected", AuthInfo: "selected", Namespace: "wrong-default-namespace"},
-				"wrong-current":               {Cluster: "wrong", AuthInfo: "wrong"},
+				selectedContext: {Cluster: "selected", AuthInfo: "selected", Namespace: "wrong-default-namespace"},
+				"wrong-current": {Cluster: "wrong", AuthInfo: "wrong"},
 			}, CurrentContext: "wrong-current",
 		},
 	}
@@ -84,7 +94,7 @@ func (f *nativeFixture) reload(t *testing.T) {
 	require.NoError(t, clientcmd.WriteToFile(f.config, f.path))
 	config, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
 		&clientcmd.ClientConfigLoadingRules{ExplicitPath: f.path},
-		&clientcmd.ConfigOverrides{CurrentContext: f.ctx.Connection.ID},
+		&clientcmd.ConfigOverrides{CurrentContext: selectedContext},
 	).ClientConfig()
 	require.NoError(t, err)
 	f.active = config
@@ -100,9 +110,10 @@ func TestPodNativeCommandPreservesSelectedContextAndLiteralArgv(t *testing.T) {
 	plan, err := podNativeCommandWithProvider(f.provider, f.ctx, f.opts)
 	require.NoError(t, err)
 	assert.Equal(t, "kubectl", plan.Executable)
-	expected := []string{"--kubeconfig", f.path, "--context", f.ctx.Connection.ID, "--namespace", "chosen-namespace",
+	expected := []string{"--kubeconfig", f.path, "--context", selectedContext, "--namespace", "chosen-namespace",
 		"exec", "chosen-pod", "--container", "app", "--stdin", "--tty", "--"}
 	assert.Equal(t, append(expected, f.opts.Command...), plan.Args)
+	assert.NotContains(t, plan.Args, f.ctx.Connection.ID, "the ID of the connection is not a kube context and never reaches kubectl")
 	assert.Empty(t, plan.Env)
 	assert.Empty(t, plan.Cwd)
 	assert.NotContains(t, plan.Args, "fixture-secret-must-stay-in-file")
@@ -210,8 +221,15 @@ func TestPodNativeCommandRejectsNonReusableConnectionAuth(t *testing.T) {
 		{"missing file", func(f *nativeFixture) { f.ctx.Connection.Data["kubeconfig"] = filepath.Join(t.TempDir(), "missing") }},
 		{"directory reference", func(f *nativeFixture) { f.ctx.Connection.Data["kubeconfig"] = t.TempDir() }},
 		{"missing selected context", func(f *nativeFixture) {
-			delete(f.config.Contexts, f.ctx.Connection.ID)
+			delete(f.config.Contexts, selectedContext)
 			require.NoError(t, clientcmd.WriteToFile(f.config, f.path))
+		}},
+		{"no context in the data", func(f *nativeFixture) { delete(f.ctx.Connection.Data, connid.DataKeyContext) }},
+		{"empty context in the data", func(f *nativeFixture) { f.ctx.Connection.Data[connid.DataKeyContext] = "" }},
+		{"context of the data not in the file", func(f *nativeFixture) { f.ctx.Connection.Data[connid.DataKeyContext] = "not-in-the-file" }},
+		{"ID names a context of the file, data names none", func(f *nativeFixture) {
+			f.ctx.Connection.ID, f.opts.Route.Connection = "wrong-current", "wrong-current"
+			delete(f.ctx.Connection.Data, connid.DataKeyContext)
 		}},
 		{"missing explicit server", func(f *nativeFixture) {
 			f.config.Clusters["selected"].Server = ""
@@ -303,4 +321,47 @@ func TestPodNativeCommandPreservesStaticCredentialFileReferences(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A rejection names its cause from a closed vocabulary, and a connection whose data names no
+// context has one of its own. The ID is never tried as a context instead.
+func TestNativeKubeconfigRejectsAConnectionThatNamesNoContext(t *testing.T) {
+	sink := captureExecDefaultLogs(t)
+	f := newNativeFixture(t)
+	delete(f.ctx.Connection.Data, connid.DataKeyContext)
+
+	_, _, _, err := nativeKubeconfig(f.ctx.Connection)
+
+	require.Error(t, err)
+	assert.Equal(t, "UNSUPPORTED", resourcev2.ErrorCode(err))
+	assert.Contains(t, execRecordText(sink), "cause=no_kubeconfig_context")
+	assert.NotContains(t, execRecordText(sink), f.path)
+}
+
+// The plan is for the context that the data names: that context is what kubectl is told, what
+// the credentials are compared for, and what the real client provider builds clients for.
+func TestNativeKubeconfigAndTheClientProviderSelectTheContextOfTheData(t *testing.T) {
+	f := newNativeFixture(t)
+	require.NotEqual(t, selectedContext, f.ctx.Connection.ID)
+
+	bundle, err := defaultClientProvider(f.ctx)
+	require.NoError(t, err)
+	path, kubeContext, expected, err := nativeKubeconfig(f.ctx.Connection)
+	require.NoError(t, err)
+
+	assert.Equal(t, f.path, path)
+	assert.Equal(t, selectedContext, kubeContext)
+	assert.Equal(t, "https://selected.invalid", expected.Host, "not the current context of the file")
+	assert.Equal(t, expected.Host, bundle.RestConfig.Host)
+	assert.Equal(t, expected.BearerToken, bundle.RestConfig.BearerToken)
+}
+
+func TestDefaultClientProviderNeverReadsTheIDAsTheContext(t *testing.T) {
+	f := newNativeFixture(t)
+	delete(f.ctx.Connection.Data, connid.DataKeyContext)
+	f.ctx.Connection.ID = "wrong-current" // names a context of the file
+
+	_, err := defaultClientProvider(f.ctx)
+
+	require.ErrorIs(t, err, connid.ErrNoContext)
 }

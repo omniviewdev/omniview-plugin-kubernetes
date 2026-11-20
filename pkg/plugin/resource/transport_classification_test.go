@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/omniview/kubernetes/pkg/connid"
 	"github.com/omniview/kubernetes/pkg/diag"
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	logging "github.com/omniviewdev/plugin-sdk/log"
@@ -405,13 +406,14 @@ func TestProviderStartFailureIsClassifiedAndLoggedThroughProductionWiring(t *tes
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = provider.Close() })
 	ctx := context.Background()
-	require.NoError(t, provider.ApplyConnections(ctx, []sdktypes.Connection{{ID: "lab", Name: "lab", Data: map[string]any{"kubeconfig": kubeconfig}}}))
+	id := connid.ID(connid.KindFile, kubeconfig, "lab")
+	require.NoError(t, provider.ApplyConnections(ctx, []sdktypes.Connection{{ID: id, Name: "lab", Data: map[string]any{"kubeconfig": kubeconfig, connid.DataKeyContext: "lab"}}}))
 
-	_, err = provider.StartConnection(ctx, "lab")
+	_, err = provider.StartConnection(ctx, id)
 	require.Error(t, err)
 	assert.Equal(t, "UNAVAILABLE", sdkresource.ErrorCode(err))
 	got := startRecord(t, sink)
-	assert.Equal(t, "lab", got["connection"])
+	assert.Equal(t, id, got["connection"])
 	assert.Equal(t, "network", got["error_class"])
 	assert.Equal(t, "eof", got["error_reason"])
 	assert.Equal(t, "*errors.errorString", got["error_type"])

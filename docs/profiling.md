@@ -84,13 +84,13 @@ Samples carry these labels while the plugin does the named work:
 | `convert` | Converting one informer object into the record the SDK emitter sends (nested in `source`, so it replaces the `source` label on those samples) |
 | `metrics_scan` | A native metrics query |
 
-`connection` is the connection ID and is bounded by the number of kubeconfig contexts. Resource names are never used as label values.
+`connection` is the connection ID and is bounded by the number of kubeconfig contexts. An ID is `<slug>-<hash>`: the context name made readable (lower-case, at most 48 characters), then 10 hex digits of the kubeconfig and the context it came from, so two kubeconfigs that define a context of the same name have two IDs (see `pkg/connid`). Resource names are never used as label values.
 
 ```bash
 go tool pprof -tags cpu.pprof                      # which labels and values exist
 go tool pprof -top -tagfocus=phase=convert cpu.pprof
 go tool pprof -top -tagfocus=phase=source cpu.pprof
-go tool pprof -top -tagfocus=connection=my-context cpu.pprof
+go tool pprof -top -tagfocus=connection=my-context cpu.pprof   # a regular expression: matches my-context-<hash>
 go tool pprof -top -tagignore=phase=source cpu.pprof
 ```
 

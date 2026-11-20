@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/omniview/kubernetes/pkg/connid"
 	"github.com/omniview/kubernetes/pkg/diag"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
@@ -174,7 +175,7 @@ func runNativeClusterProfile(b *testing.B, fixture *nativeProfileFixture, direct
 		if err != nil {
 			return
 		}
-		connection := types.Connection{ID: nativeProfileConnection, Name: "Isolated profiling API", Data: map[string]any{"kubeconfig": configPath, "watchScopeMode": "all"}}
+		connection := types.Connection{ID: nativeProfileConnection, Name: "Isolated profiling API", Data: map[string]any{"kubeconfig": configPath, connid.DataKeyContext: "native-profile", "watchScopeMode": "all"}}
 		if err = provider.ApplyConnections(ctx, []types.Connection{connection}); err != nil {
 			return
 		}

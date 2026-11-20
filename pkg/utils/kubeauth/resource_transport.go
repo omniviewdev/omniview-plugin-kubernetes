@@ -32,25 +32,28 @@ const ResourceRequestTimeout = 60 * time.Second
 // HTTP body budget. It must not be used for logs, exec, or metrics clients.
 // Native JSON watch streams instead receive a per-frame decoded byte budget.
 // Like LoadKubeClients, each build records a span, a client.builds count and a
-// duration log line.
+// duration log line, labelled with the connection that WithConnectionID put in
+// ctx, and else with the kube context. kubeContext is the name of a context in
+// the kubeconfig at path, never the ID of a connection.
 func LoadResourceKubeClients(ctx context.Context, path, kubeContext string) (*KubeClientBundle, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	ctx, span := diag.Tracer().Start(ctx, "kubernetes.client.build")
-	span.SetAttributes(attribute.String("connection", kubeContext))
+	connection := connectionLabel(ctx, kubeContext)
+	span.SetAttributes(attribute.String("connection", connection))
 	started := time.Now()
 	logger := authLogger()
 	progress := resourceBuildProgress{operation: "detect", strategy: "unknown", span: span}
 	var bundle *KubeClientBundle
 	var err error
-	diag.Do(ctx, diag.PhaseClientBuild, kubeContext, func(ctx context.Context) {
+	diag.Do(ctx, diag.PhaseClientBuild, connection, func(ctx context.Context) {
 		bundle, err = buildResourceKubeClients(ctx, path, kubeContext, &progress)
 	})
 	span.SetAttributes(attribute.String("operation", progress.operation))
 	c := diag.EndSpan(span, err, false)
 	diag.ClientBuild(progress.operation, c.Outcome)
-	fields := append([]any{"connection", kubeContext, "operation", progress.operation, "auth_strategy", progress.strategy,
+	fields := append([]any{"connection", connection, "operation", progress.operation, "auth_strategy", progress.strategy,
 		"duration_ms", time.Since(started).Milliseconds()}, c.LogFields()...)
 	if err != nil {
 		logger.Warnw(ctx, "kubernetes client build failed", fields...)

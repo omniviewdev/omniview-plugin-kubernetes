@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/omniview/kubernetes/pkg/connid"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -73,7 +74,7 @@ users:
 		Context: context.Background(),
 		Connection: &types.Connection{
 			ID:   "test",
-			Data: map[string]any{"kubeconfig": tmpFile},
+			Data: map[string]any{"kubeconfig": tmpFile, connid.DataKeyContext: "test"},
 		},
 	}
 	bundle, err := KubeClientsFromContext(pc)

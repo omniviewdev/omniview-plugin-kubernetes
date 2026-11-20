@@ -111,7 +111,7 @@ func TestConnectionMetadataCanceledRequestKeepsEndpointSibling(t *testing.T) {
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	update, err := connectionMetadata(ctx, types.Connection{ID: "kind-kind"}, &clients.ClientSet{RESTConfig: config, DiscoveryClient: discoveryClient})
+	update, err := connectionMetadata(ctx, inContext("kind-kind", nil), &clients.ClientSet{RESTConfig: config, DiscoveryClient: discoveryClient})
 	require.NoError(t, err)
 	require.Equal(t, "success", update.Set["kubernetes.server_url"].State)
 	require.Equal(t, "unavailable", update.Set["kubernetes.server_version"].State)
