@@ -9,6 +9,16 @@ import { podLogsCard } from './pod/logs/card';
 // these are the same facts, on the source.
 const leaves = (nodes: readonly SidebarNodeV1[]): readonly SidebarNodeV1[] => nodes.flatMap((node) => (node.children === undefined ? [node] : leaves(node.children)));
 
+/** The list pages, in the order of the mock's sidebar (K61.2): the top level, then each group's kinds. */
+const LISTS = [
+  'nodes', 'namespaces',
+  'pods', 'deployments', 'statefulsets', 'daemonsets', 'replicasets', 'jobs', 'cronjobs',
+  'configmaps', 'secrets', 'resourcequotas', 'limitranges', 'horizontalpodautoscalers', 'poddisruptionbudgets',
+  'services', 'endpoints', 'endpointslices', 'ingresses', 'ingressclasses', 'networkpolicies',
+  'persistentvolumes', 'persistentvolumeclaims', 'storageclasses',
+  'serviceaccounts', 'roles', 'clusterroles', 'rolebindings', 'clusterrolebindings',
+];
+
 describe('the contribution', () => {
   const { contributionV1 } = entry;
 
@@ -23,26 +33,26 @@ describe('the contribution', () => {
 
   it('opens the Pods page, and every entry of its sidebar opens a page of the contribution', () => {
     expect(contributionV1.home).toBe('pods');
-    expect(leaves(contributionV1.sidebar.nodes).map((leaf) => leaf.id)).toEqual([
-      'nodes', 'namespaces', 'pods', 'deployments', 'statefulsets', 'daemonsets', 'replicasets', 'jobs', 'cronjobs', 'configmaps', 'secrets', 'services', 'ingresses',
-    ]);
+    expect(leaves(contributionV1.sidebar.nodes).map((leaf) => leaf.id)).toEqual(LISTS);
     for (const leaf of leaves(contributionV1.sidebar.nodes)) {
       expect(contributionV1.pages).toHaveProperty(leaf.id);
     }
   });
 
-  it('has the mock\'s top level (Nodes and Namespaces), then the groups Workloads, Config and Network, in the mock\'s order (K61.2)', () => {
+  it('has the mock\'s top level (Nodes and Namespaces), then the groups Workloads, Config, Network, Storage and Access control, in the mock\'s order (K61.2)', () => {
     expect(contributionV1.sidebar.nodes.map((node) => [node.id, node.label, node.children === undefined ? 'entry' : 'group'])).toEqual([
       ['nodes', 'Nodes', 'entry'],
       ['namespaces', 'Namespaces', 'entry'],
       ['workloads', 'Workloads', 'group'],
       ['config', 'Config', 'group'],
       ['network', 'Network', 'group'],
+      ['storage', 'Storage', 'group'],
+      ['access', 'Access control', 'group'],
     ]);
   });
 
   it('has, in each group, its entries in the mock\'s order, each with the glyph of its kind (the generic tile for a kind the kit has no glyph for yet) and no count (the data layer gives none cheaply)', () => {
-    const [nodes, namespaces, workloads, config, network] = contributionV1.sidebar.nodes;
+    const [nodes, namespaces, workloads, config, network, storage, access] = contributionV1.sidebar.nodes;
     expect([nodes, namespaces].map((node) => [node?.id, node?.icon])).toEqual([['nodes', 'box'], ['namespaces', 'box']]);
     expect(workloads?.icon).toBe('layers');
     expect(workloads?.children?.map((leaf) => [leaf.id, leaf.label, leaf.icon])).toEqual([
@@ -54,17 +64,44 @@ describe('the contribution', () => {
       ['jobs', 'Jobs', 'arrow-right'],
       ['cronjobs', 'CronJobs', 'box'],
     ]);
-    expect(config?.children?.map((leaf) => [leaf.id, leaf.label, leaf.icon])).toEqual([['configmaps', 'ConfigMaps', 'box'], ['secrets', 'Secrets', 'box']]);
-    expect(network?.children?.map((leaf) => [leaf.id, leaf.label, leaf.icon])).toEqual([['services', 'Services', 'box'], ['ingresses', 'Ingresses', 'box']]);
+    // The groups the kit has no glyph for wear `layers`, the glyph of a group of things; each kind the kit has no glyph for wears the generic tile.
+    expect([config, network, storage, access].map((group) => group?.icon)).toEqual(['layers', 'layers', 'layers', 'layers']);
+    expect(config?.children?.map((leaf) => [leaf.id, leaf.label, leaf.icon])).toEqual([
+      ['configmaps', 'ConfigMaps', 'box'],
+      ['secrets', 'Secrets', 'box'],
+      ['resourcequotas', 'ResourceQuotas', 'box'],
+      ['limitranges', 'LimitRanges', 'box'],
+      ['horizontalpodautoscalers', 'HorizontalPodAutoscalers', 'box'],
+      ['poddisruptionbudgets', 'PodDisruptionBudgets', 'box'],
+    ]);
+    expect(network?.children?.map((leaf) => [leaf.id, leaf.label, leaf.icon])).toEqual([
+      ['services', 'Services', 'box'],
+      ['endpoints', 'Endpoints', 'box'],
+      ['endpointslices', 'EndpointSlices', 'box'],
+      ['ingresses', 'Ingresses', 'box'],
+      ['ingressclasses', 'IngressClasses', 'box'],
+      ['networkpolicies', 'NetworkPolicies', 'box'],
+    ]);
+    expect(storage?.children?.map((leaf) => [leaf.id, leaf.label, leaf.icon])).toEqual([
+      ['persistentvolumes', 'PersistentVolumes', 'box'],
+      ['persistentvolumeclaims', 'PersistentVolumeClaims', 'box'],
+      ['storageclasses', 'StorageClasses', 'box'],
+    ]);
+    expect(access?.children?.map((leaf) => [leaf.id, leaf.label, leaf.icon])).toEqual([
+      ['serviceaccounts', 'ServiceAccounts', 'box'],
+      ['roles', 'Roles', 'box'],
+      ['clusterroles', 'ClusterRoles', 'box'],
+      ['rolebindings', 'RoleBindings', 'box'],
+      ['clusterrolebindings', 'ClusterRoleBindings', 'box'],
+    ]);
     for (const leaf of leaves(contributionV1.sidebar.nodes)) {
       expect(leaf).not.toHaveProperty('count');
     }
   });
 
   it('has the list page of each kind and the page of one Pod, and the page of a Pod has no sidebar entry: it needs an object, so the list\'s links reach it', () => {
-    const lists = ['nodes', 'namespaces', 'pods', 'deployments', 'statefulsets', 'daemonsets', 'replicasets', 'jobs', 'cronjobs', 'configmaps', 'secrets', 'services', 'ingresses'];
-    expect(Object.keys(contributionV1.pages)).toEqual([...lists, 'pod']);
-    for (const id of lists) {
+    expect(Object.keys(contributionV1.pages)).toEqual([...LISTS, 'pod']);
+    for (const id of LISTS) {
       expect(contributionV1.pages[id as keyof typeof contributionV1.pages].kind, id).toBe('list');
     }
     expect(contributionV1.pages.pod.kind).toBe('detail');

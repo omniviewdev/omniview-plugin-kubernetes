@@ -9,8 +9,8 @@
 //
 //   [ONLY=nodes,secrets] [APPEND=1] node hack/kinds-capture/capture.mjs <kubeconfig> <output directory> [label]
 //
-// The cluster is the one `docs/ui-next/slices/1a-pods-list/fixture.yaml` of omniview, `extra-states.yaml` and `more-kinds.yaml` of this directory make (the header of the first of those
-// says how, and `more-kinds.sh` does the second). Only the kubeconfig named on the command line is read, never the ambient one: this script talks to the API server through
+// The cluster is the one `docs/ui-next/slices/1a-pods-list/fixture.yaml` of omniview, `extra-states.yaml`, `more-kinds.yaml` and `k2b2-kinds.yaml` of this directory make (the header of the first of those
+// says how, and `more-kinds.sh` and `k2b2-kinds.sh` do the others). Only the kubeconfig named on the command line is read, never the ambient one: this script talks to the API server through
 // `kubectl proxy` with it and to nothing else.
 //
 //   ONLY    the directories to capture, comma separated: the other fixtures are left as they are (default: every kind below)
@@ -43,6 +43,23 @@ const ALL_KINDS = [
   { directory: 'ingresses', path: '/apis/networking.k8s.io/v1/ingresses' },
   { directory: 'namespaces', path: '/api/v1/namespaces' },
   { directory: 'nodes', path: '/api/v1/nodes' },
+  // K2b-2: Storage, the rest of Network and of Config, Access control. A kind served in more than one version is read at the version the plugin's catalog prefers (the preferred version of its group).
+  { directory: 'persistentvolumes', path: '/api/v1/persistentvolumes' },
+  { directory: 'persistentvolumeclaims', path: '/api/v1/persistentvolumeclaims' },
+  { directory: 'storageclasses', path: '/apis/storage.k8s.io/v1/storageclasses' },
+  { directory: 'networkpolicies', path: '/apis/networking.k8s.io/v1/networkpolicies' },
+  { directory: 'endpoints', path: '/api/v1/endpoints' },
+  { directory: 'endpointslices', path: '/apis/discovery.k8s.io/v1/endpointslices' },
+  { directory: 'ingressclasses', path: '/apis/networking.k8s.io/v1/ingressclasses' },
+  { directory: 'resourcequotas', path: '/api/v1/resourcequotas' },
+  { directory: 'limitranges', path: '/api/v1/limitranges' },
+  { directory: 'horizontalpodautoscalers', path: '/apis/autoscaling/v2/horizontalpodautoscalers' },
+  { directory: 'poddisruptionbudgets', path: '/apis/policy/v1/poddisruptionbudgets' },
+  { directory: 'serviceaccounts', path: '/api/v1/serviceaccounts' },
+  { directory: 'roles', path: '/apis/rbac.authorization.k8s.io/v1/roles' },
+  { directory: 'clusterroles', path: '/apis/rbac.authorization.k8s.io/v1/clusterroles' },
+  { directory: 'rolebindings', path: '/apis/rbac.authorization.k8s.io/v1/rolebindings' },
+  { directory: 'clusterrolebindings', path: '/apis/rbac.authorization.k8s.io/v1/clusterrolebindings' },
 ];
 const only = process.env.ONLY === undefined ? undefined : new Set(process.env.ONLY.split(','));
 const KINDS = only === undefined ? ALL_KINDS : ALL_KINDS.filter((kind) => only.has(kind.directory));

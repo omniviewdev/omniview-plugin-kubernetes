@@ -2,21 +2,37 @@ import type { IconName } from '@omniviewdev/kit';
 
 import type { ListPageV1, SidebarNodeV1 } from '../contract/v1';
 
+import { clusterRoleBindingDefinition } from './clusterrolebindings/definition';
+import { clusterRoleDefinition } from './clusterroles/definition';
 import { configMapDefinition } from './configmaps/definition';
 import { cronJobDefinition } from './cronjobs/definition';
 import { daemonSetDefinition } from './daemonsets/definition';
 import type { KindDefinition } from './definition';
 import { deploymentDefinition } from './deployments/definition';
+import { endpointsDefinition } from './endpoints/definition';
+import { endpointSliceDefinition } from './endpointslices/definition';
+import { horizontalPodAutoscalerDefinition } from './horizontalpodautoscalers/definition';
+import { ingressClassDefinition } from './ingressclasses/definition';
 import { ingressDefinition } from './ingresses/definition';
 import { jobDefinition } from './jobs/definition';
+import { limitRangeDefinition } from './limitranges/definition';
 import { listPage } from './list';
 import { namespaceDefinition } from './namespaces/definition';
+import { networkPolicyDefinition } from './networkpolicies/definition';
 import { nodeDefinition } from './nodes/definition';
+import { persistentVolumeClaimDefinition } from './persistentvolumeclaims/definition';
+import { persistentVolumeDefinition } from './persistentvolumes/definition';
+import { podDisruptionBudgetDefinition } from './poddisruptionbudgets/definition';
 import { podDefinition } from './pods/definition';
 import { replicaSetDefinition } from './replicasets/definition';
+import { resourceQuotaDefinition } from './resourcequotas/definition';
+import { roleBindingDefinition } from './rolebindings/definition';
+import { roleDefinition } from './roles/definition';
 import { secretDefinition } from './secrets/definition';
+import { serviceAccountDefinition } from './serviceaccounts/definition';
 import { serviceDefinition } from './services/definition';
 import { statefulSetDefinition } from './statefulsets/definition';
+import { storageClassDefinition } from './storageclasses/definition';
 
 // The registry of the kinds the plugin lists, in the order of the mock's sidebar (ch17 K61.2): the sidebar and the pages are made from it, so a kind is added by a definition and a line here, and the
 // order of the sidebar is the order of these lists. The row type is erased in this one place (`any`), as the contribution contract erases it in its own record of pages (`PageV1`): each definition is typed
@@ -30,24 +46,34 @@ export const CLUSTER: readonly AnyKind[] = [nodeDefinition, namespaceDefinition]
 /** The Workloads of the mock, in its order (Pods, Deployments, StatefulSets, DaemonSets, ReplicaSets, ReplicationControllers, Jobs, CronJobs, PodTemplates, ControllerRevisions): the ones this plugin lists so far. */
 export const WORKLOADS: readonly AnyKind[] = [podDefinition, deploymentDefinition, statefulSetDefinition, daemonSetDefinition, replicaSetDefinition, jobDefinition, cronJobDefinition];
 
-/** The Config group of the mock (ConfigMaps, Secrets, ResourceQuotas, LimitRanges, ...): the ones this plugin lists so far. */
-export const CONFIG: readonly AnyKind[] = [configMapDefinition, secretDefinition];
+/** The Config group of the mock (ConfigMaps, Secrets, ResourceQuotas, LimitRanges, HorizontalPodAutoscalers, PodDisruptionBudgets, PriorityClasses, ...): the ones this plugin lists so far. */
+export const CONFIG: readonly AnyKind[] = [
+  configMapDefinition, secretDefinition, resourceQuotaDefinition, limitRangeDefinition, horizontalPodAutoscalerDefinition, podDisruptionBudgetDefinition,
+];
 
-/** The Network group of the mock (Services, Endpoints, EndpointSlices, Ingresses, ...): the ones this plugin lists so far. */
-export const NETWORK: readonly AnyKind[] = [serviceDefinition, ingressDefinition];
+/** The Network group of the mock (Services, Endpoints, EndpointSlices, Ingresses, IngressClasses, NetworkPolicies): all of it. */
+export const NETWORK: readonly AnyKind[] = [serviceDefinition, endpointsDefinition, endpointSliceDefinition, ingressDefinition, ingressClassDefinition, networkPolicyDefinition];
+
+/** The Storage group of the mock (PersistentVolumes, PersistentVolumeClaims, StorageClasses, VolumeAttachments, CSIDrivers, ...): the ones this plugin lists so far. */
+export const STORAGE: readonly AnyKind[] = [persistentVolumeDefinition, persistentVolumeClaimDefinition, storageClassDefinition];
+
+/** The Access control group of the mock (ServiceAccounts, Roles, ClusterRoles, RoleBindings, ClusterRoleBindings, CertificateSigningRequests): the ones this plugin lists so far. */
+export const ACCESS: readonly AnyKind[] = [serviceAccountDefinition, roleDefinition, clusterRoleDefinition, roleBindingDefinition, clusterRoleBindingDefinition];
 
 /**
- * The groups of the sidebar, in the mock's order. The mock gives each group its own glyph (Workloads: layers, Config: settings, Network: a network), and the kit's registry has the first only: a group
- * with no glyph of its own wears `layers`, the glyph of a group of things, rather than the glyph of a kind.
+ * The groups of the sidebar, in the mock's order. The mock gives each group its own glyph (Workloads: layers, Config: settings, Network: a network, Storage: a database, Access control: a shield), and the
+ * kit's registry has the first only: a group with no glyph of its own wears `layers`, the glyph of a group of things, rather than the glyph of a kind.
  */
 export const SIDEBAR_GROUPS = [
   { id: 'workloads', label: 'Workloads', icon: 'layers', kinds: WORKLOADS },
   { id: 'config', label: 'Config', icon: 'layers', kinds: CONFIG },
   { id: 'network', label: 'Network', icon: 'layers', kinds: NETWORK },
+  { id: 'storage', label: 'Storage', icon: 'layers', kinds: STORAGE },
+  { id: 'access', label: 'Access control', icon: 'layers', kinds: ACCESS },
 ] as const satisfies ReadonlyArray<{ readonly id: string; readonly label: string; readonly icon: IconName; readonly kinds: readonly AnyKind[] }>;
 
 /** Every kind, in the order of the sidebar: the pages are made from it. */
-export const KINDS: readonly AnyKind[] = [...CLUSTER, ...WORKLOADS, ...CONFIG, ...NETWORK];
+export const KINDS: readonly AnyKind[] = [...CLUSTER, ...WORKLOADS, ...CONFIG, ...NETWORK, ...STORAGE, ...ACCESS];
 
 const entryOf = (kind: AnyKind): SidebarNodeV1 => ({ id: kind.page, label: kind.nouns.other, icon: kind.tile.icon });
 

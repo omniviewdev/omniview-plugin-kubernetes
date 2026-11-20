@@ -12,13 +12,14 @@ export type KindStatus = {
 // every kind (a word has one role wherever it is said, and the mock has no second table): a kind that can say a word the table lacks adds it here, in the role K61.3 gives it. A word that
 // is not here has no role and is drawn as plain text: it is never guessed from its spelling (SR1).
 const WORDS: Readonly<Record<StateRole, readonly string[]>> = {
-  healthy: ['Succeeded', 'Completed', 'Available', 'Complete', 'Ready', 'Active'],
+  healthy: ['Succeeded', 'Completed', 'Available', 'Complete', 'Ready', 'Active', 'Bound', 'Scaling active'],
   running: ['Running'],
   progress: ['Pending', 'ContainerCreating', 'PodInitializing', 'Terminating', 'Progressing'],
-  attention: ['Unknown', 'Partially ready'],
+  attention: ['Unknown', 'Partially ready', 'Released', 'Limited'],
   error: [
     'CrashLoopBackOff', 'Error', 'Failed', 'ImagePullBackOff', 'ErrImagePull', 'ErrImageNeverPull', 'OOMKilled', 'Evicted', 'NotReady',
     'CreateContainerConfigError', 'CreateContainerError', 'RunContainerError', 'InvalidImageName', 'ContainerCannotRun', 'DeadlineExceeded', 'Unavailable',
+    'Lost', 'Unable to scale',
   ],
   stopped: ['Terminated', 'Suspended', 'Scaled to zero', 'Paused', 'Scheduling disabled'],
   info: [],

@@ -1,0 +1,18 @@
+{
+  "source": "kube-apiserver v1.35.0, GET /api/v1/resourcequotas?includeObject=Object with Accept application/json;as=Table;g=meta.k8s.io;v=v1: the object and the printer cells of one response. managedFields removed. Made by hack/kinds-capture/capture.mjs.",
+  "captures": [
+    {
+      "label": "one read of a cluster that holds the slice fixture, extra-states.yaml, more-kinds.yaml and k2b2-kinds.yaml",
+      "serverDate": "Fri, 20 Nov 2026 16:53:10 GMT",
+      "columns": ["Name","Request","Limit","Age"],
+      "priorities": [0,0,0,0],
+      "rows": [
+        {"cells":["best-effort","pods: 0/2","","39m"],"object":{"kind":"ResourceQuota","apiVersion":"v1","metadata":{"name":"best-effort","namespace":"quotas","uid":"933cb50b-10a3-47f5-8e52-1a92d15d6a69","resourceVersion":"1763","creationTimestamp":"2026-11-20T16:13:28Z"},"spec":{"hard":{"pods":"2"},"scopes":["BestEffort"]},"status":{"hard":{"pods":"2"},"used":{"pods":"0"}}}},
+        {"cells":["compute","pods: 3/10, requests.cpu: 400m/1, requests.memory: 192Mi/1Gi","limits.cpu: 800m/2, limits.memory: 384Mi/2Gi","39m"],"object":{"kind":"ResourceQuota","apiVersion":"v1","metadata":{"name":"compute","namespace":"quotas","uid":"08db65ed-e621-4811-922b-3c24ad4d24bf","resourceVersion":"2118","creationTimestamp":"2026-11-20T16:13:28Z"},"spec":{"hard":{"limits.cpu":"2","limits.memory":"2Gi","pods":"10","requests.cpu":"1","requests.memory":"1Gi"}},"status":{"hard":{"limits.cpu":"2","limits.memory":"2Gi","pods":"10","requests.cpu":"1","requests.memory":"1Gi"},"used":{"limits.cpu":"800m","limits.memory":"384Mi","pods":"3","requests.cpu":"400m","requests.memory":"192Mi"}}}},
+        {"cells":["fractions","requests.cpu: 400m/750m","","8s"],"object":{"kind":"ResourceQuota","apiVersion":"v1","metadata":{"name":"fractions","namespace":"quotas","uid":"d4b5bed7-18b2-44bc-8ea0-70a5af7d1fe7","resourceVersion":"5934","creationTimestamp":"2026-11-20T16:53:02Z"},"spec":{"hard":{"requests.cpu":"750m"}},"status":{"hard":{"requests.cpu":"750m"},"used":{"requests.cpu":"400m"}}}},
+        {"cells":["objects","count/configmaps: 1/20, persistentvolumeclaims: 0/4, services: 0/5","","39m"],"object":{"kind":"ResourceQuota","apiVersion":"v1","metadata":{"name":"objects","namespace":"quotas","uid":"fedde0c7-4e9b-46e6-8a3d-827eb28837c9","resourceVersion":"1754","creationTimestamp":"2026-11-20T16:13:28Z"},"spec":{"hard":{"count/configmaps":"20","persistentvolumeclaims":"4","services":"5"}},"status":{"hard":{"count/configmaps":"20","persistentvolumeclaims":"4","services":"5"},"used":{"count/configmaps":"1","persistentvolumeclaims":"0","services":"0"}}}},
+        {"cells":["storage-and-cpu","requests.storage: 0/10Gi","limits.cpu: 800m/3500m","39m"],"object":{"kind":"ResourceQuota","apiVersion":"v1","metadata":{"name":"storage-and-cpu","namespace":"quotas","uid":"714bacb4-55a7-4a17-ba84-ef902120f040","resourceVersion":"2119","creationTimestamp":"2026-11-20T16:13:28Z"},"spec":{"hard":{"limits.cpu":"3500m","requests.storage":"10Gi"}},"status":{"hard":{"limits.cpu":"3500m","requests.storage":"10Gi"},"used":{"limits.cpu":"800m","requests.storage":"0"}}}}
+      ]
+    }
+  ]
+}

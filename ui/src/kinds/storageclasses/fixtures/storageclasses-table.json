@@ -1,0 +1,17 @@
+{
+  "source": "kube-apiserver v1.35.0, GET /apis/storage.k8s.io/v1/storageclasses?includeObject=Object with Accept application/json;as=Table;g=meta.k8s.io;v=v1: the object and the printer cells of one response. managedFields removed. Made by hack/kinds-capture/capture.mjs.",
+  "captures": [
+    {
+      "label": "one read of a cluster that holds the slice fixture, extra-states.yaml, more-kinds.yaml and k2b2-kinds.yaml",
+      "serverDate": "Fri, 20 Nov 2026 16:22:15 GMT",
+      "columns": ["Name","Provisioner","ReclaimPolicy","VolumeBindingMode","AllowVolumeExpansion","Age"],
+      "priorities": [0,0,0,0,0,0],
+      "rows": [
+        {"cells":["bare","example.com/bare","Delete","Immediate",false,"8m47s"],"object":{"kind":"StorageClass","apiVersion":"storage.k8s.io/v1","metadata":{"name":"bare","uid":"09ea05f4-5dd3-4b21-afe0-0b0e273c2c3c","resourceVersion":"1627","creationTimestamp":"2026-11-20T16:13:28Z"},"provisioner":"example.com/bare","reclaimPolicy":"Delete","volumeBindingMode":"Immediate"}},
+        {"cells":["fast","example.com/fast","Retain","Immediate",true,"8m47s"],"object":{"kind":"StorageClass","apiVersion":"storage.k8s.io/v1","metadata":{"name":"fast","uid":"cf1abab6-b7ef-44eb-a466-57ff36ae50c5","resourceVersion":"1625","creationTimestamp":"2026-11-20T16:13:28Z"},"provisioner":"example.com/fast","parameters":{"type":"ssd"},"reclaimPolicy":"Retain","mountOptions":["debug","noatime"],"allowVolumeExpansion":true,"volumeBindingMode":"Immediate"}},
+        {"cells":["manual","kubernetes.io/no-provisioner","Delete","WaitForFirstConsumer",false,"8m47s"],"object":{"kind":"StorageClass","apiVersion":"storage.k8s.io/v1","metadata":{"name":"manual","uid":"4d7293f4-efda-4aa8-b4c1-bf526d17c9d0","resourceVersion":"1626","creationTimestamp":"2026-11-20T16:13:28Z"},"provisioner":"kubernetes.io/no-provisioner","reclaimPolicy":"Delete","volumeBindingMode":"WaitForFirstConsumer"}},
+        {"cells":["standard (default)","rancher.io/local-path","Delete","WaitForFirstConsumer",false,"11m"],"object":{"kind":"StorageClass","apiVersion":"storage.k8s.io/v1","metadata":{"name":"standard","uid":"ec54dc55-346e-43bd-ae23-cdac803c6c63","resourceVersion":"286","creationTimestamp":"2026-11-20T16:10:40Z","annotations":{"kubectl.kubernetes.io/last-applied-configuration":"{\"apiVersion\":\"storage.k8s.io/v1\",\"kind\":\"StorageClass\",\"metadata\":{\"annotations\":{\"storageclass.kubernetes.io/is-default-class\":\"true\"},\"name\":\"standard\"},\"provisioner\":\"rancher.io/local-path\",\"reclaimPolicy\":\"Delete\",\"volumeBindingMode\":\"WaitForFirstConsumer\"}\n","storageclass.kubernetes.io/is-default-class":"true"}},"provisioner":"rancher.io/local-path","reclaimPolicy":"Delete","volumeBindingMode":"WaitForFirstConsumer"}}
+      ]
+    }
+  ]
+}
