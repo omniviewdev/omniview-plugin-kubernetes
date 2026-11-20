@@ -39,6 +39,8 @@ type ClientSet struct {
 	informers       map[informerKey]*informerSource
 	informersClosed bool
 	informerStop    chan struct{}
+	// counts are the count reads of this connection (CountReads); a shutdown drops them with the sources, so that nothing the old clients were answered outlives them.
+	counts *CountReads
 }
 
 type informerKey struct {
@@ -247,6 +249,7 @@ func (cs *ClientSet) AcquireInformer(ctx context.Context, namespace string, gvr 
 // including sources already retiring after their final lease was closed.
 func (cs *ClientSet) ShutdownInformers() {
 	cs.informersMu.Lock()
+	cs.counts = nil
 	if !cs.informersClosed {
 		cs.informersClosed = true
 		if cs.informerStop == nil {
@@ -290,5 +293,7 @@ func (cs *ClientSet) ResetInformerLifecycle() {
 	defer cs.informersMu.Unlock()
 	cs.informersClosed = false
 	cs.informerStop = nil
+	// A count read that began while the clients were being replaced used the old ones, and the coordinator it made then must not outlive the replacement.
+	cs.counts = nil
 	informerLog().Debugw("informer lifecycle reset")
 }
