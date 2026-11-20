@@ -1,5 +1,5 @@
 import type { Cell, Ratio } from './definition';
-import { formatAge } from './fields';
+import { formatAge, namesText } from './fields';
 import type { KindStatus } from './status';
 
 // The cells of the closed vocabulary (`definition.ts`), made the way every kind makes them: a count in the code face and grouped, a ratio, a state with its role, an age, and a dash that says
@@ -8,6 +8,20 @@ import type { KindStatus } from './status';
 export const none = (reason: string): Cell => ({ kind: 'none', reason });
 
 export const mono = (text: string): Cell => ({ kind: 'text', text, mono: true });
+
+/** A text, or a dash that says why where the object states none. `code` draws it in the code face: an address, a port. */
+export const textCell = (text: string | undefined, reason: string, code = false): Cell =>
+  text === undefined ? none(reason) : { kind: 'text', text, ...(code ? { mono: true as const } : {}) };
+
+/** The first `max` names of a list, how many more there are, and every name in the tip; a dash that says why for a list with no name. */
+export function namesCell(names: readonly string[] | undefined, max: number, reason: string, code = false): Cell {
+  if (names === undefined || names.length === 0) {
+    return none(reason);
+  }
+
+  const { text, tip } = namesText(names, max);
+  return { kind: 'text', text, ...(code ? { mono: true as const } : {}), ...(tip === undefined ? {} : { tip }) };
+}
 
 /** A count as the mock draws a number (`Cell.mono(integerText(value))`): grouped, in the code face. */
 export const countCell = (value: number | undefined, reason: string): Cell => (value === undefined ? none(reason) : mono(value.toLocaleString('en-US')));

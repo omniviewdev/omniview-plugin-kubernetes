@@ -1,4 +1,5 @@
 import type { KindRow, Ratio } from '../definition';
+import { timeOf } from '../fields';
 import { identityOf, rowModel } from '../rows';
 import { statusOf, type KindStatus } from '../status';
 
@@ -17,11 +18,6 @@ export type JobRow = KindRow & {
   readonly finishedAt: number | undefined;
   /** kubectl's STATUS: the word of `jobState`, and its role. */
   readonly status: KindStatus | undefined;
-};
-
-const timeOf = (value: string | undefined): number | undefined => {
-  const time = value === undefined ? Number.NaN : Date.parse(value);
-  return Number.isNaN(time) ? undefined : time;
 };
 
 /**

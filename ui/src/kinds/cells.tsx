@@ -11,11 +11,12 @@ import { spanSince } from './fields';
 /**
  * The Name column: the kind's tile, the name, and the namespace under it. When the kind has a page of one object, the name is a link to it (the kit's `Link`: the host says where it goes
  * and where it opens: a click or Enter here, Command or Control, or a middle click, in a background tab). A generated name keeps its distinguishing end when it is cut; the kit part reads and
- * copies it once, whole. A row with no object to open (no namespace) has plain text for a name. The test ids are the kind's: `pod-name`, `deployment-namespace`.
+ * copies it once, whole. A row with no object to open (no namespace) has plain text for a name. The test ids are the kind's: `pod-name`, `deployment-namespace`; the second line is the namespace of
+ * a namespaced kind, so its test id says `namespace`, and a Node's address under its name says `address` (`node-address`).
  */
 export function IdentityCell<TRow extends KindRow>({ kind, row }: { readonly kind: KindDefinition<TRow>; readonly row: TRow }) {
-  const { second, tail } = kind.list.identity;
-  const namespace = second(row);
+  const { second, tail, line = 'namespace' } = kind.list.identity;
+  const under = second(row);
   const id = kind.kind.toLowerCase();
   const name = (
     <MiddleEllipsis data-testid={`${id}-name`} tail={tail(row)}>
@@ -28,9 +29,9 @@ export function IdentityCell<TRow extends KindRow>({ kind, row }: { readonly kin
       <KindTile icon={kind.tile.icon} tone={kind.tile.tone} />
       <div className={styles.lines}>
         {kind.detail === undefined || params === undefined ? name : <Link to={{ page: kind.detail.page, params }}>{name}</Link>}
-        {namespace === null ? null : (
-          <small className={styles.second} data-testid={`${id}-namespace`}>
-            {namespace}
+        {under === null ? null : (
+          <small className={styles.second} data-testid={`${id}-${line}`}>
+            {under}
           </small>
         )}
       </div>
@@ -42,7 +43,13 @@ export function IdentityCell<TRow extends KindRow>({ kind, row }: { readonly kin
 function Plain({ cell }: { readonly cell: Cell }) {
   switch (cell.kind) {
     case 'text':
-      return cell.mono === true ? <span className={styles.mono}>{cell.text}</span> : cell.text;
+      return cell.mono === true || cell.tip !== undefined ? (
+        <span className={cell.mono === true ? styles.mono : undefined} data-ov-tip={cell.tip}>
+          {cell.text}
+        </span>
+      ) : (
+        cell.text
+      );
     case 'status':
       // Work that waits to start is drawn with the clock, work under way with the loader (design 13 SR1; plan E8).
       return cell.role === 'progress' ? (

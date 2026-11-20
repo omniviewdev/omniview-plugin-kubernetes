@@ -38,6 +38,10 @@ describe('stateRole: the platform words and their one role each (mock K61.3, ch1
     ['Scaled to zero', 'stopped'],
     ['Paused', 'stopped'],
     ['Suspended', 'stopped'],
+    // The words of the lifecycle kinds of Workloads and of the cluster (K61.3): a ReplicaSet and a Node that are well, a CronJob and a Namespace that run, a Node that is cordoned.
+    ['Ready', 'healthy'],
+    ['Active', 'healthy'],
+    ['Scheduling disabled', 'stopped'],
   ];
 
   for (const [word, role] of roles) {

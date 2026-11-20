@@ -6,10 +6,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { contributionV1 } from '../entry';
 
 import { FieldCell, IdentityCell as KindIdentityCell } from './cells';
+import { configMapDefinition } from './configmaps/definition';
+import type { ConfigMapRow } from './configmaps/row';
 import { deploymentDefinition } from './deployments/definition';
 import type { DeploymentRow } from './deployments/row';
 import { jobDefinition } from './jobs/definition';
 import type { JobRow } from './jobs/row';
+import { namespaceDefinition } from './namespaces/definition';
+import type { NamespaceRow } from './namespaces/row';
+import { nodeDefinition } from './nodes/definition';
+import type { NodeRow } from './nodes/row';
 import { podDefinition } from './pods/definition';
 import type { PodRow } from './pods/row';
 
@@ -290,5 +296,48 @@ describe('FieldCell: a state with a tip, and a span that is still running', () =
     expect(container).toHaveTextContent('7 min 36 s');
     rerender(<FieldCell field={jobField('duration')} row={{ ...done, startedAt: undefined, finishedAt: undefined }} />);
     expect(screen.getByRole('img', { name: /has not started/ })).toBeInTheDocument();
+  });
+});
+
+// The kinds that have no namespace: the mock's `list.identity.second` is a Node's address, and a Namespace has no second line at all.
+describe('IdentityCell for a kind of the cluster: no namespace line, and a Node\'s address under its name', () => {
+  const base = { key: 'k1', namespace: '', nameTail: 0, createdAt: NOW };
+  const node: NodeRow = { ...base, name: 'ip-10-20-12-143.eu-west-1.compute.internal', status: { word: 'Ready', role: 'healthy' }, version: 'v1.31.4-eks-aeac579', address: '10.20.12.143' };
+  const namespace: NamespaceRow = { ...base, name: 'checkout', status: { word: 'Active', role: 'healthy' } };
+
+  it('draws a Namespace with its name alone: it lives in no namespace, so it has no line for one', () => {
+    render(linked(<KindIdentityCell kind={namespaceDefinition} row={namespace} />));
+    expect(screen.getByTestId('namespace-name')).toHaveTextContent('checkout');
+    expect(screen.queryByTestId('namespace-namespace')).toBeNull();
+    expect(screen.queryByTestId('namespace-address')).toBeNull();
+  });
+
+  it('draws a Node\'s address as the second line, under a test id that says what the line is', () => {
+    render(linked(<KindIdentityCell kind={nodeDefinition} row={node} />));
+    expect(screen.getByTestId('node-name')).toHaveTextContent('ip-10-20-12-143.eu-west-1.compute.internal');
+    expect(screen.getByTestId('node-address')).toHaveTextContent('10.20.12.143');
+    expect(screen.queryByTestId('node-namespace')).toBeNull();
+  });
+
+  it('draws a Node that has no address with its name alone', () => {
+    render(linked(<KindIdentityCell kind={nodeDefinition} row={{ ...node, address: undefined }} />));
+    expect(screen.queryByTestId('node-address')).toBeNull();
+  });
+});
+
+describe('FieldCell: a text that carries a tip', () => {
+  const configMapField = (id: string) => configMapDefinition.fields.find((candidate) => candidate.id === id)!;
+  const configMap = (names: readonly string[]): ConfigMapRow => ({ key: 'k1', name: 'many-keys', namespace: 'more', nameTail: 0, createdAt: NOW, keys: names.length, names, size: 5 });
+
+  it('draws the first names of a list and the number of the rest, and every name in the tip: what the column cuts is still reachable', () => {
+    const { container } = render(<FieldCell field={configMapField('names')} row={configMap(['alpha', 'bravo', 'charlie', 'delta', 'echo'])} />);
+    expect(container).toHaveTextContent('alpha, bravo, charlie +2');
+    expect(container.querySelector('[data-ov-tip]')?.getAttribute('data-ov-tip')).toBe('alpha, bravo, charlie, delta, echo');
+  });
+
+  it('draws a list that fits with no tip: there is nothing to reach', () => {
+    const { container } = render(<FieldCell field={configMapField('names')} row={configMap(['alpha', 'bravo'])} />);
+    expect(container).toHaveTextContent('alpha, bravo');
+    expect(container.querySelector('[data-ov-tip]')).toBeNull();
   });
 });

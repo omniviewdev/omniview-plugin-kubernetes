@@ -1,0 +1,17 @@
+{
+  "source": "kube-apiserver v1.35.0, GET /apis/networking.k8s.io/v1/ingresses?includeObject=Object with Accept application/json;as=Table;g=meta.k8s.io;v=v1: the object and the printer cells of one response. managedFields removed. Made by hack/kinds-capture/capture.mjs.",
+  "captures": [
+    {
+      "label": "one read of a cluster that holds the slice fixture, extra-states.yaml and more-kinds.yaml",
+      "serverDate": "Fri, 20 Nov 2026 01:33:34 GMT",
+      "columns": ["Name","Class","Hosts","Address","Ports","Age"],
+      "priorities": [0,0,0,0,0,0],
+      "rows": [
+        {"cells":["addressed","nginx","console.example.test","10.0.0.7","80","2m40s"],"object":{"kind":"Ingress","apiVersion":"networking.k8s.io/v1","metadata":{"name":"addressed","namespace":"more","uid":"4f9771f1-634f-4f99-ba1b-27da1483010d","resourceVersion":"1171","generation":1,"creationTimestamp":"2026-11-20T01:30:54Z"},"spec":{"ingressClassName":"nginx","rules":[{"host":"console.example.test","http":{"paths":[{"path":"/","pathType":"Prefix","backend":{"service":{"name":"web","port":{"number":80}}}}]}}]},"status":{"loadBalancer":{"ingress":[{"ip":"10.0.0.7"}]}}}},
+        {"cells":["default-backend","<none>","*","","80","2m40s"],"object":{"kind":"Ingress","apiVersion":"networking.k8s.io/v1","metadata":{"name":"default-backend","namespace":"more","uid":"d839dfc0-b2a5-4ec5-96ee-313b2b05c8c9","resourceVersion":"1087","generation":1,"creationTimestamp":"2026-11-20T01:30:54Z"},"spec":{"defaultBackend":{"service":{"name":"web","port":{"number":80}}}},"status":{"loadBalancer":{}}}},
+        {"cells":["plain","nginx","shop.example.test","","80","2m40s"],"object":{"kind":"Ingress","apiVersion":"networking.k8s.io/v1","metadata":{"name":"plain","namespace":"more","uid":"388ecbe5-30ae-4471-adc2-42ff4c48d388","resourceVersion":"1085","generation":1,"creationTimestamp":"2026-11-20T01:30:54Z"},"spec":{"ingressClassName":"nginx","rules":[{"host":"shop.example.test","http":{"paths":[{"path":"/","pathType":"Prefix","backend":{"service":{"name":"web","port":{"number":80}}}}]}}]},"status":{"loadBalancer":{}}}},
+        {"cells":["tls","nginx","shop.example.test,api.example.test","","80, 443","2m40s"],"object":{"kind":"Ingress","apiVersion":"networking.k8s.io/v1","metadata":{"name":"tls","namespace":"more","uid":"8bc31213-060c-46a5-ad39-44f176e25a00","resourceVersion":"1086","generation":1,"creationTimestamp":"2026-11-20T01:30:54Z"},"spec":{"ingressClassName":"nginx","tls":[{"hosts":["shop.example.test","api.example.test"],"secretName":"site-tls"}],"rules":[{"host":"shop.example.test","http":{"paths":[{"path":"/","pathType":"Prefix","backend":{"service":{"name":"web","port":{"number":80}}}}]}},{"host":"api.example.test","http":{"paths":[{"path":"/","pathType":"Prefix","backend":{"service":{"name":"multi","port":{"number":443}}}}]}}]},"status":{"loadBalancer":{}}}}
+      ]
+    }
+  ]
+}
