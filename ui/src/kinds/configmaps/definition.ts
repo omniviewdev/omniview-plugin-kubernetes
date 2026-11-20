@@ -1,4 +1,4 @@
-import { GENERIC_TILE, column, typeOf, type KindDefinition } from '../definition';
+import { column, typeOf, type KindDefinition } from '../definition';
 import { ageCell, countCell, namesCell, textCell } from '../display';
 import { bytesText } from '../fields';
 
@@ -17,8 +17,7 @@ export const configMapDefinition: KindDefinition<ConfigMapRow> = {
   kind: 'ConfigMap',
   nouns: { one: 'ConfigMap', other: 'ConfigMaps' },
   page: 'configmaps',
-  // The mock's glyph is a document with a cog (Lucide `FileCog`), which the kit's registry does not have yet: the generic tile stands for it.
-  tile: GENERIC_TILE,
+  tile: { icon: 'file-cog', tone: 'blue' },
   model: { row: configMapRow, rows: configMapRows, searchText: configMapSearchText },
   columns: [
     column('name', 'Name', 'id', 160, 'left', 'text', { required: true }),

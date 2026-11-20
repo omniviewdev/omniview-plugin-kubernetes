@@ -1,4 +1,4 @@
-import { GENERIC_TILE, column, typeOf, type KindDefinition } from '../definition';
+import { column, typeOf, type KindDefinition } from '../definition';
 import { ageCell, namesCell } from '../display';
 
 import { resourceQuotaRow, resourceQuotaRows, resourceQuotaSearchText, type ResourceQuotaRow } from './row';
@@ -15,8 +15,7 @@ export const resourceQuotaDefinition: KindDefinition<ResourceQuotaRow> = {
   kind: 'ResourceQuota',
   nouns: { one: 'ResourceQuota', other: 'ResourceQuotas' },
   page: 'resourcequotas',
-  // The mock's glyph is a gauge (Lucide `Gauge`), which the kit's registry does not have yet: the generic tile stands for it.
-  tile: GENERIC_TILE,
+  tile: { icon: 'gauge', tone: 'blue' },
   model: { row: resourceQuotaRow, rows: resourceQuotaRows, searchText: resourceQuotaSearchText },
   columns: [
     column('name', 'Name', 'id', 160, 'left', 'text', { required: true }),

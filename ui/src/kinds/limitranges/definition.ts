@@ -1,4 +1,4 @@
-import { GENERIC_TILE, column, typeOf, type KindDefinition } from '../definition';
+import { column, typeOf, type KindDefinition } from '../definition';
 import { ageCell, countCell, namesCell } from '../display';
 
 import { limitRangeRow, limitRangeRows, limitRangeSearchText, type LimitRangeRow } from './row';
@@ -15,8 +15,7 @@ export const limitRangeDefinition: KindDefinition<LimitRangeRow> = {
   kind: 'LimitRange',
   nouns: { one: 'LimitRange', other: 'LimitRanges' },
   page: 'limitranges',
-  // The mock's glyph is a ruler (Lucide `Ruler`), which the kit's registry does not have yet: the generic tile stands for it.
-  tile: GENERIC_TILE,
+  tile: { icon: 'ruler', tone: 'blue' },
   model: { row: limitRangeRow, rows: limitRangeRows, searchText: limitRangeSearchText },
   columns: [
     column('name', 'Name', 'id', 160, 'left', 'text', { required: true }),

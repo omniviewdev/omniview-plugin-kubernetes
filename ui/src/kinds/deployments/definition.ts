@@ -14,8 +14,7 @@ export const deploymentDefinition: KindDefinition<DeploymentRow> = {
   kind: 'Deployment',
   nouns: { one: 'Deployment', other: 'Deployments' },
   page: 'deployments',
-  // The mock's glyph is a rocket, which the kit's registry does not have yet: a glyph of the registry stands in, one per kind.
-  tile: { icon: 'copy', tone: 'blue' },
+  tile: { icon: 'rocket', tone: 'blue' },
   model: { row: deploymentRow, rows: deploymentRows, searchText: deploymentSearchText },
   columns: [
     column('name', 'Name', 'id', 160, 'left', 'text', { required: true }),

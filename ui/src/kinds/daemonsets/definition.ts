@@ -16,8 +16,7 @@ export const daemonSetDefinition: KindDefinition<DaemonSetRow> = {
   kind: 'DaemonSet',
   nouns: { one: 'DaemonSet', other: 'DaemonSets' },
   page: 'daemonsets',
-  // The mock's glyph is a server with a cog, which the kit's registry does not have yet: the registry's server stands in, one per kind.
-  tile: { icon: 'server', tone: 'blue' },
+  tile: { icon: 'server-cog', tone: 'blue' },
   model: { row: daemonSetRow, rows: daemonSetRows, searchText: daemonSetSearchText },
   columns: [
     column('name', 'Name', 'id', 160, 'left', 'text', { required: true }),

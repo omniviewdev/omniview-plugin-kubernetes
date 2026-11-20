@@ -1,4 +1,4 @@
-import { GENERIC_TILE, column, typeOf, type KindDefinition } from '../definition';
+import { column, typeOf, type KindDefinition } from '../definition';
 import { ageCell, countCell, statusCell, textCell } from '../display';
 
 import { cronJobRow, cronJobRows, cronJobSearchText, type CronJobRow } from './row';
@@ -17,8 +17,7 @@ export const cronJobDefinition: KindDefinition<CronJobRow> = {
   kind: 'CronJob',
   nouns: { one: 'CronJob', other: 'CronJobs' },
   page: 'cronjobs',
-  // The mock's glyph is a calendar with a clock (Lucide `CalendarClock`), which the kit's registry does not have yet: the generic tile stands for it.
-  tile: GENERIC_TILE,
+  tile: { icon: 'calendar-clock', tone: 'blue' },
   model: { row: cronJobRow, rows: cronJobRows, searchText: cronJobSearchText },
   columns: [
     column('name', 'Name', 'id', 160, 'left', 'text', { required: true }),

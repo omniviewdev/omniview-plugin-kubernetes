@@ -1,4 +1,4 @@
-import { GENERIC_TILE, column, typeOf, type Cell, type KindDefinition } from '../definition';
+import { column, typeOf, type Cell, type KindDefinition } from '../definition';
 import { ageCell, none, statusCell } from '../display';
 
 import { nodeRow, nodeRows, nodeSearchText, type NodeRow } from './row';
@@ -25,8 +25,7 @@ export const nodeDefinition: KindDefinition<NodeRow> = {
   kind: 'Node',
   nouns: { one: 'Node', other: 'Nodes' },
   page: 'nodes',
-  // The mock's glyph is a server (Lucide `Server`), which the kit's registry has: a DaemonSet wears it as its stand-in, so a Node wears the generic tile until the DaemonSet has its own.
-  tile: GENERIC_TILE,
+  tile: { icon: 'server', tone: 'blue' },
   model: { row: nodeRow, rows: nodeRows, searchText: nodeSearchText },
   columns: [
     column('name', 'Name', 'id', 160, 'left', 'text', { required: true }),

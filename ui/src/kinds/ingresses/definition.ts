@@ -1,4 +1,4 @@
-import { GENERIC_TILE, column, typeOf, type KindDefinition } from '../definition';
+import { column, typeOf, type KindDefinition } from '../definition';
 import { ageCell, namesCell, textCell } from '../display';
 
 import { ingressRow, ingressRows, ingressSearchText, type IngressRow } from './row';
@@ -15,8 +15,7 @@ export const ingressDefinition: KindDefinition<IngressRow> = {
   kind: 'Ingress',
   nouns: { one: 'Ingress', other: 'Ingresses' },
   page: 'ingresses',
-  // The mock's glyph is a globe (Lucide `Globe`), which the kit's registry does not have yet: the generic tile stands for it.
-  tile: GENERIC_TILE,
+  tile: { icon: 'globe', tone: 'blue' },
   model: { row: ingressRow, rows: ingressRows, searchText: ingressSearchText },
   columns: [
     column('name', 'Name', 'id', 160, 'left', 'text', { required: true }),

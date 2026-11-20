@@ -1,4 +1,4 @@
-import { GENERIC_TILE, column, typeOf, type KindDefinition } from '../definition';
+import { column, typeOf, type KindDefinition } from '../definition';
 import { ageCell, statusCell } from '../display';
 
 import { namespaceRow, namespaceRows, namespaceSearchText, type NamespaceRow } from './row';
@@ -14,9 +14,7 @@ export const namespaceDefinition: KindDefinition<NamespaceRow> = {
   kind: 'Namespace',
   nouns: { one: 'Namespace', other: 'Namespaces' },
   page: 'namespaces',
-  // The mock's glyph is a folder tree (Lucide `FolderTree`), which the kit's registry has (`folder-tree`, the glyph of the scope lane's namespace face): this step gives every new kind the generic tile, so
-  // the one rule is the same for all of them, and this line is the one to change when the kind's own glyph is taken.
-  tile: GENERIC_TILE,
+  tile: { icon: 'folder-tree', tone: 'blue' },
   model: { row: namespaceRow, rows: namespaceRows, searchText: namespaceSearchText },
   columns: [
     column('name', 'Name', 'id', 160, 'left', 'text', { required: true }),

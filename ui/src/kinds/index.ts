@@ -62,15 +62,15 @@ export const STORAGE: readonly AnyKind[] = [persistentVolumeDefinition, persiste
 export const ACCESS: readonly AnyKind[] = [serviceAccountDefinition, roleDefinition, clusterRoleDefinition, roleBindingDefinition, clusterRoleBindingDefinition];
 
 /**
- * The groups of the sidebar, in the mock's order. The mock gives each group its own glyph (Workloads: layers, Config: settings, Network: a network, Storage: a database, Access control: a shield), and the
- * kit's registry has the first only: a group with no glyph of its own wears `layers`, the glyph of a group of things, rather than the glyph of a kind.
+ * The groups of the sidebar, in the mock's order, each with the glyph the mock gives it (`GROUPS` in shell-kubernetes.js: Workloads `LuLayers`, Config `LuSettings2`, Network `LuNetwork`, Storage `LuDatabase`,
+ * Access control `LuShield`). The mock's Admission, Helm and Custom resources groups are not here: the plugin lists no kind of them yet.
  */
 export const SIDEBAR_GROUPS = [
   { id: 'workloads', label: 'Workloads', icon: 'layers', kinds: WORKLOADS },
-  { id: 'config', label: 'Config', icon: 'layers', kinds: CONFIG },
-  { id: 'network', label: 'Network', icon: 'layers', kinds: NETWORK },
-  { id: 'storage', label: 'Storage', icon: 'layers', kinds: STORAGE },
-  { id: 'access', label: 'Access control', icon: 'layers', kinds: ACCESS },
+  { id: 'config', label: 'Config', icon: 'settings-2', kinds: CONFIG },
+  { id: 'network', label: 'Network', icon: 'network', kinds: NETWORK },
+  { id: 'storage', label: 'Storage', icon: 'database', kinds: STORAGE },
+  { id: 'access', label: 'Access control', icon: 'shield', kinds: ACCESS },
 ] as const satisfies ReadonlyArray<{ readonly id: string; readonly label: string; readonly icon: IconName; readonly kinds: readonly AnyKind[] }>;
 
 /** Every kind, in the order of the sidebar: the pages are made from it. */
