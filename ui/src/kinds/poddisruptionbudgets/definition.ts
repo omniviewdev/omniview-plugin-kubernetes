@@ -1,4 +1,4 @@
-import { GENERIC_TILE, column, typeOf, type KindDefinition } from '../definition';
+import { column, typeOf, type KindDefinition } from '../definition';
 import { ageCell, countCell } from '../display';
 
 import { podDisruptionBudgetRow, podDisruptionBudgetRows, podDisruptionBudgetSearchText, type PodDisruptionBudgetRow } from './row';
@@ -15,8 +15,7 @@ export const podDisruptionBudgetDefinition: KindDefinition<PodDisruptionBudgetRo
   kind: 'PodDisruptionBudget',
   nouns: { one: 'PodDisruptionBudget', other: 'PodDisruptionBudgets' },
   page: 'poddisruptionbudgets',
-  // The mock's glyph is an umbrella (Lucide `Umbrella`), which the kit's registry does not have yet: the generic tile stands for it.
-  tile: GENERIC_TILE,
+  tile: { icon: 'umbrella', tone: 'blue' },
   model: { row: podDisruptionBudgetRow, rows: podDisruptionBudgetRows, searchText: podDisruptionBudgetSearchText },
   columns: [
     column('name', 'Name', 'id', 160, 'left', 'text', { required: true }),

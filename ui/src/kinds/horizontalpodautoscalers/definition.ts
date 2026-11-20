@@ -1,4 +1,4 @@
-import { GENERIC_TILE, column, typeOf, type KindDefinition } from '../definition';
+import { column, typeOf, type KindDefinition } from '../definition';
 import { ageCell, countCell, namesCell, statusCell, textCell } from '../display';
 
 import { horizontalPodAutoscalerRow, horizontalPodAutoscalerRows, horizontalPodAutoscalerSearchText, type HorizontalPodAutoscalerRow } from './row';
@@ -15,8 +15,7 @@ export const horizontalPodAutoscalerDefinition: KindDefinition<HorizontalPodAuto
   kind: 'HorizontalPodAutoscaler',
   nouns: { one: 'HorizontalPodAutoscaler', other: 'HorizontalPodAutoscalers' },
   page: 'horizontalpodautoscalers',
-  // The mock's glyph is a scaling arrow (Lucide `Scaling`), which the kit's registry does not have yet: the generic tile stands for it.
-  tile: GENERIC_TILE,
+  tile: { icon: 'scaling', tone: 'blue' },
   model: { row: horizontalPodAutoscalerRow, rows: horizontalPodAutoscalerRows, searchText: horizontalPodAutoscalerSearchText },
   columns: [
     column('name', 'Name', 'id', 160, 'left', 'text', { required: true }),

@@ -1,4 +1,4 @@
-import { GENERIC_TILE, column, typeOf, type KindDefinition } from '../definition';
+import { column, typeOf, type KindDefinition } from '../definition';
 import { ageCell, namesCell } from '../display';
 
 import { endpointsRow, endpointsRows, endpointsSearchText, type EndpointsRow } from './row';
@@ -15,8 +15,7 @@ export const endpointsDefinition: KindDefinition<EndpointsRow> = {
   // Endpoints is its own plural: the mock's `kindLabel` keeps it (ch17 K60.4).
   nouns: { one: 'Endpoints', other: 'Endpoints' },
   page: 'endpoints',
-  // The mock's glyph is a target (Lucide `target`), which the kit's registry does not have yet: the generic tile stands for it.
-  tile: GENERIC_TILE,
+  tile: { icon: 'target', tone: 'blue' },
   model: { row: endpointsRow, rows: endpointsRows, searchText: endpointsSearchText },
   columns: [
     column('name', 'Name', 'id', 160, 'left', 'text', { required: true }),

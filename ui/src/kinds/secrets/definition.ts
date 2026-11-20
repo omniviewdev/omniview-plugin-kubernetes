@@ -1,4 +1,4 @@
-import { GENERIC_TILE, column, typeOf, type KindDefinition } from '../definition';
+import { column, typeOf, type KindDefinition } from '../definition';
 import { ageCell, countCell, textCell } from '../display';
 
 import { secretRow, secretRows, secretSearchText, type SecretRow } from './row';
@@ -15,8 +15,7 @@ export const secretDefinition: KindDefinition<SecretRow> = {
   kind: 'Secret',
   nouns: { one: 'Secret', other: 'Secrets' },
   page: 'secrets',
-  // The mock's glyph is a round key (Lucide `KeyRound`), which the kit's registry does not have yet: the generic tile stands for it.
-  tile: GENERIC_TILE,
+  tile: { icon: 'key-round', tone: 'blue' },
   model: { row: secretRow, rows: secretRows, searchText: secretSearchText },
   columns: [
     column('name', 'Name', 'id', 160, 'left', 'text', { required: true }),

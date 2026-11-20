@@ -1,4 +1,4 @@
-import { GENERIC_TILE, column, typeOf, type KindDefinition } from '../definition';
+import { column, typeOf, type KindDefinition } from '../definition';
 import { ageCell, statusCell, textCell } from '../display';
 import { bytesText } from '../fields';
 
@@ -16,8 +16,7 @@ export const persistentVolumeDefinition: KindDefinition<PersistentVolumeRow> = {
   kind: 'PersistentVolume',
   nouns: { one: 'PersistentVolume', other: 'PersistentVolumes' },
   page: 'persistentvolumes',
-  // The mock's glyph is Lucide `hard-drive`, which the kit's registry does not have yet: the generic tile stands for it.
-  tile: GENERIC_TILE,
+  tile: { icon: 'hard-drive', tone: 'blue' },
   model: { row: persistentVolumeRow, rows: persistentVolumeRows, searchText: persistentVolumeSearchText },
   columns: [
     column('name', 'Name', 'id', 160, 'left', 'text', { required: true }),

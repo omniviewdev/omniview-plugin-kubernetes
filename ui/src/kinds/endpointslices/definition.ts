@@ -1,4 +1,4 @@
-import { GENERIC_TILE, column, typeOf, type KindDefinition } from '../definition';
+import { column, typeOf, type KindDefinition } from '../definition';
 import { ageCell, namesCell, textCell } from '../display';
 
 import { endpointSliceRow, endpointSliceRows, endpointSliceSearchText, type EndpointSliceRow } from './row';
@@ -15,8 +15,7 @@ export const endpointSliceDefinition: KindDefinition<EndpointSliceRow> = {
   kind: 'EndpointSlice',
   nouns: { one: 'EndpointSlice', other: 'EndpointSlices' },
   page: 'endpointslices',
-  // The mock's glyph is a path that splits in two (Lucide `split`), which the kit's registry does not have yet: the generic tile stands for it.
-  tile: GENERIC_TILE,
+  tile: { icon: 'split', tone: 'blue' },
   model: { row: endpointSliceRow, rows: endpointSliceRows, searchText: endpointSliceSearchText },
   columns: [
     column('name', 'Name', 'id', 160, 'left', 'text', { required: true }),

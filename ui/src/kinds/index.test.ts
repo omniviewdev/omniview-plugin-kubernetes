@@ -239,6 +239,66 @@ describe('the quick filters: only where the mock has them', () => {
   });
 });
 
+/**
+ * The mock's glyph of each kind (`KIND_GLYPHS` in shell-kubernetes.js) and of each group (`GROUPS`), with the name the kit's registry gives it (host docs/ui-next/status/G1.md); `null` is a mock glyph the registry
+ * lacks (the kind keeps the generic tile, and the PR lists it). When the kit gains one of those, the case below fails until the kind names it.
+ */
+const MOCK_KIND_GLYPHS: ReadonlyArray<readonly [kind: string, mock: string, kit: string | null]> = [
+  ['Node', 'LuServer', 'server'], ['Namespace', 'LuFolderTree', 'folder-tree'],
+  ['Pod', 'LuBox', 'box'], ['Deployment', 'LuRocket', 'rocket'], ['StatefulSet', 'LuListOrdered', 'list-ordered'], ['DaemonSet', 'LuServerCog', 'server-cog'], ['ReplicaSet', 'LuCopy', 'copy'],
+  ['Job', 'LuClipboardCheck', 'clipboard-check'], ['CronJob', 'LuCalendarClock', 'calendar-clock'],
+  ['ConfigMap', 'LuFileCog', 'file-cog'], ['Secret', 'LuKeyRound', 'key-round'], ['ResourceQuota', 'LuGauge', 'gauge'], ['LimitRange', 'LuRuler', 'ruler'],
+  ['HorizontalPodAutoscaler', 'LuScaling', 'scaling'], ['PodDisruptionBudget', 'LuUmbrella', 'umbrella'],
+  ['Service', 'LuWaypoints', 'waypoints'], ['Endpoints', 'LuTarget', 'target'], ['EndpointSlice', 'LuSplit', 'split'], ['Ingress', 'LuGlobe', 'globe'], ['IngressClass', 'LuListTree', null], ['NetworkPolicy', 'LuBrickWall', 'brick-wall'],
+  ['PersistentVolume', 'LuHardDrive', 'hard-drive'], ['PersistentVolumeClaim', 'LuHardDriveDownload', 'hard-drive-download'], ['StorageClass', 'LuArchive', null],
+  ['ServiceAccount', 'LuUserCog', null], ['Role', 'LuIdCard', null], ['ClusterRole', 'LuBadgeCheck', null], ['RoleBinding', 'LuLink2', null], ['ClusterRoleBinding', 'LuMerge', null],
+];
+
+const MOCK_GROUP_GLYPHS: ReadonlyArray<readonly [id: string, mock: string, kit: string]> = [
+  ['workloads', 'LuLayers', 'layers'], ['config', 'LuSettings2', 'settings-2'], ['network', 'LuNetwork', 'network'], ['storage', 'LuDatabase', 'database'], ['access', 'LuShield', 'shield'],
+];
+
+describe('the glyphs of the mock (Q2b): each kind and each group wears the kit glyph the mock\'s one maps to', () => {
+  it('covers every kind of the registry once, and every group', () => {
+    expect(MOCK_KIND_GLYPHS.map(([kind]) => kind).sort()).toEqual(KINDS.map((kind) => kind.kind).sort());
+    expect(MOCK_GROUP_GLYPHS.map(([id]) => id)).toEqual(SIDEBAR_GROUPS.map((group) => group.id));
+  });
+
+  it.each(MOCK_KIND_GLYPHS)('%s: the mock\'s %s is the kit\'s %s, or the generic tile when the kit has none', (kindName, _mock, kit) => {
+    const kind = KINDS.find((candidate) => candidate.kind === kindName);
+    expect(kind, kindName).toBeDefined();
+    if (kit === null) {
+      expect(kind?.tile).toBe(GENERIC_TILE);
+      return;
+    }
+
+    expect(isIconName(kit), `${kit} is in the kit`).toBe(true);
+    expect(kind?.tile).toEqual({ icon: kit, tone: 'blue' });
+  });
+
+  it('keeps the generic tile only for a mock glyph the kit\'s registry lacks', () => {
+    for (const [kindName, mock, kit] of MOCK_KIND_GLYPHS) {
+      if (kit === null) {
+        expect(isIconName(mock.replace(/^Lu/, '').replace(/([a-z])([A-Z0-9])/g, '$1-$2').toLowerCase()), kindName).toBe(false);
+      }
+    }
+  });
+
+  it.each(MOCK_GROUP_GLYPHS)('the %s group: the mock\'s %s is the kit\'s %s', (id, _mock, kit) => {
+    expect(isIconName(kit)).toBe(true);
+    expect(SIDEBAR_GROUPS.find((group) => group.id === id)?.icon).toBe(kit);
+    expect(sidebarNodes().find((node) => node.id === id)?.icon).toBe(kit);
+  });
+
+  it('puts the same glyphs in the sidebar skeleton: the kind\'s on its entry, the group\'s on its node', () => {
+    const entries = sidebarNodes().flatMap((node) => [node, ...(node.children ?? [])]);
+    for (const [kindName, , kit] of MOCK_KIND_GLYPHS) {
+      const kind = KINDS.find((candidate) => candidate.kind === kindName);
+      expect(entries.find((node) => node.id === kind?.page)?.icon, kindName).toBe(kit ?? GENERIC_TILE.icon);
+    }
+  });
+});
+
 describe('the registry as a whole', () => {
   it('gives no two kinds the same page, type or kind', () => {
     for (const pick of [(kind: (typeof KINDS)[number]) => kind.page, (kind: (typeof KINDS)[number]) => kind.type, (kind: (typeof KINDS)[number]) => kind.kind]) {
@@ -250,8 +310,7 @@ describe('the registry as a whole', () => {
     const own = KINDS.filter((kind) => kind.tile !== GENERIC_TILE);
     expect(new Set(own.map((kind) => kind.tile.icon)).size).toBe(own.length);
     expect(KINDS.filter((kind) => kind.tile === GENERIC_TILE).map((kind) => kind.kind)).toEqual([
-      'Node', 'Namespace', 'ReplicaSet', 'CronJob', 'ConfigMap', 'Secret', 'ResourceQuota', 'LimitRange', 'HorizontalPodAutoscaler', 'PodDisruptionBudget', 'Service', 'Endpoints', 'EndpointSlice',
-      'Ingress', 'IngressClass', 'NetworkPolicy', 'PersistentVolume', 'PersistentVolumeClaim', 'StorageClass', 'ServiceAccount', 'Role', 'ClusterRole', 'RoleBinding', 'ClusterRoleBinding',
+      'IngressClass', 'StorageClass', 'ServiceAccount', 'Role', 'ClusterRole', 'RoleBinding', 'ClusterRoleBinding',
     ]);
     expect(isIconName(GENERIC_TILE.icon)).toBe(true);
     expect(GENERIC_TILE.tone).toBe('blue');

@@ -52,40 +52,40 @@ describe('the contribution', () => {
     ]);
   });
 
-  it('has, in each group, its entries in the mock\'s order, each with the glyph of its kind (the generic tile for a kind the kit has no glyph for yet) and its count slot held (`count: null`: the counts arrive from the sidebar\'s hook)', () => {
+  it('has, in each group, its entries in the mock\'s order, each with the glyph of its kind (the mock\'s, or the generic tile for the seven the kit has none for) and its count slot held (`count: null`: the counts arrive from the sidebar\'s hook)', () => {
     const [nodes, namespaces, workloads, config, network, storage, access] = contributionV1.sidebar.nodes;
-    expect([nodes, namespaces].map((node) => [node?.id, node?.icon])).toEqual([['nodes', 'box'], ['namespaces', 'box']]);
+    expect([nodes, namespaces].map((node) => [node?.id, node?.icon])).toEqual([['nodes', 'server'], ['namespaces', 'folder-tree']]);
     expect(workloads?.icon).toBe('layers');
     expect(workloads?.children?.map((leaf) => [leaf.id, leaf.label, leaf.icon])).toEqual([
       ['pods', 'Pods', 'box'],
-      ['deployments', 'Deployments', 'copy'],
-      ['statefulsets', 'StatefulSets', 'columns'],
-      ['daemonsets', 'DaemonSets', 'server'],
-      ['replicasets', 'ReplicaSets', 'box'],
-      ['jobs', 'Jobs', 'arrow-right'],
-      ['cronjobs', 'CronJobs', 'box'],
+      ['deployments', 'Deployments', 'rocket'],
+      ['statefulsets', 'StatefulSets', 'list-ordered'],
+      ['daemonsets', 'DaemonSets', 'server-cog'],
+      ['replicasets', 'ReplicaSets', 'copy'],
+      ['jobs', 'Jobs', 'clipboard-check'],
+      ['cronjobs', 'CronJobs', 'calendar-clock'],
     ]);
-    // The groups the kit has no glyph for wear `layers`, the glyph of a group of things; each kind the kit has no glyph for wears the generic tile.
-    expect([config, network, storage, access].map((group) => group?.icon)).toEqual(['layers', 'layers', 'layers', 'layers']);
+    // Each group wears the glyph the mock gives it; each kind whose mock glyph the kit has none for wears the generic tile.
+    expect([config, network, storage, access].map((group) => group?.icon)).toEqual(['settings-2', 'network', 'database', 'shield']);
     expect(config?.children?.map((leaf) => [leaf.id, leaf.label, leaf.icon])).toEqual([
-      ['configmaps', 'ConfigMaps', 'box'],
-      ['secrets', 'Secrets', 'box'],
-      ['resourcequotas', 'ResourceQuotas', 'box'],
-      ['limitranges', 'LimitRanges', 'box'],
-      ['horizontalpodautoscalers', 'HorizontalPodAutoscalers', 'box'],
-      ['poddisruptionbudgets', 'PodDisruptionBudgets', 'box'],
+      ['configmaps', 'ConfigMaps', 'file-cog'],
+      ['secrets', 'Secrets', 'key-round'],
+      ['resourcequotas', 'ResourceQuotas', 'gauge'],
+      ['limitranges', 'LimitRanges', 'ruler'],
+      ['horizontalpodautoscalers', 'HorizontalPodAutoscalers', 'scaling'],
+      ['poddisruptionbudgets', 'PodDisruptionBudgets', 'umbrella'],
     ]);
     expect(network?.children?.map((leaf) => [leaf.id, leaf.label, leaf.icon])).toEqual([
-      ['services', 'Services', 'box'],
-      ['endpoints', 'Endpoints', 'box'],
-      ['endpointslices', 'EndpointSlices', 'box'],
-      ['ingresses', 'Ingresses', 'box'],
+      ['services', 'Services', 'waypoints'],
+      ['endpoints', 'Endpoints', 'target'],
+      ['endpointslices', 'EndpointSlices', 'split'],
+      ['ingresses', 'Ingresses', 'globe'],
       ['ingressclasses', 'IngressClasses', 'box'],
-      ['networkpolicies', 'NetworkPolicies', 'box'],
+      ['networkpolicies', 'NetworkPolicies', 'brick-wall'],
     ]);
     expect(storage?.children?.map((leaf) => [leaf.id, leaf.label, leaf.icon])).toEqual([
-      ['persistentvolumes', 'PersistentVolumes', 'box'],
-      ['persistentvolumeclaims', 'PersistentVolumeClaims', 'box'],
+      ['persistentvolumes', 'PersistentVolumes', 'hard-drive'],
+      ['persistentvolumeclaims', 'PersistentVolumeClaims', 'hard-drive-download'],
       ['storageclasses', 'StorageClasses', 'box'],
     ]);
     expect(access?.children?.map((leaf) => [leaf.id, leaf.label, leaf.icon])).toEqual([

@@ -1,4 +1,4 @@
-import { GENERIC_TILE, column, typeOf, type KindDefinition } from '../definition';
+import { column, typeOf, type KindDefinition } from '../definition';
 import { ageCell, namesCell, textCell } from '../display';
 
 import { serviceRow, serviceRows, serviceSearchText, type ServiceRow } from './row';
@@ -15,8 +15,7 @@ export const serviceDefinition: KindDefinition<ServiceRow> = {
   kind: 'Service',
   nouns: { one: 'Service', other: 'Services' },
   page: 'services',
-  // The mock's glyph is a path with waypoints (Lucide `Waypoints`), which the kit's registry does not have yet: the generic tile stands for it.
-  tile: GENERIC_TILE,
+  tile: { icon: 'waypoints', tone: 'blue' },
   model: { row: serviceRow, rows: serviceRows, searchText: serviceSearchText },
   columns: [
     column('name', 'Name', 'id', 160, 'left', 'text', { required: true }),

@@ -1,4 +1,4 @@
-import { GENERIC_TILE, column, typeOf, type KindDefinition } from '../definition';
+import { column, typeOf, type KindDefinition } from '../definition';
 import { ageCell, countCell, statusCell } from '../display';
 
 import { replicaSetRow, replicaSetRows, replicaSetSearchText, type ReplicaSetRow } from './row';
@@ -17,8 +17,7 @@ export const replicaSetDefinition: KindDefinition<ReplicaSetRow> = {
   kind: 'ReplicaSet',
   nouns: { one: 'ReplicaSet', other: 'ReplicaSets' },
   page: 'replicasets',
-  // The mock's glyph is two sheets of paper (Lucide `Copy`), which the kit's registry has: a Deployment wears it as its stand-in, so a ReplicaSet wears the generic tile until the Deployment has its own.
-  tile: GENERIC_TILE,
+  tile: { icon: 'copy', tone: 'blue' },
   model: { row: replicaSetRow, rows: replicaSetRows, searchText: replicaSetSearchText },
   columns: [
     column('name', 'Name', 'id', 160, 'left', 'text', { required: true }),

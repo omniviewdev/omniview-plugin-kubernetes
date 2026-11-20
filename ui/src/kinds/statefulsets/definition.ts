@@ -14,8 +14,7 @@ export const statefulSetDefinition: KindDefinition<StatefulSetRow> = {
   kind: 'StatefulSet',
   nouns: { one: 'StatefulSet', other: 'StatefulSets' },
   page: 'statefulsets',
-  // The mock's glyph is an ordered list, which the kit's registry does not have yet: a glyph of the registry stands in, one per kind.
-  tile: { icon: 'columns', tone: 'blue' },
+  tile: { icon: 'list-ordered', tone: 'blue' },
   model: { row: statefulSetRow, rows: statefulSetRows, searchText: statefulSetSearchText },
   columns: [
     column('name', 'Name', 'id', 160, 'left', 'text', { required: true }),

@@ -1,4 +1,4 @@
-import { GENERIC_TILE, column, typeOf, type KindDefinition } from '../definition';
+import { column, typeOf, type KindDefinition } from '../definition';
 import { ageCell, textCell } from '../display';
 
 import { networkPolicyRow, networkPolicyRows, networkPolicySearchText, type NetworkPolicyRow } from './row';
@@ -14,8 +14,7 @@ export const networkPolicyDefinition: KindDefinition<NetworkPolicyRow> = {
   kind: 'NetworkPolicy',
   nouns: { one: 'NetworkPolicy', other: 'NetworkPolicies' },
   page: 'networkpolicies',
-  // The mock's glyph is a brick wall (Lucide `brick-wall`), which the kit's registry does not have yet: the generic tile stands for it.
-  tile: GENERIC_TILE,
+  tile: { icon: 'brick-wall', tone: 'blue' },
   model: { row: networkPolicyRow, rows: networkPolicyRows, searchText: networkPolicySearchText },
   columns: [
     column('name', 'Name', 'id', 160, 'left', 'text', { required: true }),

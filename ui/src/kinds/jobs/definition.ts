@@ -29,9 +29,7 @@ export const jobDefinition: KindDefinition<JobRow> = {
   kind: 'Job',
   nouns: { one: 'Job', other: 'Jobs' },
   page: 'jobs',
-  // The mock's glyph is a clipboard with a check, which the kit's registry does not have yet: a glyph of the registry stands in, one per kind. Not the registry's check: a Failed Job
-  // beside a tick would say two things.
-  tile: { icon: 'arrow-right', tone: 'blue' },
+  tile: { icon: 'clipboard-check', tone: 'blue' },
   model: { row: jobRow, rows: jobRows, searchText: jobSearchText },
   columns: [
     column('name', 'Name', 'id', 160, 'left', 'text', { required: true }),
