@@ -56,6 +56,48 @@ func logKubeconfigSkipped(ctx context.Context, level logging.Level, index int, e
 	connectionLogger().Debugw(ctx, "kubeconfig context skipped", fields...)
 }
 
+// logDuplicateConnectionSkipped records a context whose ID was already claimed by an earlier kubeconfig.
+// Kubeconfigs are identified by their position in the configured list; paths are never logged.
+func logDuplicateConnectionSkipped(ctx context.Context, id string, keptIndex, skippedIndex int) {
+	connectionLogger().Warnw(ctx, "kubeconfig duplicate connection skipped",
+		"connection", id, "kept_kubeconfig_index", keptIndex, "skipped_kubeconfig_index", skippedIndex)
+}
+
+// mergeKubeconfigConnections builds the connection inventory from the configured kubeconfigs.
+// Connection IDs are context names, so two kubeconfigs can claim the same ID. The first
+// occurrence in configured kubeconfig order wins and each later duplicate is dropped and
+// logged, so one duplicate never discards the rest of the inventory. Context names are unique
+// within a file, so no ordering inside a file can decide a winner. The result is sorted by name.
+// Unreadable kubeconfigs are logged at skipLevel and ignored.
+func mergeKubeconfigConnections(ctx context.Context, kubeconfigs []string, skipLevel logging.Level) []types.Connection {
+	connections := make([]types.Connection, 0, len(kubeconfigs)*EstimatedContexts)
+	owner := make(map[string]int, len(kubeconfigs)*EstimatedContexts)
+	for i, kubeconfigPath := range kubeconfigs {
+		kubeconfigConnections, err := connectionsFromKubeconfig(kubeconfigPath)
+		if err != nil {
+			logKubeconfigSkipped(ctx, skipLevel, i, err)
+			continue
+		}
+		// contexts of one file are loaded from a map; sort so the report order is stable across runs.
+		sort.Slice(kubeconfigConnections, func(a, b int) bool {
+			return kubeconfigConnections[a].ID < kubeconfigConnections[b].ID
+		})
+		for _, connection := range kubeconfigConnections {
+			if keptIndex, exists := owner[connection.ID]; exists {
+				logDuplicateConnectionSkipped(ctx, connection.ID, keptIndex, i)
+				continue
+			}
+			owner[connection.ID] = i
+			connections = append(connections, connection)
+		}
+	}
+
+	sort.Slice(connections, func(i, j int) bool {
+		return connections[i].Name < connections[j].Name
+	})
+	return connections
+}
+
 // CreateClient creates a new ClientSet from the connection in context.
 func (p *kubeConnectionProvider) CreateClient(ctx context.Context) (*clients.ClientSet, error) {
 	session, ok := resource.SessionFromContext(ctx)
@@ -104,21 +146,7 @@ func (p *kubeConnectionProvider) LoadConnections(ctx context.Context) ([]types.C
 		return nil, fmt.Errorf("failed to get kubeconfigs from settings: %w", err)
 	}
 
-	connections := make([]types.Connection, 0, len(kubeconfigs)*EstimatedContexts)
-	for i, kubeconfigPath := range kubeconfigs {
-		kubeconfigConnections, err := connectionsFromKubeconfig(kubeconfigPath)
-		if err != nil {
-			logKubeconfigSkipped(ctx, logging.LevelWarn, i, err)
-			continue
-		}
-		connections = append(connections, kubeconfigConnections...)
-	}
-
-	sort.Slice(connections, func(i, j int) bool {
-		return connections[i].Name < connections[j].Name
-	})
-
-	return connections, nil
+	return mergeKubeconfigConnections(ctx, kubeconfigs, logging.LevelWarn), nil
 }
 
 // CheckConnection validates connectivity to the cluster.
@@ -505,19 +533,6 @@ func extractStringSlice(data map[string]any, key string) []string {
 
 // loadConnectionsFromPaths loads connections from a set of kubeconfig paths (no session needed).
 func (p *kubeConnectionProvider) loadConnectionsFromPaths(kubeconfigs []string) ([]types.Connection, error) {
-	connections := make([]types.Connection, 0, len(kubeconfigs)*EstimatedContexts)
-	for i, kubeconfigPath := range kubeconfigs {
-		kubeconfigConnections, err := connectionsFromKubeconfig(kubeconfigPath)
-		if err != nil {
-			// refreshes run on every file event; a missing file would warn repeatedly.
-			logKubeconfigSkipped(context.Background(), logging.LevelDebug, i, err)
-			continue
-		}
-		connections = append(connections, kubeconfigConnections...)
-	}
-
-	sort.Slice(connections, func(i, j int) bool {
-		return connections[i].Name < connections[j].Name
-	})
-	return connections, nil
+	// refreshes run on every file event; a missing file would warn repeatedly.
+	return mergeKubeconfigConnections(context.Background(), kubeconfigs, logging.LevelDebug), nil
 }
