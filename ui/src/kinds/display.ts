@@ -23,6 +23,9 @@ export function namesCell(names: readonly string[] | undefined, max: number, rea
   return { kind: 'text', text, ...(code ? { mono: true as const } : {}), ...(tip === undefined ? {} : { tip }) };
 }
 
+/** A yes or no as the mock says it (`Cell.text(value === true ? 'Yes' : 'No')`): plain words, never a glyph (K61.1). Undefined is a dash that says why. */
+export const flagCell = (value: boolean | undefined, reason: string): Cell => (value === undefined ? none(reason) : { kind: 'text', text: value ? 'Yes' : 'No' });
+
 /** A count as the mock draws a number (`Cell.mono(integerText(value))`): grouped, in the code face. */
 export const countCell = (value: number | undefined, reason: string): Cell => (value === undefined ? none(reason) : mono(value.toLocaleString('en-US')));
 

@@ -1,0 +1,16 @@
+{
+  "source": "kube-apiserver v1.35.0, GET /api/v1/limitranges?includeObject=Object with Accept application/json;as=Table;g=meta.k8s.io;v=v1: the object and the printer cells of one response. managedFields removed. Made by hack/kinds-capture/capture.mjs.",
+  "captures": [
+    {
+      "label": "one read of a cluster that holds the slice fixture, extra-states.yaml, more-kinds.yaml and k2b2-kinds.yaml",
+      "serverDate": "Fri, 20 Nov 2026 16:25:57 GMT",
+      "columns": ["Name","Created At"],
+      "priorities": [0,0],
+      "rows": [
+        {"cells":["defaults","2026-11-20T16:13:28Z"],"object":{"kind":"LimitRange","apiVersion":"v1","metadata":{"name":"defaults","namespace":"quotas","uid":"39bcb0ec-e767-4c06-b1b8-5adc5f68b2a9","resourceVersion":"1721","creationTimestamp":"2026-11-20T16:13:28Z"},"spec":{"limits":[{"type":"Container","max":{"cpu":"1","memory":"512Mi"},"min":{"cpu":"10m","memory":"4Mi"},"default":{"cpu":"200m","memory":"128Mi"},"defaultRequest":{"cpu":"100m","memory":"64Mi"}}]}}},
+        {"cells":["pod-and-claim","2026-11-20T16:13:28Z"],"object":{"kind":"LimitRange","apiVersion":"v1","metadata":{"name":"pod-and-claim","namespace":"quotas","uid":"0cc4f7aa-5d68-42b1-85b6-b1a5f859afca","resourceVersion":"1726","creationTimestamp":"2026-11-20T16:13:28Z"},"spec":{"limits":[{"type":"Pod","max":{"cpu":"2","memory":"1Gi"}},{"type":"PersistentVolumeClaim","max":{"storage":"10Gi"},"min":{"storage":"1Gi"}}]}}},
+        {"cells":["all-three","2026-11-20T16:13:45Z"],"object":{"kind":"LimitRange","apiVersion":"v1","metadata":{"name":"all-three","namespace":"ranges","uid":"c33a8617-8fba-437d-950a-69b8ef3699fb","resourceVersion":"2115","creationTimestamp":"2026-11-20T16:13:45Z"},"spec":{"limits":[{"type":"Container","max":{"cpu":"4"},"default":{"cpu":"4"},"defaultRequest":{"cpu":"4"}},{"type":"Pod","max":{"memory":"2Gi"}},{"type":"PersistentVolumeClaim","max":{"storage":"20Gi"}}]}}}
+      ]
+    }
+  ]
+}

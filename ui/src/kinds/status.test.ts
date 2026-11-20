@@ -42,6 +42,14 @@ describe('stateRole: the platform words and their one role each (mock K61.3, ch1
     ['Ready', 'healthy'],
     ['Active', 'healthy'],
     ['Scheduling disabled', 'stopped'],
+    // The words of the storage and autoscaling kinds (K61.3): a volume and a claim that are bound, a volume that was released, a claim that lost its volume, an autoscaler that reads its metrics,
+    // one that is held at a limit, and one that cannot scale.
+    ['Bound', 'healthy'],
+    ['Released', 'attention'],
+    ['Lost', 'error'],
+    ['Scaling active', 'healthy'],
+    ['Limited', 'attention'],
+    ['Unable to scale', 'error'],
   ];
 
   for (const [word, role] of roles) {

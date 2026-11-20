@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { GENERIC_TILE, typeOf } from './definition';
 import type { Capture } from './testing';
 
-import { CLUSTER, CONFIG, KINDS, NETWORK, SIDEBAR_GROUPS, WORKLOADS, kindPages, sidebarNodes } from './index';
+import { ACCESS, CLUSTER, CONFIG, KINDS, NETWORK, SIDEBAR_GROUPS, STORAGE, WORKLOADS, kindPages, sidebarNodes } from './index';
 
 // The registry of the kinds the plugin lists: the order the mock's sidebar names them (K61.2), and the facts every definition must hold for the one generic list page and the one data
 // hook to serve it. A kind is added by a definition and a line in the registry; these cases are what a definition is held to.
@@ -15,8 +15,12 @@ import { CLUSTER, CONFIG, KINDS, NETWORK, SIDEBAR_GROUPS, WORKLOADS, kindPages, 
 const CHIP_TONES = ['success', 'warning', 'error', 'info', 'muted'];
 const SORT_KINDS = ['text', 'number', 'ratio', 'time'];
 
-/** The mock's `kindLabel(kind, { plural: true })` (shell-kubernetes.js, ch17 K60.4): `y` after a consonant is `ies`, `s`, `x`, `z`, `ch` and `sh` take `es`, the rest take `s`. */
-const pluralOf = (kind: string): string => (/[^aeiou]y$/.test(kind) ? `${kind.slice(0, -1)}ies` : /(s|x|z|ch|sh)$/.test(kind) ? `${kind}es` : `${kind}s`);
+/** The mock's `kindLabel(kind, { plural: true })` (shell-kubernetes.js, ch17 K60.4): `Endpoints` is its own plural, `y` after a consonant is `ies`, `s`, `x`, `z`, `ch` and `sh` take `es`, the rest take `s`. */
+const pluralOf = (kind: string): string =>
+  kind === 'Endpoints' ? kind : /[^aeiou]y$/.test(kind) ? `${kind.slice(0, -1)}ies` : /(s|x|z|ch|sh)$/.test(kind) ? `${kind}es` : `${kind}s`;
+
+/** The kinds that live in no namespace: the top level of the mock's sidebar, and the cluster-scoped ones of the groups. They have no namespace to put under the name. */
+const CLUSTER_SCOPED = new Set(['Node', 'Namespace', 'PersistentVolume', 'StorageClass', 'IngressClass', 'ClusterRole', 'ClusterRoleBinding']);
 
 const nounsOf = (kinds: readonly { readonly nouns: { readonly other: string } }[]) => kinds.map((kind) => kind.nouns.other);
 
@@ -31,19 +35,34 @@ describe('the sidebar of the mock (K61.2): the kinds this plugin lists so far, i
     expect(WORKLOADS.map((kind) => kind.page)).toEqual(['pods', 'deployments', 'statefulsets', 'daemonsets', 'replicasets', 'jobs', 'cronjobs']);
   });
 
-  it('lists ConfigMaps and Secrets in Config, and Services and Ingresses in Network (the rest of each group is not built yet)', () => {
-    expect(nounsOf(CONFIG)).toEqual(['ConfigMaps', 'Secrets']);
-    expect(nounsOf(NETWORK)).toEqual(['Services', 'Ingresses']);
+  it('lists ConfigMaps, Secrets, ResourceQuotas, LimitRanges, HorizontalPodAutoscalers and PodDisruptionBudgets in Config (PriorityClasses, RuntimeClasses, Leases, FlowSchemas, PriorityLevelConfigurations and ComponentStatuses are not built yet)', () => {
+    expect(nounsOf(CONFIG)).toEqual(['ConfigMaps', 'Secrets', 'ResourceQuotas', 'LimitRanges', 'HorizontalPodAutoscalers', 'PodDisruptionBudgets']);
+    expect(CONFIG.map((kind) => kind.page)).toEqual(['configmaps', 'secrets', 'resourcequotas', 'limitranges', 'horizontalpodautoscalers', 'poddisruptionbudgets']);
   });
 
-  it('is the top-level entries, then the groups Workloads, Config and Network: an entry for each kind, with the kind\'s glyph and no count (no cheap count exists in the data layer)', () => {
+  it('lists Services, Endpoints, EndpointSlices, Ingresses, IngressClasses and NetworkPolicies in Network, in the mock\'s order', () => {
+    expect(nounsOf(NETWORK)).toEqual(['Services', 'Endpoints', 'EndpointSlices', 'Ingresses', 'IngressClasses', 'NetworkPolicies']);
+    expect(NETWORK.map((kind) => kind.page)).toEqual(['services', 'endpoints', 'endpointslices', 'ingresses', 'ingressclasses', 'networkpolicies']);
+  });
+
+  it('lists PersistentVolumes, PersistentVolumeClaims and StorageClasses in Storage (VolumeAttachments, CSIDrivers, CSINodes and CSIStorageCapacities are not built yet)', () => {
+    expect(nounsOf(STORAGE)).toEqual(['PersistentVolumes', 'PersistentVolumeClaims', 'StorageClasses']);
+    expect(STORAGE.map((kind) => kind.page)).toEqual(['persistentvolumes', 'persistentvolumeclaims', 'storageclasses']);
+  });
+
+  it('lists ServiceAccounts, Roles, ClusterRoles, RoleBindings and ClusterRoleBindings in Access control (CertificateSigningRequests are not built yet)', () => {
+    expect(nounsOf(ACCESS)).toEqual(['ServiceAccounts', 'Roles', 'ClusterRoles', 'RoleBindings', 'ClusterRoleBindings']);
+    expect(ACCESS.map((kind) => kind.page)).toEqual(['serviceaccounts', 'roles', 'clusterroles', 'rolebindings', 'clusterrolebindings']);
+  });
+
+  it('is the top-level entries, then the groups Workloads, Config, Network, Storage and Access control: an entry for each kind, with the kind\'s glyph and no count (no cheap count exists in the data layer)', () => {
     const entry = (kind: (typeof KINDS)[number]) => ({ id: kind.page, label: kind.nouns.other, icon: kind.tile.icon });
     expect(sidebarNodes()).toEqual([
       ...CLUSTER.map(entry),
       ...SIDEBAR_GROUPS.map((group) => ({ id: group.id, label: group.label, icon: group.icon, children: group.kinds.map(entry) })),
     ]);
-    expect(SIDEBAR_GROUPS.map((group) => [group.id, group.label])).toEqual([['workloads', 'Workloads'], ['config', 'Config'], ['network', 'Network']]);
-    expect(SIDEBAR_GROUPS.map((group) => group.kinds)).toEqual([WORKLOADS, CONFIG, NETWORK]);
+    expect(SIDEBAR_GROUPS.map((group) => [group.id, group.label])).toEqual([['workloads', 'Workloads'], ['config', 'Config'], ['network', 'Network'], ['storage', 'Storage'], ['access', 'Access control']]);
+    expect(SIDEBAR_GROUPS.map((group) => group.kinds)).toEqual([WORKLOADS, CONFIG, NETWORK, STORAGE, ACCESS]);
   });
 
   it('has a page for each kind, by the id of its sidebar entry: a list page', () => {
@@ -56,7 +75,7 @@ describe('the sidebar of the mock (K61.2): the kinds this plugin lists so far, i
 });
 
 describe.each(KINDS.map((kind) => [kind.kind, kind] as const))('the %s definition', (_name, kind) => {
-  const clustered = CLUSTER.some((candidate) => candidate === kind);
+  const clustered = CLUSTER_SCOPED.has(kind.kind);
 
   it('names the type the plugin\'s catalog gives it: k8s:<group>/<resource>', () => {
     expect(kind.type).toBe(typeOf(kind.identity));
@@ -130,8 +149,14 @@ describe.each(KINDS.map((kind) => [kind.kind, kind] as const))('the %s definitio
 });
 
 describe('the quick filters: only where the mock has them', () => {
-  it('is the kinds with a state field that have a strip: the five with none are the ones whose mock definition has no `quick`', () => {
-    expect(KINDS.filter((kind) => kind.list.quickFilters.length === 0).map((kind) => kind.kind).sort()).toEqual(['ConfigMap', 'Ingress', 'ReplicaSet', 'Secret', 'Service']);
+  it('is the kinds with a state field that have a strip: the ones with none are the ones whose mock definition has no `quick` (the autoscalers have a state word and no strip)', () => {
+    expect(KINDS.filter((kind) => kind.list.quickFilters.length === 0).map((kind) => kind.kind).sort()).toEqual([
+      'ClusterRole', 'ClusterRoleBinding', 'ConfigMap', 'EndpointSlice', 'Endpoints', 'HorizontalPodAutoscaler', 'Ingress', 'IngressClass', 'LimitRange', 'NetworkPolicy', 'PodDisruptionBudget',
+      'ReplicaSet', 'ResourceQuota', 'Role', 'RoleBinding', 'Secret', 'Service', 'ServiceAccount', 'StorageClass',
+    ]);
+    expect(KINDS.filter((kind) => kind.list.quickFilters.length > 0).map((kind) => kind.kind)).toEqual([
+      'Node', 'Namespace', 'Pod', 'Deployment', 'StatefulSet', 'DaemonSet', 'Job', 'CronJob', 'PersistentVolume', 'PersistentVolumeClaim',
+    ]);
   });
 });
 
@@ -146,7 +171,8 @@ describe('the registry as a whole', () => {
     const own = KINDS.filter((kind) => kind.tile !== GENERIC_TILE);
     expect(new Set(own.map((kind) => kind.tile.icon)).size).toBe(own.length);
     expect(KINDS.filter((kind) => kind.tile === GENERIC_TILE).map((kind) => kind.kind)).toEqual([
-      'Node', 'Namespace', 'ReplicaSet', 'CronJob', 'ConfigMap', 'Secret', 'Service', 'Ingress',
+      'Node', 'Namespace', 'ReplicaSet', 'CronJob', 'ConfigMap', 'Secret', 'ResourceQuota', 'LimitRange', 'HorizontalPodAutoscaler', 'PodDisruptionBudget', 'Service', 'Endpoints', 'EndpointSlice',
+      'Ingress', 'IngressClass', 'NetworkPolicy', 'PersistentVolume', 'PersistentVolumeClaim', 'StorageClass', 'ServiceAccount', 'Role', 'ClusterRole', 'RoleBinding', 'ClusterRoleBinding',
     ]);
     expect(isIconName(GENERIC_TILE.icon)).toBe(true);
     expect(GENERIC_TILE.tone).toBe('blue');

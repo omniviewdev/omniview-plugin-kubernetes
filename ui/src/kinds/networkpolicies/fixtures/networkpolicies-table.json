@@ -1,0 +1,17 @@
+{
+  "source": "kube-apiserver v1.35.0, GET /apis/networking.k8s.io/v1/networkpolicies?includeObject=Object with Accept application/json;as=Table;g=meta.k8s.io;v=v1: the object and the printer cells of one response. managedFields removed. Made by hack/kinds-capture/capture.mjs.",
+  "captures": [
+    {
+      "label": "one read of a cluster that holds the slice fixture, extra-states.yaml, more-kinds.yaml and k2b2-kinds.yaml",
+      "serverDate": "Fri, 20 Nov 2026 16:22:15 GMT",
+      "columns": ["Name","Pod-Selector","Age"],
+      "priorities": [0,0,0],
+      "rows": [
+        {"cells":["allow-web","app=web,tier=frontend","8m47s"],"object":{"kind":"NetworkPolicy","apiVersion":"networking.k8s.io/v1","metadata":{"name":"allow-web","namespace":"network","uid":"dc0d32c3-b543-4c04-8447-1d9ec39d7462","resourceVersion":"1680","generation":1,"creationTimestamp":"2026-11-20T16:13:28Z"},"spec":{"podSelector":{"matchLabels":{"app":"web","tier":"frontend"}},"ingress":[{"ports":[{"protocol":"TCP","port":8080}],"from":[{"podSelector":{"matchLabels":{"role":"client"}}}]}],"policyTypes":["Ingress"]}}},
+        {"cells":["deny-all","<none>","8m47s"],"object":{"kind":"NetworkPolicy","apiVersion":"networking.k8s.io/v1","metadata":{"name":"deny-all","namespace":"network","uid":"bd109806-c42e-4624-ab76-c15ff4423639","resourceVersion":"1678","generation":1,"creationTimestamp":"2026-11-20T16:13:28Z"},"spec":{"podSelector":{},"policyTypes":["Ingress"]}}},
+        {"cells":["egress-db","role=db,!zone","8m47s"],"object":{"kind":"NetworkPolicy","apiVersion":"networking.k8s.io/v1","metadata":{"name":"egress-db","namespace":"network","uid":"ade7ffcc-dd66-434c-8936-3fa7fd36ad4a","resourceVersion":"1682","generation":1,"creationTimestamp":"2026-11-20T16:13:28Z"},"spec":{"podSelector":{"matchLabels":{"role":"db"},"matchExpressions":[{"key":"zone","operator":"DoesNotExist"}]},"egress":[{"to":[{"ipBlock":{"cidr":"10.0.0.0/8"}}]}],"policyTypes":["Egress"]}}},
+        {"cells":["expressions","app in (api,web),env notin (dev),tier","8m47s"],"object":{"kind":"NetworkPolicy","apiVersion":"networking.k8s.io/v1","metadata":{"name":"expressions","namespace":"network","uid":"15e1338f-18d3-4bb2-8f52-5a6f6774269a","resourceVersion":"1681","generation":1,"creationTimestamp":"2026-11-20T16:13:28Z"},"spec":{"podSelector":{"matchExpressions":[{"key":"app","operator":"In","values":["web","api"]},{"key":"env","operator":"NotIn","values":["dev"]},{"key":"tier","operator":"Exists"}]},"policyTypes":["Ingress","Egress"]}}}
+      ]
+    }
+  ]
+}

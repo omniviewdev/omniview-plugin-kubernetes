@@ -1,0 +1,16 @@
+{
+  "source": "kube-apiserver v1.35.0, GET /apis/policy/v1/poddisruptionbudgets?includeObject=Object with Accept application/json;as=Table;g=meta.k8s.io;v=v1: the object and the printer cells of one response. managedFields removed. Made by hack/kinds-capture/capture.mjs.",
+  "captures": [
+    {
+      "label": "one read of a cluster that holds the slice fixture, extra-states.yaml, more-kinds.yaml and k2b2-kinds.yaml",
+      "serverDate": "Fri, 20 Nov 2026 16:22:15 GMT",
+      "columns": ["Name","Min Available","Max Unavailable","Allowed Disruptions","Age"],
+      "priorities": [0,0,0,0,0],
+      "rows": [
+        {"cells":["floor","N/A","50%",1,"8m47s"],"object":{"kind":"PodDisruptionBudget","apiVersion":"policy/v1","metadata":{"name":"floor","namespace":"autoscale","uid":"c125d0ad-9a09-4404-81eb-a54f5ef14464","resourceVersion":"2106","generation":1,"creationTimestamp":"2026-11-20T16:13:28Z"},"spec":{"selector":{"matchLabels":{"app":"floor"}},"maxUnavailable":"50%"},"status":{"observedGeneration":1,"disruptionsAllowed":1,"currentHealthy":2,"desiredHealthy":1,"expectedPods":2,"conditions":[{"type":"DisruptionAllowed","status":"True","observedGeneration":1,"lastTransitionTime":"2026-11-20T16:13:44Z","reason":"SufficientPods","message":""}]}}},
+        {"cells":["strict","5","N/A",0,"8m47s"],"object":{"kind":"PodDisruptionBudget","apiVersion":"policy/v1","metadata":{"name":"strict","namespace":"autoscale","uid":"4bd841af-6694-478f-b4ec-f69cd41fca49","resourceVersion":"1995","generation":1,"creationTimestamp":"2026-11-20T16:13:28Z"},"spec":{"minAvailable":5,"selector":{"matchLabels":{"app":"multi"}}},"status":{"observedGeneration":1,"disruptionsAllowed":0,"currentHealthy":1,"desiredHealthy":5,"expectedPods":1,"conditions":[{"type":"DisruptionAllowed","status":"False","observedGeneration":1,"lastTransitionTime":"2026-11-20T16:13:28Z","reason":"InsufficientPods","message":""}]}}},
+        {"cells":["web","1","N/A",0,"8m47s"],"object":{"kind":"PodDisruptionBudget","apiVersion":"policy/v1","metadata":{"name":"web","namespace":"autoscale","uid":"5511416e-11f1-4192-bcb5-c3a2d9b86fcb","resourceVersion":"1942","generation":1,"creationTimestamp":"2026-11-20T16:13:28Z"},"spec":{"minAvailable":1,"selector":{"matchLabels":{"app":"web"}}},"status":{"observedGeneration":1,"disruptionsAllowed":0,"currentHealthy":1,"desiredHealthy":1,"expectedPods":1,"conditions":[{"type":"DisruptionAllowed","status":"False","observedGeneration":1,"lastTransitionTime":"2026-11-20T16:13:28Z","reason":"InsufficientPods","message":""}]}}}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,802 @@
+# The objects the golden fixtures of the K2b-2 lists need beyond the slice fixture of the host (docs/ui-next/slices/1a-pods-list/fixture.yaml), extra-states.yaml and more-kinds.yaml of this
+# directory: PersistentVolumes, PersistentVolumeClaims and StorageClasses; NetworkPolicies, Endpoints, EndpointSlices and IngressClasses; ResourceQuotas, LimitRanges, HorizontalPodAutoscalers and
+# PodDisruptionBudgets; ServiceAccounts, Roles, ClusterRoles, RoleBindings and ClusterRoleBindings. `k2b2-kinds.sh` applies it and does what a manifest cannot say (waits for the claims to bind and
+# then releases, fails and loses volumes, holds a claim in Terminating, installs metrics-server and waits for the autoscalers to settle).
+#
+# The cluster's own objects are part of the lists too: the StorageClass `standard` (kind's, the default), about sixty ClusterRoles and fifteen ClusterRoleBindings, the RoleBindings and Roles of
+# kube-system, the Endpoints and EndpointSlices of the `kubernetes` and `kube-dns` Services, and the ServiceAccounts of every Namespace.
+# Images: busybox:1.37.0 from Docker Hub.
+# ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# Storage
+# ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+apiVersion: v1
+kind: Namespace
+metadata: {name: storage}
+---
+# Retain, bound as soon as a claim asks for it, a provisioner that does not exist (so a claim of this class stays Pending), expansion allowed, mount options and parameters.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata: {name: fast}
+provisioner: example.com/fast
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+allowVolumeExpansion: true
+mountOptions: [debug, noatime]
+parameters: {type: ssd}
+---
+# The class of volumes made by hand: no provisioner, bound when a Pod wants the claim.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata: {name: manual}
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+---
+# Everything left to the API's defaults: Delete, Immediate, no expansion.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata: {name: bare}
+provisioner: example.com/bare
+---
+# ---- PersistentVolumes, made by hand (hostPath): the phases a volume goes through, and the sizes the list says in the mock's units ----
+# Available: nobody claims it.
+apiVersion: v1
+kind: PersistentVolume
+metadata: {name: pv-available}
+spec:
+  capacity: {storage: 1Gi}
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: manual
+  hostPath: {path: /mnt/k2b2/available, type: DirectoryOrCreate}
+---
+# Bound: its claim is claim-bound. Two access modes.
+apiVersion: v1
+kind: PersistentVolume
+metadata: {name: pv-bound}
+spec:
+  capacity: {storage: 2Gi}
+  accessModes: [ReadWriteOnce, ReadOnlyMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: manual
+  hostPath: {path: /mnt/k2b2/bound, type: DirectoryOrCreate}
+---
+# Released: k2b2-kinds.sh deletes its claim, and Retain keeps the volume and its claim reference.
+apiVersion: v1
+kind: PersistentVolume
+metadata: {name: pv-released}
+spec:
+  capacity: {storage: 500Mi}
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: manual
+  hostPath: {path: /mnt/k2b2/released, type: DirectoryOrCreate}
+---
+# Failed: k2b2-kinds.sh deletes its claim, Delete asks the hostPath deleter to remove it, and that deleter only removes what is under /tmp.
+apiVersion: v1
+kind: PersistentVolume
+metadata: {name: pv-failed}
+spec:
+  capacity: {storage: 100Mi}
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Delete
+  storageClassName: manual
+  hostPath: {path: /mnt/k2b2/failed, type: DirectoryOrCreate}
+---
+# Lost (the claim's phase): k2b2-kinds.sh removes this volume under its claim.
+apiVersion: v1
+kind: PersistentVolume
+metadata: {name: pv-lost}
+spec:
+  capacity: {storage: 50Mi}
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: manual
+  hostPath: {path: /mnt/k2b2/lost, type: DirectoryOrCreate}
+---
+# Terminating: it is bound to claim-terminating, and k2b2-kinds.sh deletes it; the protection finalizer keeps a volume that a claim is bound to until the claim goes.
+apiVersion: v1
+kind: PersistentVolume
+metadata: {name: pv-terminating}
+spec:
+  capacity: {storage: 10Mi}
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: manual
+  hostPath: {path: /mnt/k2b2/terminating, type: DirectoryOrCreate}
+---
+# No class at all (the field is absent), claimed by a claim that asks for none.
+apiVersion: v1
+kind: PersistentVolume
+metadata: {name: pv-no-class}
+spec:
+  capacity: {storage: 3Gi}
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  hostPath: {path: /mnt/k2b2/no-class, type: DirectoryOrCreate}
+---
+# A size that is not a whole number of GiB, and one in TiB: 1.5 GiB and 2 TiB.
+apiVersion: v1
+kind: PersistentVolume
+metadata: {name: pv-fractional}
+spec:
+  capacity: {storage: 1536Mi}
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: manual
+  hostPath: {path: /mnt/k2b2/fractional, type: DirectoryOrCreate}
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata: {name: pv-huge}
+spec:
+  capacity: {storage: 2Ti}
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: manual
+  hostPath: {path: /mnt/k2b2/huge, type: DirectoryOrCreate}
+---
+# ---- PersistentVolumeClaims ----
+# Bound to pv-bound.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: claim-bound, namespace: storage}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: manual
+  volumeName: pv-bound
+  resources: {requests: {storage: 2Gi}}
+---
+# Bound to pv-released, then deleted by k2b2-kinds.sh.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: claim-released, namespace: storage}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: manual
+  volumeName: pv-released
+  resources: {requests: {storage: 500Mi}}
+---
+# Bound to pv-failed, then deleted by k2b2-kinds.sh.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: claim-failed, namespace: storage}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: manual
+  volumeName: pv-failed
+  resources: {requests: {storage: 100Mi}}
+---
+# Bound to pv-lost, whose volume k2b2-kinds.sh then removes: the claim is Lost.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: claim-lost, namespace: storage}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: manual
+  volumeName: pv-lost
+  resources: {requests: {storage: 50Mi}}
+---
+# Bound to pv-terminating, which k2b2-kinds.sh then deletes.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: claim-terminating, namespace: storage}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: manual
+  volumeName: pv-terminating
+  resources: {requests: {storage: 10Mi}}
+---
+# Pending: its class has a provisioner that does not exist.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: claim-pending, namespace: storage}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: fast
+  resources: {requests: {storage: 1Gi}}
+---
+# Asks for no class (the empty string is a choice, not an omission), and is bound to the volume that has none.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: claim-no-class, namespace: storage}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: ""
+  volumeName: pv-no-class
+  resources: {requests: {storage: 3Gi}}
+---
+# The default class, `standard`: bound when the Pod below is scheduled, to a volume that the provisioner makes.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: data, namespace: storage}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: {requests: {storage: 1Gi}}
+---
+apiVersion: v1
+kind: Pod
+metadata: {name: uses-data, namespace: storage}
+spec:
+  containers:
+    - {name: app, image: busybox:1.37.0, command: [sh, -c, "sleep 100000"], volumeMounts: [{name: data, mountPath: /data}]}
+  volumes:
+    - {name: data, persistentVolumeClaim: {claimName: data}}
+---
+# Held by a Pod, then deleted by k2b2-kinds.sh: the claim and its volume stay Terminating for as long as the Pod uses it.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: held, namespace: storage}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: {requests: {storage: 1Gi}}
+---
+apiVersion: v1
+kind: Pod
+metadata: {name: uses-held, namespace: storage}
+spec:
+  containers:
+    - {name: app, image: busybox:1.37.0, command: [sh, -c, "sleep 100000"], volumeMounts: [{name: held, mountPath: /data}]}
+  volumes:
+    - {name: held, persistentVolumeClaim: {claimName: held}}
+---
+# ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# Network
+# ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+apiVersion: v1
+kind: Namespace
+metadata: {name: network}
+---
+# An empty selector: every Pod of the Namespace.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: deny-all, namespace: network}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+---
+# Two labels.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-web, namespace: network}
+spec:
+  podSelector: {matchLabels: {app: web, tier: frontend}}
+  policyTypes: [Ingress]
+  ingress:
+    - from: [{podSelector: {matchLabels: {role: client}}}]
+      ports: [{protocol: TCP, port: 8080}]
+---
+# Expressions and no labels: a selector that matchLabels alone does not say.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: expressions, namespace: network}
+spec:
+  podSelector:
+    matchExpressions:
+      - {key: app, operator: In, values: [web, api]}
+      - {key: env, operator: NotIn, values: [dev]}
+      - {key: tier, operator: Exists}
+  policyTypes: [Ingress, Egress]
+---
+# Labels and an expression together; egress only.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: egress-db, namespace: network}
+spec:
+  podSelector:
+    matchLabels: {role: db}
+    matchExpressions: [{key: zone, operator: DoesNotExist}]
+  policyTypes: [Egress]
+  egress:
+    - to: [{ipBlock: {cidr: 10.0.0.0/8}}]
+---
+# Four Pods behind one Service, so that the Endpoints say three addresses and more (kubectl cuts at three, the list at two), and a Service with two ports over the same four Pods.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: web, namespace: network}
+spec:
+  replicas: 4
+  selector: {matchLabels: {app: web}}
+  template:
+    metadata: {labels: {app: web}}
+    spec:
+      containers:
+        - {name: app, image: busybox:1.37.0, command: [sh, -c, "sleep 100000"]}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: web, namespace: network}
+spec:
+  selector: {app: web}
+  ports: [{name: http, port: 80, targetPort: 8080}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: web-two-ports, namespace: network}
+spec:
+  selector: {app: web}
+  ports:
+    - {name: http, port: 80, targetPort: 8080}
+    - {name: https, port: 443, targetPort: 8443}
+---
+# A headless Service with no ports: addresses and no port.
+apiVersion: v1
+kind: Service
+metadata: {name: web-headless, namespace: network}
+spec:
+  clusterIP: None
+  selector: {app: web}
+---
+# A Pod that never becomes ready: its address is in the Endpoints as not ready, and no ready address is.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: flaky, namespace: network}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: flaky}}
+  template:
+    metadata: {labels: {app: flaky}}
+    spec:
+      containers:
+        - name: app
+          image: busybox:1.37.0
+          command: [sh, -c, "sleep 100000"]
+          readinessProbe: {exec: {command: [sh, -c, "exit 1"]}, periodSeconds: 5}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: flaky, namespace: network}
+spec:
+  selector: {app: flaky}
+  ports: [{port: 80, targetPort: 8080}]
+---
+# A Service with no selector, and the Endpoints someone wrote for it: three addresses and two ports. The endpointslice mirroring controller makes an EndpointSlice of them.
+apiVersion: v1
+kind: Service
+metadata: {name: no-selector, namespace: network}
+spec:
+  ports:
+    - {name: http, port: 80}
+    - {name: https, port: 443}
+---
+apiVersion: v1
+kind: Endpoints
+metadata: {name: no-selector, namespace: network}
+subsets:
+  - addresses: [{ip: 192.0.2.10}, {ip: 192.0.2.11}, {ip: 192.0.2.12}]
+    ports:
+      - {name: http, port: 80, protocol: TCP}
+      - {name: https, port: 443, protocol: TCP}
+---
+# An EndpointSlice of host names, with no port: the address type says FQDN.
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: fqdn-slice
+  namespace: network
+  labels: {kubernetes.io/service-name: no-selector}
+addressType: FQDN
+endpoints:
+  - addresses: [backend.example.test]
+  - addresses: [backup.example.test]
+---
+# IngressClasses (they live in no namespace): the default one, one with parameters, one with a controller only.
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: nginx
+  annotations: {ingressclass.kubernetes.io/is-default-class: "true"}
+spec:
+  controller: k8s.io/ingress-nginx
+---
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata: {name: external-lb}
+spec:
+  controller: example.com/ingress-controller
+  parameters: {apiGroup: k8s.example.com, kind: IngressParameters, name: external-lb, scope: Cluster}
+---
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata: {name: plain}
+spec:
+  controller: example.com/plain
+---
+# ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# Config: quotas and ranges
+# ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+apiVersion: v1
+kind: Namespace
+metadata: {name: quotas}
+---
+# Defaults for the containers of the Namespace, so that a Pod that states no request is still admitted under the quota below; and the other two kinds of limit item.
+apiVersion: v1
+kind: LimitRange
+metadata: {name: defaults, namespace: quotas}
+spec:
+  limits:
+    - type: Container
+      default: {cpu: 200m, memory: 128Mi}
+      defaultRequest: {cpu: 100m, memory: 64Mi}
+      max: {cpu: "1", memory: 512Mi}
+      min: {cpu: 10m, memory: 4Mi}
+---
+# Two items of two types.
+apiVersion: v1
+kind: LimitRange
+metadata: {name: pod-and-claim, namespace: quotas}
+spec:
+  limits:
+    - type: Pod
+      max: {cpu: "2", memory: 1Gi}
+    - type: PersistentVolumeClaim
+      min: {storage: 1Gi}
+      max: {storage: 10Gi}
+---
+# One item of each of the three types a LimitRange can state: the types are listed once each, in the order of the items. In a Namespace of its own: a Container item with a maximum is also the default
+# limit of the containers that state none, and two of them in one Namespace would not agree.
+apiVersion: v1
+kind: Namespace
+metadata: {name: ranges}
+---
+apiVersion: v1
+kind: LimitRange
+metadata: {name: all-three, namespace: ranges}
+spec:
+  limits:
+    - type: Container
+      max: {cpu: "4"}
+    - type: Pod
+      max: {memory: 2Gi}
+    - type: PersistentVolumeClaim
+      max: {storage: 20Gi}
+---
+# Requests, limits and a count: used and hard in cores, bytes and plain numbers.
+apiVersion: v1
+kind: ResourceQuota
+metadata: {name: compute, namespace: quotas}
+spec:
+  hard:
+    requests.cpu: "1"
+    requests.memory: 1Gi
+    limits.cpu: "2"
+    limits.memory: 2Gi
+    pods: "10"
+---
+# Counts only: nothing in it is a request or a limit.
+apiVersion: v1
+kind: ResourceQuota
+metadata: {name: objects, namespace: quotas}
+spec:
+  hard:
+    count/configmaps: "20"
+    services: "5"
+    persistentvolumeclaims: "4"
+---
+# Storage, and a limit that is not a whole number of cores: 3.5 cores, of which the Pods below use 0.8.
+apiVersion: v1
+kind: ResourceQuota
+metadata: {name: storage-and-cpu, namespace: quotas}
+spec:
+  hard:
+    requests.storage: 10Gi
+    limits.cpu: 3500m
+---
+# Fractions of a core: a request of 750m is 0.75 cores, which a rounding to one decimal would say 0.8.
+apiVersion: v1
+kind: ResourceQuota
+metadata: {name: fractions, namespace: quotas}
+spec:
+  hard:
+    requests.cpu: 750m
+---
+# A scope: only the Pods that state no request or limit count.
+apiVersion: v1
+kind: ResourceQuota
+metadata: {name: best-effort, namespace: quotas}
+spec:
+  hard: {pods: "2"}
+  scopes: [BestEffort]
+---
+# Two Pods under the quota `compute`: the one states what it asks for and the other takes the defaults of the LimitRange.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: consumer, namespace: quotas}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: consumer}}
+  template:
+    metadata: {labels: {app: consumer}}
+    spec:
+      containers:
+        - name: app
+          image: busybox:1.37.0
+          command: [sh, -c, "sleep 100000"]
+          resources: {requests: {cpu: 150m, memory: 64Mi}, limits: {cpu: 300m, memory: 128Mi}}
+---
+apiVersion: v1
+kind: Pod
+metadata: {name: defaulted, namespace: quotas}
+spec:
+  containers:
+    - {name: app, image: busybox:1.37.0, command: [sh, -c, "sleep 100000"]}
+---
+# ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# Config: autoscalers and disruption budgets
+# ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+apiVersion: v1
+kind: Namespace
+metadata: {name: autoscale}
+---
+# Limited: metrics are read, the load is nil, so it would run no Pod, and the floor of one holds it (ScalingLimited, TooFewReplicas): an idle autoscaler at its floor reads Limited. A Deployment an
+# autoscaler manages states no replicas: the autoscaler owns the count.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: web, namespace: autoscale}
+spec:
+  selector: {matchLabels: {app: web}}
+  template:
+    metadata: {labels: {app: web}}
+    spec:
+      containers:
+        - name: app
+          image: busybox:1.37.0
+          command: [sh, -c, "sleep 100000"]
+          resources: {requests: {cpu: 50m, memory: 32Mi}}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata: {name: web, namespace: autoscale}
+spec:
+  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: web}
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource: {name: cpu, target: {type: Utilization, averageUtilization: 50}}
+---
+# Limited the same way, with a floor of two: the autoscaler scales the Deployment to two.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: floor, namespace: autoscale}
+spec:
+  selector: {matchLabels: {app: floor}}
+  template:
+    metadata: {labels: {app: floor}}
+    spec:
+      containers:
+        - name: app
+          image: busybox:1.37.0
+          command: [sh, -c, "sleep 100000"]
+          resources: {requests: {cpu: 50m, memory: 32Mi}}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata: {name: floor, namespace: autoscale}
+spec:
+  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: floor}
+  minReplicas: 2
+  maxReplicas: 4
+  metrics:
+    - type: Resource
+      resource: {name: cpu, target: {type: Utilization, averageUtilization: 70}}
+---
+# Unable to scale: its Pods request no CPU, so a utilisation cannot be computed.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: no-request, namespace: autoscale}
+spec:
+  selector: {matchLabels: {app: no-request}}
+  template:
+    metadata: {labels: {app: no-request}}
+    spec:
+      containers:
+        - {name: app, image: busybox:1.37.0, command: [sh, -c, "sleep 100000"]}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata: {name: no-request, namespace: autoscale}
+spec:
+  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: no-request}
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource: {name: cpu, target: {type: Utilization, averageUtilization: 80}}
+---
+# Scaling active: two metrics, a CPU utilisation and a memory average. The memory reading asks for one Pod, which is the floor, so nothing holds it; the Targets cell says both.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: multi, namespace: autoscale}
+spec:
+  selector: {matchLabels: {app: multi}}
+  template:
+    metadata: {labels: {app: multi}}
+    spec:
+      containers:
+        - name: app
+          image: busybox:1.37.0
+          command: [sh, -c, "sleep 100000"]
+          resources: {requests: {cpu: 50m, memory: 32Mi}}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata: {name: multi, namespace: autoscale}
+spec:
+  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: multi}
+  minReplicas: 1
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource: {name: cpu, target: {type: Utilization, averageUtilization: 50}}
+    - type: Resource
+      resource: {name: memory, target: {type: AverageValue, averageValue: 100Mi}}
+---
+# A target with no replicas: scaling is disabled.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: zero, namespace: autoscale}
+spec:
+  replicas: 0
+  selector: {matchLabels: {app: zero}}
+  template:
+    metadata: {labels: {app: zero}}
+    spec:
+      containers:
+        - name: app
+          image: busybox:1.37.0
+          command: [sh, -c, "sleep 100000"]
+          resources: {requests: {cpu: 50m}}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata: {name: zero, namespace: autoscale}
+spec:
+  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: zero}
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource: {name: cpu, target: {type: Utilization, averageUtilization: 50}}
+---
+# A budget that states a number, one that states a percentage, and one that cannot be met.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: {name: web, namespace: autoscale}
+spec:
+  minAvailable: 1
+  selector: {matchLabels: {app: web}}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: {name: floor, namespace: autoscale}
+spec:
+  maxUnavailable: 50%
+  selector: {matchLabels: {app: floor}}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: {name: strict, namespace: autoscale}
+spec:
+  minAvailable: 5
+  selector: {matchLabels: {app: multi}}
+---
+# ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# Access control
+# ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+apiVersion: v1
+kind: Namespace
+metadata: {name: access}
+---
+# No Secret, as a ServiceAccount of this version of Kubernetes has none (its token is made when asked for).
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: builder, namespace: access}
+---
+# The legacy list: two Secrets and an image pull Secret named by a ServiceAccount.
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: legacy, namespace: access}
+secrets: [{name: legacy-token-abc}, {name: legacy-token-def}]
+imagePullSecrets: [{name: registry-login}]
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: deployer, namespace: access}
+---
+# Roles: one rule; many rules over more than three kinds of resource; every resource; none at all (a namespaced Role cannot name a URL: that is a ClusterRole's).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: pod-reader, namespace: access}
+rules:
+  - {apiGroups: [""], resources: [pods], verbs: [get, list, watch]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: many-rules, namespace: access}
+rules:
+  - {apiGroups: [""], resources: [pods, pods/log], verbs: [get, list]}
+  - {apiGroups: [""], resources: [services, configmaps], verbs: [get]}
+  - {apiGroups: [apps], resources: [deployments, statefulsets], verbs: [get, list, watch, update]}
+  - {apiGroups: [""], resources: [pods], verbs: [delete]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: wildcard, namespace: access}
+rules:
+  - {apiGroups: ["*"], resources: ["*"], verbs: ["*"]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: no-rules, namespace: access}
+---
+# ClusterRoles: one rule on resources and one on URLs; an aggregate that takes the rules of every ClusterRole labelled for it, and the one it takes.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: {name: k2b2-reader}
+rules:
+  - {apiGroups: ["", apps], resources: [pods, deployments, services, configmaps, nodes], verbs: [get, list, watch]}
+  - {nonResourceURLs: [/healthz], verbs: [get]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: {name: k2b2-aggregate}
+aggregationRule:
+  clusterRoleSelectors:
+    - matchLabels: {k2b2.example.com/aggregate-to: reader}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: k2b2-aggregate-member
+  labels: {k2b2.example.com/aggregate-to: reader}
+rules:
+  - {apiGroups: [""], resources: [events], verbs: [get, list]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: {name: k2b2-no-rules}
+---
+# RoleBindings: a Role, with a user, a group and a ServiceAccount; a ClusterRole, with a ServiceAccount of another Namespace; no subject at all.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: read-pods, namespace: access}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: pod-reader}
+subjects:
+  - {apiGroup: rbac.authorization.k8s.io, kind: User, name: alice}
+  - {apiGroup: rbac.authorization.k8s.io, kind: Group, name: devs}
+  - {kind: ServiceAccount, name: builder, namespace: access}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: cluster-view, namespace: access}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: view}
+subjects:
+  - {kind: ServiceAccount, name: deployer, namespace: autoscale}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: no-subjects, namespace: access}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: many-rules}
+---
+# ClusterRoleBindings: three subjects of three kinds, one of them in a Namespace; a single group; none.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: {name: k2b2-readers}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: k2b2-reader}
+subjects:
+  - {apiGroup: rbac.authorization.k8s.io, kind: Group, name: "k2b2:readers"}
+  - {apiGroup: rbac.authorization.k8s.io, kind: User, name: bob}
+  - {kind: ServiceAccount, name: builder, namespace: access}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: {name: k2b2-aggregate-readers}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: k2b2-aggregate}
+subjects:
+  - {apiGroup: rbac.authorization.k8s.io, kind: Group, name: "k2b2:auditors"}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: {name: k2b2-no-subjects}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: k2b2-no-rules}

@@ -1,0 +1,16 @@
+{
+  "source": "kube-apiserver v1.35.0, GET /apis/networking.k8s.io/v1/ingressclasses?includeObject=Object with Accept application/json;as=Table;g=meta.k8s.io;v=v1: the object and the printer cells of one response. managedFields removed. Made by hack/kinds-capture/capture.mjs.",
+  "captures": [
+    {
+      "label": "one read of a cluster that holds the slice fixture, extra-states.yaml, more-kinds.yaml and k2b2-kinds.yaml",
+      "serverDate": "Fri, 20 Nov 2026 16:22:15 GMT",
+      "columns": ["Name","Controller","Parameters","Age"],
+      "priorities": [0,0,0,0],
+      "rows": [
+        {"cells":["external-lb","example.com/ingress-controller","IngressParameters.k8s.example.com/external-lb","8m47s"],"object":{"kind":"IngressClass","apiVersion":"networking.k8s.io/v1","metadata":{"name":"external-lb","uid":"ef526df5-68ec-40eb-9553-453e64ff630c","resourceVersion":"1716","generation":1,"creationTimestamp":"2026-11-20T16:13:28Z"},"spec":{"controller":"example.com/ingress-controller","parameters":{"apiGroup":"k8s.example.com","kind":"IngressParameters","name":"external-lb","scope":"Cluster"}}}},
+        {"cells":["nginx","k8s.io/ingress-nginx","<none>","8m47s"],"object":{"kind":"IngressClass","apiVersion":"networking.k8s.io/v1","metadata":{"name":"nginx","uid":"0c437eda-1dd9-4e76-bfd2-3e3625a9097f","resourceVersion":"1715","generation":1,"creationTimestamp":"2026-11-20T16:13:28Z","annotations":{"ingressclass.kubernetes.io/is-default-class":"true"}},"spec":{"controller":"k8s.io/ingress-nginx"}}},
+        {"cells":["plain","example.com/plain","<none>","8m47s"],"object":{"kind":"IngressClass","apiVersion":"networking.k8s.io/v1","metadata":{"name":"plain","uid":"b6818d0c-e64e-4773-992b-440b2b8698ba","resourceVersion":"1717","generation":1,"creationTimestamp":"2026-11-20T16:13:28Z"},"spec":{"controller":"example.com/plain"}}}
+      ]
+    }
+  ]
+}
