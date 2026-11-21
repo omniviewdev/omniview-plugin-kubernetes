@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/omniview/kubernetes/pkg/connid"
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
@@ -44,7 +45,7 @@ func TestGenerationStreamingClientReturnsBeforeEOFAndRetires(t *testing.T) {
 				defer server.Close()
 				path := filepath.Join(t.TempDir(), "config")
 				require.NoError(t, os.WriteFile(path, []byte(fmt.Sprintf("apiVersion: v1\nkind: Config\nclusters:\n- name: cluster\n  cluster:\n    server: %s\ncontexts:\n- name: owned\n  context:\n    cluster: cluster\n    user: user\ncurrent-context: owned\nusers:\n- name: user\n  user: {}\n", server.URL)), 0600))
-				connection := types.Connection{ID: "owned", Data: map[string]interface{}{"kubeconfig": path}}
+				connection := types.Connection{ID: connid.ID(connid.KindFile, path, "owned"), Data: map[string]interface{}{"kubeconfig": path, connid.DataKeyContext: "owned"}}
 				owner := &kubeConnectionProvider{}
 				destroyed := make(chan struct{})
 				controller, err := resourcev2.NewController(resourcev2.Config[clients.ClientSet]{

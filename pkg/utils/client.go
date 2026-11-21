@@ -7,7 +7,11 @@ import (
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
 )
 
-// Returns a kube client bundle given the incoming plugin context
+// KubeClientsFromContext returns a kube client bundle given the incoming plugin context.
+//
+// The clients are built for the kubeconfig context that the data of the connection names
+// (connid.DataKeyContext). The ID of a connection is derived and is not the name of a context;
+// it only labels the diagnostics of the build.
 func KubeClientsFromContext(ctx *types.PluginContext) (*kubeauth.KubeClientBundle, error) {
 	if ctx.Connection == nil {
 		return nil, errors.New("kubeconfig is required")
@@ -22,5 +26,10 @@ func KubeClientsFromContext(ctx *types.PluginContext) (*kubeauth.KubeClientBundl
 		return nil, errors.New("kubeconfig is required and must be a string")
 	}
 
-	return kubeauth.LoadKubeClients(ctx.Context, kubeconfigPath, ctx.Connection.ID)
+	kubeContext, err := kubeauth.ConnectionContext(ctx.Connection.Data)
+	if err != nil {
+		return nil, err
+	}
+
+	return kubeauth.LoadKubeClients(kubeauth.WithConnectionID(ctx.Context, ctx.Connection.ID), kubeconfigPath, kubeContext)
 }

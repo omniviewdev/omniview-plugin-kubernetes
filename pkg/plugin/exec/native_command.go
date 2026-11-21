@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"reflect"
 
+	"github.com/omniview/kubernetes/pkg/connid"
 	"github.com/omniview/kubernetes/pkg/diag"
 	logging "github.com/omniviewdev/plugin-sdk/log"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
@@ -70,7 +71,7 @@ func podNativeCommandWithProvider(provider nativeClientProvider, ctx *types.Plug
 	}
 
 	diagnostic.stage, diagnostic.operation = "execution", "kubeconfig"
-	path, expected, err := nativeKubeconfig(ctx.Connection)
+	path, kubeContext, expected, err := nativeKubeconfig(ctx.Connection)
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +125,7 @@ func podNativeCommandWithProvider(provider nativeClientProvider, ctx *types.Plug
 		command = podExecHandler().DefaultCommand
 	}
 	args := make([]string, 0, 14+len(command))
-	args = append(args, "--kubeconfig", path, "--context", ctx.Connection.ID, "--namespace", namespace,
+	args = append(args, "--kubeconfig", path, "--context", kubeContext, "--namespace", namespace,
 		"exec", podName, "--container", container, "--stdin")
 	if opts.TTY {
 		args = append(args, "--tty")
@@ -141,18 +142,26 @@ func podNativeCommandWithProvider(provider nativeClientProvider, ctx *types.Plug
 
 // Only the existing local file reference leaves the plugin. Never flatten a
 // kubeconfig, copy credentials into flags/environment, or invoke an auth helper.
-func nativeKubeconfig(connection *types.Connection) (string, *rest.Config, error) {
+//
+// It returns the path of the kubeconfig, and the name of the context that the data of the
+// connection names (connid.DataKeyContext), which is what kubectl is told to select. The ID of
+// a connection is derived and is not the name of a context.
+func nativeKubeconfig(connection *types.Connection) (string, string, *rest.Config, error) {
 	// cause is a closed vocabulary; kubeconfig paths and contents are never logged.
-	unsupported := func(cause string) (string, *rest.Config, error) {
+	unsupported := func(cause string) (string, string, *rest.Config, error) {
 		logging.Default().Debugw(context.Background(), "native exec kubeconfig unsupported", "cause", cause, "connection", connection.ID)
-		return "", nil, resourcev2.NewError("UNSUPPORTED", "Native exec requires a reusable local kubeconfig and its selected context.")
+		return "", "", nil, resourcev2.NewError("UNSUPPORTED", "Native exec requires a reusable local kubeconfig and its selected context.")
 	}
 	value, ok := connection.GetDataKey("kubeconfig")
 	path, valid := value.(string)
-	if !ok || !valid || path == "" || connection.ID == "" {
+	if !ok || !valid || path == "" {
 		return unsupported("no_kubeconfig_reference")
 	}
-	path, err := utils.ExpandTilde(path)
+	kubeContext, err := connid.ContextFromData(connection.Data)
+	if err != nil {
+		return unsupported("no_kubeconfig_context")
+	}
+	path, err = utils.ExpandTilde(path)
 	if err != nil {
 		return unsupported("path_expand_failed")
 	}
@@ -166,13 +175,13 @@ func nativeKubeconfig(connection *types.Connection) (string, *rest.Config, error
 	}
 	loader := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
 		&clientcmd.ClientConfigLoadingRules{ExplicitPath: path},
-		&clientcmd.ConfigOverrides{CurrentContext: connection.ID},
+		&clientcmd.ConfigOverrides{CurrentContext: kubeContext},
 	)
 	raw, err := loader.RawConfig()
 	if err != nil {
 		return unsupported("kubeconfig_load_failed")
 	}
-	selected := raw.Contexts[connection.ID]
+	selected := raw.Contexts[kubeContext]
 	if selected == nil || selected.Cluster == "" || raw.Clusters[selected.Cluster] == nil || raw.Clusters[selected.Cluster].Server == "" {
 		return unsupported("context_incomplete")
 	}
@@ -186,7 +195,7 @@ func nativeKubeconfig(connection *types.Connection) (string, *rest.Config, error
 		// native planning bounded without starting or exporting helper auth.
 		if auth.Exec != nil {
 			logging.Default().Debugw(context.Background(), "native exec kubeconfig unsupported", "cause", "exec_credential_helper", "connection", connection.ID)
-			return "", nil, resourcev2.NewError("UNSUPPORTED", "Native exec requires bounded local-file credential authentication; exec credential helpers are unsupported.")
+			return "", "", nil, resourcev2.NewError("UNSUPPORTED", "Native exec requires bounded local-file credential authentication; exec credential helpers are unsupported.")
 		}
 		if auth.AuthProvider != nil {
 			return unsupported("auth_provider")
@@ -198,7 +207,7 @@ func nativeKubeconfig(connection *types.Connection) (string, *rest.Config, error
 	if err != nil {
 		return unsupported("client_config_failed")
 	}
-	return path, config, nil
+	return path, kubeContext, config, nil
 }
 
 func nativeAuthMatches(active, expected *rest.Config) bool {

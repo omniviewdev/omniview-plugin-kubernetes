@@ -10,6 +10,10 @@ import (
 
 // LoadBoundedResourceClients constructs resource-only clients without changing
 // the unbounded clients used by logs, exec, and metrics.
+//
+// The clients are built for the kubeconfig context that the data of the connection
+// names (connid.DataKeyContext). The ID of a connection is derived and is not the
+// name of a context; it only labels the diagnostics of the build.
 func LoadBoundedResourceClients(ctx context.Context, conn *types.Connection) (*kubeauth.KubeClientBundle, error) {
 	if conn == nil {
 		return nil, errors.New("connection is required")
@@ -22,5 +26,9 @@ func LoadBoundedResourceClients(ctx context.Context, conn *types.Connection) (*k
 	if !ok || path == "" {
 		return nil, errors.New("kubeconfig must be a non-empty string")
 	}
-	return kubeauth.LoadResourceKubeClients(ctx, path, conn.ID)
+	kubeContext, err := kubeauth.ConnectionContext(conn.Data)
+	if err != nil {
+		return nil, err
+	}
+	return kubeauth.LoadResourceKubeClients(kubeauth.WithConnectionID(ctx, conn.ID), path, kubeContext)
 }

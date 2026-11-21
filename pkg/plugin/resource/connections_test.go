@@ -410,29 +410,30 @@ current-context: context-a
 `
 	require.NoError(t, os.WriteFile(kubeconfigPath, []byte(content), 0644))
 
-	conns, err := connectionsFromKubeconfig(kubeconfigPath)
+	conns, _, err := connectionsFromKubeconfig(kubeconfigPath)
 	require.NoError(t, err)
 	require.Len(t, conns, 2)
 
-	// Build a lookup map.
-	byID := make(map[string]types.Connection)
+	// Build a lookup map by name: an ID is derived, and no longer the name of the context.
+	byName := make(map[string]types.Connection)
 	for _, c := range conns {
-		byID[c.ID] = c
+		byName[c.Name] = c
 	}
 
-	a := byID["context-a"]
+	a := byName["context-a"]
 	assert.Equal(t, "context-a", a.Name)
+	assert.Equal(t, "context-a", a.Data["context"])
 	assert.Equal(t, "cluster-a", a.Labels["cluster"])
 	assert.Equal(t, "user-a", a.Labels["user"])
 	assert.Equal(t, "https://10.0.0.1:6443", a.Labels["server"])
 	assert.Equal(t, "default", a.Labels["auth_method"])
 
-	b := byID["context-b"]
+	b := byName["context-b"]
 	assert.Equal(t, "kube-system", b.Data["namespace"])
 }
 
 func TestConnectionsFromKubeconfig_InvalidPath(t *testing.T) {
-	_, err := connectionsFromKubeconfig("/nonexistent/path/config")
+	_, _, err := connectionsFromKubeconfig("/nonexistent/path/config")
 	require.Error(t, err)
 }
 
@@ -449,7 +450,7 @@ users: []
 `
 	require.NoError(t, os.WriteFile(kubeconfigPath, []byte(content), 0644))
 
-	conns, err := connectionsFromKubeconfig(kubeconfigPath)
+	conns, _, err := connectionsFromKubeconfig(kubeconfigPath)
 	require.NoError(t, err)
 	assert.Empty(t, conns)
 }
@@ -488,7 +489,7 @@ users:
 `
 	require.NoError(t, os.WriteFile(kubeconfigPath, []byte(content), 0644))
 
-	conns, err := connectionsFromKubeconfig(kubeconfigPath)
+	conns, _, err := connectionsFromKubeconfig(kubeconfigPath)
 	require.NoError(t, err)
 	require.Len(t, conns, 1)
 
@@ -530,7 +531,7 @@ users:
 `
 	require.NoError(t, os.WriteFile(kubeconfigPath, []byte(content), 0644))
 
-	conns, err := connectionsFromKubeconfig(kubeconfigPath)
+	conns, _, err := connectionsFromKubeconfig(kubeconfigPath)
 	require.NoError(t, err)
 	require.Len(t, conns, 1)
 

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/omniview/kubernetes/pkg/connid"
 	logging "github.com/omniviewdev/plugin-sdk/log"
 	"github.com/omniviewdev/plugin-sdk/log/logtest"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
@@ -49,7 +50,7 @@ func TestForwardSetupFailureIsClassifiedAndDoesNotLeakKubeconfigPath(t *testing.
 		Logger:  logger,
 		Connection: &types.Connection{
 			ID:   "cluster",
-			Data: map[string]any{"kubeconfig": "/secret/kube/config-that-does-not-exist"},
+			Data: map[string]any{"kubeconfig": "/secret/kube/config-that-does-not-exist", connid.DataKeyContext: "cluster"},
 		},
 	}
 

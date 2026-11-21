@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/omniview/kubernetes/pkg/connid"
 	logging "github.com/omniviewdev/plugin-sdk/log"
 	"github.com/omniviewdev/plugin-sdk/log/logtest"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
@@ -127,8 +128,8 @@ func TestWaitForDebugContainerRecordsWaitEventWithoutContainerMessage(t *testing
 
 func TestNativeKubeconfigRejectionLogsCauseWithoutPath(t *testing.T) {
 	sink := captureExecDefaultLogs(t)
-	connection := &types.Connection{ID: "cluster", Data: map[string]any{"kubeconfig": "/secret/home/user/kubeconfig"}}
-	_, _, err := nativeKubeconfig(connection)
+	connection := &types.Connection{ID: "cluster-0123456789", Data: map[string]any{"kubeconfig": "/secret/home/user/kubeconfig", connid.DataKeyContext: "cluster"}}
+	_, _, _, err := nativeKubeconfig(connection)
 	require.Error(t, err)
 
 	text := execRecordText(sink)

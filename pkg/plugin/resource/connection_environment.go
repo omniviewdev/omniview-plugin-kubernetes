@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/omniview/kubernetes/pkg/connid"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
 )
 
@@ -37,7 +38,10 @@ func inferConnectionEnvironment(connection types.Connection, endpoint, version s
 	provider, source := "", ""
 	var arn []string
 	var gke []string
-	for _, id := range []string{connection.ID, data("cluster"), label("cluster")} {
+	// The hints are read from the context name, which the data carries. The ID of a connection is derived and
+	// says nothing about the cluster, and Name is a display name that the user may edit.
+	kubeContext, _ := connid.ContextFromData(connection.Data)
+	for _, id := range []string{kubeContext, data("cluster"), label("cluster")} {
 		if match := eksClusterARN.FindStringSubmatch(id); match != nil {
 			partition := "aws"
 			if strings.HasPrefix(match[2], "cn-") {

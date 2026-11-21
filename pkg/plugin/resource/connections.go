@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/omniview/kubernetes/pkg/connid"
 	"github.com/omniview/kubernetes/pkg/utils/kubeauth"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
@@ -17,17 +18,30 @@ const (
 	EstimatedContexts = 10
 )
 
-func connectionsFromKubeconfig(kubeconfigPath string) ([]types.Connection, error) {
+// connectionsFromKubeconfig reads the contexts of one kubeconfig file as connections.
+//
+// The Name of a connection is the exact name of its context. Its public data carries that name
+// under connid.DataKeyContext, which is what selects the context wherever clients are built. Its
+// ID is derived from the file and the name (see package connid), so that two files that define a
+// context of the same name give two IDs.
+//
+// It also returns the target of the file, the key under which one file that is reached by two
+// paths is recognized (see kubeconfigIdentity).
+func connectionsFromKubeconfig(kubeconfigPath string) ([]types.Connection, string, error) {
 	// if the path has a ~ in it, expand it to the home directory
 	kubeconfigPath, err := utils.ExpandTilde(kubeconfigPath)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	// Load the kubeconfig file to get the configuration.
 	config, err := clientcmd.LoadFromFile(kubeconfigPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load kubeconfig from path %s: %w", kubeconfigPath, err)
+		return nil, "", fmt.Errorf("failed to load kubeconfig from path %s: %w", kubeconfigPath, err)
+	}
+	locator, target, err := kubeconfigIdentity(kubeconfigPath)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to identify the kubeconfig: %w", err)
 	}
 
 	connections := make([]types.Connection, 0, len(config.Contexts))
@@ -41,21 +55,22 @@ func connectionsFromKubeconfig(kubeconfigPath string) ([]types.Connection, error
 		enrichConnectionLabels(labels, config, context)
 
 		connections = append(connections, types.Connection{
-			ID:          contextName,
+			ID:          connid.ID(connid.KindFile, locator, contextName),
 			Name:        contextName,
 			Description: "",
 			Avatar:      "",
 			Labels:      labels,
 			Data: map[string]interface{}{
-				"kubeconfig": kubeconfigPath,
-				"cluster":    context.Cluster,
-				"namespace":  context.Namespace,
-				"user":       context.AuthInfo,
+				"kubeconfig":          kubeconfigPath,
+				connid.DataKeyContext: contextName,
+				"cluster":             context.Cluster,
+				"namespace":           context.Namespace,
+				"user":                context.AuthInfo,
 			},
 		})
 	}
 
-	return connections, nil
+	return connections, target, nil
 }
 
 // enrichConnectionLabels extracts cloud metadata from kubeconfig into connection labels

@@ -146,7 +146,7 @@ func (e *EKSAuthStrategy) BuildRestConfig(
 		RoleARN:     e.roleArn,
 		Profile:     e.profile,
 		Region:      e.region,
-		Connection:  kubeContext,
+		Connection:  connectionLabel(ctx, kubeContext),
 	}
 	// publish the authentication with the config. client-go never runs the aws CLI for EKS, so
 	// anything that builds its own transport from this config (exec and port-forward executors,

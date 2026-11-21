@@ -232,7 +232,7 @@ func TestNativeTargetSchemaIncludesSelectedHelmValuesSchema(t *testing.T) {
 			return []types.Connection{{ID: route.Connection, Name: "Owned cluster"}}, nil
 		},
 		CreateClient: func(ctx context.Context, _ types.Connection) (*clients.ClientSet, error) {
-			bundle, err := kubeauth.LoadResourceKubeClients(ctx, configPath, route.Connection)
+			bundle, err := kubeauth.LoadResourceKubeClients(ctx, configPath, "owned-cluster") // a kubeconfig context name, not a connection ID
 			if err != nil {
 				return nil, err
 			}

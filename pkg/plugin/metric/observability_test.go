@@ -13,6 +13,7 @@ import (
 	sdkmetric "github.com/omniviewdev/plugin-sdk/pkg/v1/metric"
 	"github.com/omniviewdev/plugin-sdk/settings"
 
+	"github.com/omniview/kubernetes/pkg/connid"
 	"github.com/omniview/kubernetes/pkg/utils/kubeauth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -170,7 +171,7 @@ func TestNodeMetricsClientErrorDoesNotExposeKubeconfigPath(t *testing.T) {
 		ConnectionID: "cluster",
 		Connection: &types.Connection{
 			ID:   "cluster",
-			Data: map[string]any{"kubeconfig": "/secret/home/user/missing-kubeconfig"},
+			Data: map[string]any{"kubeconfig": "/secret/home/user/missing-kubeconfig", connid.DataKeyContext: "cluster"},
 		},
 	}
 	response, err := queryNodeMetrics(qctx, sdkmetric.QueryRequest{ResourceKey: "k8s:/nodes", ResourceID: "node"})

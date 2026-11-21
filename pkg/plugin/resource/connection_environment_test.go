@@ -7,12 +7,22 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/omniview/kubernetes/pkg/connid"
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
 )
+
+// inContext is a connection for the kubeconfig context name. Its ID is derived, as the IDs of the
+// inventory are: only the context name, which its data carries, says what the context is.
+func inContext(name string, labels map[string]interface{}) types.Connection {
+	return types.Connection{
+		ID: connid.ID(connid.KindFile, "/fixture/kubeconfig", name), Name: name, Labels: labels,
+		Data: map[string]any{connid.DataKeyContext: name},
+	}
+}
 
 func TestConnectionEnvironmentPublication(t *testing.T) {
 	tests := []struct {
@@ -21,19 +31,22 @@ func TestConnectionEnvironmentPublication(t *testing.T) {
 		endpoint   string
 		want       map[string]string
 	}{
-		{name: "kind context without version", connection: types.Connection{ID: "kind-kind"}, want: map[string]string{"kubernetes.provider": "kind", "kubernetes.provider_source": "connection_config"}},
-		{name: "unknown omits hints", connection: types.Connection{ID: "eksperimental", Name: "kind-prod", Labels: map[string]interface{}{"region": "us-west-2", "project": "sample-project", "auth_method": "aws-custom", "cluster": 42}}},
-		{name: "malformed cluster ARN", connection: types.Connection{ID: "arn:aws:eks:us-east-1:123:cluster/prod"}},
-		{name: "wrong ARN partition", connection: types.Connection{ID: "arn:aws-cn:eks:us-east-1:123456789012:cluster/prod"}},
+		{name: "kind context without version", connection: inContext("kind-kind", nil), want: map[string]string{"kubernetes.provider": "kind", "kubernetes.provider_source": "connection_config"}},
+		{name: "unknown omits hints", connection: types.Connection{ID: "eksperimental-0123456789", Name: "kind-prod", Data: map[string]any{connid.DataKeyContext: "eksperimental"}, Labels: map[string]interface{}{"region": "us-west-2", "project": "sample-project", "auth_method": "aws-custom", "cluster": 42}}},
+		{name: "malformed cluster ARN", connection: inContext("arn:aws:eks:us-east-1:123:cluster/prod", nil)},
+		{name: "wrong ARN partition", connection: inContext("arn:aws-cn:eks:us-east-1:123456789012:cluster/prod", nil)},
+		{name: "the ID is not the context", connection: types.Connection{ID: "kind-looking-id-0123456789", Data: map[string]any{connid.DataKeyContext: "prod"}}},
+		{name: "the name that the user may edit is not the context", connection: types.Connection{ID: "id-0123456789", Name: "kind-prod", Data: map[string]any{connid.DataKeyContext: "prod"}}},
+		{name: "no context in the data", connection: types.Connection{ID: "kind-kind"}},
 		{name: "unknown configuration ignores cloud labels", connection: types.Connection{Labels: map[string]interface{}{"region": "us-west-2", "project": "sample-project", "subscription": "12345678-1234-1234-1234-123456789abc"}}},
 		{name: "role account is not cluster account", connection: types.Connection{Labels: map[string]interface{}{"auth_method": "eks", "region": "us-west-2", "account": "999999999999", "role": "arn:aws:iam::999999999999:role/secret", "profile": "secret-profile"}}, want: map[string]string{"kubernetes.provider": "eks", "kubernetes.provider_source": "connection_config", "cloud.provider": "aws", "aws.region": "us-west-2"}},
-		{name: "cluster ARN account", connection: types.Connection{ID: "arn:aws:eks:us-east-1:123456789012:cluster/prod", Labels: map[string]interface{}{"account": "999999999999", "region": "us-west-2"}}, want: map[string]string{"kubernetes.provider": "eks", "kubernetes.provider_source": "connection_config", "cloud.provider": "aws", "aws.region": "us-east-1", "aws.account_id": "123456789012"}},
-		{name: "endpoint beats config", connection: types.Connection{ID: "kind-prod", Labels: map[string]interface{}{"region": "us-east-1", "project": "sample-project"}}, endpoint: "https://user:secret@ABC.gr7.us-west-2.eks.amazonaws.com?secret=token", want: map[string]string{"kubernetes.provider": "eks", "kubernetes.provider_source": "server_endpoint", "cloud.provider": "aws", "aws.region": "us-west-2"}},
+		{name: "cluster ARN account", connection: inContext("arn:aws:eks:us-east-1:123456789012:cluster/prod", map[string]interface{}{"account": "999999999999", "region": "us-west-2"}), want: map[string]string{"kubernetes.provider": "eks", "kubernetes.provider_source": "connection_config", "cloud.provider": "aws", "aws.region": "us-east-1", "aws.account_id": "123456789012"}},
+		{name: "endpoint beats config", connection: inContext("kind-prod", map[string]interface{}{"region": "us-east-1", "project": "sample-project"}), endpoint: "https://user:secret@ABC.gr7.us-west-2.eks.amazonaws.com?secret=token", want: map[string]string{"kubernetes.provider": "eks", "kubernetes.provider_source": "server_endpoint", "cloud.provider": "aws", "aws.region": "us-west-2"}},
 		{name: "bare EKS endpoint", endpoint: "ABC.gr7.us-west-2.eks.amazonaws.com:443", want: map[string]string{"kubernetes.provider": "eks", "kubernetes.provider_source": "server_endpoint", "cloud.provider": "aws", "aws.region": "us-west-2"}},
 		{name: "bare AKS endpoint", endpoint: "prod-abcd.westus.azmk8s.io:443", want: map[string]string{"kubernetes.provider": "aks", "kubernetes.provider_source": "server_endpoint", "cloud.provider": "azure"}},
 		{name: "non HTTP endpoint cannot infer provider", endpoint: "ftp://abc.us-west-2.eks.amazonaws.com"},
 		{name: "endpoint suffix spoof", endpoint: "https://abc.us-west-2.eks.amazonaws.com.attacker.example"},
-		{name: "GKE configuration", connection: types.Connection{ID: "gke_sample-project_us-central1-a_prod"}, want: map[string]string{"kubernetes.provider": "gke", "kubernetes.provider_source": "connection_config", "cloud.provider": "gcp", "gcp.project_id": "sample-project", "gcp.zone": "us-central1-a", "gcp.region": "us-central1"}},
+		{name: "GKE configuration", connection: inContext("gke_sample-project_us-central1-a_prod", nil), want: map[string]string{"kubernetes.provider": "gke", "kubernetes.provider_source": "connection_config", "cloud.provider": "gcp", "gcp.project_id": "sample-project", "gcp.zone": "us-central1-a", "gcp.region": "us-central1"}},
 		{name: "Azure configuration", connection: types.Connection{Labels: map[string]interface{}{"auth_method": "aks", "subscription": "12345678-1234-1234-1234-123456789abc", "resource_group": "rg-prod"}}, want: map[string]string{"kubernetes.provider": "aks", "kubernetes.provider_source": "connection_config", "cloud.provider": "azure", "azure.subscription_id": "12345678-1234-1234-1234-123456789abc", "azure.resource_group": "rg-prod"}},
 	}
 	for _, tt := range tests {
@@ -84,7 +97,7 @@ func TestConnectionEnvironmentVersionEvidence(t *testing.T) {
 			config := &rest.Config{Host: server.URL}
 			discoveryClient, err := discovery.NewDiscoveryClientForConfig(config)
 			require.NoError(t, err)
-			update, err := connectionMetadata(context.Background(), types.Connection{ID: "kind-kind"}, &clients.ClientSet{RESTConfig: config, DiscoveryClient: discoveryClient})
+			update, err := connectionMetadata(context.Background(), inContext("kind-kind", nil), &clients.ClientSet{RESTConfig: config, DiscoveryClient: discoveryClient})
 			require.NoError(t, err)
 			require.Equal(t, 1, calls)
 			require.Equal(t, tt.provider, update.Set["kubernetes.provider"].Value)

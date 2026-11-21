@@ -7,6 +7,7 @@ import { hostRecord } from '../kinds/testing';
 
 import { podDetail } from './data/object';
 import * as read from './data/usePod';
+import { podLogTargetId } from './logs/target';
 import { detailState, usePodPage } from './usePodPage';
 
 import { podPage, podPageDefinition } from './index';
@@ -28,15 +29,22 @@ const refresh = vi.fn(async () => undefined);
 
 const NOW = Date.UTC(2026, 10, 17, 12, 0, 0);
 const object = { metadata: { name: 'cart-api', namespace: 'checkout', creationTimestamp: new Date(NOW - 8 * 60_000).toISOString() }, spec: { nodeName: 'node-1', containers: [{ name: 'app', image: 'busybox:1' }] }, status: { phase: 'Running' } };
-const RECORD = { ...hostRecord(object), route: { connection: 'kind-a' } };
+/** The id the plugin derives for a connection: the context's name and ten hex digits, so no id is a name. */
+function idOf(name: string): string {
+  return `${name}-54c660ecd1`;
+}
+
+const RECORD = { ...hostRecord(object), route: { connection: idOf('kind-a') } };
 const POD = podDetail(RECORD);
 
 function view(over: Partial<read.PodView> = {}): read.PodView {
   return { state: { kind: 'loaded' }, failure: undefined, pod: POD, record: RECORD, live: true, refreshing: false, connect, retry, refresh, ...over };
 }
 
-const know = (...ids: readonly string[]) => {
-  connections.mockReturnValue({ connections: { data: ids.map((id) => ({ id })), isPending: false } } as never);
+/** The plugin knows these connections: each has a derived id, the context name for its name, and the kubeconfig it came from. */
+const know = (...names: readonly string[]) => {
+  const data = names.map((name) => ({ id: idOf(name), name, labels: { kubeconfig: '~/.kube/config' }, data: { context: name } }));
+  connections.mockReturnValue({ connections: { data, isPending: false } } as never);
 };
 
 /** What the host tells the page: the plugin it is installed under, the route (the connection the hash names, and the Pod's identity) and, on a host that has it, the panel handle. */
@@ -63,17 +71,17 @@ afterEach(() => {
 describe('usePodPage: which Pod it reads, and where', () => {
   it('reads the Pod the route names, in the connection the route names when the plugin knows it', () => {
     know('kind-a', 'kind-b');
-    mount({ connection: 'kind-b', params: { namespace: 'monitoring', name: 'alertmanager' } });
-    expect(usePod).toHaveBeenCalledWith({ pluginID: 'kubernetes', connectionID: 'kind-b', namespace: 'monitoring', name: 'alertmanager' });
+    mount({ connection: idOf('kind-b'), params: { namespace: 'monitoring', name: 'alertmanager' } });
+    expect(usePod).toHaveBeenCalledWith({ pluginID: 'kubernetes', connectionID: idOf('kind-b'), namespace: 'monitoring', name: 'alertmanager' });
   });
 
   it('reads the plugin\'s first connection when the route names none, or one the plugin does not know: the plugin owns what an absent connection means', () => {
     know('kind-a', 'kind-b');
     mount();
-    expect(usePod).toHaveBeenLastCalledWith(expect.objectContaining({ connectionID: 'kind-a' }));
+    expect(usePod).toHaveBeenLastCalledWith(expect.objectContaining({ connectionID: idOf('kind-a') }));
     cleanup();
     mount({ connection: 'kind-gone' });
-    expect(usePod).toHaveBeenLastCalledWith(expect.objectContaining({ connectionID: 'kind-a' }));
+    expect(usePod).toHaveBeenLastCalledWith(expect.objectContaining({ connectionID: idOf('kind-a') }));
   });
 
   it('reads the plugin it is installed under: the id the host tells it', () => {
@@ -103,7 +111,7 @@ describe('usePodPage: the scope lane is there from the first render', () => {
   const lane = (scope: DetailPageViewV1['scope']) => scope?.map((face) => `${face.label}: ${face.text}`);
 
   it('has the connection and the namespace of the Pod', () => {
-    expect(lane(mount({ connection: 'kind-a' }).result.current.scope)).toEqual(['Connection: kind-a', 'Namespaces: checkout']);
+    expect(lane(mount({ connection: idOf('kind-a') }).result.current.scope)).toEqual(['Connection: kind-a', 'Namespaces: checkout']);
   });
 
   it('has the connection the page reads when the route names none, and a word for it while the connections are on their way, and when there are none', () => {
@@ -115,6 +123,18 @@ describe('usePodPage: the scope lane is there from the first render', () => {
     cleanup();
     connections.mockReturnValue({ connections: { data: [], isPending: false } } as never);
     expect(lane(mount().result.current.scope)).toEqual(['Connection: None', 'Namespaces: checkout']);
+  });
+
+  it('names the connection by its name and never by its id, for a route that holds an id, a stale one, or one the connections have not answered for yet', () => {
+    know('kind-a', 'kind-b');
+    expect(lane(mount({ connection: idOf('kind-b') }).result.current.scope)).toEqual(['Connection: kind-b', 'Namespaces: checkout']);
+    cleanup();
+    expect(lane(mount({ connection: 'kind-b' }).result.current.scope)).toEqual(['Connection: kind-a', 'Namespaces: checkout']);
+    cleanup();
+    connections.mockReturnValue({ connections: { data: undefined, isPending: true } } as never);
+    const { result } = mount({ connection: idOf('kind-b') });
+    expect(lane(result.current.scope)).toEqual(['Connection: Loading…', 'Namespaces: checkout']);
+    expect(JSON.stringify(result.current.scope)).not.toContain('54c660ecd1');
   });
 
   it('has the same two faces whatever state the page is in: a page never gains or loses its lane', () => {
@@ -262,7 +282,7 @@ describe('usePodPage: the connection it starts (a development shortcut: a read n
 
 describe('usePodPage: the Logs command of the header (P1b-3b)', () => {
   const started = { ...object, status: { phase: 'Running', containerStatuses: [{ name: 'app', state: { running: { startedAt: new Date(NOW - 60_000).toISOString() } } }] } };
-  const startedRecord = { ...hostRecord(started), route: { connection: 'kind-a' } };
+  const startedRecord = { ...hostRecord(started), route: { connection: idOf('kind-a') } };
   const stream = { id: 'stream-1' } as unknown as runtime.LogStream;
 
   /** A panel handle that records what it is asked, and the one command of the header the page gives for Logs. */
@@ -278,7 +298,7 @@ describe('usePodPage: the Logs command of the header (P1b-3b)', () => {
     openLogStream.mockReturnValue(stream);
   });
 
-  it('opens a session in the Logs tool through the host\'s panel handle for the Pod the page shows, named by the connection the page reads', () => {
+  it('opens a session in the Logs tool through the host\'s panel handle for the Pod the page shows, named by the connection the page reads and keyed by its id', () => {
     const { open, command } = pressed();
     expect(command).toMatchObject({ id: 'logs', label: 'Logs' });
     expect(command?.disabledReason).toBeUndefined();
@@ -286,12 +306,15 @@ describe('usePodPage: the Logs command of the header (P1b-3b)', () => {
     expect(open).toHaveBeenCalledTimes(1);
     expect(open).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: 'pod/kind-a/checkout/cart-api',
+        id: podLogTargetId(idOf('kind-a'), 'checkout', 'cart-api'),
         title: 'cart-api',
         scope: 'kind-a',
         resource: { label: 'Pod cart-api', kind: 'Pod', icon: 'box', route: { page: 'pod', connection: undefined, params: { namespace: 'checkout', name: 'cart-api' } } },
       }),
     );
+    const handed = open.mock.calls[0]?.[0];
+    expect(handed?.id).toBe('pod/kind-a-54c660ecd1/checkout/cart-api');
+    expect(handed?.scope).not.toContain('54c660ecd1');
   });
 
   it('names the connection as the scope lane does: the one the page reads, when the route names none', () => {
@@ -302,6 +325,32 @@ describe('usePodPage: the Logs command of the header (P1b-3b)', () => {
     expect(open.mock.calls[0]?.[0].scope).toBe(mount().result.current.scope?.[0]?.text);
   });
 
+  it('hands the Logs session the name of the connection the route asks for, and two connections of one name stay two targets by their ids', () => {
+    know('kind-a', 'kind-b');
+    const second = { ...hostRecord(started), route: { connection: idOf('kind-b') } };
+    usePod.mockReturnValue(view({ pod: podDetail(second), record: second }));
+    const { open, command } = pressed({ connection: idOf('kind-b') });
+    command?.onSelect();
+    expect(open.mock.calls[0]?.[0].scope).toBe('kind-b');
+    expect(open.mock.calls[0]?.[0].id).toBe(podLogTargetId(idOf('kind-b'), 'checkout', 'cart-api'));
+
+    const twin = [
+      { id: 'prod-aaaaaaaaaa', name: 'prod', labels: { kubeconfig: '~/.kube/config' }, data: { context: 'prod' } },
+      { id: 'prod-bbbbbbbbbb', name: 'prod', labels: { kubeconfig: '~/work/other' }, data: { context: 'prod' } },
+    ];
+    connections.mockReturnValue({ connections: { data: twin, isPending: false } } as never);
+    const targets = ['prod-aaaaaaaaaa', 'prod-bbbbbbbbbb'].map((id) => {
+      const record = { ...hostRecord(started), route: { connection: id } };
+      usePod.mockReturnValue(view({ pod: podDetail(record), record }));
+      const twinOpen = pressed({ connection: id });
+      twinOpen.command?.onSelect();
+      cleanup();
+      return twinOpen.open.mock.calls[0]?.[0];
+    });
+    expect(targets.map((target) => target?.scope)).toEqual(['prod · config', 'prod · other']);
+    expect(new Set(targets.map((target) => target?.id)).size).toBe(2);
+  });
+
   it('opens the stream of the Pod\'s own record when the host asks for it, through the plugin it is installed under', () => {
     const { open, command } = pressed({ plugin: 'kubernetes-qa' });
     command?.onSelect();
@@ -309,7 +358,7 @@ describe('usePodPage: the Logs command of the header (P1b-3b)', () => {
     const feed = open.mock.calls[0]?.[0].open();
     expect(feed).toBe(stream);
     expect(openLogStream).toHaveBeenCalledWith(
-      expect.objectContaining({ plugin: 'kubernetes-qa', connection: 'kind-a', resourceKey: 'k8s:/pods', resourceId: 'cart-api', resourceData: startedRecord.record.body, reference: startedRecord.record.reference, route: startedRecord.route, target: '' }),
+      expect.objectContaining({ plugin: 'kubernetes-qa', connection: idOf('kind-a'), resourceKey: 'k8s:/pods', resourceId: 'cart-api', resourceData: startedRecord.record.body, reference: startedRecord.record.reference, route: startedRecord.route, target: '' }),
     );
   });
 
