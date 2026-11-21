@@ -188,13 +188,14 @@ func TestNativeDiscoveryMergesMixedFormats(t *testing.T) {
 	}
 }
 
-func TestNativeAggregatedStaleVersionIsPartialCoverage(t *testing.T) {
+func TestNativeAggregatedStaleVersionIsUnavailableNotPartialCoverage(t *testing.T) {
 	f, client := newRefreshHTTPFixture(t)
 	serveAggregated(f, &acceptLog{}, map[string]string{"/api": aggregatedCore(t, ""), "/apis": aggregatedGroup(t, map[string]bool{"v2": true}, "v1", "v2")})
 	p, err := startFixtureProvider(t, client, "stale")
 	require.NoError(t, err)
 	snapshot := p.catalogs["stale"]
-	require.Equal(t, "partial", snapshot.catalog.Coverage.Kind, "a stale version was not observed")
+	require.Equal(t, "complete", snapshot.catalog.Coverage.Kind, "the version that was not observed is named, and the catalog it is missing from is complete")
+	require.Equal(t, []nativeUnavailable{{GroupVersion: "refresh.example/v2", Reason: "stale"}}, snapshot.unavailable)
 	require.Contains(t, snapshot.bindings, "k8s:/pods")
 	require.Len(t, snapshot.bindings["k8s:refresh.example/widgets"].Served, 1)
 	require.Zero(t, f.count("/apis/refresh.example/v2"))

@@ -176,7 +176,8 @@ func (p *kubernetesProvider) retireNativeSchemas(state *nativeSchemaState) {
 	state.entries = nil
 }
 
-// Called under p.mu only after complete discovery proves served-GV removal.
+// Called under p.mu when a refresh installs a catalog. A group version that no binding serves any more is withdrawn: its demanded schema is released. A discovery that could not read a
+// group version keeps the kinds that group version served (mergeNativeDiscovery), so only what the server stopped listing, or never had, is released.
 func pruneNativeSchemas(snapshot *nativeCatalogSnapshot) {
 	if snapshot.schemas == nil {
 		return

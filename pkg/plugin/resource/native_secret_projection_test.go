@@ -203,10 +203,10 @@ func secretsRegistrations(t *testing.T) (map[string]resourcev2.Registration[clie
 			{Name: "configmaps", Kind: "ConfigMap", Namespaced: true, Verbs: verbs},
 		},
 	}}}}
-	bindings, coverage, err := discoverNativeTypes(context.Background(), discovery)
+	bindings, _, err := discoverNativeTypes(context.Background(), discovery)
 	require.NoError(t, err)
 	provider := &kubernetesProvider{logger: zap.NewNop().Sugar()}
-	snapshot, err := provider.assembleNativeCatalog(context.Background(), "route", &clients.ClientSet{}, bindings, coverage, nil, nativeTestAny())
+	snapshot, err := provider.assembleNativeCatalog(context.Background(), "route", &clients.ClientSet{}, bindings, nil, nativeTestAny())
 	require.NoError(t, err)
 	types := map[string]resourcev2.ResourceType{}
 	for _, descriptor := range snapshot.catalog.Types {

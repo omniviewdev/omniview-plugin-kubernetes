@@ -10,8 +10,9 @@ import (
 	"sort"
 )
 
-// assembleNativeCatalog builds support and body-format contracts only.
-func (p *kubernetesProvider) assembleNativeCatalog(ctx context.Context, connectionID string, client *clients.ClientSet, bindings map[string]nativeType, coverage resourcev2.Coverage, identityHint *resourcev2.NativeAuthorityHint, watchScope resourcev2.QueryScope) (*nativeCatalogSnapshot, error) {
+// assembleNativeCatalog builds support and body-format contracts only. The
+// catalog is complete: an API group that did not answer is not support to declare.
+func (p *kubernetesProvider) assembleNativeCatalog(ctx context.Context, connectionID string, client *clients.ClientSet, bindings map[string]nativeType, identityHint *resourcev2.NativeAuthorityHint, watchScope resourcev2.QueryScope) (*nativeCatalogSnapshot, error) {
 	registrations := make(map[string]resourcev2.Registration[clients.ClientSet], len(bindings))
 	for token, binding := range bindings {
 		versions := nativeServedVersions(binding)
@@ -53,7 +54,7 @@ func (p *kubernetesProvider) assembleNativeCatalog(ctx context.Context, connecti
 		bindings[token] = binding
 		registrations[token] = p.nativeRegistration(resourcev2.AccessRoute{Connection: connectionID}, binding)
 	}
-	catalog := resourcev2.Catalog{Provider: "kubernetes", Types: sortedNativeTypes(bindings), Coverage: coverage}
+	catalog := resourcev2.Catalog{Provider: "kubernetes", Types: sortedNativeTypes(bindings), Coverage: nativeCompleteCoverage()}
 	catalog.Types = append(catalog.Types, p.helmTypes...)
 	catalog.Types = append(catalog.Types, auditResourceType())
 	catalog.Types = append(catalog.Types, editorQueryResourceType())

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"slices"
 	"time"
 
 	"github.com/omniview/kubernetes/pkg/diag"
@@ -64,6 +65,7 @@ func (p *kubernetesProvider) refreshNativeCatalog(ctx context.Context, connectio
 		cancel()
 	}
 	p.mu.Lock()
+	installed := false
 	if p.catalogs[connectionID] != previous || ctx.Err() != nil {
 		if err == nil {
 			err = resourcev2.NewError("RESET_REQUIRED", "Native connection catalog acquisition was retired")
@@ -72,6 +74,9 @@ func (p *kubernetesProvider) refreshNativeCatalog(ctx context.Context, connectio
 		if err == nil && changed {
 			p.catalogs[connectionID] = snapshot
 			pruneNativeSchemas(snapshot)
+			// The catalog that is installed decides whether a heal is pending, whichever path installed it.
+			p.followCatalogHealLocked(ctx, connectionID, snapshot)
+			installed = true
 		}
 		current := p.catalogs[connectionID]
 		current.nextRefresh = time.Now().Add(nativeCatalogRefreshInterval)
@@ -83,6 +88,10 @@ func (p *kubernetesProvider) refreshNativeCatalog(ctx context.Context, connectio
 	refresh.err = err
 	close(refresh.done)
 	p.mu.Unlock()
+	if installed && !slices.Equal(previous.unavailable, snapshot.unavailable) {
+		// The fact that names the unavailable groups follows the installed catalog, whichever path installed it.
+		p.invalidateConnectionFacts(ctx, connectionID)
+	}
 	if snapshot != nil {
 		span.SetAttributes(attribute.Int("served_types", len(snapshot.bindings)))
 	}
@@ -98,7 +107,7 @@ func (p *kubernetesProvider) refreshNativeCatalog(ctx context.Context, connectio
 }
 
 func (p *kubernetesProvider) acquireNativeCatalog(ctx context.Context, connectionID string, client *clients.ClientSet, previous *nativeCatalogSnapshot) (*nativeCatalogSnapshot, bool, error) {
-	bindings, coverage, err := discoverNativeTypes(ctx, client.DiscoveryClient)
+	support, err := discoverNativeSupport(ctx, client.DiscoveryClient, previous)
 	if err != nil {
 		return nil, false, err
 	}
@@ -117,25 +126,22 @@ func (p *kubernetesProvider) acquireNativeCatalog(ctx context.Context, connectio
 	if err != nil {
 		return nil, false, err
 	}
-	if previous != nil && coverage.Kind != "complete" {
-		return nil, false, resourcev2.NewError("UNAVAILABLE", "Partial discovery cannot replace installed native support")
-	}
 	encoded, err := json.Marshal(struct {
-		Bindings   map[string]nativeType
-		Coverage   resourcev2.Coverage
-		Identity   *resourcev2.NativeAuthorityHint
-		WatchScope resourcev2.QueryScope
-	}{bindings, coverage, hint, watchScope})
+		Bindings    map[string]nativeType
+		Unavailable []nativeUnavailable
+		Identity    *resourcev2.NativeAuthorityHint
+		WatchScope  resourcev2.QueryScope
+	}{support.bindings, support.unavailable, hint, watchScope})
 	if err != nil {
 		return nil, false, err
 	}
 	digest := sha256.Sum256(encoded)
 	revision := hex.EncodeToString(digest[:])
-	trace.SpanFromContext(ctx).SetAttributes(attribute.Int("served_types", len(bindings)))
+	trace.SpanFromContext(ctx).SetAttributes(attribute.Int("served_types", len(support.bindings)))
 	if err := ctx.Err(); err != nil {
 		return nil, false, err
 	}
-	snapshot, err := p.assembleNativeCatalog(ctx, connectionID, client, bindings, coverage, hint, watchScope)
+	snapshot, err := p.assembleNativeCatalog(ctx, connectionID, client, support.bindings, hint, watchScope)
 	if err != nil {
 		return nil, false, err
 	}
@@ -146,5 +152,7 @@ func (p *kubernetesProvider) acquireNativeCatalog(ctx context.Context, connectio
 		snapshot.schemas = previous.schemas
 	}
 	snapshot.discoveryRevision = revision
+	snapshot.unavailable = support.unavailable
+	snapshot.discovery = support.discovery
 	return snapshot, true, nil
 }

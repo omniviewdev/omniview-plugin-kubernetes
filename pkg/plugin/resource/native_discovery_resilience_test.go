@@ -179,15 +179,16 @@ func TestNativeStartGivesUpAfterBoundedAttempts(t *testing.T) {
 			require.NotContains(t, p.catalogs, "down")
 		})
 	}
-	t.Run("group version becomes partial coverage", func(t *testing.T) {
+	t.Run("group version that stays down is unavailable, not partial coverage", func(t *testing.T) {
 		recorder := recordRetries(t, 3)
 		f, client := newRefreshHTTPFixture(t)
 		f.failAlways("/apis/refresh.example/v2", respondUnavailable)
-		p, err := startFixtureProvider(t, client, "partial")
+		p, err := startFixtureProvider(t, client, "unavailable")
 		require.NoError(t, err)
 		require.Equal(t, 3, f.count("/apis/refresh.example/v2"))
 		require.Equal(t, 2, recorder.count())
-		require.Equal(t, "partial", p.catalogs["partial"].catalog.Coverage.Kind)
+		require.Equal(t, "complete", p.catalogs["unavailable"].catalog.Coverage.Kind)
+		require.Equal(t, []nativeUnavailable{{GroupVersion: "refresh.example/v2", Reason: "unavailable"}}, p.catalogs["unavailable"].unavailable)
 	})
 }
 

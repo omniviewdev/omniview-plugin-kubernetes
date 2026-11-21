@@ -40,9 +40,9 @@ func TestNativeDiscoveryMergesVersionsUsingPreferredRepresentation(t *testing.T)
 				d.lists = []*metav1.APIResourceList{preferred, old}
 			}
 			d.groups = []*metav1.APIGroup{{Name: "apps", PreferredVersion: metav1.GroupVersionForDiscovery{GroupVersion: "apps/v1", Version: "v1"}}}
-			bindings, coverage, err := discoverNativeTypes(context.Background(), d)
+			bindings, unavailable, err := discoverNativeTypes(context.Background(), d)
 			require.NoError(t, err)
-			require.Equal(t, "complete", coverage.Kind)
+			require.Empty(t, unavailable)
 			require.Len(t, bindings, 1)
 			binding := bindings["k8s:apps/deployments"]
 			require.Equal(t, schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}, binding.GVR)
@@ -61,17 +61,22 @@ func TestNativeDiscoveryRejectsConflictingIdentityDimensions(t *testing.T) {
 	require.ErrorContains(t, err, "inconsistent native identity dimensions")
 }
 
-func TestNativeDiscoveryPartialCoverage(t *testing.T) {
+func TestNativeDiscoveryUnavailableGroupVersionIsNotCoverage(t *testing.T) {
 	d := discoveryFixture(&metav1.APIResourceList{GroupVersion: "v1", APIResources: []metav1.APIResource{{Name: "pods", Kind: "Pod", Namespaced: true, Verbs: metav1.Verbs{"list"}}}})
-	d.err = &discovery.ErrGroupDiscoveryFailed{Groups: map[schema.GroupVersion]error{{Group: "unavailable.example", Version: "v1"}: errors.New("unavailable")}}
-	bindings, coverage, err := discoverNativeTypes(context.Background(), d)
-	require.NoError(t, err)
+	d.err = &discovery.ErrGroupDiscoveryFailed{Groups: map[schema.GroupVersion]error{
+		{Group: "unavailable.example", Version: "v1"}: errors.New("unavailable"),
+		{Group: "metrics.k8s.io", Version: "v1beta1"}: discovery.StaleGroupVersionError{},
+	}}
+	bindings, unavailable, err := discoverNativeTypes(context.Background(), d)
+	require.NoError(t, err, "a group version that does not answer does not fail discovery")
 	require.Contains(t, bindings, "k8s:/pods")
-	require.Equal(t, "partial", coverage.Kind)
-	require.NotEmpty(t, coverage.Reason)
+	require.Equal(t, []nativeUnavailable{
+		{GroupVersion: "metrics.k8s.io/v1beta1", Reason: "stale"},
+		{GroupVersion: "unavailable.example/v1", Reason: "failed"},
+	}, unavailable, "the group versions are named, in order, each with a closed reason")
 	d.lists = nil
 	_, _, err = discoverNativeTypes(context.Background(), d)
-	require.ErrorIs(t, err, d.err)
+	require.ErrorIs(t, err, d.err, "nothing discovered is a failed discovery, not an empty catalog")
 }
 
 func TestNativeDiscoveryPreservesActualGroupsAndSkipsSubresources(t *testing.T) {

@@ -13,80 +13,117 @@ import (
 	"k8s.io/client-go/discovery"
 )
 
+// Without aggregated discovery every group version is a request. The built-in ones are read by a pool of four; the versions of an extension group are all read at once, so that
+// the ones that hang cost one bound in total (nativeGroupReadBound).
 func TestNativeDiscoveryParallelRequests(t *testing.T) {
-	for _, cancelRequests := range []bool{false, true} {
-		t.Run(fmt.Sprintf("cancel=%t", cancelRequests), func(t *testing.T) {
-			f, client := newRefreshHTTPFixture(t)
-			f.setVersions(t, "v1", "v2", "v3", "v4", "v5", "v6", "v7")
-			entered := make(chan string, 8)
-			release := make(chan struct{}, 8)
-			var active, peak atomic.Int32
-			f.mu.Lock()
-			f.hook = func(w http.ResponseWriter, r *http.Request) bool {
-				if r.URL.Path == "/api" || r.URL.Path == "/apis" {
-					return false
+	for _, scenario := range []struct {
+		name  string
+		serve func(*testing.T, *refreshHTTPFixture)
+		// overlap is how many reads wait together before any is answered: all of them, or the pool's four.
+		overlap int
+		// want is what a complete discovery lists, in the order of the index.
+		want []string
+	}{
+		{
+			"built-in group versions are read by a pool of four",
+			func(t *testing.T, f *refreshHTTPFixture) {
+				f.setVersions(t)
+				for _, gv := range [][2]string{{"apps", "v1"}, {"apps", "v1beta1"}, {"apps", "v1beta2"}, {"batch", "v1"}, {"batch", "v1beta1"}, {"autoscaling", "v1"}, {"autoscaling", "v2"}} {
+					f.serveGroupVersion(t, gv[0], gv[1], "things")
 				}
-				n := active.Add(1)
-				defer active.Add(-1)
-				for old := peak.Load(); n > old; old = peak.Load() {
-					if peak.CompareAndSwap(old, n) {
-						break
+			},
+			nativeCatalogRequestConcurrency,
+			[]string{"v1", "apps/v1", "apps/v1beta1", "apps/v1beta2", "batch/v1", "batch/v1beta1", "autoscaling/v1", "autoscaling/v2"},
+		},
+		{
+			"the versions of an extension group are all read at once",
+			func(t *testing.T, f *refreshHTTPFixture) { f.setVersions(t, "v1", "v2", "v3", "v4", "v5", "v6", "v7") },
+			8, // core v1 and the seven versions
+			[]string{"v1", "refresh.example/v1", "refresh.example/v2", "refresh.example/v3", "refresh.example/v4", "refresh.example/v5", "refresh.example/v6", "refresh.example/v7"},
+		},
+	} {
+		for _, cancelRequests := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/cancel=%t", scenario.name, cancelRequests), func(t *testing.T) {
+				f, client := newRefreshHTTPFixture(t)
+				scenario.serve(t, f)
+				entered := make(chan string, 16)
+				release := make(chan struct{}, 16)
+				var active, peak atomic.Int32
+				f.mu.Lock()
+				f.hook = func(w http.ResponseWriter, r *http.Request) bool {
+					if r.URL.Path == "/api" || r.URL.Path == "/apis" {
+						return false
+					}
+					n := active.Add(1)
+					defer active.Add(-1)
+					for old := peak.Load(); n > old; old = peak.Load() {
+						if peak.CompareAndSwap(old, n) {
+							break
+						}
+					}
+					entered <- r.URL.Path
+					select {
+					case <-release:
+						return false
+					case <-r.Context().Done():
+						return true
 					}
 				}
-				entered <- r.URL.Path
-				select {
-				case <-release:
-					return false
-				case <-r.Context().Done():
-					return true
+				f.mu.Unlock()
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				t.Cleanup(func() { close(release) })
+				type outcome struct {
+					versions []string
+					err      error
 				}
-			}
-			f.mu.Unlock()
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			t.Cleanup(func() { close(release) })
-			type outcome struct {
-				versions []string
-				err      error
-			}
-			done := make(chan outcome, 1)
-			go func() {
-				_, lists, err := discoverNativeResources(ctx, client.DiscoveryClient)
-				result := outcome{err: err}
-				for _, list := range lists {
-					result.versions = append(result.versions, list.GroupVersion)
+				done := make(chan outcome, 1)
+				go func() {
+					_, lists, err := discoverNativeResources(ctx, client.DiscoveryClient)
+					result := outcome{err: err}
+					for _, list := range lists {
+						result.versions = append(result.versions, list.GroupVersion)
+					}
+					done <- result
+				}()
+				for range scenario.overlap {
+					select {
+					case <-entered:
+					case <-time.After(5 * time.Second):
+						t.Fatalf("discovery did not overlap %d requests", scenario.overlap)
+					}
 				}
-				done <- result
-			}()
-			for range nativeCatalogRequestConcurrency {
-				select {
-				case <-entered:
-				case <-time.After(5 * time.Second):
-					t.Fatal("discovery did not overlap four requests")
+				if scenario.overlap < len(scenario.want) {
+					// The pool is full: a read more must not begin while the four wait.
+					select {
+					case path := <-entered:
+						t.Fatalf("a read of %s began while %d waited", path, scenario.overlap)
+					case <-time.After(200 * time.Millisecond):
+					}
 				}
-			}
-			if cancelRequests {
-				cancel()
-			} else {
-				// Send tokens rather than closing: cleanup owns the close.
-				for range 8 {
-					release <- struct{}{}
-				}
-			}
-			select {
-			case result := <-done:
 				if cancelRequests {
-					require.ErrorIs(t, result.err, context.Canceled)
-					require.Empty(t, result.versions)
+					cancel()
 				} else {
-					require.NoError(t, result.err)
-					require.Equal(t, []string{"v1", "refresh.example/v1", "refresh.example/v2", "refresh.example/v3", "refresh.example/v4", "refresh.example/v5", "refresh.example/v6", "refresh.example/v7"}, result.versions)
+					// Send tokens rather than closing: cleanup owns the close.
+					for range 16 {
+						release <- struct{}{}
+					}
 				}
-			case <-time.After(5 * time.Second):
-				t.Fatal("discovery did not finish")
-			}
-			require.Equal(t, int32(nativeCatalogRequestConcurrency), peak.Load())
-		})
+				select {
+				case result := <-done:
+					if cancelRequests {
+						require.ErrorIs(t, result.err, context.Canceled)
+						require.Empty(t, result.versions)
+					} else {
+						require.NoError(t, result.err)
+						require.Equal(t, scenario.want, result.versions)
+					}
+				case <-time.After(5 * time.Second):
+					t.Fatal("discovery did not finish")
+				}
+				require.Equal(t, int32(scenario.overlap), peak.Load())
+			})
+		}
 	}
 }
 

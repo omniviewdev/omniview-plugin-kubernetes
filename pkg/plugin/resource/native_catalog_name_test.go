@@ -30,10 +30,10 @@ func nameCatalog(t *testing.T, watchScope resourcev2.QueryScope) (*kubernetesPro
 			{Name: "clusterwidgets", Kind: "ClusterWidget", Verbs: metav1.Verbs{"get", "list", "watch"}},
 		}},
 	}}}
-	bindings, coverage, err := discoverNativeTypes(context.Background(), discovery)
+	bindings, _, err := discoverNativeTypes(context.Background(), discovery)
 	require.NoError(t, err)
 	provider := &kubernetesProvider{logger: zap.NewNop().Sugar(), helmTypes: helm.HelmResourceTypes()}
-	snapshot, err := provider.assembleNativeCatalog(context.Background(), "route", &clients.ClientSet{}, bindings, coverage, nil, watchScope)
+	snapshot, err := provider.assembleNativeCatalog(context.Background(), "route", &clients.ClientSet{}, bindings, nil, watchScope)
 	require.NoError(t, err)
 	require.NoError(t, resourcev2.ValidateCatalog(snapshot.catalog))
 	return provider, snapshot
