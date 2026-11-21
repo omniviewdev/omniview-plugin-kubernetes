@@ -97,7 +97,7 @@ const NO_CONNECTION_TEXT = 'None';
  * without one gives it back and moves the page by its 40 px (docs/ui-next/status/S1b.md). So the face is always there, and its text is a word while the connection is not known.
  */
 export function connectionFace({ named, pending }: Pick<PageConnection, 'named' | 'pending'>): ShellScopeFace {
-  return { label: 'Connection', icon: 'server', text: named ?? (pending ? WAITING_TEXT : NO_CONNECTION_TEXT) };
+  return { label: 'Connection', icon: 'server', text: named ?? (pending ? WAITING_TEXT : NO_CONNECTION_TEXT), role: 'connection' };
 }
 
 /** The scope lane's Namespaces face: the namespaces the page is read in. */

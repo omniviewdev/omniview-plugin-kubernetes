@@ -145,6 +145,14 @@ describe('usePodPage: the scope lane is there from the first render', () => {
     }
   });
 
+  it('marks the Connection face as the connection (role) in every state, and no other face', () => {
+    for (const state of [{ kind: 'loading' }, { kind: 'loaded' }, { kind: 'empty' }, { kind: 'failed' }, { kind: 'denied' }] as const) {
+      usePod.mockReturnValue(view({ state, pod: state.kind === 'loaded' ? POD : undefined }));
+      expect(mount().result.current.scope?.map((face) => face.role), state.kind).toEqual(['connection', undefined]);
+      cleanup();
+    }
+  });
+
   it('says the namespace is unknown when the route has none, and does not read a Pod for it', () => {
     const { result } = mount({ params: { name: 'cart-api' } });
     expect(lane(result.current.scope)).toEqual(['Connection: kind-a', 'Namespaces: Unknown']);
