@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/omniview/kubernetes/pkg/connid"
+	"github.com/omniview/kubernetes/pkg/connid/connidtest"
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	"github.com/omniview/kubernetes/pkg/utils"
 	logging "github.com/omniviewdev/plugin-sdk/log"
@@ -330,6 +331,71 @@ func TestMergeInventoryKeepsSameNamedContextsOfDifferentFiles(t *testing.T) {
 	assert.Equal(t, []string{"prod-aaaaaaaaaa", "prod-bbbbbbbbbb"}, []string{merged[0].ID, merged[1].ID}, "equal names are ordered by ID")
 }
 
+// Connections of one name are ordered by ID, whatever order their files were listed in, so the
+// inventory that the SDK gets is the same for the same set of files.
+func TestMergeInventoryOrdersEqualNamesByIDWhateverTheOrderOfTheFiles(t *testing.T) {
+	named := func(id string) types.Connection {
+		return types.Connection{ID: id, Name: "prod", Data: map[string]any{connid.DataKeyContext: "prod"}}
+	}
+	low, high := named("prod-aaaaaaaaaa"), named("prod-bbbbbbbbbb")
+	for name, files := range map[string][]inventoryFile{
+		"low ID first":  {{index: 0, target: "/files/a", connections: []types.Connection{low}}, {index: 1, target: "/files/b", connections: []types.Connection{high}}},
+		"high ID first": {{index: 0, target: "/files/a", connections: []types.Connection{high}}, {index: 1, target: "/files/b", connections: []types.Connection{low}}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			merged := mergeInventory(context.Background(), files, logging.LevelWarn)
+
+			assert.Equal(t, []types.Connection{low, high}, merged)
+		})
+	}
+}
+
+// A file that cannot be loaded is reported by its index, and at the level of the load: a warning when
+// the plugin starts and after a settings change, a debug record on every rebuild that a change of a
+// watched file starts, which would otherwise repeat the warning. Nothing that names a path is logged.
+func TestSkippedKubeconfigIsLoggedByIndexAtTheLevelOfItsLoad(t *testing.T) {
+	sink := captureConnectionLogs(t)
+	dir := t.TempDir()
+	present, missing := filepath.Join(dir, "present"), filepath.Join(dir, "secret-missing-name")
+	writeInventoryKubeconfig(t, present, "https://10.0.0.1:6443", "prod")
+	p := &kubeConnectionProvider{logger: zap.NewNop().Sugar()}
+
+	for name, tt := range map[string]struct {
+		load  func() ([]types.Connection, error)
+		level logging.Level
+	}{
+		"initial load": {func() ([]types.Connection, error) {
+			return p.LoadConnections(connectionTestSession(context.Background(), present, missing))
+		}, logging.LevelWarn},
+		"watch refresh": {func() ([]types.Connection, error) {
+			return p.loadConnectionsFromPaths([]string{present, missing})
+		}, logging.LevelDebug},
+	} {
+		t.Run(name, func(t *testing.T) {
+			sink.Reset()
+			connections, err := tt.load()
+			require.NoError(t, err)
+			assert.Equal(t, []string{"prod"}, namesOf(connections), "the file that loads is not held back by the one that does not")
+
+			reported := 0
+			for _, record := range sink.Records() {
+				text := fmt.Sprint(record.Message, record.Fields)
+				assert.NotContains(t, text, "secret-missing-name")
+				assert.NotContains(t, text, dir)
+				if record.Message != "kubeconfig context skipped" {
+					continue
+				}
+				reported++
+				fields := record.ToMap()
+				assert.Equal(t, tt.level, record.Level)
+				assert.Equal(t, 1, fields["kubeconfig_index"])
+				assert.Equal(t, "not_found", fields["cause"])
+			}
+			assert.Equal(t, 1, reported)
+		})
+	}
+}
+
 // A change to a watched file is rebuilt through the same inventory: IDs stay distinct and the ones
 // that exist keep their value.
 func TestWatchRefreshKeepsIDsDistinctAndStable(t *testing.T) {
@@ -455,6 +521,26 @@ func TestResourceEntryPointsNeverReadTheIDAsTheContext(t *testing.T) {
 	_, err = p.CreateClient(session)
 	require.ErrorIs(t, err, connid.ErrNoContext)
 	require.ErrorIs(t, p.RefreshClient(session, &clients.ClientSet{}), connid.ErrNoContext)
+}
+
+// A connection that names no context (a saved one from before IDs were derived is one) cannot connect,
+// and what the user reads is a classification and a sentence, not "Provider operation failed".
+func TestAConnectionWithNoContextFailsToConnectWithAClassificationAndASentence(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config")
+	writeInventoryKubeconfig(t, path, "https://one.invalid:6443", "prod")
+	p := &kubeConnectionProvider{logger: zap.NewNop().Sugar()}
+	connections, err := p.LoadConnections(connectionTestSession(context.Background(), path))
+	require.NoError(t, err)
+	require.Len(t, connections, 1)
+	connection := connections[0]
+	delete(connection.Data, connid.DataKeyContext)
+	session := resourcev2.WithSession(context.Background(), resourcev2.Session{Connection: &connection})
+
+	_, err = LoadBoundedResourceClients(context.Background(), &connection)
+	connidtest.RequireNoContextError(t, err)
+	_, err = p.CreateClient(session)
+	connidtest.RequireNoContextError(t, err)
+	connidtest.RequireNoContextError(t, p.RefreshClient(session, &clients.ClientSet{}))
 }
 
 func TestLoadBoundedResourceClientsLabelsTheBuildWithTheConnectionID(t *testing.T) {

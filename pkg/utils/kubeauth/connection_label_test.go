@@ -7,8 +7,10 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime/pprof"
 	"testing"
 
+	"github.com/omniview/kubernetes/pkg/diag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -138,4 +140,24 @@ func TestWithConnectionIDKeepsANilContextNil(t *testing.T) {
 	// So a build still reports the missing context itself.
 	_, err := LoadKubeClients(WithConnectionID(ctx, labelTestConnectionID), "unused", "prod")
 	require.ErrorContains(t, err, "requires a context")
+}
+
+// The profiler labels of a resource client build name the connection by its ID, like its spans and logs,
+// and not by the kube context. The build runs under diag.Do and hands the context it runs under to the
+// transport that it makes, as the lifetime of the clients, so that is where the labels can be read.
+func TestResourceClientBuildProfilerLabelsNameTheConnectionID(t *testing.T) {
+	diag.SetProfileLabels(true)
+	t.Cleanup(func() { diag.SetProfileLabels(false) })
+	path := writeLabelTestKubeconfig(t)
+
+	bundle, err := LoadResourceKubeClients(WithConnectionID(context.Background(), labelTestConnectionID), path, "prod")
+
+	require.NoError(t, err)
+	transport, ok := bundle.HTTPClient.Transport.(*resourceResponseTransport)
+	require.True(t, ok, "the resource bundle's client is the bounded one")
+	connection, labelled := pprof.Label(transport.lifetime, "connection")
+	require.True(t, labelled, "the build runs under a connection label")
+	assert.Equal(t, labelTestConnectionID, connection)
+	phase, _ := pprof.Label(transport.lifetime, "phase")
+	assert.Equal(t, diag.PhaseClientBuild, phase)
 }

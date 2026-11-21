@@ -49,8 +49,19 @@ function view(over: Partial<PodsView> = {}): PodsView {
   };
 }
 
-const know = (...ids: readonly string[]) => {
-  connections.mockReturnValue({ connections: { data: ids.map((id) => ({ id })), isPending: false } } as never);
+/** A connection as the host lists it: the exact context name for its name, the kubeconfig it came from, and an id (the name unless the plugin derived one). */
+const record = (name: string, id: string = name, kubeconfig = '~/.kube/config') => ({ id, name, labels: { kubeconfig }, data: { context: name } });
+
+const know = (...names: readonly string[]) => {
+  connections.mockReturnValue({ connections: { data: names.map((name) => record(name)), isPending: false } } as never);
+};
+
+/** The id the plugin derives for a connection: the context's name and ten hex digits, so that no id is a name. */
+const idOf = (name: string) => `${name}-54c660ecd1`;
+
+/** The connections of a plugin whose ids are derived: the page must say their names, and read them by their ids. */
+const knowDerived = (...names: readonly string[]) => {
+  connections.mockReturnValue({ connections: { data: names.map((name) => record(name, idOf(name))), isPending: false } } as never);
 };
 
 /** What the host tells the page: the plugin it is installed under, and the route (the connection the hash names, if it names one). */
@@ -149,6 +160,47 @@ describe('usePodsPage: what it hands the host', () => {
   });
 });
 
+// A connection has an id (`<name>-<10 hex>`: the page reads by it and a tab is found by it) and a name (the exact context name, or what the user renamed it to). A person reads the name: the frame never
+// prints an id, and two connections of one name are told apart by the kubeconfig they came from.
+describe('usePodsPage: the frame says the name of the connection, and the reads use its id', () => {
+  it('says the name in the lane and in the path, and reads and keys by the id, whether the route names the connection or not', () => {
+    knowDerived('kind-a', 'kind-b');
+    for (const route of [idOf('kind-b'), undefined]) {
+      const picked = route === undefined ? 'kind-a' : 'kind-b';
+      const { frame } = mount(route).result.current;
+      expect(frame.path).toEqual(['Kubernetes', picked, 'Pods']);
+      expect(frame.scope?.[0]).toEqual({ label: 'Connection', icon: 'server', text: picked });
+      expect(JSON.stringify(frame)).not.toContain('54c660ecd1');
+      expect(usePods).toHaveBeenLastCalledWith(podDefinition, { pluginID: 'kubernetes', connectionID: idOf(picked) });
+      cleanup();
+    }
+  });
+
+  it('reads the first connection, and names it, for a route that holds an old id (before ids were derived the id was the context name) or the id of a connection that is gone', () => {
+    knowDerived('kind-a', 'kind-b');
+    for (const stale of ['kind-b', idOf('kind-gone')]) {
+      const { frame } = mount(stale).result.current;
+      expect(frame.scope?.[0]).toEqual({ label: 'Connection', icon: 'server', text: 'kind-a' });
+      expect(frame.path).toEqual(['Kubernetes', 'kind-a', 'Pods']);
+      expect(JSON.stringify(frame)).not.toContain(stale);
+      expect(usePods).toHaveBeenLastCalledWith(podDefinition, { pluginID: 'kubernetes', connectionID: idOf('kind-a') });
+      cleanup();
+    }
+  });
+
+  it('tells two connections of one name apart by their kubeconfig, and keeps their ids apart', () => {
+    connections.mockReturnValue({
+      connections: { data: [record('prod', 'prod-1111111111', '~/.kube/config'), record('prod', 'prod-2222222222', '~/work/other')], isPending: false },
+    } as never);
+    const [first, second] = [mount('prod-1111111111'), mount('prod-2222222222')].map(({ result }) => result.current.frame);
+    expect(first?.scope?.[0]?.text).toBe('prod \u00B7 config');
+    expect(second?.scope?.[0]?.text).toBe('prod \u00B7 other');
+    expect(first?.path).toEqual(['Kubernetes', 'prod \u00B7 config', 'Pods']);
+    expect(usePods).toHaveBeenCalledWith(podDefinition, { pluginID: 'kubernetes', connectionID: 'prod-1111111111' });
+    expect(usePods).toHaveBeenCalledWith(podDefinition, { pluginID: 'kubernetes', connectionID: 'prod-2222222222' });
+  });
+});
+
 // The host reserves the scope lane while a plugin loads and gives it back when the page's first frame has none, so a frame with no scope moves the page by the lane's 40 px
 // (docs/ui-next/status/S1b.md): the lane is declared from the first render, whatever the page does not know yet.
 describe('usePodsPage: the scope lane is there from the first render', () => {
@@ -161,9 +213,11 @@ describe('usePodsPage: the scope lane is there from the first render', () => {
     expect(frame.path).toEqual(['Kubernetes', 'Pods']);
   });
 
-  it('names the connection the route asks for while the list of connections is on its way', () => {
+  it('names no connection while the list of connections is on its way, even when the route names one: a route holds an id, and an id is never printed', () => {
     connections.mockReturnValue({ connections: { data: undefined, isPending: true } } as never);
-    expect(lane(mount('kind-b').result.current.frame)).toEqual(['Connection: kind-b', 'Namespaces: All namespaces']);
+    const { frame } = mount(idOf('kind-b')).result.current;
+    expect(lane(frame)).toEqual(['Connection: Loading…', 'Namespaces: All namespaces']);
+    expect(frame.path).toEqual(['Kubernetes', 'Pods']);
   });
 
   it('has both faces when the plugin has no connection, which it says', () => {

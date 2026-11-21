@@ -3,14 +3,17 @@ package resource
 import (
 	"cmp"
 	"context"
+	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
+	"sync/atomic"
 
 	"github.com/omniview/kubernetes/pkg/connid"
 	logging "github.com/omniviewdev/plugin-sdk/log"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
+	sdkutils "github.com/omniviewdev/plugin-sdk/pkg/utils"
 )
 
 // Why a connection was left out of the inventory.
@@ -22,14 +25,30 @@ const (
 	duplicateIDCollision = "id_collision"
 )
 
+// kubeconfigOS is the operating system whose rules for file names the locator of a kubeconfig follows
+// (see connid.FileLocator): the machine's (runtime.GOOS) while it is nil, and in a test the system whose
+// rule is under test, so that the wiring of the rule is checked on any machine. It is atomic because a
+// watch that an earlier test started may still be rebuilding the inventory.
+var kubeconfigOS atomic.Pointer[string]
+
+func currentKubeconfigOS() string {
+	if goos := kubeconfigOS.Load(); goos != nil {
+		return *goos
+	}
+	return runtime.GOOS
+}
+
 // inventoryFile is what one configured kubeconfig file gave.
 type inventoryFile struct {
 	// index is the position of the file in the configured list: the way a file is named in logs,
 	// which never carry a path.
 	index int
 	// target is the key under which the file is recognized when another path reaches it (see
-	// kubeconfigIdentity).
-	target      string
+	// kubeconfigIdentity and shareTargets).
+	target string
+	// info is what the file system says the file is, which os.SameFile compares (see shareTargets). It
+	// is nil when the file system could not say.
+	info        os.FileInfo
 	connections []types.Connection
 }
 
@@ -42,7 +61,8 @@ type inventoryFile struct {
 // The target is what tells that two configured paths are one file: the cleaned absolute path with
 // every symlink resolved, or the cleaned absolute path itself when it cannot be resolved, folded in
 // the same way as the locator. A file that is listed twice, or that is reached through a link, has
-// one target and two locators.
+// one target and two locators. What a path alone cannot say, a hard link or a name that differs only
+// in case on a file system that ignores case, the file system says (see shareTargets).
 func kubeconfigIdentity(path string) (locator, target string, err error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
@@ -53,7 +73,42 @@ func kubeconfigIdentity(path string) (locator, target string, err error) {
 	if err != nil {
 		resolved = abs
 	}
-	return connid.FileLocator(abs, runtime.GOOS), connid.FileLocator(resolved, runtime.GOOS), nil
+	goos := currentKubeconfigOS()
+	return connid.FileLocator(abs, goos), connid.FileLocator(resolved, goos), nil
+}
+
+// kubeconfigFileInfo is what the file system says the kubeconfig at path is: nil when it cannot say.
+func kubeconfigFileInfo(path string) os.FileInfo {
+	expanded, err := sdkutils.ExpandTilde(path)
+	if err != nil {
+		return nil
+	}
+	info, err := os.Stat(expanded)
+	if err != nil {
+		return nil
+	}
+	return info
+}
+
+// shareTargets gives each file the target of the first file before it that is the same file, as the
+// file system says (os.SameFile: the same device and file, however the path reaches it). This is what
+// makes one file that is reached by a hard link, or by a name that differs only in case on a file
+// system that ignores case, one source: mergeInventory keeps one connection for each of its contexts,
+// and it keeps the one of the first spelling in the configured order, whose locator, and so whose ID,
+// does not change from one start to the next while the list keeps its order. The files are in the
+// configured order. A file with no info keeps its own target.
+func shareTargets(files []inventoryFile) {
+	for i := range files {
+		if files[i].info == nil {
+			continue
+		}
+		for _, earlier := range files[:i] {
+			if earlier.info != nil && os.SameFile(earlier.info, files[i].info) {
+				files[i].target = earlier.target
+				break
+			}
+		}
+	}
 }
 
 // buildInventory is the one place the connection inventory is built from the configured kubeconfig
@@ -68,8 +123,9 @@ func buildInventory(ctx context.Context, kubeconfigs []string, level logging.Lev
 			logKubeconfigSkipped(ctx, level, i, err)
 			continue
 		}
-		files = append(files, inventoryFile{index: i, target: target, connections: connections})
+		files = append(files, inventoryFile{index: i, target: target, info: kubeconfigFileInfo(kubeconfigPath), connections: connections})
 	}
+	shareTargets(files)
 	return mergeInventory(ctx, files, level)
 }
 

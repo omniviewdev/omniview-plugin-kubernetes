@@ -3,7 +3,6 @@ package utils
 import (
 	"errors"
 
-	"github.com/omniview/kubernetes/pkg/connid"
 	"github.com/omniview/kubernetes/pkg/utils/kubeauth"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
 )
@@ -27,7 +26,7 @@ func KubeClientsFromContext(ctx *types.PluginContext) (*kubeauth.KubeClientBundl
 		return nil, errors.New("kubeconfig is required and must be a string")
 	}
 
-	kubeContext, err := connid.ContextFromData(ctx.Connection.Data)
+	kubeContext, err := kubeauth.ConnectionContext(ctx.Connection.Data)
 	if err != nil {
 		return nil, err
 	}

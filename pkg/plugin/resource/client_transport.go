@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/omniview/kubernetes/pkg/connid"
 	"github.com/omniview/kubernetes/pkg/utils/kubeauth"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
 )
@@ -27,7 +26,7 @@ func LoadBoundedResourceClients(ctx context.Context, conn *types.Connection) (*k
 	if !ok || path == "" {
 		return nil, errors.New("kubeconfig must be a non-empty string")
 	}
-	kubeContext, err := connid.ContextFromData(conn.Data)
+	kubeContext, err := kubeauth.ConnectionContext(conn.Data)
 	if err != nil {
 		return nil, err
 	}

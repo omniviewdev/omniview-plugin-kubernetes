@@ -58,6 +58,17 @@ func TestKubeClientsFromContext_RejectsAnUnusableContext(t *testing.T) {
 	}
 }
 
+// What the user reads when a connection names no context: a classification and a sentence.
+func TestKubeClientsFromContext_ANoContextErrorIsClassifiedWithASentence(t *testing.T) {
+	path := connidtest.Kubeconfig(t, "prod")
+	connection := connidtest.Connection(t, path, "prod")
+	delete(connection.Data, connid.DataKeyContext)
+
+	_, err := KubeClientsFromContext(&types.PluginContext{Context: context.Background(), Connection: connection})
+
+	connidtest.RequireNoContextError(t, err)
+}
+
 func TestKubeClientsFromContext_TheContextMustExistInTheKubeconfig(t *testing.T) {
 	path := connidtest.Kubeconfig(t, "prod")
 	connection := connidtest.Connection(t, path, "prod")

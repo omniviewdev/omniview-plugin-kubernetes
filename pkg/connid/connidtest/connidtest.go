@@ -11,7 +11,9 @@ import (
 	"testing"
 
 	"github.com/omniview/kubernetes/pkg/connid"
+	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
@@ -82,4 +84,29 @@ func Connection(t testing.TB, path, contextName string) *types.Connection {
 	}
 	require.NotEqual(t, contextName, connection.ID)
 	return connection
+}
+
+// maxHostSentence is how many characters of a plugin's sentence the host shows
+// (backend/pkg/apperror, PublicText of an error's detail).
+const maxHostSentence = 512
+
+// RequireNoContextError requires that err is what building clients for a connection that names no
+// kubeconfig context returns: connid.ErrNoContext for code that matches it, and a classification
+// (INVALID_REQUEST) with a sentence that a person can act on, so that the user is told the cause where an
+// error with no classification reaches them as "Provider operation failed". The sentence names no path
+// and no ID.
+func RequireNoContextError(t testing.TB, err error) {
+	t.Helper()
+	require.ErrorIs(t, err, connid.ErrNoContext)
+	assert.Equal(t, "INVALID_REQUEST", resourcev2.ErrorCode(err))
+	var classified *resourcev2.ResourceOperationError
+	require.ErrorAs(t, err, &classified)
+	assert.NotEmpty(t, classified.Title)
+	assert.Contains(t, classified.Message, "kubeconfig context", "the sentence says what is missing")
+	assert.LessOrEqual(t, len(classified.Message), maxHostSentence, "the host shows only the first characters of a plugin's sentence")
+	for _, text := range []string{classified.Title, classified.Message} {
+		assert.NotContains(t, text, "/", "no path")
+		assert.NotContains(t, text, `\`, "no path")
+		assert.NotContains(t, text, "~", "no path")
+	}
 }
