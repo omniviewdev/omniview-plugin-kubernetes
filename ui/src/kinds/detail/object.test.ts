@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { conditionInputs, controllerOf, detailMeta, podTemplateOf, selectorOf, strategyOf, strings } from './object';
+import { conditionInputs, controllerOf, detailMeta, podTemplateOf, selectorOf, statusBehind, strategyOf, strings } from './object';
 
 // What a kind's page reads of an object of unknown shape: each field kept only when it has the type the API gives it, so what the object does not hold is absent here and stays absent downstream.
 
@@ -25,6 +25,7 @@ describe('detailMeta: the metadata every page reads', () => {
         namespace: 'checkout',
         uid: 'abc',
         creationTimestamp: '2026-11-19T20:09:56Z',
+        generation: 3,
         deletionTimestamp: '2026-11-20T01:00:00Z',
         labels: { app: 'cart-api' },
         annotations: { 'deployment.kubernetes.io/revision': '1' },
@@ -35,6 +36,7 @@ describe('detailMeta: the metadata every page reads', () => {
       namespace: 'checkout',
       uid: 'abc',
       creationTimestamp: '2026-11-19T20:09:56Z',
+      generation: 3,
       deletionTimestamp: '2026-11-20T01:00:00Z',
       labels: { app: 'cart-api' },
       annotations: { 'deployment.kubernetes.io/revision': '1' },
@@ -126,5 +128,31 @@ describe('podTemplateOf: what a workload says of the Pods it makes', () => {
     expect(podTemplateOf({})).toEqual({ serviceAccountName: undefined, nodeSelector: undefined });
     expect(podTemplateOf(undefined)).toEqual({ serviceAccountName: undefined, nodeSelector: undefined });
     expect(podTemplateOf({ template: 'x' })).toEqual({ serviceAccountName: undefined, nodeSelector: undefined });
+  });
+});
+
+describe('statusBehind: whether a workload\'s status describes an older spec than the one the object holds', () => {
+  // `metadata.generation` counts the changes to the spec; `status.observedGeneration` is the last of them the controller has seen.
+  it('is behind while the controller has seen fewer changes than the spec has had', () => {
+    expect(statusBehind(2, 1)).toBe(true);
+    expect(statusBehind(9, 3)).toBe(true);
+  });
+
+  it('is not behind once they meet', () => {
+    expect(statusBehind(1, 1)).toBe(false);
+    expect(statusBehind(4, 4)).toBe(false);
+  });
+
+  it('is behind when the status states no generation at all: the API omits it until the controller has seen the object once', () => {
+    expect(statusBehind(1, undefined)).toBe(true);
+  });
+
+  it('cannot tell when the object states no generation: it is then not said to be behind', () => {
+    expect(statusBehind(undefined, 3)).toBe(false);
+    expect(statusBehind(undefined, undefined)).toBe(false);
+  });
+
+  it('is not behind when the status is ahead of the spec, which the API does not do', () => {
+    expect(statusBehind(1, 2)).toBe(false);
   });
 });

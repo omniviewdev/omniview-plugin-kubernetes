@@ -283,7 +283,11 @@ describe('when the object is not there', () => {
   it('says empty, which is not found, when the object\'s own snapshot is complete and has no such object', () => {
     answer({ collection: [deployment('payment-gateway')] });
 
-    expect(render().result.current.state).toEqual({ kind: 'empty' });
+    const { result } = render();
+
+    expect(result.current.state).toEqual({ kind: 'empty' });
+    // The page never had it: it is not found, and not deleted.
+    expect(result.current.deleted).toBe(false);
   });
 
   it('says loading while the collection has no complete snapshot: an object that is not in it yet is not missing', () => {
@@ -300,12 +304,15 @@ describe('when the object is not there', () => {
     const { result, rerender } = render();
     expect(result.current.state).toEqual({ kind: 'loaded' });
     expect(result.current.live).toBe(true);
+    expect(result.current.deleted).toBe(false);
 
     answer({ collection: [deployment('payment-gateway')], live: true });
     rerender({});
 
     expect(result.current.record).toBeUndefined();
     expect(result.current.state).toEqual({ kind: 'empty' });
+    // The page had the object and its source has since said it is gone: it was deleted.
+    expect(result.current.deleted).toBe(true);
   });
 
   it('finds the object again when it is created again', () => {
@@ -317,6 +324,45 @@ describe('when the object is not there', () => {
     rerender({});
 
     expect(result.current.record).toBeDefined();
+    expect(result.current.deleted).toBe(false);
+  });
+
+  it('does not say another object was deleted when the route moves to one the page never had, though it showed this one', () => {
+    answer({ collection: [deployment('cart-api')] });
+    const { result, rerender } = render();
+    expect(result.current.record).toBeDefined();
+
+    answer({ collection: [deployment('cart-api')], target: { type: DEPLOYMENTS.type, scope: namespaced('checkout', 'other') } });
+    rerender({ name: 'other' });
+
+    expect(result.current.state).toEqual({ kind: 'empty' });
+    expect(result.current.deleted).toBe(false);
+  });
+
+  it('says it for an object that lives in no namespace too', () => {
+    const props = { kind: NODES, name: 'kind-control-plane', namespace: undefined };
+    answer({ collection: [node('kind-control-plane')], target: { type: NODES.type, scope: clusterScoped('kind-control-plane') } });
+    const { result, rerender } = render(props);
+    expect(result.current.record).toBeDefined();
+    expect(result.current.deleted).toBe(false);
+
+    answer({ collection: [], target: { type: NODES.type, scope: clusterScoped('kind-control-plane') } });
+    rerender(props);
+
+    expect(result.current.state).toEqual({ kind: 'empty' });
+    expect(result.current.deleted).toBe(true);
+  });
+
+  it('does not say deleted while the connection is down or the read is on its way again: only the object\'s own complete snapshot says it is gone', () => {
+    answer({ collection: [deployment('cart-api')] });
+    const { result, rerender } = render();
+    expect(result.current.record).toBeDefined();
+
+    answer({ phase: 'disconnected', collection: undefined });
+    rerender({});
+
+    expect(result.current.state.kind).toBe('disconnected');
+    expect(result.current.deleted).toBe(false);
   });
 });
 

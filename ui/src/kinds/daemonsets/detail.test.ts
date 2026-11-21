@@ -19,6 +19,7 @@ import { daemonSetRow } from './row';
 type DaemonSetJson = CapturedObject & {
   readonly metadata: CapturedObject['metadata'] & {
     readonly creationTimestamp: string;
+    readonly generation?: number;
     readonly labels?: Readonly<Record<string, string>>;
     readonly annotations?: Readonly<Record<string, string>>;
   };
@@ -31,6 +32,7 @@ type DaemonSetJson = CapturedObject & {
     readonly numberReady?: number;
     readonly numberMisscheduled?: number;
     readonly updatedNumberScheduled?: number;
+    readonly observedGeneration?: number;
   };
 };
 
@@ -137,6 +139,38 @@ describe('each state of the rule, as the summary says it', () => {
     expect(daemonSetOverview(record({ ...object, status: undesired })).summary).toEqual([]);
     const { status: ____, ...unreported } = object;
     expect(daemonSetOverview(record(unreported)).summary).toEqual([]);
+  });
+});
+
+describe('a status that describes an older spec: the DaemonSet was changed and its controller has not seen the change yet', () => {
+  // `metadata.generation` counts the changes to the spec and `status.observedGeneration` is the last one the controller has seen (`kubectl rollout status` waits for them to meet). Until they do,
+  // `updatedNumberScheduled` counts against the older template: the page does not say how many Pods are up to date. The ratio of ready Pods is a fact of now and stays.
+  const { object } = found('kube-system/kindnet');
+  const generation = object.metadata.generation ?? 0;
+  const summary = (body: unknown) => summaryText(daemonSetOverview(record(body)).summary);
+
+  it('is the real object\'s own case first: it was seen, so it is up to date', () => {
+    expect(object.status.observedGeneration).toBe(generation);
+    expect(summary(object)).toEqual(['1/1 ready', '1 up to date']);
+  });
+
+  it('says the update is not observed yet, and not how many are up to date, while the spec is ahead of what the controller has seen', () => {
+    expect(summary({ ...object, metadata: { ...object.metadata, generation: generation + 1 } })).toEqual(['1/1 ready', 'update not observed yet']);
+    expect(summary({ ...object, metadata: { ...object.metadata, generation: generation + 7 } })).toEqual(['1/1 ready', 'update not observed yet']);
+  });
+
+  it('says it of a status that has no observed generation at all: the controller has seen nothing yet', () => {
+    const { observedGeneration: _, ...unobserved } = object.status;
+    expect(summary({ ...object, status: unobserved })).toEqual(['1/1 ready', 'update not observed yet']);
+  });
+
+  it('says the Pods that are up to date again when the controller has seen the change', () => {
+    expect(summary({ ...object, metadata: { ...object.metadata, generation: generation + 1 }, status: { ...object.status, observedGeneration: generation + 1 } })).toEqual(['1/1 ready', '1 up to date']);
+  });
+
+  it('cannot tell that an object is behind when it states no generation, and says what its counts say', () => {
+    const { generation: _, ...metadata } = object.metadata;
+    expect(summary({ ...object, metadata })).toEqual(['1/1 ready', '1 up to date']);
   });
 });
 

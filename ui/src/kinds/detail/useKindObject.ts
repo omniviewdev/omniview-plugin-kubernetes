@@ -1,5 +1,5 @@
 import { useConnectionReadiness, useResolvedResourceTarget, useResourceTypes, useResources, type HostRecord, type QueryScope } from '@omniviewdev/runtime/ui/v1';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import type { KindDetail } from '../definition';
 import { readKindState, type KindFailure, type KindState } from '../state';
@@ -20,6 +20,8 @@ export type KindObjectView = {
   readonly failure: KindFailure | undefined;
   /** The record of the object, once its source view has a complete snapshot and the object is in it. It stays while a refresh runs and after a failure that follows it. */
   readonly record: HostRecord | undefined;
+  /** The page has shown this object and its source has since said it is gone: it was deleted while its page was open. False for an object the page never had, which is not found, and while the read is anything but a complete snapshot without it. */
+  readonly deleted: boolean;
   /** The source follows the cluster. */
   readonly live: boolean;
   /** A refresh or a resynchronisation is running on an object that is shown. */
@@ -72,6 +74,12 @@ export function useKindObject(kind: { readonly type: string; readonly detail: Pi
   const connected = readiness.phase === 'connected';
   const records = connected ? everything?.records : undefined;
   const record = useMemo(() => records?.find((host) => isTheObject(host, inNamespace, namespace, name)), [records, inNamespace, namespace, name]);
+  // What the page has shown: an object that leaves its source view after it was on this page was deleted, and one that never was there was never found. The memory is of this object alone: a route that moves to another starts it again.
+  const identity = `${connectionID ?? ''}\n${namespace ?? ''}\n${name}`;
+  const [shown, setShown] = useState<string | undefined>(undefined);
+  if (record !== undefined && shown !== identity) {
+    setShown(identity);
+  }
   const complete = connected && everything !== undefined;
 
   const { state, failure } = readKindState({
@@ -111,6 +119,7 @@ export function useKindObject(kind: { readonly type: string; readonly detail: Pi
     state,
     failure,
     record,
+    deleted: state.kind === 'empty' && shown === identity,
     live: collection.isLive,
     refreshing: complete && (collection.resources.isFetching || collection.isSyncing),
     connect,

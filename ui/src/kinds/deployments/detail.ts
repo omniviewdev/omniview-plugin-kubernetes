@@ -4,9 +4,9 @@ import type { HostRecord } from '@omniviewdev/runtime/ui/v1';
 import type { KindCommands } from '../definition';
 import { conditionRows, type ConditionInput } from '../detail/conditions';
 import { annotationModels, labelModels } from '../detail/metadata';
-import { conditionInputs, detailMeta, podTemplateOf, selectorOf, strategyOf, type DetailMeta } from '../detail/object';
+import { conditionInputs, detailMeta, podTemplateOf, selectorOf, statusBehind, strategyOf, type DetailMeta } from '../detail/object';
 import { facts, overviewModel, refFact, tagsFact, textFact, type KindOverview } from '../detail/overview';
-import { counted, selectorItems, strategyText, type SelectorDetail, type StrategyDetail } from '../detail/text';
+import { counted, selectorItems, strategyText, UPDATE_NOT_OBSERVED, type SelectorDetail, type StrategyDetail } from '../detail/text';
 import { spanText } from '../fields';
 import { bodyOf, count, flag, isObject, type Json } from '../object';
 
@@ -30,7 +30,7 @@ export type DeploymentDetail = {
     readonly minReadySeconds?: number | undefined;
   };
   /** Undefined when the object holds no status at all. */
-  readonly status?: { readonly unavailableReplicas?: number | undefined; readonly conditions?: readonly ConditionInput[] | undefined } | undefined;
+  readonly status?: { readonly unavailableReplicas?: number | undefined; readonly observedGeneration?: number | undefined; readonly conditions?: readonly ConditionInput[] | undefined } | undefined;
 };
 
 const NOTHING: Json = {};
@@ -51,22 +51,25 @@ export function deploymentDetail(host: HostRecord): DeploymentDetail {
       progressDeadlineSeconds: count(specification.progressDeadlineSeconds),
       minReadySeconds: count(specification.minReadySeconds),
     },
-    status: isObject(status) ? { unavailableReplicas: count(status.unavailableReplicas), conditions: conditionInputs(status.conditions) } : undefined,
+    status: isObject(status) ? { unavailableReplicas: count(status.unavailableReplicas), observedGeneration: count(status.observedGeneration), conditions: conditionInputs(status.conditions) } : undefined,
   };
 }
 
 /**
  * The one line that leads the first screen (design 12 FS1): `3/3 ready · up to date`, without the state (the chip says it). The ready count is the list's own (ready over what is wanted). The second
- * item is the mock's, with the API's number where the mock computes one: `1 unavailable` is `status.unavailableReplicas`, as `kubectl describe` prints it. A Deployment that says no replica count, or has
- * no status, says nothing here: no figure is made up.
+ * item is the mock's, with the API's number where the mock computes one: `1 unavailable` is `status.unavailableReplicas`, as `kubectl describe` prints it. A status that describes an older spec than the
+ * object holds (`statusBehind`) says no count of Pods up to date, which would be against the older template; a pause and the Pods that are unavailable are facts of now and are said as before. A Deployment
+ * that says no replica count, or has no status, says nothing here: no figure is made up.
  */
-function summaryOf({ ready, updated }: DeploymentRow, { spec, status }: DeploymentDetail): readonly StatusSummaryItem[] {
+function summaryOf({ ready, updated }: DeploymentRow, { metadata, spec, status }: DeploymentDetail): readonly StatusSummaryItem[] {
   if (ready === undefined) {
     return [];
   }
 
   const unavailable = status?.unavailableReplicas ?? 0;
-  const behind = spec.paused === true ? 'rollout paused' : unavailable > 0 ? `${unavailable} unavailable` : (updated ?? 0) < ready.total ? `${updated ?? 0} up to date` : 'up to date';
+  const older = statusBehind(metadata.generation, status?.observedGeneration);
+  const behind =
+    spec.paused === true ? 'rollout paused' : unavailable > 0 ? `${unavailable} unavailable` : older ? UPDATE_NOT_OBSERVED : (updated ?? 0) < ready.total ? `${updated ?? 0} up to date` : 'up to date';
   return [{ value: `${ready.ready}/${ready.total}`, label: 'ready' }, { text: behind }];
 }
 

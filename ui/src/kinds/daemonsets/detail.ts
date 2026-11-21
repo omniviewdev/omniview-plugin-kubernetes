@@ -4,12 +4,12 @@ import type { HostRecord } from '@omniviewdev/runtime/ui/v1';
 import type { KindCommands } from '../definition';
 import { conditionRows, type ConditionInput } from '../detail/conditions';
 import { annotationModels, labelModels } from '../detail/metadata';
-import { conditionInputs, detailMeta, podTemplateOf, selectorOf, strategyOf, type DetailMeta } from '../detail/object';
+import { conditionInputs, detailMeta, podTemplateOf, selectorOf, statusBehind, strategyOf, type DetailMeta } from '../detail/object';
 import { facts, overviewModel, refFact, tagsFact, textFact, type DetailFact, type KindOverview } from '../detail/overview';
-import { selectorItems, strategyText, type SelectorDetail, type StrategyDetail } from '../detail/text';
+import { selectorItems, strategyText, UPDATE_NOT_OBSERVED, type SelectorDetail, type StrategyDetail } from '../detail/text';
 import { bodyOf, count, isObject, type Json } from '../object';
 
-import { daemonSetRow } from './row';
+import { daemonSetRow, type DaemonSetRow } from './row';
 
 // The page of one DaemonSet: what it says of the object a record holds, from the mock's `OVERVIEW.DaemonSet` (MOCK k8s-resource-definitions.js; K59). The values are the API's (decision A19) and the
 // words are the mock's. The header's word is the list's (`daemonSetRow`), so the page and the row never disagree about what state the DaemonSet is in. The tables of the template and the related Pods
@@ -27,7 +27,7 @@ export type DaemonSetDetail = {
     readonly nodeSelector?: Readonly<Record<string, string>> | undefined;
   };
   /** Undefined when the object holds no status at all. */
-  readonly status?: { readonly numberMisscheduled?: number | undefined; readonly conditions?: readonly ConditionInput[] | undefined } | undefined;
+  readonly status?: { readonly numberMisscheduled?: number | undefined; readonly observedGeneration?: number | undefined; readonly conditions?: readonly ConditionInput[] | undefined } | undefined;
 };
 
 const NOTHING: Json = {};
@@ -46,7 +46,7 @@ export function daemonSetDetail(host: HostRecord): DaemonSetDetail {
       serviceAccountName: template.serviceAccountName,
       nodeSelector: template.nodeSelector,
     },
-    status: isObject(status) ? { numberMisscheduled: count(status.numberMisscheduled), conditions: conditionInputs(status.conditions) } : undefined,
+    status: isObject(status) ? { numberMisscheduled: count(status.numberMisscheduled), observedGeneration: count(status.observedGeneration), conditions: conditionInputs(status.conditions) } : undefined,
   };
 }
 
@@ -60,10 +60,11 @@ function nodeSelectorFact(labels: Readonly<Record<string, string>> | undefined):
 
 /**
  * The one line that leads the first screen (design 12 FS1): `3/3 ready · 3 up to date`, without the state (the chip says it). The API never omits the two counts of the ratio, so a DaemonSet that
- * lacks either says nothing here; `updatedNumberScheduled` it omits for none, so an absent one is zero (the list says the same, `./row.ts`).
+ * lacks either says nothing here; `updatedNumberScheduled` it omits for none, so an absent one is zero (the list says the same, `./row.ts`). A status that describes an older spec than the object holds
+ * (`behind`: `statusBehind`) says no count of Pods up to date, which would be against the older template.
  */
-function summaryOf({ desired, ready, updated }: ReturnType<typeof daemonSetRow>): readonly StatusSummaryItem[] {
-  return desired === undefined || ready === undefined || updated === undefined ? [] : [{ value: `${ready}/${desired}`, label: 'ready' }, { text: `${updated} up to date` }];
+function summaryOf({ desired, ready, updated }: DaemonSetRow, behind: boolean): readonly StatusSummaryItem[] {
+  return desired === undefined || ready === undefined || updated === undefined ? [] : [{ value: `${ready}/${desired}`, label: 'ready' }, { text: behind ? UPDATE_NOT_OBSERVED : `${updated} up to date` }];
 }
 
 export const daemonSetOverview = overviewModel((host): KindOverview => {
@@ -74,7 +75,7 @@ export const daemonSetOverview = overviewModel((host): KindOverview => {
   return {
     state: row.status,
     createdAt: row.createdAt,
-    summary: summaryOf(row),
+    summary: summaryOf(row, statusBehind(metadata.generation, status?.observedGeneration)),
     details: facts(
       nodeSelectorFact(spec.nodeSelector),
       textFact('strategy', 'Update strategy', strategyText(spec.strategy)),

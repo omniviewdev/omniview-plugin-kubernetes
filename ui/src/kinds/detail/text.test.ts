@@ -98,6 +98,9 @@ describe('selectorItems: a selector as chips', () => {
 });
 
 describe('describeCron: the schedules people write, in words', () => {
+  // `kubectl describe cronjob` prints the expression and no words (`Schedule: */40 * * * *`). The mock's `describeCron` (MOCK k8s-resource-definitions.js) says words for any `*/N`, which is wrong when N
+  // does not divide the field's range: `*/40` runs at :00 and :40 and then at :00 of the next hour, so its gaps are forty minutes and twenty, and `0 */5 * * *` runs at 0, 5, 10, 15 and 20 o'clock and then
+  // at 0 again, four hours later. A sentence that is not true of every gap is worse than none, so the words follow the mock only where they are exactly right and the cell shows the expression for the rest.
   const cases: ReadonlyArray<readonly [string, string | undefined]> = [
     ['* * * * *', undefined],
     ['*/1 * * * *', 'Every minute'],
@@ -113,6 +116,50 @@ describe('describeCron: the schedules people write, in words', () => {
     ['@midnight', 'Every day at 00:00'],
     ['@weekly', 'Every Sunday at 00:00'],
     ['@monthly', 'Monthly on day 1 at 00:00'],
+    // The steps that divide their field: every gap is the step. A step of one is the field itself.
+    ['*/30 * * * *', 'Every 30 minutes'],
+    ['*/20 * * * *', 'Every 20 minutes'],
+    ['*/12 * * * *', 'Every 12 minutes'],
+    ['0 */12 * * *', 'Every 12 hours at :00'],
+    ['30 */6 * * *', 'Every 6 hours at :30'],
+    ['0 */8 * * *', 'Every 8 hours at :00'],
+    ['0 */1 * * *', 'Every hour at :00'],
+    // The steps that do not divide their field give uneven gaps, so they have no words, at the boundary (the largest step that fits, the whole range, none) and in between.
+    ['*/40 * * * *', undefined],
+    ['*/7 * * * *', undefined],
+    ['*/45 * * * *', undefined],
+    ['*/59 * * * *', undefined],
+    ['*/60 * * * *', undefined],
+    ['*/0 * * * *', undefined],
+    ['0 */5 * * *', undefined],
+    ['0 */7 * * *', undefined],
+    ['0 */16 * * *', undefined],
+    ['0 */23 * * *', undefined],
+    ['0 */24 * * *', undefined],
+    ['0 */0 * * *', undefined],
+    // Lists, ranges and steps over a range say several moments, not one: the cell shows the expression.
+    ['0,30 * * * *', undefined],
+    ['0-10 * * * *', undefined],
+    ['10-50/10 * * * *', undefined],
+    ['5/15 * * * *', undefined],
+    ['*/15 9-17 * * *', undefined],
+    ['0 0,12 * * *', undefined],
+    ['0 9-17 * * *', undefined],
+    ['0 4 * * 1,3,5', undefined],
+    ['0 4 * * 1-5', undefined],
+    ['0 9-17 * * 1-5', undefined],
+    ['0 0 1,15 * *', undefined],
+    // A value outside its field is no schedule the API server would admit; no words are made of it.
+    ['75 * * * *', undefined],
+    ['0 25 * * *', undefined],
+    ['0 0 * * 8', undefined],
+    ['0 0 0 * *', undefined],
+    ['0 0 32 * *', undefined],
+    // The 29th, the 30th and the 31st are skipped by the months that lack them, so `Monthly` is not true of them: the 28th is the last day every month has.
+    ['0 0 28 * *', 'Monthly on day 28 at 00:00'],
+    ['0 0 29 * *', undefined],
+    ['0 0 30 * *', undefined],
+    ['0 0 31 * *', undefined],
     // What it has no words for stays as the expression: the cell shows the expression itself.
     ['0 0 1 1 *', undefined],
     ['0 9-17 * * 1-5', undefined],

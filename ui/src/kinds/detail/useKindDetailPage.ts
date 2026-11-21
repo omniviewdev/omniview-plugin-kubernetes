@@ -75,8 +75,13 @@ export function detailState(view: KindObjectView, words: ObjectWords): DetailSta
     case 'loading':
       return { kind: 'loading' };
     case 'empty':
-      // The object's snapshot was read whole and it is not in it: it never was, or it was deleted (also while its page was open).
-      return { kind: 'not-found', message: `${words.kind} ${words.name} doesn't exist in ${whereOf(words)}. It may have been deleted.` };
+      // The object's snapshot was read whole and it is not in it. When the page had the object, its source has said it is gone: it was deleted while the page was open. Otherwise it never was there for this page.
+      return {
+        kind: 'not-found',
+        message: view.deleted
+          ? `${words.kind} ${words.name} was deleted. It no longer exists in ${whereOf(words)}.`
+          : `${words.kind} ${words.name} doesn't exist in ${whereOf(words)}. It may have been deleted.`,
+      };
     case 'loaded':
       // A failure that came after the object is kept beside it: the page keeps showing it and says so in the header.
       return failure === undefined ? { kind: 'ready' } : failed(failure.kind, failure.message, view, words);

@@ -19,6 +19,7 @@ import { statefulSetRow } from './row';
 type StatefulSetJson = CapturedObject & {
   readonly metadata: CapturedObject['metadata'] & {
     readonly creationTimestamp: string;
+    readonly generation?: number;
     readonly labels?: Readonly<Record<string, string>>;
     readonly annotations?: Readonly<Record<string, string>>;
   };
@@ -34,6 +35,7 @@ type StatefulSetJson = CapturedObject & {
     readonly readyReplicas?: number;
     readonly updatedReplicas?: number;
     readonly updateRevision?: string;
+    readonly observedGeneration?: number;
   };
 };
 
@@ -129,6 +131,41 @@ describe('each state of the rule, as the summary says it', () => {
     const { updatedReplicas: _, ...status } = object.status;
     expect(summaryText(statefulSetOverview(record({ ...object, status: { ...status, updatedReplicas: 1 } })).summary)).toEqual(['2/2 ready', '1 up to date']);
     expect(summaryText(statefulSetOverview(record({ ...object, status })).summary)).toEqual(['2/2 ready', '0 up to date']);
+  });
+});
+
+describe('a status that describes an older spec: the StatefulSet was changed and its controller has not seen the change yet', () => {
+  // `metadata.generation` counts the changes to the spec and `status.observedGeneration` is the last one the controller has seen. Until they meet, `updatedReplicas` is a count against the older template (the
+  // API defines it relative to `status.updateRevision`, not to the spec the object holds now), so a StatefulSet whose spec moved on does not say `up to date`.
+  const { object } = found('checkout/cart-cache');
+  const generation = object.metadata.generation ?? 0;
+  const summary = (body: unknown) => summaryText(statefulSetOverview(record(body)).summary);
+
+  it('is the real object\'s own case first: it was seen, so it is up to date', () => {
+    expect(object.status.observedGeneration).toBe(generation);
+    expect(summary(object)).toEqual(['2/2 ready', 'up to date']);
+  });
+
+  it('says the update is not observed yet, and not up to date, while the spec is ahead of what the controller has seen', () => {
+    // Both Pods are of the older template (updatedReplicas 2 of 2 wanted): the count alone would say `up to date`.
+    expect(summary({ ...object, metadata: { ...object.metadata, generation: generation + 1 } })).toEqual(['2/2 ready', 'update not observed yet']);
+    expect(summary({ ...object, metadata: { ...object.metadata, generation: generation + 7 } })).toEqual(['2/2 ready', 'update not observed yet']);
+  });
+
+  it('says it of a status that has no observed generation at all: the controller has seen nothing yet', () => {
+    const { observedGeneration: _, ...unobserved } = object.status;
+    expect(summary({ ...object, status: unobserved })).toEqual(['2/2 ready', 'update not observed yet']);
+  });
+
+  it('is up to date again when the controller has seen the change, and says the Pods behind once it has', () => {
+    const seen = { ...object, metadata: { ...object.metadata, generation: generation + 1 } };
+    expect(summary({ ...seen, status: { ...object.status, observedGeneration: generation + 1 } })).toEqual(['2/2 ready', 'up to date']);
+    expect(summary({ ...seen, status: { ...object.status, observedGeneration: generation + 1, updatedReplicas: 1 } })).toEqual(['2/2 ready', '1 up to date']);
+  });
+
+  it('cannot tell that an object is behind when it states no generation, and says what its counts say', () => {
+    const { generation: _, ...metadata } = object.metadata;
+    expect(summary({ ...object, metadata })).toEqual(['2/2 ready', 'up to date']);
   });
 });
 

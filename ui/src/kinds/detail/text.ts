@@ -89,21 +89,41 @@ const CRON_ALIAS: Readonly<Record<string, string>> = {
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
 
 const two = (value: string): string => value.padStart(2, '0');
-const exact = (value: string | undefined): value is string => /^\d+$/.test(value ?? '');
-const every = (value: string | undefined): value is string => /^\*\/\d+$/.test(value ?? '');
 
-/** A schedule in words, for the schedules people write (the mock's `describeCron`): `Every 15 minutes`, `Every day at 03:30`. Nothing for one it has no words for: the cell shows the expression. */
+/** A whole number written in the field and not above the field's last value: not a list, a range, a step or a name, and not a value the field cannot hold. */
+const within = (value: string | undefined, last: number): value is string => /^\d+$/.test(value ?? '') && Number(value) <= last;
+
+/**
+ * The step of a field written as an asterisk, a slash and a step, when every gap between its moments is that step: when it divides the field's range (15 of the minutes, 6 of the hours). A step that does not
+ * divide it starts again at the top of the next period, so one gap is shorter than the others (the 40 of the minutes runs at :00 and :40 and again twenty minutes later; the 5 of the hours at 0, 5, 10, 15 and
+ * 20 o'clock and again four hours later): it has no words, because a sentence that is not true of every gap is worse than none.
+ */
+function evenStep(field: string | undefined, range: number): number | undefined {
+  if (!/^\*\/\d+$/.test(field ?? '')) {
+    return undefined;
+  }
+
+  const step = Number((field ?? '').slice(2));
+  return step >= 1 && step < range && range % step === 0 ? step : undefined;
+}
+
+/**
+ * A schedule in words, for the schedules people write (the mock's `describeCron`): `Every 15 minutes`, `Every day at 03:30`. The mock says words for any step, which is wrong where the step does not divide its
+ * field (above), and `kubectl describe` prints the expression only. Nothing for a schedule it has no exact words for (a list, a range, a step over a range, a value outside its field, the 29th to the 31st,
+ * which the months that lack them skip): the cell shows the expression.
+ */
 export function describeCron(expression: string): string | undefined {
   const [minute, hour, day, month, weekday] = (CRON_ALIAS[expression] ?? expression).trim().split(/\s+/);
   if (month !== '*' || minute === undefined) {
     return undefined;
   }
 
-  if (every(minute) && hour === '*' && day === '*' && weekday === '*') {
-    return Number(minute.slice(2)) === 1 ? 'Every minute' : `Every ${minute.slice(2)} minutes`;
+  const everyMinuteStep = hour === '*' && day === '*' && weekday === '*' ? evenStep(minute, 60) : undefined;
+  if (everyMinuteStep !== undefined) {
+    return everyMinuteStep === 1 ? 'Every minute' : `Every ${everyMinuteStep} minutes`;
   }
 
-  if (!exact(minute)) {
+  if (!within(minute, 59)) {
     return undefined;
   }
 
@@ -111,11 +131,12 @@ export function describeCron(expression: string): string | undefined {
     return `Every hour at :${two(minute)}`;
   }
 
-  if (every(hour) && day === '*' && weekday === '*') {
-    return `Every ${hour.slice(2)} hours at :${two(minute)}`;
+  const everyHourStep = day === '*' && weekday === '*' ? evenStep(hour, 24) : undefined;
+  if (everyHourStep !== undefined) {
+    return everyHourStep === 1 ? `Every hour at :${two(minute)}` : `Every ${everyHourStep} hours at :${two(minute)}`;
   }
 
-  if (!exact(hour)) {
+  if (!within(hour, 23)) {
     return undefined;
   }
 
@@ -123,13 +144,16 @@ export function describeCron(expression: string): string | undefined {
     return `Every day at ${two(hour)}:${two(minute)}`;
   }
 
-  if (day === '*' && exact(weekday)) {
+  if (day === '*' && within(weekday, 7)) {
     return `Every ${WEEKDAYS[Number(weekday) % 7] ?? ''} at ${two(hour)}:${two(minute)}`;
   }
 
-  if (exact(day) && weekday === '*') {
-    return `Monthly on day ${day} at ${two(hour)}:${two(minute)}`;
+  if (within(day, 28) && Number(day) >= 1 && weekday === '*') {
+    return `Monthly on day ${Number(day)} at ${two(hour)}:${two(minute)}`;
   }
 
   return undefined;
 }
+
+/** What a workload's summary says instead of how many of its Pods are up to date while its status describes an older spec (`statusBehind` in `./object.ts`): the counts of that status are against the older template. */
+export const UPDATE_NOT_OBSERVED = 'update not observed yet';

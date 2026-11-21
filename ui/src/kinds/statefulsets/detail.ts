@@ -4,9 +4,9 @@ import type { HostRecord } from '@omniviewdev/runtime/ui/v1';
 import type { KindCommands } from '../definition';
 import { conditionRows, type ConditionInput } from '../detail/conditions';
 import { annotationModels, labelModels } from '../detail/metadata';
-import { conditionInputs, detailMeta, podTemplateOf, selectorOf, strategyOf, type DetailMeta } from '../detail/object';
+import { conditionInputs, detailMeta, podTemplateOf, selectorOf, statusBehind, strategyOf, type DetailMeta } from '../detail/object';
 import { facts, overviewModel, refFact, tagsFact, textFact, type KindOverview } from '../detail/overview';
-import { retentionText, selectorItems, strategyText, type RetentionDetail, type SelectorDetail, type StrategyDetail } from '../detail/text';
+import { retentionText, selectorItems, strategyText, UPDATE_NOT_OBSERVED, type RetentionDetail, type SelectorDetail, type StrategyDetail } from '../detail/text';
 import { bodyOf, count, isObject, text, type Json } from '../object';
 
 import { statefulSetRow, type StatefulSetRow } from './row';
@@ -31,6 +31,7 @@ export type StatefulSetDetail = {
   readonly status?: {
     readonly updatedReplicas?: number | undefined;
     readonly updateRevision?: string | undefined;
+    readonly observedGeneration?: number | undefined;
     readonly conditions?: readonly ConditionInput[] | undefined;
   } | undefined;
 };
@@ -52,21 +53,25 @@ export function statefulSetDetail(host: HostRecord): StatefulSetDetail {
       selector: selectorOf(specification.selector),
       serviceAccountName: podTemplateOf(specification).serviceAccountName,
     },
-    status: isObject(status) ? { updatedReplicas: count(status.updatedReplicas), updateRevision: text(status.updateRevision), conditions: conditionInputs(status.conditions) } : undefined,
+    status: isObject(status)
+      ? { updatedReplicas: count(status.updatedReplicas), updateRevision: text(status.updateRevision), observedGeneration: count(status.observedGeneration), conditions: conditionInputs(status.conditions) }
+      : undefined,
   };
 }
 
 /**
  * The one line that leads the first screen (design 12 FS1): `2/2 ready · up to date`, without the state (the chip says it). The ready count is the list's own (ready over what is wanted). The API omits
- * `updatedReplicas` for none, so an absent one is zero once the object has a status. A StatefulSet that says no replica count, or has no status, says nothing here: no figure is made up.
+ * `updatedReplicas` for none, so an absent one is zero once the object has a status. A status that describes an older spec than the object holds (`statusBehind`) says no count of Pods up to date: it would be
+ * against the older template (the API defines `updatedReplicas` relative to `status.updateRevision`). A StatefulSet that says no replica count, or has no status, says nothing here: no figure is made up.
  */
-function summaryOf({ ready }: StatefulSetRow, { status }: StatefulSetDetail): readonly StatusSummaryItem[] {
+function summaryOf({ ready }: StatefulSetRow, { metadata, status }: StatefulSetDetail): readonly StatusSummaryItem[] {
   if (ready === undefined) {
     return [];
   }
 
   const updated = status?.updatedReplicas ?? 0;
-  return [{ value: `${ready.ready}/${ready.total}`, label: 'ready' }, { text: updated < ready.total ? `${updated} up to date` : 'up to date' }];
+  const behind = statusBehind(metadata.generation, status?.observedGeneration) ? UPDATE_NOT_OBSERVED : updated < ready.total ? `${updated} up to date` : 'up to date';
+  return [{ value: `${ready.ready}/${ready.total}`, label: 'ready' }, { text: behind }];
 }
 
 export const statefulSetOverview = overviewModel((host): KindOverview => {

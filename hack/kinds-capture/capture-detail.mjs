@@ -12,10 +12,13 @@
 //   ONLY    the directories to capture, comma separated: the other fixtures are left as they are (default: the nine kinds of the first batch)
 //
 // A ConfigMap fixture keeps the objects of the namespaces `detail` and `more` only (the others hold certificates and tokens a page does not need), without `describe` (it prints every value), and a signed
-// token among the values is replaced by as many `x` as it has bytes. A Node's `describe` is cut where it starts to list the Pods of the Node: what the page says of a Node is above that.
-import { spawn } from 'node:child_process';
+// token among the values, or in its last applied configuration (which holds the whole manifest, values included), is replaced by as many `x` as it has bytes (`kept.mjs`). A Node's `describe` is cut where it
+// starts to list the Pods of the Node: what the page says of a Node is above that.
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+
+import { kept } from './kept.mjs';
+import { run } from './run.mjs';
 
 const [kubeconfig, outDirectory] = process.argv.slice(2);
 if (kubeconfig === undefined || outDirectory === undefined) {
@@ -41,32 +44,6 @@ if (KINDS.length === 0) {
   process.exit(2);
 }
 
-const SIGNED_TOKEN = /^eyJ[\w-]+\.[\w-]*\.[\w-]+$/;
-
-/** Runs kubectl against the cluster of the kubeconfig named on the command line and nothing else. */
-function kubectl(args) {
-  return new Promise((resolve, reject) => {
-    const child = spawn('kubectl', ['--kubeconfig', kubeconfig, ...args], { stdio: ['ignore', 'pipe', 'pipe'] });
-    const out = [];
-    const err = [];
-    child.stdout.on('data', (chunk) => out.push(chunk));
-    child.stderr.on('data', (chunk) => err.push(chunk));
-    child.once('error', reject);
-    child.once('exit', (code) => (code === 0 ? resolve(Buffer.concat(out).toString('utf8')) : reject(new Error(`kubectl ${args.join(' ')} exited ${String(code)}: ${Buffer.concat(err).toString('utf8')}`))));
-  });
-}
-
-/** The object as a fixture keeps it: no managedFields, and no signed token in a ConfigMap (see the header). */
-function kept(object) {
-  const { managedFields: _, ...metadata } = object.metadata;
-  if (object.kind === 'ConfigMap' && object.data !== undefined) {
-    const masked = Object.fromEntries(Object.entries(object.data).map(([key, value]) => [key, SIGNED_TOKEN.test(value) ? 'x'.repeat(Buffer.byteLength(value)) : value]));
-    return { ...object, metadata, data: masked };
-  }
-
-  return { ...object, metadata };
-}
-
 /** The fixture file: one object per line, so a review reads an object as one line and a re-capture shows as the objects that changed. */
 function render(source, serverDate, objects) {
   return [
@@ -81,17 +58,17 @@ function render(source, serverDate, objects) {
   ].join('\n');
 }
 
-const version = JSON.parse(await kubectl(['version', '-o', 'json'])).serverVersion.gitVersion;
+const version = JSON.parse(await run('kubectl', ['--kubeconfig', kubeconfig, 'version', '-o', 'json'])).serverVersion.gitVersion;
 const serverDate = new Date().toUTCString();
 for (const kind of KINDS) {
-  const list = JSON.parse(await kubectl(['get', kind.resource, '-A', '-o', 'json']));
+  const list = JSON.parse(await run('kubectl', ['--kubeconfig', kubeconfig, 'get', kind.resource, '-A', '-o', 'json']));
   const items = list.items.filter((object) => kind.namespaces === undefined || kind.namespaces.includes(object.metadata.namespace));
   const objects = [];
   for (const item of items) {
     const entry = { object: kept(item) };
     if (kind.describe) {
       const namespace = item.metadata.namespace === undefined ? [] : ['-n', item.metadata.namespace];
-      let described = await kubectl(['describe', kind.resource, ...namespace, item.metadata.name]);
+      let described = await run('kubectl', ['--kubeconfig', kubeconfig, 'describe', kind.resource, ...namespace, item.metadata.name]);
       if (kind.cutDescribeAt !== undefined && described.includes(kind.cutDescribeAt)) {
         described = described.slice(0, described.indexOf(kind.cutDescribeAt));
       }

@@ -1,4 +1,4 @@
-import { flag, isObject, objects, text } from '../object';
+import { count, flag, isObject, objects, text } from '../object';
 
 import type { ConditionInput } from './conditions';
 import { intOrString, type SelectorDetail, type StrategyDetail } from './text';
@@ -24,6 +24,7 @@ export type DetailMeta = {
   readonly namespace?: string | undefined;
   readonly uid?: string | undefined;
   readonly creationTimestamp?: string | undefined;
+  readonly generation?: number | undefined;
   readonly deletionTimestamp?: string | undefined;
   readonly labels: Readonly<Record<string, string>>;
   readonly annotations: Readonly<Record<string, string>>;
@@ -37,11 +38,21 @@ export function detailMeta(value: unknown): DetailMeta {
     namespace: text(meta.namespace),
     uid: text(meta.uid),
     creationTimestamp: text(meta.creationTimestamp),
+    generation: count(meta.generation),
     deletionTimestamp: text(meta.deletionTimestamp),
     labels: strings(meta.labels),
     annotations: strings(meta.annotations),
     ownerReferences: (objects(meta.ownerReferences) ?? []).map((owner) => ({ kind: text(owner.kind), name: text(owner.name), controller: flag(owner.controller) })),
   };
+}
+
+/**
+ * Whether a workload's status describes an older spec than the one the object holds. `metadata.generation` counts the changes to the spec and `status.observedGeneration` is the last of them its controller has
+ * seen (what `kubectl rollout status` waits for): until they meet, the counts of the status (the Pods that are up to date) are against the older template. A status with no observed generation is behind too, as the
+ * API omits it until the controller has seen the object once. An object that states no generation cannot be told to be behind.
+ */
+export function statusBehind(generation: number | undefined, observed: number | undefined): boolean {
+  return generation !== undefined && (observed ?? 0) < generation;
 }
 
 /** The owner that controls the object (`controller: true`), when it names a kind and a name: what a Job's Owner says. */

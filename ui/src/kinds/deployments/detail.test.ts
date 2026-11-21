@@ -19,6 +19,7 @@ import { deploymentRow } from './row';
 type DeploymentJson = CapturedObject & {
   readonly metadata: CapturedObject['metadata'] & {
     readonly creationTimestamp: string;
+    readonly generation?: number;
     readonly labels?: Readonly<Record<string, string>>;
     readonly annotations?: Readonly<Record<string, string>>;
   };
@@ -29,6 +30,7 @@ type DeploymentJson = CapturedObject & {
     readonly availableReplicas?: number;
     readonly updatedReplicas?: number;
     readonly unavailableReplicas?: number;
+    readonly observedGeneration?: number;
   };
 };
 
@@ -145,6 +147,46 @@ describe('each state of the rule, as the summary says it', () => {
     const { unavailableReplicas: _, ...status } = object.status;
     const behind = { ...object, status: { ...status, updatedReplicas: 1 } };
     expect(summaryText(deploymentOverview(record(behind)).summary)).toEqual(['3/3 ready', '1 up to date']);
+  });
+});
+
+describe('a status that describes an older spec: the Deployment was changed and its controller has not seen the change yet', () => {
+  // `metadata.generation` counts the changes to the spec and `status.observedGeneration` is the last one the controller has seen (`kubectl rollout status` waits for them to meet). Until they do, the counts of
+  // the status are of the older template, so `updatedReplicas` says nothing of the new one: the page does not say `up to date`. The counts that are facts of now (the ready ones, `unavailableReplicas`) stay.
+  const { object } = found('checkout/cart-api');
+  const generation = object.metadata.generation ?? 0;
+  const changed = (body: DeploymentJson, over: { readonly generation?: number }) => ({ ...body, metadata: { ...body.metadata, ...over } });
+  const summary = (body: unknown) => summaryText(deploymentOverview(record(body)).summary);
+
+  it('is the real object\'s own case first: it was seen, so it is up to date', () => {
+    expect(object.status.observedGeneration).toBe(generation);
+    expect(summary(object)).toEqual(['3/3 ready', 'up to date']);
+  });
+
+  it('says the update is not observed yet, and not up to date, while the spec is ahead of what the controller has seen', () => {
+    expect(summary(changed(object, { generation: generation + 1 }))).toEqual(['3/3 ready', 'update not observed yet']);
+    expect(summary(changed(object, { generation: generation + 7 }))).toEqual(['3/3 ready', 'update not observed yet']);
+  });
+
+  it('says it of a status that has no observed generation at all: the controller has seen nothing yet', () => {
+    const { observedGeneration: _, ...unobserved } = object.status;
+    expect(summary({ ...object, status: unobserved })).toEqual(['3/3 ready', 'update not observed yet']);
+  });
+
+  it('is up to date again when the controller has seen the change', () => {
+    expect(summary({ ...changed(object, { generation: generation + 1 }), status: { ...object.status, observedGeneration: generation + 1 } })).toEqual(['3/3 ready', 'up to date']);
+  });
+
+  it('cannot tell that an object is behind when it states no generation, and says what its counts say', () => {
+    const { generation: _, ...metadata } = object.metadata;
+    expect(summary({ ...object, metadata })).toEqual(['3/3 ready', 'up to date']);
+  });
+
+  it('keeps the facts of now: a pause and the Pods that are unavailable are said as before', () => {
+    const paused = found('states/paused').object;
+    expect(summary(changed(paused, { generation: (paused.metadata.generation ?? 0) + 1 }))).toEqual(['1/1 ready', 'rollout paused']);
+    const stuck = found('states/stuck-rollout').object;
+    expect(summary(changed(stuck, { generation: (stuck.metadata.generation ?? 0) + 1 }))).toEqual(['2/2 ready', '1 unavailable']);
   });
 });
 

@@ -24,14 +24,25 @@ export type ConditionRow = {
   readonly changedAt: number | undefined;
 };
 
-/** A condition whose `True` is a problem: pressure, a failure, an unavailable network. */
-const ADVERSE = /^(?:.*Pressure|NetworkUnavailable|ReplicaFailure|Failed|Failure|Degraded|Dangling|Stalled|Throttled)$/;
+/** A condition whose `True` is a problem: pressure, a failure (a Namespace's deletion has three: discovery, group versions, content), an unavailable network. */
+const ADVERSE = /^(?:.*Pressure|.*Failure|NetworkUnavailable|Failed|Degraded|Dangling|Stalled|Throttled)$/;
+
+/** A condition that says what remains of work still going: `True` while it is in progress, `False` once nothing is left (what remains of a Namespace that is being deleted: its content, its finalizers). */
+const REMAINING = /^.*Remaining$/;
 
 /** A type that names readiness or completion, or a failure: when it is bad news it is an error, not only a thing to look at. */
 const MEANS_TROUBLE = /^(?:Ready|Available|ContainersReady|Established|Healthy|Complete|Failed|ReplicaFailure|Degraded)$/;
 
-/** The role a condition is drawn with: `True` is healthy unless the type is an adverse one; a bad one of a type that names readiness is an error, any other bad one needs attention. */
+/**
+ * The role a condition is drawn with: `True` is healthy unless the type is an adverse one; a bad one of a type that names readiness is an error, any other bad one needs attention. A condition of what remains
+ * is the work in progress while it is `True`, and healthy while it is `False`. The deletion conditions of a Namespace follow what they say, not the mock's table (which has no pattern for them and reads a
+ * `False` failure as attention and a `True` remainder as healthy: the inverse): the lead's ruling for K2c-1, recorded in the status file's Spec errata.
+ */
 export function conditionRole(type: string, status: string | undefined): StateRole {
+  if (REMAINING.test(type) && (status === 'True' || status === 'False')) {
+    return status === 'True' ? 'progress' : 'healthy';
+  }
+
   const good = status === 'True' ? !ADVERSE.test(type) : status === 'False' ? ADVERSE.test(type) : undefined;
   if (good === undefined) {
     return 'attention';

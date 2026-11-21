@@ -96,13 +96,13 @@ describe('a Namespace that is being deleted (terminating)', () => {
     expect(rows(several)[0]).toEqual(['Finalizers', 'kubernetes, example.com/hold']);
   });
 
-  it('has the five conditions the API states, in its order (their roles are those of the shared table, `../detail/conditions.ts`)', () => {
-    expect(namespaceOverview(record(object)).conditions.map((row) => [row.type, row.status, row.reason])).toEqual([
-      ['NamespaceDeletionDiscoveryFailure', 'False', 'ResourcesDiscovered'],
-      ['NamespaceDeletionGroupVersionParsingFailure', 'False', 'ParsedGroupVersions'],
-      ['NamespaceDeletionContentFailure', 'False', 'ContentDeleted'],
-      ['NamespaceContentRemaining', 'True', 'SomeResourcesRemain'],
-      ['NamespaceFinalizersRemaining', 'True', 'SomeFinalizersRemain'],
+  it('has the five conditions the API states, in its order, each with the role its meaning gives it: no failure, and a deletion still in progress (`../detail/conditions.ts`)', () => {
+    expect(namespaceOverview(record(object)).conditions.map((row) => [row.type, row.status, row.reason, row.role])).toEqual([
+      ['NamespaceDeletionDiscoveryFailure', 'False', 'ResourcesDiscovered', 'healthy'],
+      ['NamespaceDeletionGroupVersionParsingFailure', 'False', 'ParsedGroupVersions', 'healthy'],
+      ['NamespaceDeletionContentFailure', 'False', 'ContentDeleted', 'healthy'],
+      ['NamespaceContentRemaining', 'True', 'SomeResourcesRemain', 'progress'],
+      ['NamespaceFinalizersRemaining', 'True', 'SomeFinalizersRemain', 'progress'],
     ]);
   });
 

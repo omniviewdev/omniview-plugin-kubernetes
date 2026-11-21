@@ -47,7 +47,7 @@ const know = (...names: readonly string[]) => {
 };
 
 function view(over: Partial<read.KindObjectView> = {}): read.KindObjectView {
-  return { state: { kind: 'loaded' }, failure: undefined, record: RECORD, live: true, refreshing: false, connect, retry, refresh, ...over };
+  return { state: { kind: 'loaded' }, failure: undefined, record: RECORD, deleted: false, live: true, refreshing: false, connect, retry, refresh, ...over };
 }
 
 const resolve = () => undefined;
@@ -181,17 +181,29 @@ describe('detailState: the object\'s page, in the words of the object', () => {
     expect(state({})).toEqual({ kind: 'ready' });
   });
 
-  it('is not found when the object\'s own complete snapshot has no such object: it never was, or it was deleted, also while its page was open', () => {
+  it('is not found when the object\'s own complete snapshot has no such object and the page never had it: two sentences, the first names the kind and the name', () => {
     expect(state({ state: { kind: 'empty' }, record: undefined })).toEqual({
       kind: 'not-found',
       message: 'Deployment cart-api doesn\'t exist in namespace checkout. It may have been deleted.',
     });
   });
 
-  it('says this cluster, and not a namespace, for a kind that lives in no namespace', () => {
-    expect(state({ state: { kind: 'empty' }, record: undefined }, { kind: 'Node', plural: 'Nodes', name: 'kind-control-plane', namespace: undefined })).toEqual({
+  it('says it was deleted when the page had the object and its source has since said it is gone: two sentences, the first names the kind and the name', () => {
+    expect(state({ state: { kind: 'empty' }, record: undefined, deleted: true })).toEqual({
+      kind: 'not-found',
+      message: 'Deployment cart-api was deleted. It no longer exists in namespace checkout.',
+    });
+  });
+
+  it('says this cluster, and not a namespace, for a kind that lives in no namespace, in both', () => {
+    const node = { kind: 'Node', plural: 'Nodes', name: 'kind-control-plane', namespace: undefined };
+    expect(state({ state: { kind: 'empty' }, record: undefined }, node)).toEqual({
       kind: 'not-found',
       message: 'Node kind-control-plane doesn\'t exist in this cluster. It may have been deleted.',
+    });
+    expect(state({ state: { kind: 'empty' }, record: undefined, deleted: true }, node)).toEqual({
+      kind: 'not-found',
+      message: 'Node kind-control-plane was deleted. It no longer exists in this cluster.',
     });
   });
 

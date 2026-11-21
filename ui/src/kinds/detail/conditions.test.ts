@@ -6,7 +6,8 @@ import { podOverview } from '../../pod/overview/model';
 import { conditionRole, conditionRows } from './conditions';
 
 // The Conditions of any object: the Pod page's table (`pod/overview/model.ts`), the mock's `conditionRole` and `conditionsSection` (K59, K61.3). One table of roles for every kind: a condition has
-// one role wherever it is said.
+// one role wherever it is said. The one place it departs from the mock is the deletion conditions of a Namespace, which the mock's table reads inverted (below); no Pod carries them, so the Pod page's table
+// is the same rule for every condition a Pod has.
 
 describe('conditionRole: a state a reader can act on, from the type and the status', () => {
   it('is healthy for a True condition of a type that is good news, and for a False one of a type that is bad news', () => {
@@ -32,6 +33,38 @@ describe('conditionRole: a state a reader can act on, from the type and the stat
     expect(conditionRole('Progressing', 'False')).toBe('attention');
     expect(conditionRole('Ready', 'Unknown')).toBe('attention');
     expect(conditionRole('Ready', undefined)).toBe('attention');
+  });
+});
+
+describe('the deletion conditions of a Namespace: what they say, not what the mock\'s table makes of them', () => {
+  // The mock's `conditionRole` has no pattern for them, so it reads a `False` `...Failure` as attention and a `True` `...Remaining` as healthy: the inverse of what they say. The roles follow their meaning
+  // (the lead's ruling, K2c-1; the status file's Spec errata).
+  it.each(['NamespaceDeletionDiscoveryFailure', 'NamespaceDeletionGroupVersionParsingFailure', 'NamespaceDeletionContentFailure'])('%s is healthy when it is False and needs attention when it is True', (type) => {
+    expect(conditionRole(type, 'False')).toBe('healthy');
+    expect(conditionRole(type, 'True')).toBe('attention');
+    expect(conditionRole(type, 'Unknown')).toBe('attention');
+    expect(conditionRole(type, undefined)).toBe('attention');
+  });
+
+  it.each(['NamespaceContentRemaining', 'NamespaceFinalizersRemaining'])('%s is the deletion in progress when it is True, and healthy when nothing remains', (type) => {
+    expect(conditionRole(type, 'True')).toBe('progress');
+    expect(conditionRole(type, 'False')).toBe('healthy');
+    expect(conditionRole(type, 'Unknown')).toBe('attention');
+    expect(conditionRole(type, undefined)).toBe('attention');
+  });
+
+  it('says the role in the row too', () => {
+    const [failure, remaining] = conditionRows([
+      { type: 'NamespaceDeletionContentFailure', status: 'False', reason: 'ContentDeleted' },
+      { type: 'NamespaceContentRemaining', status: 'True', reason: 'SomeResourcesRemain' },
+    ]);
+    expect([failure?.role, remaining?.role]).toEqual(['healthy', 'progress']);
+  });
+
+  it('leaves every other type where the mock\'s table puts it', () => {
+    expect(conditionRole('ReplicaFailure', 'True')).toBe('error');
+    expect(conditionRole('Failed', 'True')).toBe('error');
+    expect(conditionRole('Progressing', 'True')).toBe('healthy');
   });
 });
 
