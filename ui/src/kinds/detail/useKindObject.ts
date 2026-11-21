@@ -77,8 +77,8 @@ export function useKindObject(kind: { readonly type: string; readonly detail: Pi
   // What the page has shown: an object that leaves its source view after it was on this page was deleted, and one that never was there was never found. The memory is of this object alone: a route that moves to another starts it again.
   const identity = `${connectionID ?? ''}\n${namespace ?? ''}\n${name}`;
   const [shown, setShown] = useState<string | undefined>(undefined);
-  if (record !== undefined && shown !== identity) {
-    setShown(identity);
+  if (shown !== identity && (record !== undefined || shown !== undefined)) {
+    setShown(record === undefined ? undefined : identity);
   }
   const complete = connected && everything !== undefined;
 

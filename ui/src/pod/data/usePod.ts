@@ -84,8 +84,8 @@ export function usePod({ pluginID = PLUGIN_ID, connectionID, namespace, name }: 
   // What the page has shown: a Pod that leaves its source view after it was on this page was deleted, and one that never was there was never found. The memory is of this Pod alone: a route that moves to another starts it again.
   const identity = `${connectionID ?? ''}\n${namespace}\n${name}`;
   const [shown, setShown] = useState<string | undefined>(undefined);
-  if (pod !== undefined && shown !== identity) {
-    setShown(identity);
+  if (shown !== identity && (pod !== undefined || shown !== undefined)) {
+    setShown(pod === undefined ? undefined : identity);
   }
 
   const complete = connected && everything !== undefined;

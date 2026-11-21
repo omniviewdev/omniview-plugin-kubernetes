@@ -289,6 +289,21 @@ describe('when the Pod is not there', () => {
     expect(result.current.deleted).toBe(false);
   });
 
+  it('does not say a Pod was deleted that this visit never showed: the route moves from a Pod it had to one that is absent, and back to the first while it is still absent', () => {
+    answer({ collection: [pod('cart-api')] });
+    const { result, rerender } = render();
+    expect(result.current.pod).toBeDefined();
+
+    answer({ collection: [] });
+    rerender({ name: 'other' });
+    expect(result.current.state).toEqual({ kind: 'empty' });
+    expect(result.current.deleted).toBe(false);
+
+    rerender({ name: 'cart-api' });
+    expect(result.current.state).toEqual({ kind: 'empty' });
+    expect(result.current.deleted).toBe(false);
+  });
+
   it('finds the Pod again when it is created again', () => {
     answer({ collection: [] });
     const { result, rerender } = render();

@@ -339,6 +339,22 @@ describe('when the object is not there', () => {
     expect(result.current.deleted).toBe(false);
   });
 
+  it('does not say an object was deleted that this visit never showed: the route moves from an object it had to one that is absent, and back to the first while it is still absent', () => {
+    answer({ collection: [deployment('cart-api')] });
+    const { result, rerender } = render();
+    expect(result.current.record).toBeDefined();
+
+    answer({ collection: [], target: { type: DEPLOYMENTS.type, scope: namespaced('checkout', 'other') } });
+    rerender({ name: 'other' });
+    expect(result.current.state).toEqual({ kind: 'empty' });
+    expect(result.current.deleted).toBe(false);
+
+    answer({ collection: [] });
+    rerender({ name: 'cart-api' });
+    expect(result.current.state).toEqual({ kind: 'empty' });
+    expect(result.current.deleted).toBe(false);
+  });
+
   it('says it for an object that lives in no namespace too', () => {
     const props = { kind: NODES, name: 'kind-control-plane', namespace: undefined };
     answer({ collection: [node('kind-control-plane')], target: { type: NODES.type, scope: clusterScoped('kind-control-plane') } });

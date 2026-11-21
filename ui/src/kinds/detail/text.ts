@@ -6,6 +6,16 @@ import type { TagItem } from '@omniviewdev/kit';
 /** `10 revisions`, `1 key`: the number, grouped by thousands, and its noun, plural unless it is one. */
 export const counted = (value: number, word: string): string => `${value.toLocaleString('en-US')} ${word}${value === 1 ? '' : 's'}`;
 
+/** The longest title the host reads (its contract, K2c-2): a longer one is dropped and the page says "not found" for a deleted object. */
+const MAX_TITLE = 120;
+const DELETED = ' was deleted';
+
+/** `cart-api was deleted`: the title of the page of an object that was deleted while it was open. A name that would make the title longer than the host reads (a name may have 253 characters) is cut with an ellipsis; the suffix stays. */
+export function deletedTitle(name: string): string {
+  const room = MAX_TITLE - DELETED.length;
+  return `${name.length <= room ? name : `${name.slice(0, room - 1)}…`}${DELETED}`;
+}
+
 /** `2026-11-17 02:08 UTC`: the instant, to the minute, in UTC (the mock's `stampOf`). Undefined for what is not a time. */
 export function utcStamp(value: string | number | undefined): string | undefined {
   const time = typeof value === 'number' ? value : Date.parse(value ?? '');
