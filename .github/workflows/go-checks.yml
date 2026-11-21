@@ -1,0 +1,124 @@
+name: Go checks
+
+# PRs to feature/ui-next ran only `UI checks` (pr.yml): no Go build, vet, test or lint ran for the plugin's backend, and the Go PRs that merged there were checked on a developer's machine alone
+# (the review of #272). These three jobs run when a PR to feature/ui-next changes a Go input, and always when it changes a workflow. They are a separate workflow so that `pr.yml`
+# (UI checks, which every PR runs) and what PRs to `main` run are left as they are; this file only exists on the branches that carry it.
+#
+# Tools are pinned: Go by go.mod (GOTOOLCHAIN=local: the toolchain that setup-go installs is the one used), golangci-lint by version AND sha256 below.
+# The repo's flags are the Makefile's: GOWORK=off, GOFLAGS empty. Tests run as the README says (`go test ./... -count=1`) with the race detector, which needs cgo (the runner has gcc); the packaging build of
+# hack/package.sh is CGO_ENABLED=0, which the Windows build below repeats.
+#
+# Lint: only the lines the PR changes are reported (the plugin has no lint backlog to fix first), with golangci-lint's default linters (errcheck, govet, ineffassign, staticcheck, unused). The plugin's `.golangci.yml`
+# is a v1 file ("golden config", about 60 linters) that golangci-lint v2 cannot load (`unsupported version of the configuration`), and a v1 binary is built with a Go older than go.mod's, which it refuses; migrated to v2
+# it reports 16 style findings on a 700-line change (lll, testpackage, gochecknoglobals, gci, gocognit), so it is not used here. Adopting a config is the owner's decision; this job then only drops `--no-config`.
+
+on:
+  pull_request:
+    branches: [feature/ui-next]
+    paths:
+      - "pkg/**"
+      - "go.mod"
+      - "go.sum"
+      - ".golangci.yml"
+      - ".github/workflows/**"
+
+concurrency:
+  group: go-checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GOWORK: "off"
+  GOFLAGS: ""
+  GOTOOLCHAIN: local
+  GOLANGCI_LINT_VERSION: v2.15.0
+  GOLANGCI_LINT_SHA256: 9b7fe6a6bf6334b98decf8d86b11415ea7889afdabdd1959fdce23af2a9ebcea
+
+jobs:
+  go-build:
+    name: Go build and vet
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # The module cache and the build cache, keyed by go.sum.
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      # The plugin ships for Windows too, and its file rules are the ones that differ (paths, links, case): vet it, and build the binary the way hack/package.sh does.
+      - name: Vet and build for Windows
+        run: |
+          set -euo pipefail
+          GOOS=windows GOARCH=amd64 go vet ./...
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -o /dev/null ./pkg
+
+  go-test:
+    name: Go test (race)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Test
+        run: go test -race -count=1 ./...
+
+  go-lint:
+    name: Go lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+
+      # The lines this PR changes, as a patch with root-relative paths (the checkout is the PR merged into its base).
+      - name: Patch of the PR
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin "$BASE_SHA"
+          git diff --no-ext-diff --no-color "$BASE_SHA" HEAD > "$RUNNER_TEMP/changes.patch"
+          wc -l "$RUNNER_TEMP/changes.patch"
+
+      - name: Install golangci-lint
+        run: |
+          set -euo pipefail
+          archive="golangci-lint-${GOLANGCI_LINT_VERSION#v}-linux-amd64.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/$archive" "https://github.com/golangci/golangci-lint/releases/download/${GOLANGCI_LINT_VERSION}/${archive}"
+          echo "${GOLANGCI_LINT_SHA256}  $RUNNER_TEMP/$archive" | sha256sum --check --strict
+          mkdir -p "$RUNNER_TEMP/bin"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/bin" --strip-components=1 "${archive%.tar.gz}/golangci-lint"
+          "$RUNNER_TEMP/bin/golangci-lint" --version
+
+      - name: Lint
+        run: |
+          "$RUNNER_TEMP/bin/golangci-lint" run --no-config --new=false --new-from-patch="$RUNNER_TEMP/changes.patch" --path-prefix= ./...
