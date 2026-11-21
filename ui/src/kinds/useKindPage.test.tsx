@@ -139,7 +139,7 @@ describe('usePodsPage: what it hands the host', () => {
       tab: { title: 'Pods', icon: 'box' },
       path: ['Kubernetes', 'kind-a', 'Pods'],
       scope: [
-        { label: 'Connection', icon: 'server', text: 'kind-a' },
+        { label: 'Connection', icon: 'server', text: 'kind-a', role: 'connection' },
         { label: 'Namespaces', icon: 'folder-tree', text: 'All namespaces' },
       ],
     });
@@ -150,7 +150,7 @@ describe('usePodsPage: what it hands the host', () => {
     const { frame } = mount().result.current;
     expect(frame.path).toEqual(['Kubernetes', 'kind-a', 'Pods']);
     expect(frame.scope).toEqual([
-      { label: 'Connection', icon: 'server', text: 'kind-a' },
+      { label: 'Connection', icon: 'server', text: 'kind-a', role: 'connection' },
       { label: 'Namespaces', icon: 'folder-tree', text: 'All namespaces' },
     ]);
   });
@@ -158,7 +158,7 @@ describe('usePodsPage: what it hands the host', () => {
   it('shows the connection it reads, not the one the route names, when the plugin does not know that one', () => {
     know('kind-a');
     const { frame } = mount('kind-gone').result.current;
-    expect(frame.scope?.[0]).toEqual({ label: 'Connection', icon: 'server', text: 'kind-a' });
+    expect(frame.scope?.[0]).toEqual({ label: 'Connection', icon: 'server', text: 'kind-a', role: 'connection' });
     expect(frame.path).toEqual(['Kubernetes', 'kind-a', 'Pods']);
   });
 });
@@ -172,7 +172,7 @@ describe('usePodsPage: the frame says the name of the connection, and the reads 
       const picked = route === undefined ? 'kind-a' : 'kind-b';
       const { frame } = mount(route).result.current;
       expect(frame.path).toEqual(['Kubernetes', picked, 'Pods']);
-      expect(frame.scope?.[0]).toEqual({ label: 'Connection', icon: 'server', text: picked });
+      expect(frame.scope?.[0]).toEqual({ label: 'Connection', icon: 'server', text: picked, role: 'connection' });
       expect(JSON.stringify(frame)).not.toContain('54c660ecd1');
       expect(usePods).toHaveBeenLastCalledWith(podDefinition, { pluginID: 'kubernetes', connectionID: idOf(picked) });
       cleanup();
@@ -183,7 +183,7 @@ describe('usePodsPage: the frame says the name of the connection, and the reads 
     knowDerived('kind-a', 'kind-b');
     for (const stale of ['kind-b', idOf('kind-gone')]) {
       const { frame } = mount(stale).result.current;
-      expect(frame.scope?.[0]).toEqual({ label: 'Connection', icon: 'server', text: 'kind-a' });
+      expect(frame.scope?.[0]).toEqual({ label: 'Connection', icon: 'server', text: 'kind-a', role: 'connection' });
       expect(frame.path).toEqual(['Kubernetes', 'kind-a', 'Pods']);
       expect(JSON.stringify(frame)).not.toContain(stale);
       expect(usePods).toHaveBeenLastCalledWith(podDefinition, { pluginID: 'kubernetes', connectionID: idOf('kind-a') });
@@ -226,6 +226,14 @@ describe('usePodsPage: the scope lane is there from the first render', () => {
   it('has both faces when the plugin has no connection, which it says', () => {
     connections.mockReturnValue({ connections: { data: [], isPending: false } } as never);
     expect(lane(mount().result.current.frame)).toEqual(['Connection: None', 'Namespaces: All namespaces']);
+  });
+
+  it('marks the Connection face as the connection (role), in every one of those states', () => {
+    for (const setUp of [() => connections.mockReturnValue({ connections: { data: undefined, isPending: true } } as never), () => know('kind-a'), () => connections.mockReturnValue({ connections: { data: [], isPending: false } } as never)]) {
+      setUp();
+      expect(mount().result.current.frame.scope?.map((face) => face.role)).toEqual(['connection', undefined]);
+      cleanup();
+    }
   });
 
   it('has the same two faces, in the same order, in every one of those states: the page never gains or loses the lane', () => {
@@ -307,7 +315,7 @@ describe('the same page for another kind: the definition is the only thing that 
       tab: { title: 'Deployments', icon: deploymentDefinition.tile.icon },
       path: ['Kubernetes', 'kind-a', 'Deployments'],
       scope: [
-        { label: 'Connection', icon: 'server', text: 'kind-a' },
+        { label: 'Connection', icon: 'server', text: 'kind-a', role: 'connection' },
         { label: 'Namespaces', icon: 'folder-tree', text: 'All namespaces' },
       ],
     });

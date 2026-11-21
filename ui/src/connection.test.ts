@@ -76,7 +76,7 @@ describe('useChosenConnection: the name the frame gives the connection', () => {
     know();
     const { result } = mount('kind-a-54c660ecd1');
     expect(result.current).toEqual({ chosen: undefined, pending: false, named: undefined });
-    expect(connectionFace(result.current)).toEqual({ label: 'Connection', icon: 'server', text: 'None' });
+    expect(connectionFace(result.current)).toEqual({ label: 'Connection', icon: 'server', text: 'None', role: 'connection' });
   });
 
   it('has no name while the connections are on its way, and never prints the route, which holds an id', () => {
@@ -178,6 +178,17 @@ describe('connectionName: one name for one connection among the plugin\'s', () =
     const list = [at('prod-54c660ecd1', '~/.kube/config'), at('prod-0a1b2c3d4e', '~/work/other'), conn('dev'), conn('x', { name: '', data: {} })];
     for (const entry of list) {
       expect(connectionName(entry, list)).not.toMatch(/[0-9a-f]{10}/);
+    }
+  });
+});
+
+describe('connectionFace: what a host without the role marker reads', () => {
+  it('still labels the face Connection, so a host that predates `role` finds the name by the old convention', () => {
+    for (const state of [{ named: 'kind-a', pending: false }, { named: undefined, pending: true }, { named: undefined, pending: false }]) {
+      const face = connectionFace(state);
+      expect(face.label).toBe('Connection');
+      expect(face.role).toBe('connection');
+      expect(face.icon).toBe('server');
     }
   });
 });

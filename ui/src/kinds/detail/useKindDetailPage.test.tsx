@@ -137,6 +137,16 @@ describe('useKindDetailPage: the scope lane is there from the first render', () 
     expect(lane(mount().result.current.scope)).toEqual(['Connection: None', 'Namespaces: checkout']);
   });
 
+  it('marks the Connection face as the connection (role), whether the connection is known, on its way or absent', () => {
+    expect(mount({ connection: idOf('kind-a') }).result.current.scope?.map((face) => face.role)).toEqual(['connection', undefined]);
+    cleanup();
+    connections.mockReturnValue({ connections: { data: undefined, isPending: true } } as never);
+    expect(mount().result.current.scope?.[0]?.role).toBe('connection');
+    cleanup();
+    connections.mockReturnValue({ connections: { data: [], isPending: false } } as never);
+    expect(mount().result.current.scope?.[0]?.role).toBe('connection');
+  });
+
   it('has the same faces whatever state the page is in: a page never gains or loses its lane', () => {
     const faces = (state: read.KindObjectView) => {
       useKindObject.mockReturnValue(state);
