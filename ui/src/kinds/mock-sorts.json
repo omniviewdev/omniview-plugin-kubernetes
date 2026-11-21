@@ -1,0 +1,3653 @@
+{
+  "source": "k8s-resource-definitions.js: K8s.resourceDefinitions.list(), no connection",
+  "definitions": [
+    {
+      "type": "k8s:/pods",
+      "kind": "Pod",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "readiness",
+          "label": "Ready",
+          "sort": "ratio",
+          "format": "ratio",
+          "defaultHidden": false
+        },
+        {
+          "id": "status",
+          "label": "Status",
+          "sort": "text",
+          "format": "status",
+          "defaultHidden": false
+        },
+        {
+          "id": "restarts",
+          "label": "Restarts",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "namespace",
+          "label": "Namespace",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "node",
+          "label": "Node",
+          "sort": "text",
+          "format": "reference",
+          "defaultHidden": true
+        },
+        {
+          "id": "podIP",
+          "label": "IP",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "controlledBy",
+          "label": "Controller",
+          "sort": "text",
+          "format": "reference",
+          "defaultHidden": true
+        },
+        {
+          "id": "qos",
+          "label": "QoS class",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "cpuUsage",
+          "label": "CPU",
+          "sort": "text",
+          "format": "metric",
+          "defaultHidden": true
+        },
+        {
+          "id": "memoryUsage",
+          "label": "Memory",
+          "sort": "text",
+          "format": "metric",
+          "defaultHidden": true
+        },
+        {
+          "id": "nominatedNode",
+          "label": "Nominated node",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "readinessGates",
+          "label": "Readiness gates",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "hostIP",
+          "label": "Host IP",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "dnsPolicy",
+          "label": "DNS policy",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "serviceAccount",
+          "label": "Service account",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "preemptionPolicy",
+          "label": "Preemption policy",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "priority",
+          "label": "Priority",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "schedulerName",
+          "label": "Scheduler",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "hostname",
+          "label": "Hostname",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "conditions",
+          "label": "Conditions",
+          "sort": "text",
+          "format": "conditions",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:/replicationcontrollers",
+      "kind": "ReplicationController",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "state",
+          "label": "Status",
+          "sort": "text",
+          "format": "status",
+          "defaultHidden": false
+        },
+        {
+          "id": "desired",
+          "label": "Desired",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": false
+        },
+        {
+          "id": "current",
+          "label": "Current",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": false
+        },
+        {
+          "id": "ready",
+          "label": "Ready",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "namespace",
+          "label": "Namespace",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "containerNames",
+          "label": "Containers",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "images",
+          "label": "Images",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "selector",
+          "label": "Selector",
+          "sort": "text",
+          "format": "selector",
+          "defaultHidden": true
+        },
+        {
+          "id": "available",
+          "label": "Available replicas",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "conditions",
+          "label": "Conditions",
+          "sort": "text",
+          "format": "conditions",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:apps/deployments",
+      "kind": "Deployment",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "state",
+          "label": "Status",
+          "sort": "text",
+          "format": "status",
+          "defaultHidden": false
+        },
+        {
+          "id": "readiness",
+          "label": "Ready",
+          "sort": "ratio",
+          "format": "ratio",
+          "defaultHidden": false
+        },
+        {
+          "id": "updated",
+          "label": "Up-to-date",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "namespace",
+          "label": "Namespace",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "available",
+          "label": "Available",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "containerNames",
+          "label": "Containers",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "images",
+          "label": "Images",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "selector",
+          "label": "Selector",
+          "sort": "text",
+          "format": "selector",
+          "defaultHidden": true
+        },
+        {
+          "id": "strategy",
+          "label": "Strategy",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "desired",
+          "label": "Desired replicas",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "current",
+          "label": "Current replicas",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "ready",
+          "label": "Ready replicas",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "conditions",
+          "label": "Conditions",
+          "sort": "text",
+          "format": "conditions",
+          "defaultHidden": true
+        },
+        {
+          "id": "unavailable",
+          "label": "Unavailable replicas",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "minReadySeconds",
+          "label": "Minimum ready seconds",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "progressDeadlineSeconds",
+          "label": "Progress deadline",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "revision",
+          "label": "Observed generation",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "rollout",
+          "label": "Revision",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:apps/daemonsets",
+      "kind": "DaemonSet",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "state",
+          "label": "Status",
+          "sort": "text",
+          "format": "status",
+          "defaultHidden": false
+        },
+        {
+          "id": "desired",
+          "label": "Desired",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": false
+        },
+        {
+          "id": "ready",
+          "label": "Ready",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": false
+        },
+        {
+          "id": "updated",
+          "label": "Up-to-date",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "namespace",
+          "label": "Namespace",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "available",
+          "label": "Available",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "current",
+          "label": "Current",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "nodeSelector",
+          "label": "Node selector",
+          "sort": "text",
+          "format": "selector",
+          "defaultHidden": true
+        },
+        {
+          "id": "containerNames",
+          "label": "Containers",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "images",
+          "label": "Images",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "misscheduled",
+          "label": "Misscheduled",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "strategy",
+          "label": "Update strategy",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "maxUnavailable",
+          "label": "Maximum unavailable",
+          "sort": "text",
+          "format": "int-or-string",
+          "defaultHidden": true
+        },
+        {
+          "id": "revision",
+          "label": "Observed generation",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "conditions",
+          "label": "Conditions",
+          "sort": "text",
+          "format": "conditions",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:apps/replicasets",
+      "kind": "ReplicaSet",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "state",
+          "label": "Status",
+          "sort": "text",
+          "format": "status",
+          "defaultHidden": false
+        },
+        {
+          "id": "desired",
+          "label": "Desired",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": false
+        },
+        {
+          "id": "current",
+          "label": "Current",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": false
+        },
+        {
+          "id": "ready",
+          "label": "Ready",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "namespace",
+          "label": "Namespace",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "containerNames",
+          "label": "Containers",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "images",
+          "label": "Images",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "controlledBy",
+          "label": "Owner",
+          "sort": "text",
+          "format": "reference",
+          "defaultHidden": true
+        },
+        {
+          "id": "available",
+          "label": "Available replicas",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "conditions",
+          "label": "Conditions",
+          "sort": "text",
+          "format": "conditions",
+          "defaultHidden": true
+        },
+        {
+          "id": "generation",
+          "label": "Generation",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:apps/statefulsets",
+      "kind": "StatefulSet",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "state",
+          "label": "Status",
+          "sort": "text",
+          "format": "status",
+          "defaultHidden": false
+        },
+        {
+          "id": "readiness",
+          "label": "Ready",
+          "sort": "ratio",
+          "format": "ratio",
+          "defaultHidden": false
+        },
+        {
+          "id": "serviceName",
+          "label": "Service",
+          "sort": "text",
+          "format": "reference",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "namespace",
+          "label": "Namespace",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "containerNames",
+          "label": "Containers",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "images",
+          "label": "Images",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "desired",
+          "label": "Desired replicas",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "current",
+          "label": "Current replicas",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "ready",
+          "label": "Ready replicas",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "conditions",
+          "label": "Conditions",
+          "sort": "text",
+          "format": "conditions",
+          "defaultHidden": true
+        },
+        {
+          "id": "updated",
+          "label": "Updated replicas",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "currentRevisionReplicas",
+          "label": "On current revision",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "available",
+          "label": "Available replicas",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "volumeClaimTemplates",
+          "label": "Volume claim templates",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "podManagementPolicy",
+          "label": "Pod management",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "updateStrategy",
+          "label": "Update strategy",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "revision",
+          "label": "Update revision",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:batch/cronjobs",
+      "kind": "CronJob",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "schedule",
+          "label": "Schedule",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": false
+        },
+        {
+          "id": "state",
+          "label": "Status",
+          "sort": "text",
+          "format": "status",
+          "defaultHidden": false
+        },
+        {
+          "id": "activeJobs",
+          "label": "Active",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": false
+        },
+        {
+          "id": "lastScheduleTime",
+          "label": "Last schedule",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "namespace",
+          "label": "Namespace",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "suspend",
+          "label": "Suspend",
+          "sort": "text",
+          "format": "boolean",
+          "defaultHidden": true
+        },
+        {
+          "id": "timeZone",
+          "label": "Time zone",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "containerNames",
+          "label": "Containers",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "images",
+          "label": "Images",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "concurrencyPolicy",
+          "label": "Concurrency policy",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "startingDeadline",
+          "label": "Starting deadline",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "successfulJobsHistoryLimit",
+          "label": "Success history limit",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "failedJobsHistoryLimit",
+          "label": "Failure history limit",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:batch/jobs",
+      "kind": "Job",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "state",
+          "label": "Status",
+          "sort": "text",
+          "format": "status",
+          "defaultHidden": false
+        },
+        {
+          "id": "completions",
+          "label": "Completions",
+          "sort": "ratio",
+          "format": "ratio",
+          "defaultHidden": false
+        },
+        {
+          "id": "duration",
+          "label": "Duration",
+          "sort": "number",
+          "format": "duration",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "namespace",
+          "label": "Namespace",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "containerNames",
+          "label": "Containers",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "images",
+          "label": "Images",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "controlledBy",
+          "label": "Owner",
+          "sort": "text",
+          "format": "reference",
+          "defaultHidden": true
+        },
+        {
+          "id": "succeeded",
+          "label": "Succeeded",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "active",
+          "label": "Active",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "failed",
+          "label": "Failed",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "terminating",
+          "label": "Terminating",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "parallelism",
+          "label": "Parallelism",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "backoffLimit",
+          "label": "Backoff limit",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "completionMode",
+          "label": "Completion mode",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "podReplacementPolicy",
+          "label": "Pod replacement policy",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "podFailurePolicy",
+          "label": "Pod failure policy",
+          "sort": "text",
+          "format": "policy",
+          "defaultHidden": true
+        },
+        {
+          "id": "suspend",
+          "label": "Suspended",
+          "sort": "text",
+          "format": "boolean",
+          "defaultHidden": true
+        },
+        {
+          "id": "ttlSecondsAfterFinished",
+          "label": "Cleanup after",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "startTime",
+          "label": "Start time",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": true
+        },
+        {
+          "id": "completionTime",
+          "label": "Completion time",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": true
+        },
+        {
+          "id": "conditions",
+          "label": "Conditions",
+          "sort": "text",
+          "format": "conditions",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:/services",
+      "kind": "Service",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "type",
+          "label": "Type",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": false
+        },
+        {
+          "id": "clusterIP",
+          "label": "Cluster IP",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": false
+        },
+        {
+          "id": "ports",
+          "label": "Ports",
+          "sort": "text",
+          "format": "ports",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "namespace",
+          "label": "Namespace",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "externalIP",
+          "label": "External IP",
+          "sort": "text",
+          "format": "addresses",
+          "defaultHidden": true
+        },
+        {
+          "id": "selector",
+          "label": "Selector",
+          "sort": "text",
+          "format": "selector",
+          "defaultHidden": true
+        },
+        {
+          "id": "sessionAffinity",
+          "label": "Session affinity",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "externalName",
+          "label": "External name",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "ipFamilyPolicy",
+          "label": "IP family policy",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "trafficDistribution",
+          "label": "Traffic distribution",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:/endpoints",
+      "kind": "Endpoints",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "endpointList",
+          "label": "Endpoints",
+          "sort": "text",
+          "format": "addresses",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "namespace",
+          "label": "Namespace",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "readyCount",
+          "label": "Ready",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "notReadyCount",
+          "label": "Not ready",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "ports",
+          "label": "Ports",
+          "sort": "text",
+          "format": "ports",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:discovery.k8s.io/endpointslices",
+      "kind": "EndpointSlice",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "addressType",
+          "label": "Address type",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": false
+        },
+        {
+          "id": "ports",
+          "label": "Ports",
+          "sort": "text",
+          "format": "ports",
+          "defaultHidden": false
+        },
+        {
+          "id": "endpointList",
+          "label": "Endpoints",
+          "sort": "text",
+          "format": "addresses",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "namespace",
+          "label": "Namespace",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "ownerService",
+          "label": "Service",
+          "sort": "text",
+          "format": "reference",
+          "defaultHidden": true
+        },
+        {
+          "id": "ready",
+          "label": "Ready",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "endpoints",
+          "label": "Endpoint count",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:networking.k8s.io/ingresses",
+      "kind": "Ingress",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "ingressClass",
+          "label": "Class",
+          "sort": "text",
+          "format": "reference",
+          "defaultHidden": false
+        },
+        {
+          "id": "hosts",
+          "label": "Hosts",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": false
+        },
+        {
+          "id": "address",
+          "label": "Address",
+          "sort": "text",
+          "format": "addresses",
+          "defaultHidden": false
+        },
+        {
+          "id": "ports",
+          "label": "Ports",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "namespace",
+          "label": "Namespace",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "tlsHosts",
+          "label": "TLS hosts",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "tlsSecret",
+          "label": "TLS Secrets",
+          "sort": "text",
+          "format": "reference",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:networking.k8s.io/ingressclasses",
+      "kind": "IngressClass",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "controller",
+          "label": "Controller",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": false
+        },
+        {
+          "id": "parameters",
+          "label": "Parameters",
+          "sort": "text",
+          "format": "reference",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "default",
+          "label": "Default",
+          "sort": "text",
+          "format": "boolean",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:networking.k8s.io/networkpolicies",
+      "kind": "NetworkPolicy",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "podSelector",
+          "label": "Pod selector",
+          "sort": "text",
+          "format": "selector",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "namespace",
+          "label": "Namespace",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "policyTypes",
+          "label": "Policy types",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "ingressRules",
+          "label": "Ingress rules",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "egressRules",
+          "label": "Egress rules",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:/configmaps",
+      "kind": "ConfigMap",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "keyCount",
+          "label": "Keys",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": false
+        },
+        {
+          "id": "keys",
+          "label": "Key names",
+          "sort": "text",
+          "format": "list",
+          "defaultHidden": false
+        },
+        {
+          "id": "size",
+          "label": "Size",
+          "sort": "number",
+          "format": "bytes",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "namespace",
+          "label": "Namespace",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "immutable",
+          "label": "Immutable",
+          "sort": "text",
+          "format": "boolean",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:/secrets",
+      "kind": "Secret",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "type",
+          "label": "Type",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": false
+        },
+        {
+          "id": "keys",
+          "label": "Keys",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "namespace",
+          "label": "Namespace",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "immutable",
+          "label": "Immutable",
+          "sort": "text",
+          "format": "boolean",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:/resourcequotas",
+      "kind": "ResourceQuota",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "request",
+          "label": "Request",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": false
+        },
+        {
+          "id": "limit",
+          "label": "Limit",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": false
+        },
+        {
+          "id": "namespace",
+          "label": "Namespace",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "scopes",
+          "label": "Scopes",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "podsUsed",
+          "label": "Pods used",
+          "sort": "quantity",
+          "format": "quantity",
+          "defaultHidden": true
+        },
+        {
+          "id": "podsHard",
+          "label": "Pod limit",
+          "sort": "quantity",
+          "format": "quantity",
+          "defaultHidden": true
+        },
+        {
+          "id": "hardCpu",
+          "label": "CPU",
+          "sort": "quantity",
+          "format": "quantity-pair",
+          "defaultHidden": true
+        },
+        {
+          "id": "hardMemory",
+          "label": "Memory",
+          "sort": "quantity",
+          "format": "quantity-pair",
+          "defaultHidden": true
+        },
+        {
+          "id": "podsQuota",
+          "label": "Pods",
+          "sort": "quantity",
+          "format": "quantity-pair",
+          "defaultHidden": true
+        },
+        {
+          "id": "servicesQuota",
+          "label": "Services",
+          "sort": "quantity",
+          "format": "quantity-pair",
+          "defaultHidden": true
+        },
+        {
+          "id": "persistentVolumeClaims",
+          "label": "Persistent volume claims",
+          "sort": "quantity",
+          "format": "quantity-pair",
+          "defaultHidden": true
+        },
+        {
+          "id": "requestsStorage",
+          "label": "Storage",
+          "sort": "quantity",
+          "format": "quantity-pair",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:/limitranges",
+      "kind": "LimitRange",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "limitsCount",
+          "label": "Items",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": false
+        },
+        {
+          "id": "scopes",
+          "label": "Types",
+          "sort": "text",
+          "format": "list",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "namespace",
+          "label": "Namespace",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "cpuDefaults",
+          "label": "CPU default and max",
+          "sort": "quantity",
+          "format": "quantity-pair",
+          "defaultHidden": true
+        },
+        {
+          "id": "memoryDefaults",
+          "label": "Memory default and max",
+          "sort": "quantity",
+          "format": "quantity-pair",
+          "defaultHidden": true
+        },
+        {
+          "id": "defaultRequestCPU",
+          "label": "CPU default request",
+          "sort": "quantity",
+          "format": "quantity",
+          "defaultHidden": true
+        },
+        {
+          "id": "defaultRequestMemory",
+          "label": "Memory default request",
+          "sort": "quantity",
+          "format": "quantity",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:autoscaling/horizontalpodautoscalers",
+      "kind": "HorizontalPodAutoscaler",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "state",
+          "label": "Status",
+          "sort": "text",
+          "format": "status",
+          "defaultHidden": false
+        },
+        {
+          "id": "targetRef",
+          "label": "Reference",
+          "sort": "text",
+          "format": "reference",
+          "defaultHidden": false
+        },
+        {
+          "id": "targets",
+          "label": "Targets",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": false
+        },
+        {
+          "id": "replicas",
+          "label": "Replicas",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "namespace",
+          "label": "Namespace",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "minReplicas",
+          "label": "Min pods",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "maxReplicas",
+          "label": "Max pods",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "metrics",
+          "label": "Metric types",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "lastScaleTime",
+          "label": "Last scale time",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": true
+        },
+        {
+          "id": "conditions",
+          "label": "Conditions",
+          "sort": "text",
+          "format": "conditions",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:policy/poddisruptionbudgets",
+      "kind": "PodDisruptionBudget",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "disruptionsAllowed",
+          "label": "Allowed disruptions",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "namespace",
+          "label": "Namespace",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "minAvailable",
+          "label": "Min available",
+          "sort": "text",
+          "format": "int-or-string",
+          "defaultHidden": true
+        },
+        {
+          "id": "maxUnavailable",
+          "label": "Max unavailable",
+          "sort": "text",
+          "format": "int-or-string",
+          "defaultHidden": true
+        },
+        {
+          "id": "currentHealthy",
+          "label": "Healthy",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "desiredHealthy",
+          "label": "Desired healthy",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "expectedPods",
+          "label": "Expected Pods",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "selector",
+          "label": "Selector",
+          "sort": "text",
+          "format": "selector",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:scheduling.k8s.io/priorityclasses",
+      "kind": "PriorityClass",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "value",
+          "label": "Value",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": false
+        },
+        {
+          "id": "globalDefault",
+          "label": "Global default",
+          "sort": "text",
+          "format": "boolean",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "preemptionPolicy",
+          "label": "Preemption policy",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:node.k8s.io/runtimeclasses",
+      "kind": "RuntimeClass",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "handler",
+          "label": "Handler",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "cpuOverhead",
+          "label": "CPU overhead",
+          "sort": "quantity",
+          "format": "quantity",
+          "defaultHidden": true
+        },
+        {
+          "id": "memoryOverhead",
+          "label": "Memory overhead",
+          "sort": "quantity",
+          "format": "quantity",
+          "defaultHidden": true
+        },
+        {
+          "id": "nodeSelector",
+          "label": "Node selector",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "tolerations",
+          "label": "Tolerations",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:coordination.k8s.io/leases",
+      "kind": "Lease",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "holder",
+          "label": "Holder",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "namespace",
+          "label": "Namespace",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "renewTime",
+          "label": "Renewed",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": true
+        },
+        {
+          "id": "duration",
+          "label": "Lease duration",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "transitions",
+          "label": "Transitions",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "acquireTime",
+          "label": "Held since",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:flowcontrol.apiserver.k8s.io/flowschemas",
+      "kind": "FlowSchema",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "priorityLevel",
+          "label": "Priority level",
+          "sort": "text",
+          "format": "reference",
+          "defaultHidden": false
+        },
+        {
+          "id": "precedence",
+          "label": "Matching precedence",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "distinguisher",
+          "label": "Distinguisher method",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "missingPL",
+          "label": "Missing PL",
+          "sort": "text",
+          "format": "boolean",
+          "defaultHidden": true
+        },
+        {
+          "id": "rules",
+          "label": "Rules",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "conditions",
+          "label": "Conditions",
+          "sort": "text",
+          "format": "conditions",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:flowcontrol.apiserver.k8s.io/prioritylevelconfigurations",
+      "kind": "PriorityLevelConfiguration",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "type",
+          "label": "Type",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": false
+        },
+        {
+          "id": "limitedNominalShares",
+          "label": "Shares",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": false
+        },
+        {
+          "id": "queues",
+          "label": "Queues",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "handSize",
+          "label": "Hand size",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "queueLengthLimit",
+          "label": "Queue length limit",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "assuredConcurrencyShares",
+          "label": "Assured shares",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "nominalConcurrencyShares",
+          "label": "Exempt shares",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "lendablePercent",
+          "label": "Lendable",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "borrowingLimitPercent",
+          "label": "Borrowing limit",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "limitResponseType",
+          "label": "Limit response",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:/persistentvolumes",
+      "kind": "PersistentVolume",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "capacity",
+          "label": "Capacity",
+          "sort": "quantity",
+          "format": "quantity",
+          "defaultHidden": false
+        },
+        {
+          "id": "phase",
+          "label": "Status",
+          "sort": "text",
+          "format": "status",
+          "defaultHidden": false
+        },
+        {
+          "id": "claim",
+          "label": "Claim",
+          "sort": "text",
+          "format": "reference",
+          "defaultHidden": false
+        },
+        {
+          "id": "storageClass",
+          "label": "Storage class",
+          "sort": "text",
+          "format": "reference",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "accessModes",
+          "label": "Access modes",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "reclaimPolicy",
+          "label": "Reclaim policy",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "reason",
+          "label": "Reason",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "volumeMode",
+          "label": "Volume mode",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "provisionedBy",
+          "label": "Provisioned by",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:/persistentvolumeclaims",
+      "kind": "PersistentVolumeClaim",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "phase",
+          "label": "Status",
+          "sort": "text",
+          "format": "status",
+          "defaultHidden": false
+        },
+        {
+          "id": "volumeName",
+          "label": "Volume",
+          "sort": "text",
+          "format": "reference",
+          "defaultHidden": false
+        },
+        {
+          "id": "capacity",
+          "label": "Capacity",
+          "sort": "quantity",
+          "format": "quantity",
+          "defaultHidden": false
+        },
+        {
+          "id": "storageClass",
+          "label": "Storage class",
+          "sort": "text",
+          "format": "reference",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "namespace",
+          "label": "Namespace",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "accessModes",
+          "label": "Access modes",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "volumeMode",
+          "label": "Volume mode",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "storage",
+          "label": "Requested",
+          "sort": "quantity",
+          "format": "quantity",
+          "defaultHidden": true
+        },
+        {
+          "id": "selector",
+          "label": "Selector",
+          "sort": "text",
+          "format": "selector",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:storage.k8s.io/storageclasses",
+      "kind": "StorageClass",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "provisioner",
+          "label": "Provisioner",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": false
+        },
+        {
+          "id": "reclaimPolicy",
+          "label": "Reclaim policy",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": false
+        },
+        {
+          "id": "binding",
+          "label": "Binding mode",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": false
+        },
+        {
+          "id": "expansion",
+          "label": "Expansion",
+          "sort": "text",
+          "format": "boolean",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "default",
+          "label": "Default",
+          "sort": "text",
+          "format": "boolean",
+          "defaultHidden": true
+        },
+        {
+          "id": "mountOptions",
+          "label": "Mount options",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:storage.k8s.io/csidrivers",
+      "kind": "CSIDriver",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "attachRequired",
+          "label": "Attach required",
+          "sort": "text",
+          "format": "boolean",
+          "defaultHidden": false
+        },
+        {
+          "id": "storageCapacity",
+          "label": "Storage capacity",
+          "sort": "text",
+          "format": "boolean",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "podInfoOnMount",
+          "label": "Pod info on mount",
+          "sort": "text",
+          "format": "boolean",
+          "defaultHidden": true
+        },
+        {
+          "id": "tokenRequests",
+          "label": "Token requests",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "requiresRepublish",
+          "label": "Requires republish",
+          "sort": "text",
+          "format": "boolean",
+          "defaultHidden": true
+        },
+        {
+          "id": "volumeLifecycleModes",
+          "label": "Modes",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "fsGroupPolicy",
+          "label": "Filesystem group policy",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:storage.k8s.io/csinodes",
+      "kind": "CSINode",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "driverCount",
+          "label": "Drivers",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": false
+        },
+        {
+          "id": "drivers",
+          "label": "Driver names",
+          "sort": "text",
+          "format": "list",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "topologyKeys",
+          "label": "Topology keys",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "allocatableCount",
+          "label": "Allocatable drivers",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:storage.k8s.io/volumeattachments",
+      "kind": "VolumeAttachment",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "attacher",
+          "label": "Attacher",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": false
+        },
+        {
+          "id": "volumeName",
+          "label": "PV",
+          "sort": "text",
+          "format": "reference",
+          "defaultHidden": false
+        },
+        {
+          "id": "node",
+          "label": "Node",
+          "sort": "text",
+          "format": "reference",
+          "defaultHidden": false
+        },
+        {
+          "id": "attached",
+          "label": "Attached",
+          "sort": "text",
+          "format": "boolean",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "attachError",
+          "label": "Attach error",
+          "sort": "text",
+          "format": "sensitive",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:storage.k8s.io/csistoragecapacities",
+      "kind": "CSIStorageCapacity",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "capacity",
+          "label": "Capacity",
+          "sort": "quantity",
+          "format": "quantity",
+          "defaultHidden": false
+        },
+        {
+          "id": "storageClass",
+          "label": "Storage class",
+          "sort": "text",
+          "format": "reference",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "namespace",
+          "label": "Namespace",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:/serviceaccounts",
+      "kind": "ServiceAccount",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "secretCount",
+          "label": "Secrets",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "namespace",
+          "label": "Namespace",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "automountServiceAccountToken",
+          "label": "Automount token",
+          "sort": "text",
+          "format": "boolean",
+          "defaultHidden": true
+        },
+        {
+          "id": "secrets",
+          "label": "Secret names",
+          "sort": "text",
+          "format": "reference",
+          "defaultHidden": true
+        },
+        {
+          "id": "imagePullSecrets",
+          "label": "Image pull Secrets",
+          "sort": "text",
+          "format": "reference",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:rbac.authorization.k8s.io/roles",
+      "kind": "Role",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "ruleCount",
+          "label": "Rules",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": false
+        },
+        {
+          "id": "resources",
+          "label": "Resources",
+          "sort": "text",
+          "format": "list",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "namespace",
+          "label": "Namespace",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:rbac.authorization.k8s.io/clusterroles",
+      "kind": "ClusterRole",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "ruleCount",
+          "label": "Rules",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": false
+        },
+        {
+          "id": "resources",
+          "label": "Resources",
+          "sort": "text",
+          "format": "list",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "aggregatedFrom",
+          "label": "Aggregation",
+          "sort": "text",
+          "format": "selector",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:rbac.authorization.k8s.io/rolebindings",
+      "kind": "RoleBinding",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "roleRef",
+          "label": "Role",
+          "sort": "text",
+          "format": "reference",
+          "defaultHidden": false
+        },
+        {
+          "id": "members",
+          "label": "Subjects",
+          "sort": "text",
+          "format": "list",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "namespace",
+          "label": "Namespace",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "users",
+          "label": "Users",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "groups",
+          "label": "Groups",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "serviceAccounts",
+          "label": "Service accounts",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:rbac.authorization.k8s.io/clusterrolebindings",
+      "kind": "ClusterRoleBinding",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "roleRef",
+          "label": "Role",
+          "sort": "text",
+          "format": "reference",
+          "defaultHidden": false
+        },
+        {
+          "id": "members",
+          "label": "Subjects",
+          "sort": "text",
+          "format": "list",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "users",
+          "label": "Users",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "groups",
+          "label": "Groups",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "serviceAccounts",
+          "label": "Service accounts",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:/nodes",
+      "kind": "Node",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "status",
+          "label": "Status",
+          "sort": "text",
+          "format": "status",
+          "defaultHidden": false
+        },
+        {
+          "id": "kubeletVersion",
+          "label": "Version",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": false
+        },
+        {
+          "id": "cpuUsage",
+          "label": "CPU",
+          "sort": "text",
+          "format": "metric",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "roles",
+          "label": "Roles",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "internalIP",
+          "label": "Internal IP",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "externalIP",
+          "label": "External IP",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "osImage",
+          "label": "OS image",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "kernelVersion",
+          "label": "Kernel version",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "containerRuntimeVersion",
+          "label": "Container runtime",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "memoryUsage",
+          "label": "Memory",
+          "sort": "text",
+          "format": "metric",
+          "defaultHidden": true
+        },
+        {
+          "id": "cpuCapacity",
+          "label": "CPU capacity",
+          "sort": "quantity",
+          "format": "quantity",
+          "defaultHidden": true
+        },
+        {
+          "id": "memoryCapacity",
+          "label": "Memory capacity",
+          "sort": "quantity",
+          "format": "quantity",
+          "defaultHidden": true
+        },
+        {
+          "id": "podsCapacity",
+          "label": "Pod capacity",
+          "sort": "quantity",
+          "format": "quantity",
+          "defaultHidden": true
+        },
+        {
+          "id": "ephemeralStorageCapacity",
+          "label": "Storage capacity",
+          "sort": "quantity",
+          "format": "quantity",
+          "defaultHidden": true
+        },
+        {
+          "id": "conditions",
+          "label": "Conditions",
+          "sort": "text",
+          "format": "conditions",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:/namespaces",
+      "kind": "Namespace",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "status",
+          "label": "Status",
+          "sort": "text",
+          "format": "status",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "labels",
+          "label": "Labels",
+          "sort": "text",
+          "format": "selector",
+          "defaultHidden": true
+        },
+        {
+          "id": "finalizers",
+          "label": "Finalizers",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "deletionTimestamp",
+          "label": "Marked for deletion",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:/events",
+      "kind": "Event",
+      "defaultSort": {
+        "id": "lastSeen",
+        "direction": "desc"
+      },
+      "columns": [
+        {
+          "id": "lastSeen",
+          "label": "Last seen",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "type",
+          "label": "Type",
+          "sort": "text",
+          "format": "event-type",
+          "defaultHidden": false
+        },
+        {
+          "id": "reason",
+          "label": "Reason",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": false
+        },
+        {
+          "id": "object",
+          "label": "Object",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": false
+        },
+        {
+          "id": "message",
+          "label": "Message",
+          "sort": "text",
+          "format": "prose",
+          "defaultHidden": false
+        },
+        {
+          "id": "count",
+          "label": "Count",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "firstSeen",
+          "label": "First seen",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": true
+        },
+        {
+          "id": "source",
+          "label": "Source",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "namespace",
+          "label": "Namespace",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:/componentstatuses",
+      "kind": "ComponentStatus",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "status",
+          "label": "Status",
+          "sort": "text",
+          "format": "status",
+          "defaultHidden": false
+        },
+        {
+          "id": "message",
+          "label": "Message",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": false
+        },
+        {
+          "id": "error",
+          "label": "Error",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:admissionregistration.k8s.io/mutatingwebhookconfigurations",
+      "kind": "MutatingWebhookConfiguration",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "webhooks",
+          "label": "Webhooks",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": false
+        },
+        {
+          "id": "failurePolicy",
+          "label": "Failure policy",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "serviceTargets",
+          "label": "Services",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "sideEffects",
+          "label": "Side effects",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:admissionregistration.k8s.io/validatingwebhookconfigurations",
+      "kind": "ValidatingWebhookConfiguration",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "webhooks",
+          "label": "Webhooks",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": false
+        },
+        {
+          "id": "failurePolicy",
+          "label": "Failure policy",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "serviceTargets",
+          "label": "Services",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "sideEffects",
+          "label": "Side effects",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:admissionregistration.k8s.io/validatingadmissionpolicies",
+      "kind": "ValidatingAdmissionPolicy",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "validations",
+          "label": "Validations",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": false
+        },
+        {
+          "id": "paramKind",
+          "label": "Param kind",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "failurePolicy",
+          "label": "Failure policy",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "matchConstraints",
+          "label": "Match constraints",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:admissionregistration.k8s.io/validatingadmissionpolicybindings",
+      "kind": "ValidatingAdmissionPolicyBinding",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "policyName",
+          "label": "Policy",
+          "sort": "text",
+          "format": "reference",
+          "defaultHidden": false
+        },
+        {
+          "id": "paramRef",
+          "label": "Param ref",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "validationActions",
+          "label": "Actions",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "matchResources",
+          "label": "Match resources",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:events.k8s.io/events",
+      "kind": "Event",
+      "defaultSort": {
+        "id": "lastSeen",
+        "direction": "desc"
+      },
+      "columns": [
+        {
+          "id": "lastSeen",
+          "label": "Last seen",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "type",
+          "label": "Type",
+          "sort": "text",
+          "format": "event-type",
+          "defaultHidden": false
+        },
+        {
+          "id": "reason",
+          "label": "Reason",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": false
+        },
+        {
+          "id": "object",
+          "label": "Object",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": false
+        },
+        {
+          "id": "message",
+          "label": "Message",
+          "sort": "text",
+          "format": "prose",
+          "defaultHidden": false
+        },
+        {
+          "id": "count",
+          "label": "Count",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        },
+        {
+          "id": "firstSeen",
+          "label": "First seen",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": true
+        },
+        {
+          "id": "source",
+          "label": "Source",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "namespace",
+          "label": "Namespace",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        }
+      ]
+    },
+    {
+      "type": "k8s:apiextensions.k8s.io/customresourcedefinitions",
+      "kind": "CustomResourceDefinition",
+      "defaultSort": {
+        "id": "name",
+        "direction": "asc"
+      },
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name",
+          "sort": "text",
+          "format": "identity",
+          "defaultHidden": false
+        },
+        {
+          "id": "established",
+          "label": "Established",
+          "sort": "text",
+          "format": "condition",
+          "defaultHidden": false
+        },
+        {
+          "id": "kind",
+          "label": "Kind",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": false
+        },
+        {
+          "id": "scope",
+          "label": "Scope",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": false
+        },
+        {
+          "id": "age",
+          "label": "Age",
+          "sort": "time",
+          "format": "timestamp",
+          "defaultHidden": false
+        },
+        {
+          "id": "group",
+          "label": "Group",
+          "sort": "text",
+          "format": "text",
+          "defaultHidden": true
+        },
+        {
+          "id": "versions",
+          "label": "Versions",
+          "sort": "number",
+          "format": "integer",
+          "defaultHidden": true
+        }
+      ]
+    }
+  ]
+}
