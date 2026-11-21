@@ -241,7 +241,11 @@ describe('when the Pod is not there', () => {
   it('says empty, which is not found, when the Pod\'s own snapshot is complete and has no such Pod', () => {
     answer({ collection: [pod('payment-gateway')] });
 
-    expect(render().result.current.state).toEqual({ kind: 'empty' });
+    const { result } = render();
+
+    expect(result.current.state).toEqual({ kind: 'empty' });
+    // The page never had it: it is not found, and not deleted.
+    expect(result.current.deleted).toBe(false);
   });
 
   it('says loading while the collection has no complete snapshot: a Pod that is not in it yet is not missing', () => {
@@ -258,12 +262,46 @@ describe('when the Pod is not there', () => {
     const { result, rerender } = render();
     expect(result.current.state).toEqual({ kind: 'loaded' });
     expect(result.current.live).toBe(true);
+    expect(result.current.deleted).toBe(false);
 
     answer({ collection: [pod('payment-gateway')], live: true });
     rerender({});
 
     expect(result.current.pod).toBeUndefined();
     expect(result.current.state).toEqual({ kind: 'empty' });
+    // The page had the Pod and its source has since said it is gone: it was deleted.
+    expect(result.current.deleted).toBe(true);
+  });
+
+  it('does not say another Pod was deleted when the route moves to one the page never had, and does not say it while the connection is down', () => {
+    answer({ collection: [pod('cart-api')] });
+    const { result, rerender } = render();
+    expect(result.current.pod).toBeDefined();
+
+    answer({ phase: 'disconnected', collection: undefined });
+    rerender({});
+    expect(result.current.state.kind).toBe('disconnected');
+    expect(result.current.deleted).toBe(false);
+
+    answer({ collection: [pod('cart-api')] });
+    rerender({ name: 'other' });
+    expect(result.current.state).toEqual({ kind: 'empty' });
+    expect(result.current.deleted).toBe(false);
+  });
+
+  it('does not say a Pod was deleted that this visit never showed: the route moves from a Pod it had to one that is absent, and back to the first while it is still absent', () => {
+    answer({ collection: [pod('cart-api')] });
+    const { result, rerender } = render();
+    expect(result.current.pod).toBeDefined();
+
+    answer({ collection: [] });
+    rerender({ name: 'other' });
+    expect(result.current.state).toEqual({ kind: 'empty' });
+    expect(result.current.deleted).toBe(false);
+
+    rerender({ name: 'cart-api' });
+    expect(result.current.state).toEqual({ kind: 'empty' });
+    expect(result.current.deleted).toBe(false);
   });
 
   it('finds the Pod again when it is created again', () => {
@@ -275,6 +313,7 @@ describe('when the Pod is not there', () => {
     rerender({});
 
     expect(result.current.pod?.status.phase).toBe('Pending');
+    expect(result.current.deleted).toBe(false);
   });
 });
 

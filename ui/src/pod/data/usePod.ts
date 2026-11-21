@@ -1,5 +1,5 @@
 import { useConnectionReadiness, useResolvedResourceTarget, useResourceTypes, useResources, type HostRecord, type QueryScope } from '@omniviewdev/runtime/ui/v1';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { podDefinition } from '../../kinds/pods/definition';
 import { readKindState, type KindFailure, type KindState } from '../../kinds/state';
@@ -24,6 +24,8 @@ export type PodView = {
   readonly pod: PodDetail | undefined;
   /** The record the Pod was decoded from, as the host holds it (its body, the reference it was admitted under, the connection it was admitted for): what a log session is opened from. Present with `pod`. */
   readonly record: HostRecord | undefined;
+  /** The page has shown this Pod and its source has since said it is gone: it was deleted while its page was open. False for a Pod the page never had, which is not found, and while the read is anything but a complete snapshot without it. */
+  readonly deleted: boolean;
   /** The source follows the cluster. */
   readonly live: boolean;
   /** A refresh or a resynchronisation is running on a Pod that is shown. */
@@ -79,6 +81,13 @@ export function usePod({ pluginID = PLUGIN_ID, connectionID, namespace, name }: 
   const records = connected ? everything?.records : undefined;
   const record = useMemo(() => records?.find((host) => isPod(host, namespace, name)), [records, namespace, name]);
   const pod = record === undefined ? undefined : podDetail(record);
+  // What the page has shown: a Pod that leaves its source view after it was on this page was deleted, and one that never was there was never found. The memory is of this Pod alone: a route that moves to another starts it again.
+  const identity = `${connectionID ?? ''}\n${namespace}\n${name}`;
+  const [shown, setShown] = useState<string | undefined>(undefined);
+  if (shown !== identity && (pod !== undefined || shown !== undefined)) {
+    setShown(pod === undefined ? undefined : identity);
+  }
+
   const complete = connected && everything !== undefined;
 
   const { state, failure } = readKindState({
@@ -119,6 +128,7 @@ export function usePod({ pluginID = PLUGIN_ID, connectionID, namespace, name }: 
     failure,
     pod,
     record,
+    deleted: state.kind === 'empty' && shown === identity,
     live: collection.isLive,
     refreshing: complete && (collection.resources.isFetching || collection.isSyncing),
     connect,

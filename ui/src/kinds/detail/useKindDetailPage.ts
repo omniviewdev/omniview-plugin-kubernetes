@@ -7,6 +7,7 @@ import type { KindCommands, KindDefinition, KindDetail, KindRow } from '../defin
 import type { KindFailureKind } from '../state';
 
 import type { KindOverview, ObjectRef } from './overview';
+import { deletedTitle } from './text';
 import { useKindObject, type KindObjectView } from './useKindObject';
 import { detailView } from './view';
 
@@ -75,13 +76,11 @@ export function detailState(view: KindObjectView, words: ObjectWords): DetailSta
     case 'loading':
       return { kind: 'loading' };
     case 'empty':
-      // The object's snapshot was read whole and it is not in it. When the page had the object, its source has said it is gone: it was deleted while the page was open. Otherwise it never was there for this page.
-      return {
-        kind: 'not-found',
-        message: view.deleted
-          ? `${words.kind} ${words.name} was deleted. It no longer exists in ${whereOf(words)}.`
-          : `${words.kind} ${words.name} doesn't exist in ${whereOf(words)}. It may have been deleted.`,
-      };
+      // The object's snapshot was read whole and it is not in it. When the page had the object, its source has said it is gone: it was deleted while the page was open, and the title says so (the mock's "<name> was deleted"
+      // over "It no longer exists in <where>."). Otherwise it never was there for this page: no title, so the page's own, "<name> was not found", stands over the message.
+      return view.deleted
+        ? { kind: 'not-found', title: deletedTitle(words.name), message: `It no longer exists in ${whereOf(words)}.` }
+        : { kind: 'not-found', message: `${words.kind} ${words.name} doesn't exist in ${whereOf(words)}. It may have been deleted.` };
     case 'loaded':
       // A failure that came after the object is kept beside it: the page keeps showing it and says so in the header.
       return failure === undefined ? { kind: 'ready' } : failed(failure.kind, failure.message, view, words);

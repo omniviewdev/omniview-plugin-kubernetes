@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { counted, describeCron, intOrString, retentionText, selectorItems, strategyText, utcStamp } from './text';
+import { counted, deletedTitle, describeCron, intOrString, retentionText, selectorItems, strategyText, utcStamp } from './text';
 
 // The words the Details card says, from what the API serves: the mock's own formats (MOCK k8s-resource-definitions.js `strategyText`, `retentionText`, `selectorCell`, `describeCron`, `counted`,
 // `stampOf`). They are presentation: the values are the API's (decision A19), and a test of a kind holds each row to the object a cluster served.
@@ -168,5 +168,21 @@ describe('describeCron: the schedules people write, in words', () => {
 
   it.each(cases)('%s', (expression, words) => {
     expect(describeCron(expression)).toBe(words);
+  });
+});
+
+describe('deletedTitle', () => {
+  it('is the name and "was deleted", the name unchanged when the whole fits the host\'s 120 characters', () => {
+    expect(deletedTitle('cart-api')).toBe('cart-api was deleted');
+    expect(deletedTitle('x'.repeat(108))).toBe(`${'x'.repeat(108)} was deleted`);
+  });
+
+  it('shortens a name that would make the title longer than 120 characters, with an ellipsis, and keeps the suffix: the host drops a longer title, and the page would say not found for a deleted object', () => {
+    for (const length of [109, 200, 253]) {
+      const title = deletedTitle(`${'a'.repeat(length - 1)}b`);
+      expect(title.length, String(length)).toBe(120);
+      expect(title.endsWith('… was deleted'), String(length)).toBe(true);
+      expect(title.startsWith('a'.repeat(107)), String(length)).toBe(true);
+    }
   });
 });
