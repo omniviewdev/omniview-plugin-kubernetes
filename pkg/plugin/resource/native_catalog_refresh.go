@@ -98,7 +98,7 @@ func (p *kubernetesProvider) refreshNativeCatalog(ctx context.Context, connectio
 }
 
 func (p *kubernetesProvider) acquireNativeCatalog(ctx context.Context, connectionID string, client *clients.ClientSet, previous *nativeCatalogSnapshot) (*nativeCatalogSnapshot, bool, error) {
-	bindings, coverage, err := discoverNativeTypes(ctx, client.DiscoveryClient)
+	bindings, unavailable, err := discoverNativeTypes(ctx, client.DiscoveryClient)
 	if err != nil {
 		return nil, false, err
 	}
@@ -117,15 +117,16 @@ func (p *kubernetesProvider) acquireNativeCatalog(ctx context.Context, connectio
 	if err != nil {
 		return nil, false, err
 	}
-	if previous != nil && coverage.Kind != "complete" {
+	// A discovery that could not read a group version proves nothing about the kinds missing from it: it may add support to an installed catalog, never take any away.
+	if previous != nil && len(unavailable) != 0 && !nativeSupportCovers(bindings, previous.bindings) {
 		return nil, false, resourcev2.NewError("UNAVAILABLE", "Partial discovery cannot replace installed native support")
 	}
 	encoded, err := json.Marshal(struct {
-		Bindings   map[string]nativeType
-		Coverage   resourcev2.Coverage
-		Identity   *resourcev2.NativeAuthorityHint
-		WatchScope resourcev2.QueryScope
-	}{bindings, coverage, hint, watchScope})
+		Bindings    map[string]nativeType
+		Unavailable []nativeUnavailable
+		Identity    *resourcev2.NativeAuthorityHint
+		WatchScope  resourcev2.QueryScope
+	}{bindings, unavailable, hint, watchScope})
 	if err != nil {
 		return nil, false, err
 	}
@@ -135,7 +136,7 @@ func (p *kubernetesProvider) acquireNativeCatalog(ctx context.Context, connectio
 	if err := ctx.Err(); err != nil {
 		return nil, false, err
 	}
-	snapshot, err := p.assembleNativeCatalog(ctx, connectionID, client, bindings, coverage, hint, watchScope)
+	snapshot, err := p.assembleNativeCatalog(ctx, connectionID, client, bindings, hint, watchScope)
 	if err != nil {
 		return nil, false, err
 	}
@@ -146,5 +147,6 @@ func (p *kubernetesProvider) acquireNativeCatalog(ctx context.Context, connectio
 		snapshot.schemas = previous.schemas
 	}
 	snapshot.discoveryRevision = revision
+	snapshot.unavailable = unavailable
 	return snapshot, true, nil
 }

@@ -25,6 +25,9 @@ type nativeCatalogSnapshot struct {
 	discoveryRevision string
 	nextRefresh       time.Time
 	refreshError      error
+	// unavailable names the API group versions discovery could not read. It is
+	// not part of the catalog: their kinds are not support until one is read.
+	unavailable []nativeUnavailable
 }
 
 type nativeCatalogLoad struct {
@@ -38,6 +41,7 @@ type kubernetesProvider struct {
 	catalogs         map[string]*nativeCatalogSnapshot
 	catalogLoads     map[string]*nativeCatalogLoad
 	catalogRefreshes map[string]*nativeCatalogRefresh
+	catalogHeals     map[string]*nativeCatalogHeal
 	schemaBudget     nativeSchemaBudget
 	helpers          map[string]any
 	relationships    map[string][]resourcev2.RelationshipDescriptor
@@ -68,7 +72,7 @@ func newKubernetesProvider(logger *zap.SugaredLogger, retireMetrics func(string)
 		Registrations:       append(provider.helmAncillary.Registrations(), auditRegistration()),
 		ResolveRegistration: provider.registration,
 		ErrorClassifier:     &kubeErrorClassifier{},
-		ConnectionMetadata:  connectionMetadata,
+		ConnectionMetadata:  provider.connectionMetadataFacts,
 		Lifecycle: &resourcev2.Lifecycle[clients.ClientSet]{
 			LoadConnections: provider.connections.LoadConnections,
 			CreateClient: func(ctx context.Context, _ types.Connection) (*clients.ClientSet, error) {
@@ -121,6 +125,7 @@ func (p *kubernetesProvider) startNativeConnection(ctx context.Context, connecti
 	previousLoad, previousSnapshot := p.catalogLoads[connection.ID], p.catalogs[connection.ID]
 	p.catalogLoads[connection.ID] = load
 	delete(p.catalogs, connection.ID)
+	p.stopCatalogHealLocked(connection.ID)
 	p.mu.Unlock()
 	if previousLoad != nil {
 		previousLoad.cancel()
@@ -148,6 +153,10 @@ func (p *kubernetesProvider) startNativeConnection(ctx context.Context, connecti
 	snapshot.nextRefresh = time.Now().Add(nativeCatalogRefreshInterval)
 	snapshot.schemas = newNativeSchemaState(ctx)
 	p.catalogs[connection.ID] = snapshot
+	if len(snapshot.unavailable) != 0 {
+		session, _ := resourcev2.SessionFromContext(ctx)
+		p.armCatalogHealLocked(connection.ID, session, 0)
+	}
 	p.mu.Unlock()
 	return nil
 }
@@ -157,6 +166,7 @@ func (p *kubernetesProvider) retireNativeCatalog(connectionID string) {
 	load, snapshot := p.catalogLoads[connectionID], p.catalogs[connectionID]
 	delete(p.catalogLoads, connectionID)
 	delete(p.catalogs, connectionID)
+	p.stopCatalogHealLocked(connectionID)
 	p.mu.Unlock()
 	if load != nil {
 		load.cancel()

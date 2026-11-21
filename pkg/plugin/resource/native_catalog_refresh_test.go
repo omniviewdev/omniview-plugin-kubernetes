@@ -440,20 +440,26 @@ func TestNativeHTTPRefreshCoalescesAndFencesRetiredPublication(t *testing.T) {
 	}
 }
 
-func TestNativeHTTPPartialDiscoveryIsExplicit(t *testing.T) {
+// An API group version that does not answer is named, not a reason to declare the whole catalog partial: the host refuses a connection whose catalog is
+// not complete, and one broken aggregated API must not keep a user out of a working cluster.
+func TestNativeHTTPUnavailableGroupVersionKeepsTheCatalogComplete(t *testing.T) {
 	f, client := newRefreshHTTPFixture(t)
 	f.mu.Lock()
 	f.fail = "/apis/refresh.example/v2"
 	f.mu.Unlock()
 	p := refreshTestProvider()
-	ctx, connection := refreshTestContext("partial")
+	ctx, connection := refreshTestContext("unavailable")
 	require.NoError(t, p.startNativeConnection(ctx, connection, client))
-	t.Cleanup(func() { p.retireNativeCatalog("partial") })
-	snapshot := p.catalogs["partial"]
-	require.Equal(t, "partial", snapshot.catalog.Coverage.Kind)
+	t.Cleanup(func() { p.retireNativeCatalog("unavailable") })
+	snapshot := p.catalogs["unavailable"]
+	require.Equal(t, "complete", snapshot.catalog.Coverage.Kind)
+	require.Empty(t, snapshot.catalog.Coverage.Reason)
+	require.NoError(t, resourcev2.ValidateCatalog(snapshot.catalog))
+	require.Equal(t, []nativeUnavailable{{GroupVersion: "refresh.example/v2", Reason: "unavailable"}}, snapshot.unavailable)
 	require.Contains(t, snapshot.bindings, "k8s:/pods")
 	require.Contains(t, snapshot.bindings, "k8s:refresh.example/widgets")
 	require.Len(t, snapshot.bindings["k8s:refresh.example/widgets"].Descriptor.Representations, 2)
+	require.Len(t, snapshot.bindings["k8s:refresh.example/widgets"].Served, 1, "only the version that answered is served")
 }
 
 func TestNativeHTTPInitialDiscoveryFailureDoesNotPublishEmptyCatalog(t *testing.T) {

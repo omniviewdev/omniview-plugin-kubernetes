@@ -39,9 +39,9 @@ func TestNativeCatalogIndependentOperations(t *testing.T) {
 			{Name: "reports", Kind: "Report", Verbs: metav1.Verbs{"list"}},
 		}},
 	}}}
-	bindings, coverage, err := discoverNativeTypes(context.Background(), client)
+	bindings, unavailable, err := discoverNativeTypes(context.Background(), client)
 	require.NoError(t, err)
-	require.Equal(t, "complete", coverage.Kind)
+	require.Empty(t, unavailable)
 	require.Len(t, bindings, 4)
 
 	// The name is a query dimension of every kind, beside the namespace of a namespaced one: a page can narrow a read to one object. Identity stays what it was.
@@ -86,11 +86,11 @@ func TestNativeCatalogSourceContinuityAndAcquisition(t *testing.T) {
 			{Name: "events", Kind: "Event", Namespaced: true, Verbs: metav1.Verbs{"list", "watch"}},
 		}},
 	}}}
-	bindings, coverage, err := discoverNativeTypes(context.Background(), discovery)
+	bindings, _, err := discoverNativeTypes(context.Background(), discovery)
 	require.NoError(t, err)
 	p := &kubernetesProvider{logger: zap.NewNop().Sugar()}
 	scope := resourcev2.QueryScope{{Dimension: "namespace", Match: resourcev2.ScopeAny}}
-	snapshot, err := p.assembleNativeCatalog(context.Background(), "route", nil, bindings, coverage, nil, scope)
+	snapshot, err := p.assembleNativeCatalog(context.Background(), "route", nil, bindings, nil, scope)
 	require.NoError(t, err)
 	for _, tc := range []struct {
 		token   string

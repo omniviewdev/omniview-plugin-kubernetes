@@ -36,45 +36,61 @@ type nativeServedType struct {
 	API metav1.APIResource
 }
 
+// nativeUnavailable is an API group version that discovery could not read: an
+// aggregated API whose backing service is down is the usual one. Its kinds are
+// not in the catalog until a later discovery reads it, which the provider tries
+// again while the connection is open (native_catalog_heal.go). Reason is a closed
+// vocabulary (stale, unavailable, timeout, too_large, failed), safe for logs and
+// for the connection fact that names the group.
+type nativeUnavailable struct {
+	GroupVersion string `json:"groupVersion"`
+	Reason       string `json:"reason"`
+}
+
 // discoverNativeTypes retains snapshot-only and create-only APIs. Discovery
 // verbs describe native operations, not an authorization grant for a principal.
-func discoverNativeTypes(ctx context.Context, client discovery.DiscoveryInterface) (map[string]nativeType, resourcev2.Coverage, error) {
+//
+// A group version that does not answer does not fail discovery: kubectl and
+// client-go carry on without it, and so does this. Its kinds are no support the
+// connection can use, so they are left out and the group version is returned in
+// unavailable. The catalog stays complete: the host refuses a connection whose
+// catalog is not (Connection admission requires complete discovered support),
+// and one broken aggregated API must not keep a user out of a working cluster.
+// Nothing is lost by it: an answer that was never read grants no support, and a
+// later discovery that reads it adds its kinds.
+func discoverNativeTypes(ctx context.Context, client discovery.DiscoveryInterface) (map[string]nativeType, []nativeUnavailable, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, resourcev2.Coverage{}, err
+		return nil, nil, err
 	}
 	groups, lists, discoveryErr := discoverNativeResources(ctx, client)
 	if err := ctx.Err(); err != nil {
-		return nil, resourcev2.Coverage{}, err
+		return nil, nil, err
 	}
-	coverage := resourcev2.Coverage{Kind: "complete", Paths: []string{}}
+	var unavailable []nativeUnavailable
 	if discoveryErr != nil {
 		var failed *discovery.ErrGroupDiscoveryFailed
 		if errors.As(discoveryErr, &failed) {
 			for _, cause := range failed.Groups {
 				if k8serrors.IsForbidden(cause) || k8serrors.IsUnauthorized(cause) {
-					return nil, resourcev2.Coverage{}, cause
+					return nil, nil, cause
 				}
 			}
 		}
 		if k8serrors.IsForbidden(discoveryErr) || k8serrors.IsUnauthorized(discoveryErr) {
-			return nil, resourcev2.Coverage{}, discoveryErr
+			return nil, nil, discoveryErr
 		}
-		if len(lists) == 0 {
-			return nil, resourcev2.Coverage{}, discoveryErr
+		if failed == nil || len(lists) == 0 {
+			return nil, nil, discoveryErr
 		}
-		coverage.Kind = "partial"
-		coverage.Reason = "Some Kubernetes API groups could not be discovered"
-		failedGroups, budgetReason := 0, nativeBudgetReason(discoveryErr)
-		if failed != nil {
-			failedGroups = len(failed.Groups)
-			for _, cause := range failed.Groups {
-				if r := nativeBudgetReason(cause); r != "" {
-					budgetReason = r
-				}
+		unavailable = nativeUnavailableGroups(failed)
+		budgetReason := nativeBudgetReason(discoveryErr)
+		for _, cause := range failed.Groups {
+			if r := nativeBudgetReason(cause); r != "" {
+				budgetReason = r
 			}
 		}
-		trace.SpanFromContext(ctx).AddEvent("discovery.partial", trace.WithAttributes(attribute.Int("failed_groups", failedGroups), attribute.Int("discovered_lists", len(lists)), attribute.String("budget_reason", budgetReason)))
-		zap.S().Named("catalog").Warnw("native discovery partial", "failed_groups", failedGroups, "discovered_lists", len(lists), "budget_reason", budgetReason, "error_class", diag.ClassifyError(discoveryErr, false).Class)
+		trace.SpanFromContext(ctx).AddEvent("discovery.partial", trace.WithAttributes(attribute.Int("failed_groups", len(unavailable)), attribute.Int("discovered_lists", len(lists)), attribute.String("budget_reason", budgetReason)))
+		zap.S().Named("catalog").Warnw("native discovery partial", "failed_groups", len(unavailable), "groups", nativeUnavailableNames(unavailable), "discovered_lists", len(lists), "budget_reason", budgetReason, "error_class", diag.ClassifyError(discoveryErr, false).Class)
 	}
 
 	preferred := map[string]string{"": "v1"}
@@ -90,28 +106,28 @@ func discoverNativeTypes(ctx context.Context, client discovery.DiscoveryInterfac
 		}
 		gv, err := schema.ParseGroupVersion(list.GroupVersion)
 		if err != nil {
-			return nil, resourcev2.Coverage{}, fmt.Errorf("invalid discovered Kubernetes group/version: %w", err)
+			return nil, nil, fmt.Errorf("invalid discovered Kubernetes group/version: %w", err)
 		}
 		for _, api := range list.APIResources {
 			if err := ctx.Err(); err != nil {
-				return nil, resourcev2.Coverage{}, err
+				return nil, nil, err
 			}
 			// Logs, exec and other subresources keep their own native services.
 			if strings.Contains(api.Name, "/") {
 				continue
 			}
 			if api.Name == "" || api.Kind == "" {
-				return nil, resourcev2.Coverage{}, fmt.Errorf("discovery returned an unnamed Kubernetes resource")
+				return nil, nil, fmt.Errorf("discovery returned an unnamed Kubernetes resource")
 			}
 			gvr := gv.WithResource(api.Name)
 			token := "k8s:" + gv.Group + "/" + api.Name
 			served := map[string]nativeServedType{gv.String(): {GVR: gvr, API: api}}
 			if prior, exists := result[token]; exists {
 				if _, duplicate := prior.Served[gv.String()]; duplicate {
-					return nil, resourcev2.Coverage{}, fmt.Errorf("duplicate discovered Kubernetes resource %q", token)
+					return nil, nil, fmt.Errorf("duplicate discovered Kubernetes resource %q", token)
 				}
 				if prior.API.Namespaced != api.Namespaced {
-					return nil, resourcev2.Coverage{}, fmt.Errorf("inconsistent native identity dimensions for %q", token)
+					return nil, nil, fmt.Errorf("inconsistent native identity dimensions for %q", token)
 				}
 				served = prior.Served
 				served[gv.String()] = nativeServedType{GVR: gvr, API: api}
@@ -190,7 +206,67 @@ func discoverNativeTypes(ctx context.Context, client discovery.DiscoveryInterfac
 		}
 		result[token] = binding
 	}
-	return result, coverage, nil
+	return result, unavailable, nil
+}
+
+// nativeUnavailableGroups names the group versions that failed, in order, each
+// with a closed reason.
+func nativeUnavailableGroups(failed *discovery.ErrGroupDiscoveryFailed) []nativeUnavailable {
+	groups := make([]nativeUnavailable, 0, len(failed.Groups))
+	for gv, cause := range failed.Groups {
+		groups = append(groups, nativeUnavailable{GroupVersion: gv.String(), Reason: nativeUnavailableReason(cause)})
+	}
+	sort.Slice(groups, func(i, j int) bool { return groups[i].GroupVersion < groups[j].GroupVersion })
+	return groups
+}
+
+// nativeUnavailableReason says in one word why a group version was not read.
+func nativeUnavailableReason(cause error) string {
+	var stale discovery.StaleGroupVersionError
+	switch transient := nativeTransientReason(cause); {
+	case errors.As(cause, &stale):
+		return "stale"
+	case nativeBudgetReason(cause) != "":
+		return "too_large"
+	case k8serrors.IsTimeout(cause) || k8serrors.IsServerTimeout(cause) || errors.Is(cause, context.DeadlineExceeded) || transient == "timeout":
+		return "timeout"
+	case k8serrors.IsServiceUnavailable(cause) || k8serrors.IsInternalError(cause) || k8serrors.IsTooManyRequests(cause) || transient != "":
+		return "unavailable"
+	}
+	return "failed"
+}
+
+// nativeUnavailableNames lists the group versions for a log line, at most 16.
+func nativeUnavailableNames(unavailable []nativeUnavailable) string {
+	const most = 16
+	names := make([]string, 0, min(len(unavailable), most+1))
+	for i, group := range unavailable {
+		if i == most {
+			names = append(names, fmt.Sprintf("and %d more", len(unavailable)-most))
+			break
+		}
+		names = append(names, group.GroupVersion)
+	}
+	return strings.Join(names, ", ")
+}
+
+// nativeSupportCovers reports whether next keeps every kind of previous, and
+// every version of it that previous served. A discovery that could not read some
+// group version is no proof that the kinds missing from it are gone, so it may
+// add support to an installed catalog and never take any away.
+func nativeSupportCovers(next, previous map[string]nativeType) bool {
+	for token, old := range previous {
+		kept, ok := next[token]
+		if !ok {
+			return false
+		}
+		for version := range old.Served {
+			if _, ok := kept.Served[version]; !ok {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func sortedNativeTypes(bindings map[string]nativeType) []resourcev2.ResourceType {

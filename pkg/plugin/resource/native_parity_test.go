@@ -174,7 +174,7 @@ func TestNativeParityServedVersionsAndRequestedEndpoint(t *testing.T) {
 			APIResources: []metav1.APIResource{{Name: "widgets", Kind: "Widget", Namespaced: true, Verbs: metav1.Verbs{"get", "list", "delete"}}},
 		})
 	}
-	bindings, coverage, err := discoverNativeTypes(context.Background(), discovery)
+	bindings, _, err := discoverNativeTypes(context.Background(), discovery)
 	require.NoError(t, err)
 	binding := bindings["k8s:sample.example/widgets"]
 	require.Len(t, binding.Served, 2)
@@ -187,7 +187,7 @@ func TestNativeParityServedVersionsAndRequestedEndpoint(t *testing.T) {
 		assert.Equal(t, "widgets", served.API.Name)
 	}
 	provider := &kubernetesProvider{logger: zap.NewNop().Sugar()}
-	snapshot, err := provider.assembleNativeCatalog(context.Background(), "route", &clients.ClientSet{}, bindings, coverage, nil, nativeTestAny())
+	snapshot, err := provider.assembleNativeCatalog(context.Background(), "route", &clients.ClientSet{}, bindings, nil, nativeTestAny())
 	require.NoError(t, err)
 	binding = snapshot.bindings["k8s:sample.example/widgets"]
 	require.Len(t, binding.Descriptor.Representations, 4)
@@ -297,11 +297,11 @@ func TestNativeParityConfiguredNamespaceScopeBoundsFiniteAdmission(t *testing.T)
 		GroupVersion: "sample.example/v1",
 		APIResources: []metav1.APIResource{{Name: "widgets", Kind: "Widget", Namespaced: true, Verbs: metav1.Verbs{"get", "list", "delete"}}},
 	}}}}
-	bindings, coverage, err := discoverNativeTypes(context.Background(), discovery)
+	bindings, _, err := discoverNativeTypes(context.Background(), discovery)
 	require.NoError(t, err)
 	provider := &kubernetesProvider{logger: zap.NewNop().Sugar()}
 	scope := nativeTestOneOf("selected")
-	snapshot, err := provider.assembleNativeCatalog(context.Background(), "route", &clients.ClientSet{}, bindings, coverage, nil, scope)
+	snapshot, err := provider.assembleNativeCatalog(context.Background(), "route", &clients.ClientSet{}, bindings, nil, scope)
 	require.NoError(t, err)
 	descriptor := snapshot.bindings["k8s:sample.example/widgets"].Descriptor
 	for _, capability := range descriptor.Capabilities {
