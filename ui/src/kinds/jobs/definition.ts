@@ -2,6 +2,7 @@ import { column, typeOf, type Cell, type KindDefinition } from '../definition';
 import { ageCell, mono, none, statusCell } from '../display';
 import { spanText } from '../fields';
 
+import { jobCommands, jobOverview } from './detail';
 import { completionsText, jobRow, jobRows, jobSearchText, type JobRow } from './row';
 
 // The Job definition, as the mock's `PRINTER.Job` has it (MOCK k8s-resource-definitions.js:769-774; ch17 K60.3): after the name, Status, Completions, Duration and Age. The wide set (Images, Owner),
@@ -66,4 +67,6 @@ export const jobDefinition: KindDefinition<JobRow> = {
     },
     { id: 'age', sortValue: (row) => row.createdAt, display: ({ createdAt }, now) => ageCell(createdAt, now, 'The Job has no creation time.') },
   ],
+  // The page of one Job (`./detail.ts`), drawn by the generic detail page.
+  detail: { page: 'job', identity: ['namespace', 'name'], overview: jobOverview, commands: jobCommands },
 };

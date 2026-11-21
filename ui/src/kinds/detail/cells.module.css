@@ -1,0 +1,15 @@
+/* What the cells of an object's page put in them: an address, an identifier and a quantity in the code face, as the mock draws them (its `mono` cells), and a run of text that may be longer than its
+   column. Plugin CSS: the build folds it into the bundle inside `@layer ov.plugin` (vite/omniview.ts), below the kit's components, so a part's own rule always wins over this file. */
+
+.mono {
+  font-family: var(--ov-font-code);
+}
+
+/* A run that may be longer than its column: one line, cut with an ellipsis, whole in the tip. */
+.clip {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

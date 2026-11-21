@@ -1,6 +1,7 @@
 import { column, typeOf, type KindDefinition } from '../definition';
 import { ageCell, countCell, statusCell, textCell } from '../display';
 
+import { cronJobCommands, cronJobOverview } from './detail';
 import { cronJobRow, cronJobRows, cronJobSearchText, type CronJobRow } from './row';
 
 // The CronJob definition, as the mock's `PRINTER.CronJob` has it (MOCK k8s-resource-definitions.js:762-766; ch17 K60.3): after the name, Schedule, Status, Active, Last schedule and Age. The wide set
@@ -45,4 +46,6 @@ export const cronJobDefinition: KindDefinition<CronJobRow> = {
     { id: 'lastSchedule', sortValue: (row) => row.lastScheduleAt, display: ({ lastScheduleAt }, now) => ageCell(lastScheduleAt, now, 'The CronJob has not run yet.') },
     { id: 'age', sortValue: (row) => row.createdAt, display: ({ createdAt }, now) => ageCell(createdAt, now, 'The CronJob has no creation time.') },
   ],
+  // The page of one CronJob (`./detail.ts`), drawn by the generic detail page.
+  detail: { page: 'cronjob', identity: ['namespace', 'name'], overview: cronJobOverview, commands: cronJobCommands },
 };

@@ -56,8 +56,8 @@ describe('the definition', () => {
     expect(jobDefinition.list.identity.tail(complete)).toBe('-29908440'.length);
   });
 
-  it('has no detail page yet', () => {
-    expect(jobDefinition.detail).toBeUndefined();
+  it('has a page of one Job, named by its namespace and its name (the list links to it)', () => {
+    expect(jobDefinition.detail).toMatchObject({ page: 'job', identity: ['namespace', 'name'] });
   });
 });
 
