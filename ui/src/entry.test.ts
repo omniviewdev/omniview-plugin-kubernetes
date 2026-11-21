@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import type { ShellTreeNode } from './contract/shell';
 import type { SidebarNodeV1 } from './contract/v1';
 import * as entry from './entry';
 import { podLogsCard } from './pod/logs/card';
@@ -140,5 +141,24 @@ describe('the contribution', () => {
   // What the host's admission refuses a `panel` for (`admit.ts`): a tool with no body, a third tool. The plugin brings no tool of its own, and says how the sessions it opens in a tool of the host read.
   it('brings no tool to the panel, and says how the card of the Logs sessions it opens reads', () => {
     expect(contributionV1.panel).toEqual({ sessions: { logs: { card: podLogsCard } } });
+  });
+
+  // The palette (C1d, C1e): the plugin registers NO palette provider. Its kinds are rows of the host's own Go to, found by the `keywords` of its sidebar entries (`kinds/index.ts`); resource search is a later
+  // `search` provider. The `palette` member of the contract is optional, so a bundle without it is the contract as it was.
+  it('registers no palette provider: its kinds are found through the keywords of its sidebar entries', () => {
+    expect(contributionV1).not.toHaveProperty('palette');
+    expect(leaves(contributionV1.sidebar.nodes).every((leaf) => (leaf.keywords?.length ?? 0) > 0)).toBe(true);
+  });
+
+  // A host that predates the keywords (C1e) admits the bundle and ignores the member: its admission has never refused a member it does not know. What it reads of a node is a node of the shell's tree, so the nodes
+  // are that, whole, with the keywords left in: the type says it (a `ShellTreeNode` takes no excess check from a value that is not a literal), and the skeleton is the same without them.
+  it('loads on a host without keyword support: a node is what an older host reads, and without its keywords it is the same skeleton', () => {
+    const older: readonly ShellTreeNode[] = contributionV1.sidebar.nodes;
+    const strip = (nodes: readonly SidebarNodeV1[]): unknown => nodes.map(({ keywords: _keywords, children, ...node }) => (children === undefined ? node : { ...node, children: strip(children) }));
+
+    expect(older.length).toBe(contributionV1.sidebar.nodes.length);
+    expect(Object.keys(contributionV1)).toEqual(['plugin', 'rail', 'sidebar', 'pages', 'home', 'panel']);
+    expect(JSON.stringify(strip(contributionV1.sidebar.nodes))).not.toContain('keywords');
+    expect(leaves(strip(contributionV1.sidebar.nodes) as readonly SidebarNodeV1[]).map((leaf) => leaf.id)).toEqual(leaves(contributionV1.sidebar.nodes).map((leaf) => leaf.id));
   });
 });

@@ -1,0 +1,328 @@
+{
+  "server": "v1.34.0",
+  "source": "kubectl --context kind-kind get --raw <groupVersion path>: the API discovery document of each group the plugin lists, resources only (no subresource), as the server answers it",
+  "groupVersions": {
+    "/api/v1": [
+      {
+        "name": "bindings",
+        "kind": "Binding",
+        "namespaced": true,
+        "shortNames": []
+      },
+      {
+        "name": "componentstatuses",
+        "kind": "ComponentStatus",
+        "namespaced": false,
+        "shortNames": [
+          "cs"
+        ]
+      },
+      {
+        "name": "configmaps",
+        "kind": "ConfigMap",
+        "namespaced": true,
+        "shortNames": [
+          "cm"
+        ]
+      },
+      {
+        "name": "endpoints",
+        "kind": "Endpoints",
+        "namespaced": true,
+        "shortNames": [
+          "ep"
+        ]
+      },
+      {
+        "name": "events",
+        "kind": "Event",
+        "namespaced": true,
+        "shortNames": [
+          "ev"
+        ]
+      },
+      {
+        "name": "limitranges",
+        "kind": "LimitRange",
+        "namespaced": true,
+        "shortNames": [
+          "limits"
+        ]
+      },
+      {
+        "name": "namespaces",
+        "kind": "Namespace",
+        "namespaced": false,
+        "shortNames": [
+          "ns"
+        ]
+      },
+      {
+        "name": "nodes",
+        "kind": "Node",
+        "namespaced": false,
+        "shortNames": [
+          "no"
+        ]
+      },
+      {
+        "name": "persistentvolumeclaims",
+        "kind": "PersistentVolumeClaim",
+        "namespaced": true,
+        "shortNames": [
+          "pvc"
+        ]
+      },
+      {
+        "name": "persistentvolumes",
+        "kind": "PersistentVolume",
+        "namespaced": false,
+        "shortNames": [
+          "pv"
+        ]
+      },
+      {
+        "name": "pods",
+        "kind": "Pod",
+        "namespaced": true,
+        "shortNames": [
+          "po"
+        ]
+      },
+      {
+        "name": "podtemplates",
+        "kind": "PodTemplate",
+        "namespaced": true,
+        "shortNames": []
+      },
+      {
+        "name": "replicationcontrollers",
+        "kind": "ReplicationController",
+        "namespaced": true,
+        "shortNames": [
+          "rc"
+        ]
+      },
+      {
+        "name": "resourcequotas",
+        "kind": "ResourceQuota",
+        "namespaced": true,
+        "shortNames": [
+          "quota"
+        ]
+      },
+      {
+        "name": "secrets",
+        "kind": "Secret",
+        "namespaced": true,
+        "shortNames": []
+      },
+      {
+        "name": "serviceaccounts",
+        "kind": "ServiceAccount",
+        "namespaced": true,
+        "shortNames": [
+          "sa"
+        ]
+      },
+      {
+        "name": "services",
+        "kind": "Service",
+        "namespaced": true,
+        "shortNames": [
+          "svc"
+        ]
+      }
+    ],
+    "/apis/apps/v1": [
+      {
+        "name": "controllerrevisions",
+        "kind": "ControllerRevision",
+        "namespaced": true,
+        "shortNames": []
+      },
+      {
+        "name": "daemonsets",
+        "kind": "DaemonSet",
+        "namespaced": true,
+        "shortNames": [
+          "ds"
+        ]
+      },
+      {
+        "name": "deployments",
+        "kind": "Deployment",
+        "namespaced": true,
+        "shortNames": [
+          "deploy"
+        ]
+      },
+      {
+        "name": "replicasets",
+        "kind": "ReplicaSet",
+        "namespaced": true,
+        "shortNames": [
+          "rs"
+        ]
+      },
+      {
+        "name": "statefulsets",
+        "kind": "StatefulSet",
+        "namespaced": true,
+        "shortNames": [
+          "sts"
+        ]
+      }
+    ],
+    "/apis/batch/v1": [
+      {
+        "name": "cronjobs",
+        "kind": "CronJob",
+        "namespaced": true,
+        "shortNames": [
+          "cj"
+        ]
+      },
+      {
+        "name": "jobs",
+        "kind": "Job",
+        "namespaced": true,
+        "shortNames": []
+      }
+    ],
+    "/apis/autoscaling/v2": [
+      {
+        "name": "horizontalpodautoscalers",
+        "kind": "HorizontalPodAutoscaler",
+        "namespaced": true,
+        "shortNames": [
+          "hpa"
+        ]
+      }
+    ],
+    "/apis/policy/v1": [
+      {
+        "name": "poddisruptionbudgets",
+        "kind": "PodDisruptionBudget",
+        "namespaced": true,
+        "shortNames": [
+          "pdb"
+        ]
+      }
+    ],
+    "/apis/networking.k8s.io/v1": [
+      {
+        "name": "ingressclasses",
+        "kind": "IngressClass",
+        "namespaced": false,
+        "shortNames": []
+      },
+      {
+        "name": "ingresses",
+        "kind": "Ingress",
+        "namespaced": true,
+        "shortNames": [
+          "ing"
+        ]
+      },
+      {
+        "name": "ipaddresses",
+        "kind": "IPAddress",
+        "namespaced": false,
+        "shortNames": [
+          "ip"
+        ]
+      },
+      {
+        "name": "networkpolicies",
+        "kind": "NetworkPolicy",
+        "namespaced": true,
+        "shortNames": [
+          "netpol"
+        ]
+      },
+      {
+        "name": "servicecidrs",
+        "kind": "ServiceCIDR",
+        "namespaced": false,
+        "shortNames": []
+      }
+    ],
+    "/apis/discovery.k8s.io/v1": [
+      {
+        "name": "endpointslices",
+        "kind": "EndpointSlice",
+        "namespaced": true,
+        "shortNames": []
+      }
+    ],
+    "/apis/storage.k8s.io/v1": [
+      {
+        "name": "csidrivers",
+        "kind": "CSIDriver",
+        "namespaced": false,
+        "shortNames": []
+      },
+      {
+        "name": "csinodes",
+        "kind": "CSINode",
+        "namespaced": false,
+        "shortNames": []
+      },
+      {
+        "name": "csistoragecapacities",
+        "kind": "CSIStorageCapacity",
+        "namespaced": true,
+        "shortNames": []
+      },
+      {
+        "name": "storageclasses",
+        "kind": "StorageClass",
+        "namespaced": false,
+        "shortNames": [
+          "sc"
+        ]
+      },
+      {
+        "name": "volumeattachments",
+        "kind": "VolumeAttachment",
+        "namespaced": false,
+        "shortNames": []
+      },
+      {
+        "name": "volumeattributesclasses",
+        "kind": "VolumeAttributesClass",
+        "namespaced": false,
+        "shortNames": [
+          "vac"
+        ]
+      }
+    ],
+    "/apis/rbac.authorization.k8s.io/v1": [
+      {
+        "name": "clusterrolebindings",
+        "kind": "ClusterRoleBinding",
+        "namespaced": false,
+        "shortNames": []
+      },
+      {
+        "name": "clusterroles",
+        "kind": "ClusterRole",
+        "namespaced": false,
+        "shortNames": []
+      },
+      {
+        "name": "rolebindings",
+        "kind": "RoleBinding",
+        "namespaced": true,
+        "shortNames": []
+      },
+      {
+        "name": "roles",
+        "kind": "Role",
+        "namespaced": true,
+        "shortNames": []
+      }
+    ]
+  }
+}

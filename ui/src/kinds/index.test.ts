@@ -5,6 +5,7 @@ import { isIconName } from '@omniviewdev/kit';
 import { describe, expect, it } from 'vitest';
 
 import type { SidebarNodeV1 } from '../contract/v1';
+import { SHORT_NAMES } from '../palette/shortNames';
 
 import { GENERIC_TILE, typeOf } from './definition';
 import type { Capture } from './testing';
@@ -60,7 +61,7 @@ describe('the sidebar of the mock (K61.2): the kinds this plugin lists so far, i
   // The skeleton is read at admission by a host: a host that predates the count slot refuses a `null` count by name, and one that has it holds the slot at the width of a count from the first frame, so a count that
   // arrives moves no label. So every entry of a kind declares its slot (`count: null`); a group has no count, and so no slot.
   it('is the top-level entries, then the groups Workloads, Config, Network, Storage and Access control: an entry for each kind, with the kind\'s glyph and its count slot held (`count: null`), and no count on a group', () => {
-    const entry = (kind: (typeof KINDS)[number]) => ({ id: kind.page, label: kind.nouns.other, icon: kind.tile.icon, count: null });
+    const entry = (kind: (typeof KINDS)[number]) => ({ id: kind.page, label: kind.nouns.other, icon: kind.tile.icon, count: null, keywords: [kind.kind, ...(SHORT_NAMES[kind.type] ?? [])] });
     expect(sidebarNodes()).toEqual([
       ...CLUSTER.map(entry),
       ...SIDEBAR_GROUPS.map((group) => ({ id: group.id, label: group.label, icon: group.icon, children: group.kinds.map(entry) })),
@@ -329,5 +330,59 @@ describe('the registry as a whole', () => {
     for (const kind of KINDS) {
       expect(STATE_LIKE, kind.kind).not.toContain(kind.tile.icon);
     }
+  });
+});
+
+// The words the palette finds a kind's page by (the contract's sidebar `keywords`, C1e): the Kind and kubectl's short names, on the entry of each kind. The host reads at most eight, each one word of 1 to 32 characters, and leaves
+// out one that is not valid with a problem for the plugin's author, so the plugin keeps inside that. (`palette/shortNames.test.ts` holds the short names themselves to a real server's discovery.)
+describe('sidebarNodes: the keywords of the entries (the palette\'s aliases)', () => {
+  const leavesOf = (nodes: readonly SidebarNodeV1[]): readonly SidebarNodeV1[] => nodes.flatMap((node) => (node.children === undefined ? [node] : leavesOf(node.children)));
+  const entries = leavesOf(sidebarNodes());
+
+  it('has an entry for each of the 29 kinds, and each carries the Kind first and then its kubectl short names', () => {
+    expect(entries).toHaveLength(29);
+    for (const kind of KINDS) {
+      const entry = entries.find((candidate) => candidate.id === kind.page);
+      expect(entry?.keywords, kind.page).toEqual([kind.kind, ...(SHORT_NAMES[kind.type] ?? [])]);
+    }
+  });
+
+  it('says the words users type: po, deploy, svc, cm, ns, sts, ds, pvc', () => {
+    const keywords = Object.fromEntries(entries.map((entry) => [entry.id, entry.keywords]));
+
+    expect(keywords).toMatchObject({
+      pods: ['Pod', 'po'], deployments: ['Deployment', 'deploy'], services: ['Service', 'svc'], configmaps: ['ConfigMap', 'cm'], namespaces: ['Namespace', 'ns'],
+      statefulsets: ['StatefulSet', 'sts'], daemonsets: ['DaemonSet', 'ds'], persistentvolumeclaims: ['PersistentVolumeClaim', 'pvc'],
+    });
+  });
+
+  it('keeps inside the contract: at most eight, each one word of 1 to 32 characters, none twice in any case (no kind has more than two, so none is chosen out of many)', () => {
+    for (const entry of entries) {
+      const words = entry.keywords ?? [];
+      expect(words.length, entry.id).toBeGreaterThan(0);
+      expect(words.length, entry.id).toBeLessThanOrEqual(8);
+      for (const word of words) {
+        expect(word, entry.id).toMatch(/^\S{1,32}$/);
+      }
+      expect(new Set(words.map((word) => word.toLowerCase())).size, entry.id).toBe(words.length);
+    }
+  });
+
+  it('does not say `list`: as an alias it would be an exact name of every kind', () => {
+    expect(entries.flatMap((entry) => entry.keywords ?? [])).not.toContain('list');
+  });
+
+  it('is on the entries of the kinds and never on a group (a group is not a page: the host does not read it)', () => {
+    for (const node of sidebarNodes()) {
+      if (node.children !== undefined) {
+        expect(node).not.toHaveProperty('keywords');
+      }
+    }
+  });
+
+  it('is on the nodes the sidebar\'s hook answers, as on the skeleton: counts change nothing of it', () => {
+    const counted = leavesOf(sidebarNodes(new Map(KINDS.map((kind, index) => [kind.page, index]))));
+
+    expect(counted.map((entry) => [entry.id, entry.keywords])).toEqual(entries.map((entry) => [entry.id, entry.keywords]));
   });
 });
