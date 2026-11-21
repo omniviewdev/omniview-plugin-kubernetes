@@ -736,7 +736,7 @@ packages:
       react: ^19.3.1
 
   '@omniviewdev/runtime@file:vendor/omniviewdev-runtime-0.7.4.tgz':
-    resolution: {integrity: sha512-f9DmRd/m0vKmDega9P1h75s57QKIqhIhdqfztIOFH6HFv+VHqNPupjcebypX9O/L4Aq2i8BivUk0iM5q9Fc6/w==, tarball: file:vendor/omniviewdev-runtime-0.7.4.tgz}
+    resolution: {integrity: sha512-UdfnHKc5M05z3XxfCIqLHtbWN83OEfmjFXG7lsq9aHGisCjb11kVgLT9CGON9WdnqyzH86EFHPrxB1epf/SE8Q==, tarball: file:vendor/omniviewdev-runtime-0.7.4.tgz}
     version: 0.7.4
     peerDependencies:
       '@omniviewdev/base-ui': ~0.17.0

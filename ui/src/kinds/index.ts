@@ -1,6 +1,7 @@
 import type { IconName } from '@omniviewdev/kit';
 
 import type { ListPageV1, SidebarNodeV1 } from '../contract/v1';
+import { SHORT_NAMES } from '../palette/shortNames';
 import type { SidebarCounts } from '../sidebar/count';
 
 import { clusterRoleBindingDefinition } from './clusterrolebindings/definition';
@@ -81,7 +82,13 @@ export function kindsOnScreen(open: readonly string[]): readonly AnyKind[] {
   return [...CLUSTER, ...SIDEBAR_GROUPS.filter((group) => open.includes(group.id)).flatMap((group) => group.kinds)];
 }
 
-const entryOf = (kind: AnyKind, counts: SidebarCounts | undefined): SidebarNodeV1 => ({ id: kind.page, label: kind.nouns.other, icon: kind.tile.icon, count: counts?.get(kind.page) ?? null });
+/**
+ * The other names a kind's page is known by, which the palette finds it by (the contract's sidebar `keywords`, C1e): the Kind as the API spells it (`Pod`, for a person who types the singular) and the short names `kubectl`
+ * accepts (`po`; `palette/shortNames.ts`, held to a real server's discovery). One word each, and at most two for any kind here, within the contract's eight; `list` is not one (as an alias of every kind it would be an exact name of all of them).
+ */
+const keywordsOf = (kind: AnyKind): readonly string[] => [kind.kind, ...(SHORT_NAMES[kind.type] ?? [])];
+
+const entryOf = (kind: AnyKind, counts: SidebarCounts | undefined): SidebarNodeV1 => ({ id: kind.page, label: kind.nouns.other, icon: kind.tile.icon, count: counts?.get(kind.page) ?? null, keywords: keywordsOf(kind) });
 
 /**
  * The sidebar's nodes: the entries of the top level, then the groups, and in each group one entry per kind, with the kind's glyph and its count. A group has no count. `counts` says what each entry draws, by the

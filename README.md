@@ -32,6 +32,11 @@ and `ui/scripts/check-bundle.mjs` reads the finished bundle the way the host's l
 **Where the Pods code came from.** `ui/src/pods/` is the Pods scaffolding the host kept in `ui-next/k8s/` and `ui-next/pods/` while the plugin had no new UI,
 moved here with its tests: the branch's history has the move byte for byte, then what it changed.
 
+**The palette.** The plugin registers no palette provider. Its kinds are rows of the host's own "Go to", and each sidebar entry carries the words a person types for it as `keywords`
+(the Kind, `Pod`, and the `kubectl` short names, `po`, `svc`, `deploy`, `cm`, `ns`: `ui/src/kinds/index.ts`), which the host ranks as a name. The short names are in
+`ui/src/palette/shortNames.ts`, held by `shortNames.test.ts` to a real server's API discovery (the catalog does not carry them). A host that predates the keywords loads the
+plugin and ignores them. Resource search will be a `search` provider of the plugin's, later.
+
 **What it builds against.** The kit and the runtime's `ui/v1` entry are not on npm yet (no dist-tag). `ui/vendor/` holds them as packed tarballs of one commit
 of the host (`ui/vendor/HOST_COMMIT`), next to the host's list of shared names, and `ui/src/contract/` holds the contract's types, vendored as types only.
 To build against another host commit, from a clean checkout of it (never the owner's working tree):
