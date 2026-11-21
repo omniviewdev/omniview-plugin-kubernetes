@@ -10,7 +10,7 @@ import { SHORT_NAMES } from '../palette/shortNames';
 import { GENERIC_TILE, typeOf } from './definition';
 import type { Capture } from './testing';
 
-import { ACCESS, CLUSTER, CONFIG, KINDS, NETWORK, SIDEBAR_GROUPS, STORAGE, WORKLOADS, kindPages, kindsOnScreen, sidebarNodes } from './index';
+import { ACCESS, CLUSTER, CONFIG, KINDS, NETWORK, SIDEBAR_GROUPS, STORAGE, WORKLOADS, detailTarget, kindPages, kindsOnScreen, sidebarNodes } from './index';
 
 // The registry of the kinds the plugin lists: the order the mock's sidebar names them (K61.2), and the facts every definition must hold for the one generic list page and the one data
 // hook to serve it. A kind is added by a definition and a line in the registry; these cases are what a definition is held to.
@@ -75,12 +75,57 @@ describe('the sidebar of the mock (K61.2): the kinds this plugin lists so far, i
     expect(SIDEBAR_GROUPS.map((group) => group.kinds)).toEqual([WORKLOADS, CONFIG, NETWORK, STORAGE, ACCESS]);
   });
 
-  it('has a page for each kind, by the id of its sidebar entry: a list page', () => {
+  it('has a list page for each kind, by the id of its sidebar entry, and a detail page of its own for each kind that has an overview', () => {
     const pages = kindPages();
-    expect(Object.keys(pages)).toEqual(KINDS.map((kind) => kind.page));
-    for (const page of Object.values(pages)) {
-      expect(page.kind).toBe('list');
+    const detailed = KINDS.filter((kind) => kind.detail?.overview !== undefined);
+    expect(Object.keys(pages)).toEqual([...KINDS.map((kind) => kind.page), ...detailed.map((kind) => kind.detail?.page)]);
+    for (const kind of KINDS) {
+      expect(pages[kind.page]?.kind, kind.page).toBe('list');
     }
+    for (const kind of detailed) {
+      expect(pages[kind.detail?.page ?? '']?.kind, kind.kind).toBe('detail');
+    }
+  });
+
+  it('has a page of one object for the nine kinds of the first batch, and none for the others (the Pod\'s is the plugin\'s own, contributed by the entry)', () => {
+    expect(KINDS.filter((kind) => kind.detail?.overview !== undefined).map((kind) => kind.kind)).toEqual(['Node', 'Namespace', 'Deployment', 'StatefulSet', 'DaemonSet', 'Job', 'CronJob', 'ConfigMap', 'Service']);
+    expect(KINDS.filter((kind) => kind.detail !== undefined && kind.detail.overview === undefined).map((kind) => kind.kind)).toEqual(['Pod']);
+  });
+
+  it('names a page of one object by a page id of its own, the Kind in lower case, that no list page has', () => {
+    for (const kind of KINDS.filter((candidate) => candidate.detail !== undefined)) {
+      expect(kind.detail?.page, kind.kind).toBe(kind.kind.toLowerCase());
+      expect(KINDS.some((other) => other.page === kind.detail?.page), kind.kind).toBe(false);
+    }
+  });
+
+  it('names a kind that lives in no namespace by its name alone, and a kind that lives in one by its namespace and its name: the catalog\'s own dimensions', () => {
+    for (const kind of KINDS.filter((candidate) => candidate.detail !== undefined)) {
+      expect(kind.detail?.identity, kind.kind).toEqual(CLUSTER_SCOPED.has(kind.kind) ? ['name'] : ['namespace', 'name']);
+    }
+  });
+});
+
+describe('detailTarget: where a reference to another object goes', () => {
+  it('is the page of the kind with the object\'s identity, when the plugin has a page for the kind: the first batch and the Pod', () => {
+    expect(detailTarget({ kind: 'CronJob', name: 'nightly', namespace: 'batch' })).toEqual({ page: 'cronjob', params: { namespace: 'batch', name: 'nightly' } });
+    expect(detailTarget({ kind: 'Service', name: 'cart', namespace: 'checkout' })).toEqual({ page: 'service', params: { namespace: 'checkout', name: 'cart' } });
+    expect(detailTarget({ kind: 'Pod', name: 'cart-api-0', namespace: 'checkout' })).toEqual({ page: 'pod', params: { namespace: 'checkout', name: 'cart-api-0' } });
+  });
+
+  it('names a kind that lives in no namespace by its name alone', () => {
+    expect(detailTarget({ kind: 'Node', name: 'kind-control-plane' })).toEqual({ page: 'node', params: { name: 'kind-control-plane' } });
+  });
+
+  it('is nothing for a kind the plugin has no page for, so a reference to one is plain text and no link goes nowhere', () => {
+    expect(detailTarget({ kind: 'ServiceAccount', name: 'builder', namespace: 'ci' })).toBeUndefined();
+    expect(detailTarget({ kind: 'ReplicaSet', name: 'cart-api-86bf766589', namespace: 'checkout' })).toBeUndefined();
+    expect(detailTarget({ kind: 'Unheard', name: 'x', namespace: 'y' })).toBeUndefined();
+  });
+
+  it('is nothing for an object that cannot be named: a kind that lives in a namespace, with none given', () => {
+    expect(detailTarget({ kind: 'Deployment', name: 'cart-api' })).toBeUndefined();
+    expect(detailTarget({ kind: 'Deployment', name: 'cart-api', namespace: '' })).toBeUndefined();
   });
 });
 

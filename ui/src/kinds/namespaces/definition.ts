@@ -1,6 +1,7 @@
 import { column, typeOf, type KindDefinition } from '../definition';
 import { ageCell, statusCell } from '../display';
 
+import { namespaceCommands, namespaceOverview } from './detail';
 import { namespaceRow, namespaceRows, namespaceSearchText, type NamespaceRow } from './row';
 
 // The Namespace definition, as the mock's `PRINTER.Namespace` has it (MOCK k8s-resource-definitions.js:803-806; ch17 K60.3): after the name, Status and Age. The wide set (Labels) and the Columns chooser's
@@ -36,4 +37,6 @@ export const namespaceDefinition: KindDefinition<NamespaceRow> = {
     { id: 'status', sortValue: (row) => row.status?.word, display: ({ status }) => statusCell(status, 'The Namespace reports no phase.') },
     { id: 'age', sortValue: (row) => row.createdAt, display: ({ createdAt }, now) => ageCell(createdAt, now, 'The Namespace has no creation time.') },
   ],
+  // The page of one Namespace (`./detail.ts`), drawn by the generic detail page. It lives in no namespace: its route is its name.
+  detail: { page: 'namespace', identity: ['name'], overview: namespaceOverview, commands: namespaceCommands },
 };

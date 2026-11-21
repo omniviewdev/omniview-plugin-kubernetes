@@ -45,9 +45,9 @@ describe('the definition', () => {
     expect(by.age).toMatchObject({ fit: 'fixed', width: 59, align: 'left', sort: 'time' });
   });
 
-  it('has no quick filters, no detail page yet, and no tail to keep on a name that was not generated', () => {
+  it('has no quick filters, a detail page, and no tail to keep on a name that was not generated', () => {
     expect(configMapDefinition.list.quickFilters).toEqual([]);
-    expect(configMapDefinition.detail).toBeUndefined();
+    expect(configMapDefinition.detail).toMatchObject({ page: 'configmap', identity: ['namespace', 'name'] });
     expect(configMapDefinition.list.identity.tail(configMap({}))).toBe(0);
   });
 });

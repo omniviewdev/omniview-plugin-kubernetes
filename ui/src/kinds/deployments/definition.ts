@@ -1,6 +1,7 @@
 import { column, typeOf, type KindDefinition } from '../definition';
 import { ageCell, countCell, statusCell, watchedRatioCell } from '../display';
 
+import { deploymentCommands, deploymentOverview } from './detail';
 import { deploymentRow, deploymentRows, deploymentSearchText, type DeploymentRow } from './row';
 
 // The Deployment definition, as the mock's `PRINTER.Deployment` has it (MOCK k8s-resource-definitions.js:745-749; ch17 K60.3): after the name, Status, Ready, Up-to-date and Age. The wide set
@@ -42,4 +43,6 @@ export const deploymentDefinition: KindDefinition<DeploymentRow> = {
     { id: 'updated', sortValue: (row) => row.updated, display: ({ updated }) => countCell(updated, 'The Deployment states no replica count.') },
     { id: 'age', sortValue: (row) => row.createdAt, display: ({ createdAt }, now) => ageCell(createdAt, now, 'The Deployment has no creation time.') },
   ],
+  // The page of one Deployment (`./detail.ts`), drawn by the generic detail page.
+  detail: { page: 'deployment', identity: ['namespace', 'name'], overview: deploymentOverview, commands: deploymentCommands },
 };

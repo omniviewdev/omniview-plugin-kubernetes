@@ -1,6 +1,7 @@
 import type { ChipTone, IconName, KindTileTone } from '@omniviewdev/kit';
 import type { HostRecord } from '@omniviewdev/runtime/ui/v1';
 
+import type { KindOverview } from './detail/overview';
 import type { StateRole } from './status';
 
 // What a kind of Kubernetes object is, to the plugin's list pages: the shape of the mock's definition record (docs/ui-next/slices/1a-pods-list.md 2.4; MOCK k8s-resource-definitions.js:1053-1086;
@@ -130,12 +131,57 @@ export type KindDefinition<TRow extends KindRow> = {
     /** The kind's own choices beside the strip (Pods: Node). The list page does not draw them yet; a kind without any states none. */
     readonly facets?: ReadonlyArray<Facet<TRow>>;
   };
-  /** The page of ONE object of the kind, when the plugin has one: the name in the list links to it. A row that names no object to open (it has no namespace) has no params. */
-  readonly detail?: {
-    readonly page: string;
-    readonly params: (row: TRow) => Readonly<Record<string, string>> | undefined;
-  };
+  /** The page of ONE object of the kind, when the plugin has one: the name in the list links to it, and so does every object that refers to one of the kind. A kind with none has rows that do not navigate. */
+  readonly detail?: KindDetail;
 };
+
+/**
+ * Which parameters of a route name one object of a kind: a kind that lives in a namespace says its namespace and its name, in that order (the order of the link's address), and a kind that lives in no
+ * namespace says its name. The page reads the object by them (`detail/useKindObject.ts`), and the link to it carries them (`detailParams`).
+ */
+export type ObjectIdentity = readonly ['namespace', 'name'] | readonly ['name'];
+
+/** One command of an object's header: the id it is known by, and its verb in sentence case. */
+export type KindCommand = { readonly id: string; readonly label: string };
+
+/**
+ * The commands of an object's header in the one order the design allows and the mock's order for the kind (MOCK k8s-resource.js `LAYOUT`; K59): the primary one, at most two secondaries, the danger one,
+ * then the items of the overflow menu. A kind's page offers them all as the kit's pattern for a command that cannot be used yet (a reason, no action): none has a backend behind it from the new UI, and
+ * the status file of the step says what each needs.
+ */
+export type KindCommands = {
+  readonly primary?: KindCommand;
+  readonly secondary?: readonly KindCommand[];
+  readonly danger?: KindCommand;
+  readonly menu?: readonly KindCommand[];
+};
+
+/**
+ * What a kind says of its page of one object, as data (the mock's `overview(record)` and `LAYOUT`): the page's id, the route parameters that name an object, and the overview of the record of one.
+ * ONE generic page (`detail/page.ts`) draws any kind that has an `overview`; a kind that has none has a page of its own (the Pod's, `ui/src/pod/`), which the plugin contributes itself.
+ */
+export type KindDetail = {
+  /** The id of the detail page of the kind: the key of `contributionV1.pages` and the `page` of the link to it. */
+  readonly page: string;
+  readonly identity: ObjectIdentity;
+  /** What the page says of the object the record holds: its header, summary, Details rows, Conditions, Labels and Annotations. A pure function of the record. */
+  readonly overview?: (record: HostRecord) => KindOverview;
+  /** The commands of the header, as the mock lays them out for the kind. A function of the record, because some labels follow the object's state: Pause rollout or Resume rollout, Cordon or Uncordon. */
+  readonly commands?: (record: HostRecord) => KindCommands;
+};
+
+/** The route parameters that name an object, or undefined when the object cannot be named: a kind that lives in a namespace, and an object with none to say. */
+export function detailParams(identity: ObjectIdentity, object: { readonly namespace?: string | undefined; readonly name: string }): Readonly<Record<string, string>> | undefined {
+  if (object.name === '') {
+    return undefined;
+  }
+
+  if (identity.length === 1) {
+    return { name: object.name };
+  }
+
+  return object.namespace === undefined || object.namespace === '' ? undefined : { namespace: object.namespace, name: object.name };
+}
 
 /** The name the plugin's catalog gives a type: the token the Kubernetes provider derives from its group and resource. */
 export function typeOf({ group, resource }: KindDefinition<KindRow>['identity']): string {

@@ -50,8 +50,8 @@ describe('the definition', () => {
     expect(by.age).toMatchObject({ fit: 'fixed', width: 59, align: 'left', sort: 'time' });
   });
 
-  it('has no detail page yet, and no tail to keep on a name that was not generated', () => {
-    expect(deploymentDefinition.detail).toBeUndefined();
+  it('has a page of one Deployment, named by its namespace and its name (the list links to it), and no tail to keep on a name that was not generated', () => {
+    expect(deploymentDefinition.detail).toMatchObject({ page: 'deployment', identity: ['namespace', 'name'] });
     expect(deploymentDefinition.list.identity.tail(well)).toBe(0);
   });
 });

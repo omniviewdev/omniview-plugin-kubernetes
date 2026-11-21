@@ -47,6 +47,10 @@ describe('the definition', () => {
     expect(by.service).toMatchObject({ fit: 'flex', width: 72, align: 'left', sort: 'text' });
     expect(by.age).toMatchObject({ fit: 'fixed', width: 59, align: 'left', sort: 'time' });
   });
+
+  it('has a page of one StatefulSet, named by its namespace and its name (the list links to it)', () => {
+    expect(statefulSetDefinition.detail).toMatchObject({ page: 'statefulset', identity: ['namespace', 'name'] });
+  });
 });
 
 describe('the quick filters: the same four states as the other workloads', () => {

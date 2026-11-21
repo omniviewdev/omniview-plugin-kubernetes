@@ -57,7 +57,7 @@ describe('the definition', () => {
     expect(nodeDefinition.list.identity.line).toBe('address');
     expect(nodeDefinition.list.identity.second({ ...well, address: undefined })).toBeNull();
     expect(nodeDefinition.list.identity.tail(well)).toBe(0);
-    expect(nodeDefinition.detail).toBeUndefined();
+    expect(nodeDefinition.detail).toMatchObject({ page: 'node', identity: ['name'] });
   });
 });
 

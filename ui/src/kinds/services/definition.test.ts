@@ -48,9 +48,9 @@ describe('the definition', () => {
     expect(by.age).toMatchObject({ fit: 'fixed', width: 59, align: 'left', sort: 'time' });
   });
 
-  it('has no quick filters, no detail page yet, and no tail to keep on a name that was not generated', () => {
+  it('has no quick filters, a detail page, and no tail to keep on a name that was not generated', () => {
     expect(serviceDefinition.list.quickFilters).toEqual([]);
-    expect(serviceDefinition.detail).toBeUndefined();
+    expect(serviceDefinition.detail).toMatchObject({ page: 'service', identity: ['namespace', 'name'] });
     expect(serviceDefinition.list.identity.tail(web)).toBe(0);
   });
 });

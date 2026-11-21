@@ -52,9 +52,9 @@ describe('the definition', () => {
     expect(by.age).toMatchObject({ fit: 'fixed', width: 59, align: 'left', sort: 'time' });
   });
 
-  it('keeps no tail on a name that was not generated, and has no detail page yet', () => {
+  it('keeps no tail on a name that was not generated, and has a detail page', () => {
     expect(cronJobDefinition.list.identity.tail(running)).toBe(0);
-    expect(cronJobDefinition.detail).toBeUndefined();
+    expect(cronJobDefinition.detail).toMatchObject({ page: 'cronjob', identity: ['namespace', 'name'] });
   });
 });
 

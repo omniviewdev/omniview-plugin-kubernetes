@@ -2,6 +2,7 @@ import { column, typeOf, type KindDefinition } from '../definition';
 import { ageCell, countCell, namesCell, textCell } from '../display';
 import { bytesText } from '../fields';
 
+import { configMapCommands, configMapOverview } from './detail';
 import { configMapRow, configMapRows, configMapSearchText, type ConfigMapRow } from './row';
 
 // The ConfigMap definition, as the mock's `PRINTER.ConfigMap` has it (MOCK k8s-resource-definitions.js:735-737; ch17 K60.1 and K60.3): kubectl prints a name, DATA and an age, so the list gets Keys
@@ -39,4 +40,6 @@ export const configMapDefinition: KindDefinition<ConfigMapRow> = {
     { id: 'size', sortValue: (row) => row.size, display: ({ size }) => textCell(size === undefined ? undefined : bytesText(size), UNREADABLE) },
     { id: 'age', sortValue: (row) => row.createdAt, display: ({ createdAt }, now) => ageCell(createdAt, now, 'The ConfigMap has no creation time.') },
   ],
+  // The page of one ConfigMap (`./detail.ts`), drawn by the generic detail page.
+  detail: { page: 'configmap', identity: ['namespace', 'name'], overview: configMapOverview, commands: configMapCommands },
 };

@@ -1,6 +1,7 @@
 import { column, typeOf, type Cell, type KindDefinition } from '../definition';
 import { ageCell, none, statusCell } from '../display';
 
+import { nodeCommands, nodeOverview } from './detail';
 import { nodeRow, nodeRows, nodeSearchText, type NodeRow } from './row';
 
 // The Node definition, as the mock's `PRINTER.Node` has it (MOCK k8s-resource-definitions.js:795-802; ch17 K60.3): after the name, Status, Version, CPU and Age. CPU is a usage, which needs a metrics source
@@ -50,4 +51,6 @@ export const nodeDefinition: KindDefinition<NodeRow> = {
     { id: 'version', sortValue: (row) => row.version, display: versionCell },
     { id: 'age', sortValue: (row) => row.createdAt, display: ({ createdAt }, now) => ageCell(createdAt, now, 'The Node has no creation time.') },
   ],
+  // The page of one Node (`./detail.ts`), drawn by the generic detail page. It lives in no namespace: its route is its name.
+  detail: { page: 'node', identity: ['name'], overview: nodeOverview, commands: nodeCommands },
 };

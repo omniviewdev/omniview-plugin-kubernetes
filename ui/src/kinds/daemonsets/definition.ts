@@ -1,6 +1,7 @@
 import { column, typeOf, type KindDefinition } from '../definition';
 import { ageCell, countCell, statusCell } from '../display';
 
+import { daemonSetCommands, daemonSetOverview } from './detail';
 import { daemonSetRow, daemonSetRows, daemonSetSearchText, type DaemonSetRow } from './row';
 
 // The DaemonSet definition, as the mock's `PRINTER.DaemonSet` has it (MOCK k8s-resource-definitions.js:750-753; ch17 K60.3): after the name, Status, Desired, Ready, Up-to-date and Age. The wide set
@@ -46,4 +47,6 @@ export const daemonSetDefinition: KindDefinition<DaemonSetRow> = {
     { id: 'updated', sortValue: (row) => row.updated, display: ({ updated }) => countCell(updated, NO_STATUS) },
     { id: 'age', sortValue: (row) => row.createdAt, display: ({ createdAt }, now) => ageCell(createdAt, now, 'The DaemonSet has no creation time.') },
   ],
+  // The page of one DaemonSet (`./detail.ts`), drawn by the generic detail page.
+  detail: { page: 'daemonset', identity: ['namespace', 'name'], overview: daemonSetOverview, commands: daemonSetCommands },
 };

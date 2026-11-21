@@ -1,6 +1,6 @@
-import type { IconName } from '@omniviewdev/kit';
+import type { IconName, LinkTarget } from '@omniviewdev/kit';
 
-import type { ListPageV1, SidebarNodeV1 } from '../contract/v1';
+import type { PageV1, SidebarNodeV1 } from '../contract/v1';
 import { SHORT_NAMES } from '../palette/shortNames';
 import type { SidebarCounts } from '../sidebar/count';
 
@@ -9,8 +9,11 @@ import { clusterRoleDefinition } from './clusterroles/definition';
 import { configMapDefinition } from './configmaps/definition';
 import { cronJobDefinition } from './cronjobs/definition';
 import { daemonSetDefinition } from './daemonsets/definition';
-import type { KindDefinition } from './definition';
+import { detailParams, type KindDefinition } from './definition';
 import { deploymentDefinition } from './deployments/definition';
+import type { ObjectRef } from './detail/overview';
+import { detailPage } from './detail/page';
+import { hasOverview } from './detail/useKindDetailPage';
 import { endpointsDefinition } from './endpoints/definition';
 import { endpointSliceDefinition } from './endpointslices/definition';
 import { horizontalPodAutoscalerDefinition } from './horizontalpodautoscalers/definition';
@@ -101,8 +104,23 @@ export function sidebarNodes(counts?: SidebarCounts): readonly SidebarNodeV1[] {
   return [...CLUSTER.map(entry), ...SIDEBAR_GROUPS.map((group) => ({ id: group.id, label: group.label, icon: group.icon, children: group.kinds.map(entry) }))];
 }
 
-/** The list page of each kind, by the id of its page. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function kindPages(): Readonly<Record<string, ListPageV1<any>>> {
-  return Object.fromEntries(KINDS.map((kind) => [kind.page, listPage(kind)]));
+/**
+ * Where a reference to another object goes: the page of the kind it names, when the plugin has one, with the object's identity. A kind with no page has no link, so no reference leads nowhere. (The Pod's page is
+ * the plugin's own, and is a page like any other here.)
+ */
+export function detailTarget({ kind, name, namespace }: ObjectRef): LinkTarget | undefined {
+  const found = KINDS.find((candidate) => candidate.kind === kind);
+  const params = found?.detail === undefined ? undefined : detailParams(found.detail.identity, { name, namespace });
+  return found?.detail === undefined || params === undefined ? undefined : { page: found.detail.page, params };
+}
+
+/**
+ * The pages of the kinds, by id: the list page of each kind, by the id of its sidebar entry, and the generic page of one object of each kind that has an overview (`detail/page.ts`), by the id of its own, which has
+ * no sidebar entry. A kind whose page of one object is its own (the Pod's) is contributed by the plugin's entry, not made here.
+ */
+export function kindPages(): Readonly<Record<string, PageV1>> {
+  return Object.fromEntries([
+    ...KINDS.map((kind): [string, PageV1] => [kind.page, listPage(kind)]),
+    ...KINDS.filter(hasOverview).map((kind): [string, PageV1] => [kind.detail.page, detailPage(kind, detailTarget)]),
+  ]);
 }

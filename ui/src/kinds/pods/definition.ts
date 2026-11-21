@@ -46,6 +46,6 @@ export const podDefinition: KindDefinition<PodRow> = {
     { id: 'node', sortValue: (row) => row.node, display: ({ node }) => (node === undefined ? none('Not scheduled to a node yet.') : { kind: 'text', text: node }) },
     { id: 'ip', sortValue: (row) => row.ip, display: ({ ip }) => (ip === undefined ? none('No address assigned yet.') : { kind: 'text', text: ip, mono: true }) },
   ],
-  // The Pod's page (`ui/src/pod/`). A row with no namespace has no identity to open.
-  detail: { page: 'pod', params: (row) => (row.namespace === '' ? undefined : { namespace: row.namespace, name: row.name }) },
+  // The Pod's page (`ui/src/pod/`), which is the plugin's own and not the generic one: it has no overview here. A row with no namespace has no identity to open.
+  detail: { page: 'pod', identity: ['namespace', 'name'] },
 };

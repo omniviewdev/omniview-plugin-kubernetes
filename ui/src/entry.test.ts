@@ -21,6 +21,9 @@ const LISTS = [
   'serviceaccounts', 'roles', 'clusterroles', 'rolebindings', 'clusterrolebindings',
 ];
 
+/** The pages of one object that the generic detail page draws, in the order of the sidebar: the first batch of kinds (K2c-1). */
+const DETAILS = ['node', 'namespace', 'deployment', 'statefulset', 'daemonset', 'job', 'cronjob', 'configmap', 'service'];
+
 describe('the contribution', () => {
   const { contributionV1 } = entry;
 
@@ -107,29 +110,65 @@ describe('the contribution', () => {
     }
   });
 
-  it('has the list page of each kind and the page of one Pod, and the page of a Pod has no sidebar entry: it needs an object, so the list\'s links reach it', () => {
-    expect(Object.keys(contributionV1.pages)).toEqual([...LISTS, 'pod']);
+  it('has the list page of each kind, the page of one Pod and the page of one object of each kind that has one: none of them has a sidebar entry, because it needs an object, so the list\'s links reach it', () => {
+    expect(Object.keys(contributionV1.pages)).toEqual([...LISTS, ...DETAILS, 'pod']);
     for (const id of LISTS) {
       expect(contributionV1.pages[id as keyof typeof contributionV1.pages].kind, id).toBe('list');
     }
-    expect(contributionV1.pages.pod.kind).toBe('detail');
-    expect(leaves(contributionV1.sidebar.nodes).map((leaf) => leaf.id)).not.toContain('pod');
+    for (const id of [...DETAILS, 'pod']) {
+      expect(contributionV1.pages[id as keyof typeof contributionV1.pages].kind, id).toBe('detail');
+      expect(leaves(contributionV1.sidebar.nodes).map((leaf) => leaf.id)).not.toContain(id);
+    }
   });
 
   it('gives each list page the words of its kind: the heading is the plural the sidebar entry says', () => {
-    const words = leaves(contributionV1.sidebar.nodes).map((leaf) => [leaf.label, contributionV1.pages[leaf.id as keyof typeof contributionV1.pages].definition.title]);
+    const words = leaves(contributionV1.sidebar.nodes).map((leaf) => {
+      const page = contributionV1.pages[leaf.id as keyof typeof contributionV1.pages];
+      return [leaf.label, page.kind === 'list' ? page.definition.title : undefined];
+    });
     expect(words.every(([label, title]) => label === title)).toBe(true);
   });
 
   // What the host's admission refuses a detail page for (`admit.ts` in omniviewdev/omniview): it is never `home`, and the list it names is a list page of the contribution.
-  it('has a detail page the host admits: it is not the home page, and the list it is read from is one of the contribution\'s list pages', () => {
+  it('has detail pages the host admits: none is the home page, and the list each is read from is one of the contribution\'s list pages', () => {
+    expect(DETAILS.every((id) => id !== contributionV1.home)).toBe(true);
+    for (const id of [...DETAILS, 'pod']) {
+      const page = contributionV1.pages[id as keyof typeof contributionV1.pages];
+      if (page.kind !== 'detail') {
+        throw new Error(`${id} is not a detail page`);
+      }
+
+      const list = page.definition.list;
+      expect(list, id).toBeDefined();
+      expect(contributionV1.pages[(list?.page ?? '') as keyof typeof contributionV1.pages]?.kind, id).toBe('list');
+      expect(page.definition.tabs.length, id).toBeGreaterThan(0);
+      expect(page.definition.identity.name, id).toBe('name');
+    }
+  });
+
+  it('says the Pod page as it was: the Pod, read from the Pods list, named by its namespace and its name', () => {
     const { pod } = contributionV1.pages;
-    expect(contributionV1.home).not.toBe('pod');
     expect(pod.definition.list).toEqual({ page: 'pods', label: 'Pods' });
-    expect(contributionV1.pages[pod.definition.list.page as keyof typeof contributionV1.pages].kind).toBe('list');
-    expect(pod.definition.tabs.length).toBeGreaterThan(0);
     expect(pod.definition.identity).toEqual({ name: 'name', facets: ['namespace'] });
     expect(pod.definition.kind).toBe('Pod');
+  });
+
+  it('says each generic page by its kind: the Kind, the list it is read from, and the parameters that name an object (a kind that lives in no namespace is named by its name alone)', () => {
+    const pageOf = (id: string) => {
+      const page = contributionV1.pages[id as keyof typeof contributionV1.pages];
+      return page.kind === 'detail' ? page.definition : undefined;
+    };
+    expect(DETAILS.map((id) => [id, pageOf(id)?.kind, pageOf(id)?.list?.page, pageOf(id)?.identity.facets])).toEqual([
+      ['node', 'Node', 'nodes', undefined],
+      ['namespace', 'Namespace', 'namespaces', undefined],
+      ['deployment', 'Deployment', 'deployments', ['namespace']],
+      ['statefulset', 'StatefulSet', 'statefulsets', ['namespace']],
+      ['daemonset', 'DaemonSet', 'daemonsets', ['namespace']],
+      ['job', 'Job', 'jobs', ['namespace']],
+      ['cronjob', 'CronJob', 'cronjobs', ['namespace']],
+      ['configmap', 'ConfigMap', 'configmaps', ['namespace']],
+      ['service', 'Service', 'services', ['namespace']],
+    ]);
   });
 
   it('has a static skeleton that draws before any data is read, and the hook that fills its counts in once a connection is known', () => {

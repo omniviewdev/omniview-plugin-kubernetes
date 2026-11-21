@@ -18,6 +18,9 @@ import { nodeDefinition } from './nodes/definition';
 import type { NodeRow } from './nodes/row';
 import { podDefinition } from './pods/definition';
 import type { PodRow } from './pods/row';
+import { roleBindingDefinition } from './rolebindings/definition';
+
+import { KINDS } from './index';
 
 // The cells are the generic ones (`./cells.tsx`), drawn from the Pod definition: the names below read each cell as the Pods list draws it.
 const fieldOf = (id: string) => podDefinition.fields.find((candidate) => candidate.id === id)!;
@@ -240,19 +243,65 @@ describe('AgeCell: one unit, floored, with the instant and the span in the tip',
 
 // The cells every kind shares, read with kinds that are not Pods: what the generic cell does for a kind with no page of one object, a state with a tip, and a span that is still running.
 describe('IdentityCell for a kind that has no page of one object: the name is plain text, under the kind\'s own test ids', () => {
-  const deployment: DeploymentRow = { key: 'k1', name: 'cart-api', namespace: 'checkout', nameTail: 0, createdAt: NOW, ready: { ready: 2, total: 2 }, updated: 2, status: { word: 'Available', role: 'healthy' } };
+  const withoutPage = KINDS.filter((kind) => kind.detail === undefined);
+
+  // The row of any kind, to the extent the cell reads one: its identity.
+  const rowOf = (kind: (typeof KINDS)[number]) => ({ key: 'k1', name: 'cart-api', namespace: kind.list.identity.second({ namespace: 'checkout' } as never) === null ? '' : 'checkout', nameTail: 0, createdAt: NOW }) as never;
+
+  it('is every kind that has no `detail` in its definition: a link there would lead nowhere', () => {
+    expect(withoutPage.length).toBeGreaterThan(0);
+    for (const kind of withoutPage) {
+      const { container, unmount } = render(linked(<KindIdentityCell kind={kind} row={rowOf(kind)} />));
+      expect(screen.getByTestId(`${kind.kind.toLowerCase()}-name`), kind.kind).toHaveTextContent('cart-api');
+      expect(container.querySelector('a'), kind.kind).toBeNull();
+      expect(screen.queryByRole('link'), kind.kind).toBeNull();
+      unmount();
+    }
+  });
 
   it('draws the name and the namespace as text, and links nothing', () => {
-    render(linked(<KindIdentityCell kind={deploymentDefinition} row={deployment} />));
-    expect(screen.getByTestId('deployment-name')).toHaveTextContent('cart-api');
-    expect(screen.getByTestId('deployment-namespace')).toHaveTextContent('checkout');
+    render(linked(<KindIdentityCell kind={roleBindingDefinition} row={{ key: 'k1', name: 'admins', namespace: 'checkout', nameTail: 0, createdAt: NOW } as never} />));
+    expect(screen.getByTestId('rolebinding-name')).toHaveTextContent('admins');
+    expect(screen.getByTestId('rolebinding-namespace')).toHaveTextContent('checkout');
     expect(screen.queryByRole('link')).toBeNull();
   });
 
   it('draws the kind\'s own tile: decorative, with the glyph the definition names', () => {
-    const { container } = render(linked(<KindIdentityCell kind={deploymentDefinition} row={deployment} />));
+    const { container } = render(linked(<KindIdentityCell kind={roleBindingDefinition} row={{ key: 'k1', name: 'admins', namespace: 'checkout', nameTail: 0, createdAt: NOW } as never} />));
     expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull();
-    expect(container.querySelector('svg')?.getAttribute('data-ov-glyph')).toBe(deploymentDefinition.tile.icon);
+    expect(container.querySelector('svg')?.getAttribute('data-ov-glyph')).toBe(roleBindingDefinition.tile.icon);
+  });
+});
+
+describe('IdentityCell for a kind that has a page of one object: the name is a link to it', () => {
+  const withPage = KINDS.filter((kind) => kind.detail !== undefined);
+
+  it('is a real anchor to the page of the kind, named by exactly the parameters the page\'s definition names, from the list the page says it is read from', () => {
+    expect(withPage.map((kind) => kind.kind)).toEqual(['Node', 'Namespace', 'Pod', 'Deployment', 'StatefulSet', 'DaemonSet', 'Job', 'CronJob', 'ConfigMap', 'Service']);
+    for (const kind of withPage) {
+      const namespaced = kind.detail?.identity.length === 2;
+      const row = { key: 'k1', name: 'cart-api', namespace: namespaced ? 'checkout' : '', nameTail: 0, createdAt: NOW, address: undefined } as never;
+      const { unmount } = render(linked(<KindIdentityCell kind={kind} row={row} />));
+      const link = screen.getByRole('link', { name: 'cart-api' });
+      expect(link, kind.kind).toHaveAttribute('href', `#/kubernetes/${kind.detail?.page}?${namespaced ? 'namespace=checkout&' : ''}name=cart-api`);
+      fireEvent.click(link);
+      const [{ target } = { target: undefined }] = opened.splice(0);
+      const page = target === undefined ? undefined : contributionV1.pages[target.page as keyof typeof contributionV1.pages];
+      expect(page?.kind, kind.kind).toBe('detail');
+      if (page?.kind === 'detail') {
+        expect(Object.keys(target?.params ?? {}).sort(), kind.kind).toEqual([page.definition.identity.name, ...(page.definition.identity.facets ?? [])].sort());
+        // The list the detail page says it is read from is the page this cell is in.
+        expect(page.definition.list?.page, kind.kind).toBe(kind.page);
+        expect(page.definition.kind, kind.kind).toBe(kind.kind);
+      }
+      unmount();
+    }
+  });
+
+  it('is plain text for a row that names no object: a kind that lives in a namespace, on a row with none', () => {
+    render(linked(<KindIdentityCell kind={deploymentDefinition} row={{ key: 'k1', name: 'cart-api', namespace: '', nameTail: 0, createdAt: NOW } as never} />));
+    expect(screen.queryByRole('link')).toBeNull();
+    expect(screen.getByTestId('deployment-name')).toHaveTextContent('cart-api');
   });
 });
 

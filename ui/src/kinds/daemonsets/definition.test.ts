@@ -48,6 +48,10 @@ describe('the definition', () => {
     expect(by.updated).toMatchObject({ fit: 'fixed', width: 90, align: 'right', sort: 'number' });
     expect(by.age).toMatchObject({ fit: 'fixed', width: 59, align: 'left', sort: 'time' });
   });
+
+  it('has a page of one DaemonSet, named by its namespace and its name (the list links to it)', () => {
+    expect(daemonSetDefinition.detail).toMatchObject({ page: 'daemonset', identity: ['namespace', 'name'] });
+  });
 });
 
 describe('the quick filters: the same four states as the other workloads', () => {
