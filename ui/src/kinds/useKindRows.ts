@@ -28,9 +28,8 @@ export type KindView<TRow extends KindRow> = {
   /** Set beside rows that are kept: a read failed after rows were shown. Without rows the failure is the `state`. */
   readonly failure: KindFailure | undefined;
   /**
-   * The rows to show, already in order. While `complete` is false the order is PROVISIONAL: the first set sorted once, then left alone
-   * (a live update never moves a row under the user); it changes only when the user changes `sort`, and once when the complete set
-   * arrives. Hand it to the table as it is, with the table's own sorting off.
+   * The rows to show, already in order: `sort`'s (the page gives none, so the kind's default sort: name ascending, a tie by the host key). While `complete` is false the order is PROVISIONAL: the first set sorted once,
+   * then left alone, and once more when the complete set arrives. The host's list page sorts these rows again by the column the person pressed (each column's `sortKey`, `sortKey.ts`) in a stable sort: a tie keeps this order.
    */
   readonly rows: readonly TRow[];
   /** `rows.length`: how many objects are loaded. */

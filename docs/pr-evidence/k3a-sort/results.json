@@ -1,0 +1,2001 @@
+{
+ "proof": {
+  "webkit": {
+   "engine": "webkit",
+   "mode": "proof",
+   "errors": 0,
+   "cancelled": 1,
+   "steps": [
+    {
+     "step": "theme",
+     "theme": "void",
+     "viewport": {
+      "width": 1440,
+      "height": 900
+     }
+    },
+    {
+     "step": "Pods: headers",
+     "headers": [
+      "Name [sorts] (ascending)",
+      "Ready [sorts]",
+      "Status [sorts]",
+      "Restarts [sorts]",
+      "Age [sorts]"
+     ]
+    },
+    {
+     "step": "Pods: opens in the default order, Name ascending",
+     "ok": true,
+     "rows": 86,
+     "attempt": 1,
+     "dashes": 4,
+     "aria": "ascending"
+    },
+    {
+     "step": "Pods: Name press 1",
+     "ok": true,
+     "rows": 86,
+     "want": "descending",
+     "ariaSort": [
+      "Name:descending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "Pods: Name press 2",
+     "ok": true,
+     "rows": 86,
+     "want": "ascending",
+     "ariaSort": [
+      "Name:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "Pods: Ready press 1",
+     "ok": true,
+     "rows": 86,
+     "want": "ascending",
+     "ariaSort": [
+      "Ready:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "Pods: Ready press 2",
+     "ok": true,
+     "rows": 86,
+     "want": "descending",
+     "ariaSort": [
+      "Ready:descending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "Pods: Status press 1",
+     "ok": true,
+     "rows": 86,
+     "want": "ascending",
+     "ariaSort": [
+      "Status:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "Pods: Status press 2",
+     "ok": true,
+     "rows": 86,
+     "want": "descending",
+     "ariaSort": [
+      "Status:descending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "Pods: Restarts press 1",
+     "ok": true,
+     "rows": 86,
+     "want": "ascending",
+     "ariaSort": [
+      "Restarts:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "Pods: Restarts press 2",
+     "ok": true,
+     "rows": 86,
+     "want": "descending",
+     "ariaSort": [
+      "Restarts:descending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "screenshot"
+    },
+    {
+     "step": "Pods: Age press 1",
+     "ok": true,
+     "rows": 86,
+     "want": "ascending",
+     "ariaSort": [
+      "Age:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "Pods: Age press 2",
+     "ok": true,
+     "rows": 86,
+     "want": "descending",
+     "ariaSort": [
+      "Age:descending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "Deployments: headers",
+     "headers": [
+      "Name [sorts] (ascending)",
+      "Status [sorts]",
+      "Ready [sorts]",
+      "Up-to-date [sorts]",
+      "Age [sorts]"
+     ]
+    },
+    {
+     "step": "Deployments: opens in the default order, Name ascending",
+     "ok": true,
+     "rows": 22,
+     "attempt": 1,
+     "dashes": 0,
+     "aria": "ascending"
+    },
+    {
+     "step": "Deployments: Name press 1",
+     "ok": true,
+     "rows": 22,
+     "want": "descending",
+     "ariaSort": [
+      "Name:descending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Deployments: Name press 2",
+     "ok": true,
+     "rows": 22,
+     "want": "ascending",
+     "ariaSort": [
+      "Name:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Deployments: Status press 1",
+     "ok": true,
+     "rows": 22,
+     "want": "ascending",
+     "ariaSort": [
+      "Status:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Deployments: Status press 2",
+     "ok": true,
+     "rows": 22,
+     "want": "descending",
+     "ariaSort": [
+      "Status:descending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Deployments: Ready press 1",
+     "ok": true,
+     "rows": 22,
+     "want": "ascending",
+     "ariaSort": [
+      "Ready:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Deployments: Ready press 2",
+     "ok": true,
+     "rows": 22,
+     "want": "descending",
+     "ariaSort": [
+      "Ready:descending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Deployments: Up-to-date press 1",
+     "ok": true,
+     "rows": 22,
+     "want": "ascending",
+     "ariaSort": [
+      "Up-to-date:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Deployments: Up-to-date press 2",
+     "ok": true,
+     "rows": 22,
+     "want": "descending",
+     "ariaSort": [
+      "Up-to-date:descending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Deployments: Age press 1",
+     "ok": true,
+     "rows": 22,
+     "want": "ascending",
+     "ariaSort": [
+      "Age:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Deployments: Age press 2",
+     "ok": true,
+     "rows": 22,
+     "want": "descending",
+     "ariaSort": [
+      "Age:descending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Nodes: headers",
+     "headers": [
+      "Name [sorts] (ascending)",
+      "Status [sorts]",
+      "Version [sorts]",
+      "Age [sorts]"
+     ]
+    },
+    {
+     "step": "Nodes: opens in the default order, Name ascending",
+     "ok": true,
+     "rows": 3,
+     "attempt": 1,
+     "dashes": 0,
+     "aria": "ascending"
+    },
+    {
+     "step": "Nodes: Name press 1",
+     "ok": true,
+     "rows": 3,
+     "want": "descending",
+     "ariaSort": [
+      "Name:descending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Nodes: Name press 2",
+     "ok": true,
+     "rows": 3,
+     "want": "ascending",
+     "ariaSort": [
+      "Name:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Nodes: Status press 1",
+     "ok": true,
+     "rows": 3,
+     "want": "ascending",
+     "ariaSort": [
+      "Status:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Nodes: Status press 2",
+     "ok": true,
+     "rows": 3,
+     "want": "descending",
+     "ariaSort": [
+      "Status:descending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Nodes: Version press 1",
+     "ok": true,
+     "rows": 3,
+     "want": "ascending",
+     "ariaSort": [
+      "Version:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Nodes: Version press 2",
+     "ok": true,
+     "rows": 3,
+     "want": "descending",
+     "ariaSort": [
+      "Version:descending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Nodes: Age press 1",
+     "ok": true,
+     "rows": 3,
+     "want": "ascending",
+     "ariaSort": [
+      "Age:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Nodes: Age press 2",
+     "ok": true,
+     "rows": 3,
+     "want": "descending",
+     "ariaSort": [
+      "Age:descending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Jobs: headers",
+     "headers": [
+      "Name [sorts] (ascending)",
+      "Status [sorts]",
+      "Completions [sorts]",
+      "Duration [sorts]",
+      "Age [sorts]"
+     ]
+    },
+    {
+     "step": "Jobs: opens in the default order, Name ascending",
+     "ok": true,
+     "rows": 10,
+     "attempt": 1,
+     "dashes": 1,
+     "aria": "ascending"
+    },
+    {
+     "step": "Jobs: Name press 1",
+     "ok": true,
+     "rows": 10,
+     "want": "descending",
+     "ariaSort": [
+      "Name:descending"
+     ],
+     "attempt": 1,
+     "dashes": 1
+    },
+    {
+     "step": "Jobs: Name press 2",
+     "ok": true,
+     "rows": 10,
+     "want": "ascending",
+     "ariaSort": [
+      "Name:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 1
+    },
+    {
+     "step": "Jobs: Status press 1",
+     "ok": true,
+     "rows": 10,
+     "want": "ascending",
+     "ariaSort": [
+      "Status:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 1
+    },
+    {
+     "step": "Jobs: Status press 2",
+     "ok": true,
+     "rows": 10,
+     "want": "descending",
+     "ariaSort": [
+      "Status:descending"
+     ],
+     "attempt": 1,
+     "dashes": 1
+    },
+    {
+     "step": "Jobs: Completions press 1",
+     "ok": true,
+     "rows": 10,
+     "want": "ascending",
+     "ariaSort": [
+      "Completions:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 1
+    },
+    {
+     "step": "Jobs: Completions press 2",
+     "ok": true,
+     "rows": 10,
+     "want": "descending",
+     "ariaSort": [
+      "Completions:descending"
+     ],
+     "attempt": 1,
+     "dashes": 1
+    },
+    {
+     "step": "Jobs: Duration press 1",
+     "ok": true,
+     "rows": 10,
+     "want": "ascending",
+     "ariaSort": [
+      "Duration:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 1
+    },
+    {
+     "step": "Jobs: Duration press 2",
+     "ok": true,
+     "rows": 10,
+     "want": "descending",
+     "ariaSort": [
+      "Duration:descending"
+     ],
+     "attempt": 1,
+     "dashes": 1
+    },
+    {
+     "step": "Jobs: Age press 1",
+     "ok": true,
+     "rows": 10,
+     "want": "ascending",
+     "ariaSort": [
+      "Age:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 1
+    },
+    {
+     "step": "Jobs: Age press 2",
+     "ok": true,
+     "rows": 10,
+     "want": "descending",
+     "ariaSort": [
+      "Age:descending"
+     ],
+     "attempt": 1,
+     "dashes": 1
+    },
+    {
+     "step": "PersistentVolumeClaims: headers",
+     "headers": [
+      "Name [sorts] (ascending)",
+      "Status [sorts]",
+      "Volume [sorts]",
+      "Capacity [sorts]",
+      "Storage class [sorts]",
+      "Age [sorts]"
+     ]
+    },
+    {
+     "step": "PersistentVolumeClaims: opens in the default order, Name ascending",
+     "ok": true,
+     "rows": 7,
+     "attempt": 1,
+     "dashes": 4,
+     "aria": "ascending"
+    },
+    {
+     "step": "PersistentVolumeClaims: Name press 1",
+     "ok": true,
+     "rows": 7,
+     "want": "descending",
+     "ariaSort": [
+      "Name:descending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "PersistentVolumeClaims: Name press 2",
+     "ok": true,
+     "rows": 7,
+     "want": "ascending",
+     "ariaSort": [
+      "Name:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "PersistentVolumeClaims: Status press 1",
+     "ok": true,
+     "rows": 7,
+     "want": "ascending",
+     "ariaSort": [
+      "Status:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "PersistentVolumeClaims: Status press 2",
+     "ok": true,
+     "rows": 7,
+     "want": "descending",
+     "ariaSort": [
+      "Status:descending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "PersistentVolumeClaims: Volume press 1",
+     "ok": true,
+     "rows": 7,
+     "want": "ascending",
+     "ariaSort": [
+      "Volume:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "PersistentVolumeClaims: Volume press 2",
+     "ok": true,
+     "rows": 7,
+     "want": "descending",
+     "ariaSort": [
+      "Volume:descending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "PersistentVolumeClaims: Capacity press 1",
+     "ok": true,
+     "rows": 7,
+     "want": "ascending",
+     "ariaSort": [
+      "Capacity:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "PersistentVolumeClaims: Capacity press 2",
+     "ok": true,
+     "rows": 7,
+     "want": "descending",
+     "ariaSort": [
+      "Capacity:descending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "PersistentVolumeClaims: Storage class press 1",
+     "ok": true,
+     "rows": 7,
+     "want": "ascending",
+     "ariaSort": [
+      "Storage class:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "PersistentVolumeClaims: Storage class press 2",
+     "ok": true,
+     "rows": 7,
+     "want": "descending",
+     "ariaSort": [
+      "Storage class:descending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "PersistentVolumeClaims: Age press 1",
+     "ok": true,
+     "rows": 7,
+     "want": "ascending",
+     "ariaSort": [
+      "Age:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "PersistentVolumeClaims: Age press 2",
+     "ok": true,
+     "rows": 7,
+     "want": "descending",
+     "ariaSort": [
+      "Age:descending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "live: Age is descending",
+     "ok": true,
+     "rows": 86,
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "live: two Pods are added while Age is descending",
+     "ok": true,
+     "rows": 88,
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "live: cart-api scaled up while Age is descending",
+     "ok": true,
+     "rows": 90,
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "live: a crashing Pod restarts while Age is descending",
+     "ok": true,
+     "rows": 90,
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "live: Pods removed while Age is descending",
+     "ok": true,
+     "rows": 89,
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "live: Restarts is descending",
+     "ok": true,
+     "rows": 89,
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "live: two Pods are added while Restarts is descending",
+     "ok": true,
+     "rows": 91,
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "live: cart-api scaled up while Restarts is descending",
+     "ok": true,
+     "rows": 93,
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "live: a crashing Pod restarts while Restarts is descending",
+     "ok": true,
+     "rows": 90,
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "live: Pods removed while Restarts is descending",
+     "ok": true,
+     "rows": 89,
+     "attempt": 1,
+     "dashes": 4
+    }
+   ]
+  },
+  "chromium": {
+   "engine": "chromium",
+   "mode": "proof",
+   "errors": 0,
+   "cancelled": 1,
+   "steps": [
+    {
+     "step": "theme",
+     "theme": "void",
+     "viewport": {
+      "width": 1440,
+      "height": 900
+     }
+    },
+    {
+     "step": "Pods: headers",
+     "headers": [
+      "Name [sorts] (ascending)",
+      "Ready [sorts]",
+      "Status [sorts]",
+      "Restarts [sorts]",
+      "Age [sorts]"
+     ]
+    },
+    {
+     "step": "Pods: opens in the default order, Name ascending",
+     "ok": true,
+     "rows": 89,
+     "attempt": 1,
+     "dashes": 4,
+     "aria": "ascending"
+    },
+    {
+     "step": "Pods: Name press 1",
+     "ok": true,
+     "rows": 89,
+     "want": "descending",
+     "ariaSort": [
+      "Name:descending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "Pods: Name press 2",
+     "ok": true,
+     "rows": 89,
+     "want": "ascending",
+     "ariaSort": [
+      "Name:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "Pods: Ready press 1",
+     "ok": true,
+     "rows": 89,
+     "want": "ascending",
+     "ariaSort": [
+      "Ready:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "Pods: Ready press 2",
+     "ok": true,
+     "rows": 89,
+     "want": "descending",
+     "ariaSort": [
+      "Ready:descending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "Pods: Status press 1",
+     "ok": true,
+     "rows": 89,
+     "want": "ascending",
+     "ariaSort": [
+      "Status:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "Pods: Status press 2",
+     "ok": true,
+     "rows": 89,
+     "want": "descending",
+     "ariaSort": [
+      "Status:descending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "Pods: Restarts press 1",
+     "ok": true,
+     "rows": 89,
+     "want": "ascending",
+     "ariaSort": [
+      "Restarts:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "Pods: Restarts press 2",
+     "ok": true,
+     "rows": 89,
+     "want": "descending",
+     "ariaSort": [
+      "Restarts:descending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "screenshot"
+    },
+    {
+     "step": "Pods: Age press 1",
+     "ok": true,
+     "rows": 89,
+     "want": "ascending",
+     "ariaSort": [
+      "Age:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "Pods: Age press 2",
+     "ok": true,
+     "rows": 89,
+     "want": "descending",
+     "ariaSort": [
+      "Age:descending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "Deployments: headers",
+     "headers": [
+      "Name [sorts] (ascending)",
+      "Status [sorts]",
+      "Ready [sorts]",
+      "Up-to-date [sorts]",
+      "Age [sorts]"
+     ]
+    },
+    {
+     "step": "Deployments: opens in the default order, Name ascending",
+     "ok": true,
+     "rows": 22,
+     "attempt": 1,
+     "dashes": 0,
+     "aria": "ascending"
+    },
+    {
+     "step": "Deployments: Name press 1",
+     "ok": true,
+     "rows": 22,
+     "want": "descending",
+     "ariaSort": [
+      "Name:descending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Deployments: Name press 2",
+     "ok": true,
+     "rows": 22,
+     "want": "ascending",
+     "ariaSort": [
+      "Name:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Deployments: Status press 1",
+     "ok": true,
+     "rows": 22,
+     "want": "ascending",
+     "ariaSort": [
+      "Status:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Deployments: Status press 2",
+     "ok": true,
+     "rows": 22,
+     "want": "descending",
+     "ariaSort": [
+      "Status:descending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Deployments: Ready press 1",
+     "ok": true,
+     "rows": 22,
+     "want": "ascending",
+     "ariaSort": [
+      "Ready:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Deployments: Ready press 2",
+     "ok": true,
+     "rows": 22,
+     "want": "descending",
+     "ariaSort": [
+      "Ready:descending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Deployments: Up-to-date press 1",
+     "ok": true,
+     "rows": 22,
+     "want": "ascending",
+     "ariaSort": [
+      "Up-to-date:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Deployments: Up-to-date press 2",
+     "ok": true,
+     "rows": 22,
+     "want": "descending",
+     "ariaSort": [
+      "Up-to-date:descending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Deployments: Age press 1",
+     "ok": true,
+     "rows": 22,
+     "want": "ascending",
+     "ariaSort": [
+      "Age:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Deployments: Age press 2",
+     "ok": true,
+     "rows": 22,
+     "want": "descending",
+     "ariaSort": [
+      "Age:descending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Nodes: headers",
+     "headers": [
+      "Name [sorts] (ascending)",
+      "Status [sorts]",
+      "Version [sorts]",
+      "Age [sorts]"
+     ]
+    },
+    {
+     "step": "Nodes: opens in the default order, Name ascending",
+     "ok": true,
+     "rows": 3,
+     "attempt": 1,
+     "dashes": 0,
+     "aria": "ascending"
+    },
+    {
+     "step": "Nodes: Name press 1",
+     "ok": true,
+     "rows": 3,
+     "want": "descending",
+     "ariaSort": [
+      "Name:descending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Nodes: Name press 2",
+     "ok": true,
+     "rows": 3,
+     "want": "ascending",
+     "ariaSort": [
+      "Name:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Nodes: Status press 1",
+     "ok": true,
+     "rows": 3,
+     "want": "ascending",
+     "ariaSort": [
+      "Status:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Nodes: Status press 2",
+     "ok": true,
+     "rows": 3,
+     "want": "descending",
+     "ariaSort": [
+      "Status:descending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Nodes: Version press 1",
+     "ok": true,
+     "rows": 3,
+     "want": "ascending",
+     "ariaSort": [
+      "Version:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Nodes: Version press 2",
+     "ok": true,
+     "rows": 3,
+     "want": "descending",
+     "ariaSort": [
+      "Version:descending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Nodes: Age press 1",
+     "ok": true,
+     "rows": 3,
+     "want": "ascending",
+     "ariaSort": [
+      "Age:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Nodes: Age press 2",
+     "ok": true,
+     "rows": 3,
+     "want": "descending",
+     "ariaSort": [
+      "Age:descending"
+     ],
+     "attempt": 1,
+     "dashes": 0
+    },
+    {
+     "step": "Jobs: headers",
+     "headers": [
+      "Name [sorts] (ascending)",
+      "Status [sorts]",
+      "Completions [sorts]",
+      "Duration [sorts]",
+      "Age [sorts]"
+     ]
+    },
+    {
+     "step": "Jobs: opens in the default order, Name ascending",
+     "ok": true,
+     "rows": 10,
+     "attempt": 1,
+     "dashes": 1,
+     "aria": "ascending"
+    },
+    {
+     "step": "Jobs: Name press 1",
+     "ok": true,
+     "rows": 10,
+     "want": "descending",
+     "ariaSort": [
+      "Name:descending"
+     ],
+     "attempt": 1,
+     "dashes": 1
+    },
+    {
+     "step": "Jobs: Name press 2",
+     "ok": true,
+     "rows": 10,
+     "want": "ascending",
+     "ariaSort": [
+      "Name:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 1
+    },
+    {
+     "step": "Jobs: Status press 1",
+     "ok": true,
+     "rows": 10,
+     "want": "ascending",
+     "ariaSort": [
+      "Status:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 1
+    },
+    {
+     "step": "Jobs: Status press 2",
+     "ok": true,
+     "rows": 10,
+     "want": "descending",
+     "ariaSort": [
+      "Status:descending"
+     ],
+     "attempt": 1,
+     "dashes": 1
+    },
+    {
+     "step": "Jobs: Completions press 1",
+     "ok": true,
+     "rows": 10,
+     "want": "ascending",
+     "ariaSort": [
+      "Completions:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 1
+    },
+    {
+     "step": "Jobs: Completions press 2",
+     "ok": true,
+     "rows": 10,
+     "want": "descending",
+     "ariaSort": [
+      "Completions:descending"
+     ],
+     "attempt": 1,
+     "dashes": 1
+    },
+    {
+     "step": "Jobs: Duration press 1",
+     "ok": true,
+     "rows": 10,
+     "want": "ascending",
+     "ariaSort": [
+      "Duration:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 1
+    },
+    {
+     "step": "Jobs: Duration press 2",
+     "ok": true,
+     "rows": 10,
+     "want": "descending",
+     "ariaSort": [
+      "Duration:descending"
+     ],
+     "attempt": 1,
+     "dashes": 1
+    },
+    {
+     "step": "Jobs: Age press 1",
+     "ok": true,
+     "rows": 10,
+     "want": "ascending",
+     "ariaSort": [
+      "Age:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 1
+    },
+    {
+     "step": "Jobs: Age press 2",
+     "ok": true,
+     "rows": 10,
+     "want": "descending",
+     "ariaSort": [
+      "Age:descending"
+     ],
+     "attempt": 1,
+     "dashes": 1
+    },
+    {
+     "step": "PersistentVolumeClaims: headers",
+     "headers": [
+      "Name [sorts] (ascending)",
+      "Status [sorts]",
+      "Volume [sorts]",
+      "Capacity [sorts]",
+      "Storage class [sorts]",
+      "Age [sorts]"
+     ]
+    },
+    {
+     "step": "PersistentVolumeClaims: opens in the default order, Name ascending",
+     "ok": true,
+     "rows": 7,
+     "attempt": 1,
+     "dashes": 4,
+     "aria": "ascending"
+    },
+    {
+     "step": "PersistentVolumeClaims: Name press 1",
+     "ok": true,
+     "rows": 7,
+     "want": "descending",
+     "ariaSort": [
+      "Name:descending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "PersistentVolumeClaims: Name press 2",
+     "ok": true,
+     "rows": 7,
+     "want": "ascending",
+     "ariaSort": [
+      "Name:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "PersistentVolumeClaims: Status press 1",
+     "ok": true,
+     "rows": 7,
+     "want": "ascending",
+     "ariaSort": [
+      "Status:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "PersistentVolumeClaims: Status press 2",
+     "ok": true,
+     "rows": 7,
+     "want": "descending",
+     "ariaSort": [
+      "Status:descending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "PersistentVolumeClaims: Volume press 1",
+     "ok": true,
+     "rows": 7,
+     "want": "ascending",
+     "ariaSort": [
+      "Volume:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "PersistentVolumeClaims: Volume press 2",
+     "ok": true,
+     "rows": 7,
+     "want": "descending",
+     "ariaSort": [
+      "Volume:descending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "PersistentVolumeClaims: Capacity press 1",
+     "ok": true,
+     "rows": 7,
+     "want": "ascending",
+     "ariaSort": [
+      "Capacity:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "PersistentVolumeClaims: Capacity press 2",
+     "ok": true,
+     "rows": 7,
+     "want": "descending",
+     "ariaSort": [
+      "Capacity:descending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "PersistentVolumeClaims: Storage class press 1",
+     "ok": true,
+     "rows": 7,
+     "want": "ascending",
+     "ariaSort": [
+      "Storage class:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "PersistentVolumeClaims: Storage class press 2",
+     "ok": true,
+     "rows": 7,
+     "want": "descending",
+     "ariaSort": [
+      "Storage class:descending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "PersistentVolumeClaims: Age press 1",
+     "ok": true,
+     "rows": 7,
+     "want": "ascending",
+     "ariaSort": [
+      "Age:ascending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "PersistentVolumeClaims: Age press 2",
+     "ok": true,
+     "rows": 7,
+     "want": "descending",
+     "ariaSort": [
+      "Age:descending"
+     ],
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "live: Age is descending",
+     "ok": true,
+     "rows": 86,
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "live: two Pods are added while Age is descending",
+     "ok": true,
+     "rows": 88,
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "live: cart-api scaled up while Age is descending",
+     "ok": true,
+     "rows": 90,
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "live: a crashing Pod restarts while Age is descending",
+     "ok": true,
+     "rows": 90,
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "live: Pods removed while Age is descending",
+     "ok": true,
+     "rows": 89,
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "live: Restarts is descending",
+     "ok": true,
+     "rows": 89,
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "live: two Pods are added while Restarts is descending",
+     "ok": true,
+     "rows": 91,
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "live: cart-api scaled up while Restarts is descending",
+     "ok": true,
+     "rows": 93,
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "live: a crashing Pod restarts while Restarts is descending",
+     "ok": true,
+     "rows": 90,
+     "attempt": 1,
+     "dashes": 4
+    },
+    {
+     "step": "live: Pods removed while Restarts is descending",
+     "ok": true,
+     "rows": 89,
+     "attempt": 1,
+     "dashes": 4
+    }
+   ]
+  }
+ },
+ "control": {
+  "engine": "webkit",
+  "mode": "proof",
+  "errors": 0,
+  "cancelled": 0,
+  "steps": [
+   {
+    "step": "theme",
+    "theme": "void",
+    "viewport": {
+     "width": 1440,
+     "height": 900
+    }
+   },
+   {
+    "step": "Pods: headers",
+    "headers": [
+     "Name [sorts] (ascending)",
+     "Ready [sorts]",
+     "Status [sorts]",
+     "Restarts [sorts]",
+     "Age [sorts]"
+    ]
+   },
+   {
+    "step": "Pods: opens in the default order, Name ascending",
+    "ok": false,
+    "aria": "ascending"
+   },
+   {
+    "step": "Pods: Name press 1",
+    "ok": false,
+    "want": "descending",
+    "ariaSort": [
+     "Name:descending"
+    ]
+   },
+   {
+    "step": "Pods: Name press 2",
+    "ok": false,
+    "want": "ascending",
+    "ariaSort": [
+     "Name:ascending"
+    ]
+   },
+   {
+    "step": "Pods: Ready press 1",
+    "ok": false,
+    "want": "ascending",
+    "ariaSort": [
+     "Ready:ascending"
+    ]
+   },
+   {
+    "step": "Pods: Ready press 2",
+    "ok": false,
+    "want": "descending",
+    "ariaSort": [
+     "Ready:descending"
+    ]
+   },
+   {
+    "step": "Pods: Status press 1",
+    "ok": false,
+    "want": "ascending",
+    "ariaSort": [
+     "Status:ascending"
+    ]
+   },
+   {
+    "step": "Pods: Status press 2",
+    "ok": false,
+    "want": "descending",
+    "ariaSort": [
+     "Status:descending"
+    ]
+   },
+   {
+    "step": "Pods: Restarts press 1",
+    "ok": false,
+    "want": "ascending",
+    "ariaSort": [
+     "Restarts:ascending"
+    ]
+   },
+   {
+    "step": "Pods: Restarts press 2",
+    "ok": false,
+    "want": "descending",
+    "ariaSort": [
+     "Restarts:descending"
+    ]
+   },
+   {
+    "step": "screenshot"
+   },
+   {
+    "step": "Pods: Age press 1",
+    "ok": false,
+    "want": "ascending",
+    "ariaSort": [
+     "Age:ascending"
+    ]
+   },
+   {
+    "step": "Pods: Age press 2",
+    "ok": false,
+    "want": "descending",
+    "ariaSort": [
+     "Age:descending"
+    ]
+   },
+   {
+    "step": "Nodes: headers",
+    "headers": [
+     "Name [sorts] (ascending)",
+     "Status [sorts]",
+     "Version [sorts]",
+     "Age [sorts]"
+    ]
+   },
+   {
+    "step": "Nodes: opens in the default order, Name ascending",
+    "ok": false,
+    "aria": "ascending"
+   },
+   {
+    "step": "Nodes: Name press 1",
+    "ok": false,
+    "want": "descending",
+    "ariaSort": [
+     "Name:descending"
+    ]
+   },
+   {
+    "step": "Nodes: Name press 2",
+    "ok": false,
+    "want": "ascending",
+    "ariaSort": [
+     "Name:ascending"
+    ]
+   },
+   {
+    "step": "Nodes: Status press 1",
+    "ok": false,
+    "want": "ascending",
+    "ariaSort": [
+     "Status:ascending"
+    ]
+   },
+   {
+    "step": "Nodes: Status press 2",
+    "ok": false,
+    "want": "descending",
+    "ariaSort": [
+     "Status:descending"
+    ]
+   },
+   {
+    "step": "Nodes: Version press 1",
+    "ok": true,
+    "rows": 3,
+    "want": "ascending",
+    "ariaSort": [
+     "Version:ascending"
+    ],
+    "attempt": 1,
+    "dashes": 0
+   },
+   {
+    "step": "Nodes: Version press 2",
+    "ok": true,
+    "rows": 3,
+    "want": "descending",
+    "ariaSort": [
+     "Version:descending"
+    ],
+    "attempt": 1,
+    "dashes": 0
+   },
+   {
+    "step": "Nodes: Age press 1",
+    "ok": false,
+    "want": "ascending",
+    "ariaSort": [
+     "Age:ascending"
+    ]
+   },
+   {
+    "step": "Nodes: Age press 2",
+    "ok": false,
+    "want": "descending",
+    "ariaSort": [
+     "Age:descending"
+    ]
+   },
+   {
+    "step": "Jobs: headers",
+    "headers": [
+     "Name [sorts] (ascending)",
+     "Status [sorts]",
+     "Completions [sorts]",
+     "Duration [sorts]",
+     "Age [sorts]"
+    ]
+   },
+   {
+    "step": "Jobs: opens in the default order, Name ascending",
+    "ok": false,
+    "aria": "ascending"
+   },
+   {
+    "step": "Jobs: Name press 1",
+    "ok": false,
+    "want": "descending",
+    "ariaSort": [
+     "Name:descending"
+    ]
+   },
+   {
+    "step": "Jobs: Name press 2",
+    "ok": false,
+    "want": "ascending",
+    "ariaSort": [
+     "Name:ascending"
+    ]
+   },
+   {
+    "step": "Jobs: Status press 1",
+    "ok": false,
+    "want": "ascending",
+    "ariaSort": [
+     "Status:ascending"
+    ]
+   },
+   {
+    "step": "Jobs: Status press 2",
+    "ok": false,
+    "want": "descending",
+    "ariaSort": [
+     "Status:descending"
+    ]
+   },
+   {
+    "step": "Jobs: Completions press 1",
+    "ok": false,
+    "want": "ascending",
+    "ariaSort": [
+     "Completions:ascending"
+    ]
+   },
+   {
+    "step": "Jobs: Completions press 2",
+    "ok": false,
+    "want": "descending",
+    "ariaSort": [
+     "Completions:descending"
+    ]
+   },
+   {
+    "step": "Jobs: Duration press 1",
+    "ok": false,
+    "want": "ascending",
+    "ariaSort": [
+     "Duration:ascending"
+    ]
+   },
+   {
+    "step": "Jobs: Duration press 2",
+    "ok": false,
+    "want": "descending",
+    "ariaSort": [
+     "Duration:descending"
+    ]
+   },
+   {
+    "step": "Jobs: Age press 1",
+    "ok": false,
+    "want": "ascending",
+    "ariaSort": [
+     "Age:ascending"
+    ]
+   },
+   {
+    "step": "Jobs: Age press 2",
+    "ok": false,
+    "want": "descending",
+    "ariaSort": [
+     "Age:descending"
+    ]
+   }
+  ]
+ },
+ "pairings": {
+  "new-new": {
+   "webkit": {
+    "engine": "webkit",
+    "mode": "pairing",
+    "errors": 0,
+    "cancelled": 0,
+    "steps": [
+     {
+      "step": "theme",
+      "theme": "void",
+      "viewport": {
+       "width": 1440,
+       "height": 900
+      }
+     },
+     {
+      "step": "pairing: Pods list",
+      "rows": 86,
+      "headers": [
+       "Name [button] (ascending)",
+       "Ready [button]",
+       "Status [button]",
+       "Restarts [button]",
+       "Age [button]"
+      ],
+      "inDefaultOrder": true
+     },
+     {
+      "step": "pairing: Restarts pressed once",
+      "aria": "ascending",
+      "sortedByRestarts": true,
+      "orderChanged": true
+     }
+    ]
+   },
+   "chromium": {
+    "engine": "chromium",
+    "mode": "pairing",
+    "errors": 0,
+    "cancelled": 0,
+    "steps": [
+     {
+      "step": "theme",
+      "theme": "void",
+      "viewport": {
+       "width": 1440,
+       "height": 900
+      }
+     },
+     {
+      "step": "pairing: Pods list",
+      "rows": 86,
+      "headers": [
+       "Name [button] (ascending)",
+       "Ready [button]",
+       "Status [button]",
+       "Restarts [button]",
+       "Age [button]"
+      ],
+      "inDefaultOrder": true
+     },
+     {
+      "step": "pairing: Restarts pressed once",
+      "aria": "ascending",
+      "sortedByRestarts": true,
+      "orderChanged": true
+     }
+    ]
+   }
+  },
+  "new-old": {
+   "webkit": {
+    "engine": "webkit",
+    "mode": "pairing",
+    "errors": 0,
+    "cancelled": 0,
+    "steps": [
+     {
+      "step": "theme",
+      "theme": "void",
+      "viewport": {
+       "width": 1440,
+       "height": 900
+      }
+     },
+     {
+      "step": "pairing: Pods list",
+      "rows": 86,
+      "headers": [
+       "Name",
+       "Ready",
+       "Status",
+       "Restarts",
+       "Age"
+      ],
+      "inDefaultOrder": true
+     }
+    ]
+   },
+   "chromium": {
+    "engine": "chromium",
+    "mode": "pairing",
+    "errors": 0,
+    "cancelled": 0,
+    "steps": [
+     {
+      "step": "theme",
+      "theme": "void",
+      "viewport": {
+       "width": 1440,
+       "height": 900
+      }
+     },
+     {
+      "step": "pairing: Pods list",
+      "rows": 86,
+      "headers": [
+       "Name",
+       "Ready",
+       "Status",
+       "Restarts",
+       "Age"
+      ],
+      "inDefaultOrder": true
+     }
+    ]
+   }
+  },
+  "old-new": {
+   "webkit": {
+    "engine": "webkit",
+    "mode": "pairing",
+    "errors": 0,
+    "cancelled": 0,
+    "steps": [
+     {
+      "step": "theme",
+      "theme": "void",
+      "viewport": {
+       "width": 1440,
+       "height": 900
+      }
+     },
+     {
+      "step": "pairing: Pods list",
+      "rows": 86,
+      "headers": [
+       "Name",
+       "Ready",
+       "Status",
+       "Restarts",
+       "Age"
+      ],
+      "inDefaultOrder": true
+     }
+    ]
+   },
+   "chromium": {
+    "engine": "chromium",
+    "mode": "pairing",
+    "errors": 0,
+    "cancelled": 0,
+    "steps": [
+     {
+      "step": "theme",
+      "theme": "void",
+      "viewport": {
+       "width": 1440,
+       "height": 900
+      }
+     },
+     {
+      "step": "pairing: Pods list",
+      "rows": 86,
+      "headers": [
+       "Name",
+       "Ready",
+       "Status",
+       "Restarts",
+       "Age"
+      ],
+      "inDefaultOrder": true
+     }
+    ]
+   }
+  },
+  "old-old": {
+   "webkit": {
+    "engine": "webkit",
+    "mode": "pairing",
+    "errors": 0,
+    "cancelled": 0,
+    "steps": [
+     {
+      "step": "theme",
+      "theme": "void",
+      "viewport": {
+       "width": 1440,
+       "height": 900
+      }
+     },
+     {
+      "step": "pairing: Pods list",
+      "rows": 86,
+      "headers": [
+       "Name",
+       "Ready",
+       "Status",
+       "Restarts",
+       "Age"
+      ],
+      "inDefaultOrder": true
+     }
+    ]
+   },
+   "chromium": {
+    "engine": "chromium",
+    "mode": "pairing",
+    "errors": 0,
+    "cancelled": 0,
+    "steps": [
+     {
+      "step": "theme",
+      "theme": "void",
+      "viewport": {
+       "width": 1440,
+       "height": 900
+      }
+     },
+     {
+      "step": "pairing: Pods list",
+      "rows": 86,
+      "headers": [
+       "Name",
+       "Ready",
+       "Status",
+       "Restarts",
+       "Age"
+      ],
+      "inDefaultOrder": true
+     }
+    ]
+   }
+  }
+ }
+}
