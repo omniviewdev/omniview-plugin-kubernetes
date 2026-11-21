@@ -1,0 +1,206 @@
+# The objects the golden fixtures of the K2c-1 detail pages need beyond the slice fixture of the host (docs/ui-next/slices/1a-pods-list/fixture.yaml), extra-states.yaml, more-kinds.yaml and k2b2-kinds.yaml
+# of this directory: an object of each of the nine kinds of the first batch (Deployment, StatefulSet, DaemonSet, Job, CronJob, Service, ConfigMap, Namespace, Node) that states each field its page
+# says as a row of the Details card, where the other fixtures leave it at the API's default or out: a change cause, a minimum ready time, a service account, a selector that has expressions, the
+# claim retention policy, a node selector, a Job with a time limit and a time to live, a CronJob with a concurrency policy and history limits of its own, a Service with session affinity and an
+# address, an immutable ConfigMap with a binary value. `k2c1-kinds.sh` applies it and does what a manifest cannot say (labels a Node, gives a Service its address through the status).
+#
+# Every annotation whose key names a credential holds a made-up value that names itself ("sentinel-..."): the tests prove that no page shows one, and nothing in a fixture needs it. Images:
+# busybox:1.37.0 from Docker Hub.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: detail
+  labels: {team: checkout, tier: backend}
+  annotations: {example.io/owner-team: checkout, example.io/api-token: sentinel-namespace-token}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: builder, namespace: detail}
+---
+# ---- Deployment: every optional row of the Details card ----
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: annotated
+  namespace: detail
+  labels: {app: annotated, tier: backend}
+  annotations:
+    kubernetes.io/change-cause: "set image web=busybox:1.37.0 to make the page say a cause"
+    example.io/owner-team: checkout
+    example.io/api-token: sentinel-deployment-token
+spec:
+  replicas: 2
+  minReadySeconds: 5
+  revisionHistoryLimit: 3
+  progressDeadlineSeconds: 120
+  strategy: {type: RollingUpdate, rollingUpdate: {maxSurge: 1, maxUnavailable: 0}}
+  selector:
+    matchLabels: {app: annotated}
+    matchExpressions:
+      - {key: tier, operator: In, values: [backend, api]}
+      - {key: canary, operator: DoesNotExist}
+  template:
+    metadata: {labels: {app: annotated, tier: backend}}
+    spec:
+      serviceAccountName: builder
+      containers:
+        - {name: web, image: busybox:1.37.0, command: [sh, -c, "sleep 100000"]}
+---
+# The other strategy.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: recreating, namespace: detail, labels: {app: recreating}}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: recreating}}
+  template:
+    metadata: {labels: {app: recreating}}
+    spec:
+      containers:
+        - {name: web, image: busybox:1.37.0, command: [sh, -c, "sleep 100000"]}
+---
+# ---- StatefulSet: the Service it names (below), a claim retention policy that deletes, parallel management, a partition ----
+apiVersion: v1
+kind: Service
+metadata: {name: ordered-db, namespace: detail}
+spec:
+  clusterIP: None
+  selector: {app: ordered-db}
+  ports: [{name: sql, port: 5432}]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata: {name: ordered-db, namespace: detail, labels: {app: ordered-db}}
+spec:
+  serviceName: ordered-db
+  replicas: 2
+  podManagementPolicy: Parallel
+  updateStrategy: {type: RollingUpdate, rollingUpdate: {partition: 1}}
+  persistentVolumeClaimRetentionPolicy: {whenDeleted: Delete, whenScaled: Retain}
+  selector: {matchLabels: {app: ordered-db}}
+  template:
+    metadata: {labels: {app: ordered-db}}
+    spec:
+      serviceAccountName: builder
+      containers:
+        - {name: db, image: busybox:1.37.0, command: [sh, -c, "sleep 100000"]}
+---
+# A StatefulSet whose Pods are replaced only when someone deletes them, and whose Service does not exist.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata: {name: on-delete, namespace: detail}
+spec:
+  serviceName: not-there
+  replicas: 1
+  updateStrategy: {type: OnDelete}
+  selector: {matchLabels: {app: on-delete}}
+  template:
+    metadata: {labels: {app: on-delete}}
+    spec:
+      containers:
+        - {name: db, image: busybox:1.37.0, command: [sh, -c, "sleep 100000"]}
+---
+# ---- DaemonSet: a node selector that matches the node, a service account, the other strategy ----
+apiVersion: apps/v1
+kind: DaemonSet
+metadata: {name: selective, namespace: detail, labels: {app: selective}}
+spec:
+  updateStrategy: {type: OnDelete}
+  selector: {matchLabels: {app: selective}}
+  template:
+    metadata: {labels: {app: selective}}
+    spec:
+      serviceAccountName: builder
+      nodeSelector: {kubernetes.io/os: linux}
+      containers:
+        - {name: agent, image: busybox:1.37.0, command: [sh, -c, "sleep 100000"]}
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata: {name: surging, namespace: detail}
+spec:
+  updateStrategy: {type: RollingUpdate, rollingUpdate: {maxSurge: 1, maxUnavailable: 0}}
+  selector: {matchLabels: {app: surging}}
+  template:
+    metadata: {labels: {app: surging}}
+    spec:
+      containers:
+        - {name: agent, image: busybox:1.37.0, command: [sh, -c, "sleep 100000"]}
+---
+# ---- Job: a time limit, a time to live, a backoff limit; it completes ----
+apiVersion: batch/v1
+kind: Job
+metadata: {name: limited, namespace: detail, labels: {app: limited}}
+spec:
+  completions: 1
+  parallelism: 1
+  backoffLimit: 2
+  activeDeadlineSeconds: 3600
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - {name: work, image: busybox:1.37.0, command: [sh, -c, "echo done"]}
+---
+# ---- CronJob: a schedule with words and a time zone, the other concurrency policy, history limits of its own; suspended, so it never runs and the cluster stays still ----
+apiVersion: batch/v1
+kind: CronJob
+metadata: {name: every-quarter, namespace: detail, labels: {app: every-quarter}}
+spec:
+  schedule: "*/15 * * * *"
+  timeZone: Europe/Paris
+  concurrencyPolicy: Replace
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 2
+  suspend: true
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - {name: work, image: busybox:1.37.0, command: [sh, -c, "echo done"]}
+---
+# A schedule the page has no words for: it shows the expression.
+apiVersion: batch/v1
+kind: CronJob
+metadata: {name: office-hours, namespace: detail}
+spec:
+  schedule: "0 9-17 * * 1-5"
+  suspend: true
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - {name: work, image: busybox:1.37.0, command: [sh, -c, "echo done"]}
+---
+# ---- Service: session affinity, two ports, a selector of two labels, an address given through the status by k2c1-kinds.sh ----
+apiVersion: v1
+kind: Service
+metadata:
+  name: sticky
+  namespace: detail
+  labels: {app: sticky}
+  annotations: {example.io/owner-team: checkout}
+spec:
+  type: LoadBalancer
+  sessionAffinity: ClientIP
+  selector: {app: annotated, tier: backend}
+  ports:
+    - {name: http, port: 80, targetPort: 8080}
+    - {name: https, port: 443, targetPort: 8443}
+---
+# ---- ConfigMap: immutable, with a text value and a binary one ----
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: frozen, namespace: detail, labels: {app: frozen}, annotations: {example.io/owner-team: checkout}}
+immutable: true
+data:
+  greeting: "hello"
+  multi: "first line\nsecond line"
+binaryData:
+  blob: SGVsbG8sIGJpbmFyeSB3b3JsZA==

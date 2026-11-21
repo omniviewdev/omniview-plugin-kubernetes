@@ -1,6 +1,7 @@
 import { column, typeOf, type KindDefinition } from '../definition';
 import { ageCell, none, statusCell, watchedRatioCell } from '../display';
 
+import { statefulSetCommands, statefulSetOverview } from './detail';
 import { statefulSetRow, statefulSetRows, statefulSetSearchText, type StatefulSetRow } from './row';
 
 // The StatefulSet definition, as the mock's `PRINTER.StatefulSet` has it (MOCK k8s-resource-definitions.js:759-763; ch17 K60.3): after the name, Status, Ready, Service and Age. The wide set (Images)
@@ -42,4 +43,6 @@ export const statefulSetDefinition: KindDefinition<StatefulSetRow> = {
     { id: 'service', sortValue: (row) => row.service, display: ({ service }) => (service === undefined ? none('The StatefulSet names no governing Service.') : { kind: 'text', text: service }) },
     { id: 'age', sortValue: (row) => row.createdAt, display: ({ createdAt }, now) => ageCell(createdAt, now, 'The StatefulSet has no creation time.') },
   ],
+  // The page of one StatefulSet (`./detail.ts`), drawn by the generic detail page.
+  detail: { page: 'statefulset', identity: ['namespace', 'name'], overview: statefulSetOverview, commands: statefulSetCommands },
 };

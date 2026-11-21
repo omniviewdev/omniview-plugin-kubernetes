@@ -45,10 +45,10 @@ describe('the definition', () => {
     expect(by.age).toMatchObject({ fit: 'fixed', width: 59, align: 'left', sort: 'time' });
   });
 
-  it('has no second line under the name (it lives in no namespace), no tail to keep, and no detail page yet', () => {
+  it('has no second line under the name (it lives in no namespace), no tail to keep, and a page named by its name alone', () => {
     expect(namespaceDefinition.list.identity.second(active)).toBeNull();
     expect(namespaceDefinition.list.identity.tail(active)).toBe(0);
-    expect(namespaceDefinition.detail).toBeUndefined();
+    expect(namespaceDefinition.detail).toMatchObject({ page: 'namespace', identity: ['name'] });
   });
 });
 

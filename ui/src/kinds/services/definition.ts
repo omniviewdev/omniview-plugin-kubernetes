@@ -1,6 +1,7 @@
 import { column, typeOf, type KindDefinition } from '../definition';
 import { ageCell, namesCell, textCell } from '../display';
 
+import { serviceCommands, serviceOverview } from './detail';
 import { serviceRow, serviceRows, serviceSearchText, type ServiceRow } from './row';
 
 // The Service definition, as the mock's `PRINTER.Service` has it (MOCK k8s-resource-definitions.js:775-780; ch17 K60.3): after the name, Type, Cluster IP, Ports and Age. The wide set (External IP) and the
@@ -38,4 +39,6 @@ export const serviceDefinition: KindDefinition<ServiceRow> = {
     { id: 'ports', sortValue: (row) => row.ports?.join(', '), display: ({ ports }) => namesCell(ports, Infinity, 'The Service has no ports.', true) },
     { id: 'age', sortValue: (row) => row.createdAt, display: ({ createdAt }, now) => ageCell(createdAt, now, 'The Service has no creation time.') },
   ],
+  // The page of one Service (`./detail.ts`), drawn by the generic detail page.
+  detail: { page: 'service', identity: ['namespace', 'name'], overview: serviceOverview, commands: serviceCommands },
 };

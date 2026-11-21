@@ -2,7 +2,7 @@ import { KindTile, Link, MiddleEllipsis, MissingValue, Status, compactAge, useAg
 import { useState } from 'react';
 
 import styles from './cells.module.css';
-import type { Cell, KindDefinition, KindField, KindRow } from './definition';
+import { detailParams, type Cell, type KindDefinition, type KindField, type KindRow } from './definition';
 import { spanSince } from './fields';
 
 // What a row draws in its cells, from the closed vocabulary of cells a kind's definition answers (`text`, `status`, `age`, `elapsed`, `none`) and kit atoms. The definition decides what a
@@ -23,7 +23,7 @@ export function IdentityCell<TRow extends KindRow>({ kind, row }: { readonly kin
       {row.name}
     </MiddleEllipsis>
   );
-  const params = kind.detail?.params(row);
+  const params = kind.detail === undefined ? undefined : detailParams(kind.detail.identity, row);
   return (
     <div className={styles.identity}>
       <KindTile icon={kind.tile.icon} tone={kind.tile.tone} />
