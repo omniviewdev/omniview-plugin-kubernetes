@@ -188,11 +188,14 @@ describe('detailState: the object\'s page, in the words of the object', () => {
     });
   });
 
-  it('says it was deleted when the page had the object and its source has since said it is gone: two sentences, the first names the kind and the name', () => {
-    expect(state({ state: { kind: 'empty' }, record: undefined, deleted: true })).toEqual({
-      kind: 'not-found',
-      message: 'Deployment cart-api was deleted. It no longer exists in namespace checkout.',
-    });
+  it('says it was deleted when the page had the object and its source has since said it is gone: the title says "<name> was deleted" and the message where it no longer exists, as the mock does, with no sentence that says the opposite', () => {
+    const gone = state({ state: { kind: 'empty' }, record: undefined, deleted: true });
+    expect(gone).toEqual({ kind: 'not-found', title: 'cart-api was deleted', message: 'It no longer exists in namespace checkout.' });
+    expect(JSON.stringify(gone)).not.toContain('not found');
+  });
+
+  it('gives no title for an object the page never had: the page\'s own, "<name> was not found", is the one that is true', () => {
+    expect(state({ state: { kind: 'empty' }, record: undefined })).not.toHaveProperty('title');
   });
 
   it('says this cluster, and not a namespace, for a kind that lives in no namespace, in both', () => {
@@ -203,7 +206,8 @@ describe('detailState: the object\'s page, in the words of the object', () => {
     });
     expect(state({ state: { kind: 'empty' }, record: undefined, deleted: true }, node)).toEqual({
       kind: 'not-found',
-      message: 'Node kind-control-plane was deleted. It no longer exists in this cluster.',
+      title: 'kind-control-plane was deleted',
+      message: 'It no longer exists in this cluster.',
     });
   });
 

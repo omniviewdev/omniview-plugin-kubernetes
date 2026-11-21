@@ -55,8 +55,11 @@ export function detailState(view: PodView, namespace: string, name: string): Det
     case 'loading':
       return { kind: 'loading' };
     case 'empty':
-      // The namespace was read whole and the Pod is not in it: it never was, or it was deleted (also while its page was open).
-      return { kind: 'not-found', message: `Pod ${name} doesn't exist in namespace ${namespace}. It may have been deleted.` };
+      // The namespace was read whole and the Pod is not in it. When the page had the Pod, its source has said it is gone: it was deleted while the page was open, and the title says so (the mock's "<name> was deleted" over
+      // "It no longer exists in <where>."). Otherwise it never was there for this page: no title, so the page's own, "<name> was not found", stands over the message.
+      return view.deleted
+        ? { kind: 'not-found', title: `${name} was deleted`, message: `It no longer exists in namespace ${namespace}.` }
+        : { kind: 'not-found', message: `Pod ${name} doesn't exist in namespace ${namespace}. It may have been deleted.` };
     case 'loaded':
       // A failure that came after the Pod is kept beside it: the page keeps showing it and says so in the header.
       return failure === undefined ? { kind: 'ready' } : failed(failure.kind, failure.message, view);

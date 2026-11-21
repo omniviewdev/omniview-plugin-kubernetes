@@ -38,7 +38,7 @@ const RECORD = { ...hostRecord(object), route: { connection: idOf('kind-a') } };
 const POD = podDetail(RECORD);
 
 function view(over: Partial<read.PodView> = {}): read.PodView {
-  return { state: { kind: 'loaded' }, failure: undefined, pod: POD, record: RECORD, live: true, refreshing: false, connect, retry, refresh, ...over };
+  return { state: { kind: 'loaded' }, failure: undefined, pod: POD, record: RECORD, deleted: false, live: true, refreshing: false, connect, retry, refresh, ...over };
 }
 
 /** The plugin knows these connections: each has a derived id, the context name for its name, and the kubeconfig it came from. */
@@ -175,10 +175,17 @@ describe('usePodPage: the state of the page', () => {
     }
   });
 
-  it('says the Pod is not found, with its namespace, when the namespace was read whole and it is not in it: it never was, or it was deleted', () => {
+  it('says the Pod is not found, with its namespace, when the namespace was read whole, it is not in it and the page never had it, and gives no title: the page\'s own, "<name> was not found", is the true one', () => {
     const source = stateOf({ state: { kind: 'empty' }, pod: undefined });
     expect(source.state).toEqual({ kind: 'not-found', message: 'Pod cart-api doesn\'t exist in namespace checkout. It may have been deleted.' });
+    expect(source.state).not.toHaveProperty('title');
     expect(source.view).toBeUndefined();
+  });
+
+  it('says the Pod was deleted when the page had it and its source has since said it is gone: the title says "<name> was deleted" and the message where it no longer exists, as the mock does, and nothing that says the opposite', () => {
+    const { state } = stateOf({ state: { kind: 'empty' }, pod: undefined, deleted: true });
+    expect(state).toEqual({ kind: 'not-found', title: 'cart-api was deleted', message: 'It no longer exists in namespace checkout.' });
+    expect(JSON.stringify(state)).not.toContain('not found');
   });
 
   it('says access is denied in its own words: the runtime\'s text for a denial is the host\'s fixed sentence, which says nothing', () => {
@@ -237,9 +244,9 @@ describe('usePodPage: the state of the page', () => {
   it('follows a Pod deleted while the page is open: the view, then the not-found state, with the lane unchanged', () => {
     const { result, rerender } = mount();
     expect(result.current.source.state).toEqual({ kind: 'ready' });
-    usePod.mockReturnValue(view({ state: { kind: 'empty' }, pod: undefined }));
+    usePod.mockReturnValue(view({ state: { kind: 'empty' }, pod: undefined, deleted: true }));
     rerender(context());
-    expect(result.current.source.state.kind).toBe('not-found');
+    expect(result.current.source.state).toMatchObject({ kind: 'not-found', title: 'cart-api was deleted' });
     expect(result.current.scope?.map((face) => face.text)).toEqual(['kind-a', 'checkout']);
   });
 });
