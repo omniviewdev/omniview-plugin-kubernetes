@@ -272,6 +272,10 @@ func (d *DaemonSetResourcer) streamRestart(
 
 		case observation, ok := <-observations:
 			if !ok {
+				// The channel also closes when the context ends (the goroutine that fills it stops with it): both cases are then ready and the select may take this one.
+				if err := ctx.Err(); err != nil {
+					return err
+				}
 				return fmt.Errorf("watch channel closed")
 			}
 			if observation.err != nil {
