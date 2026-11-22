@@ -436,6 +436,7 @@ func TestNativeSchemaCrossGroupPressurePreservesReferenceUntilWithdrawal(t *test
 }
 
 func TestNativeSchemaSupportRefreshPreservesAndRetiresExactDemand(t *testing.T) {
+	recordHeals(t) // the refresh below records an unavailable version: its heal is run by hand, not by a timer
 	f, p, route := newSchemaReadinessProvider(t)
 	f.mu.Lock()
 	f.documents["/openapi/v3/apis/refresh.example/v1"] = `{"components":{"schemas":{"native.Widget":{"type":"object","x-kubernetes-group-version-kind":[{"group":"refresh.example","version":"v1","kind":"Widget"}]}}}}`
@@ -453,14 +454,18 @@ func TestNativeSchemaSupportRefreshPreservesAndRetiresExactDemand(t *testing.T) 
 	require.NoError(t, err)
 	require.Equal(t, binding, fresh)
 	require.Equal(t, 1, schemaReadinessOpenAPIRequests(f), "unrelated support additions must retain fresh document ownership")
-	installed := p.catalogs[route.Connection]
 	f.mu.Lock()
 	f.fail = "/apis/refresh.example/v1"
 	f.mu.Unlock()
 	expireRefresh(p, route.Connection)
 	_, err = p.Catalog(context.Background(), resourcev2.CatalogRequest{Route: route, Refresh: true})
-	require.Equal(t, "UNAVAILABLE", resourcev2.ErrorCode(err))
-	require.Same(t, installed, p.catalogs[route.Connection], "partial discovery cannot prove removal or replace support")
+	require.NoError(t, err, "a version that does not answer is no reason to refuse the refresh")
+	require.Equal(t, []string{"refresh.example/v1"}, unavailableNames(p, route))
+	require.Equal(t, 3, servedVersions(p, route, "k8s:refresh.example/widgets"), "partial discovery cannot prove removal: the version that does not answer is still served")
+	held, err := p.ResolveSchema(context.Background(), request)
+	require.NoError(t, err)
+	require.Equal(t, binding, held)
+	require.Equal(t, 1, schemaReadinessOpenAPIRequests(f), "and the document demanded for it stays owned")
 	f.setVersions(t, "v2", "v3")
 	f.mu.Lock()
 	f.fail = ""

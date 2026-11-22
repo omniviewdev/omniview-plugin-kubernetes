@@ -36,18 +36,33 @@ type refreshHTTPFixture struct {
 	fail      string
 	url       string
 	hook      func(http.ResponseWriter, *http.Request) bool
+	// down holds the paths that answer 503 for as long as they are in it (setDown); a hook is not needed for the common case and cannot be replaced by another helper.
+	down map[string]bool
+	// slow holds the paths that answer late, or never (setSlow); waiting and peakWaiting count the requests inside that wait, now and at most. released ends every wait when the
+	// test does, so that the server can close.
+	slow                 map[string]time.Duration
+	waiting, peakWaiting int
+	released             chan struct{}
 }
 
 func newRefreshHTTPFixture(t *testing.T) (*refreshHTTPFixture, *clients.ClientSet) {
 	t.Helper()
-	f := &refreshHTTPFixture{documents: map[string]string{}, requests: map[string]int{}}
+	f := &refreshHTTPFixture{documents: map[string]string{}, requests: map[string]int{}, released: make(chan struct{})}
 	f.setVersions(t, "v1", "v2")
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
 		f.requests[r.URL.Path]++
 		body, ok := f.documents[r.URL.Path]
-		fail, hook := f.fail, f.hook
+		fail, hook, down := f.fail, f.hook, f.down[r.URL.Path]
+		delay, slow := f.slow[r.URL.Path]
 		f.mu.Unlock()
+		if down {
+			respondUnavailable(w, r)
+			return
+		}
+		if slow && !f.holdRequest(r.Context(), delay) {
+			return // the client gave up, or the test ended
+		}
 		if hook != nil && hook(w, r) {
 			return
 		}
@@ -63,6 +78,7 @@ func newRefreshHTTPFixture(t *testing.T) (*refreshHTTPFixture, *clients.ClientSe
 		_, _ = w.Write([]byte(body))
 	}))
 	t.Cleanup(server.Close)
+	t.Cleanup(func() { close(f.released) }) // runs first: a request that is still waiting must not keep the server from closing
 	f.url = server.URL
 	d, err := discovery.NewDiscoveryClientForConfig(&rest.Config{Host: server.URL})
 	require.NoError(t, err)
@@ -440,20 +456,26 @@ func TestNativeHTTPRefreshCoalescesAndFencesRetiredPublication(t *testing.T) {
 	}
 }
 
-func TestNativeHTTPPartialDiscoveryIsExplicit(t *testing.T) {
+// An API group version that does not answer is named, not a reason to declare the whole catalog partial: the host refuses a connection whose catalog is
+// not complete, and one broken aggregated API must not keep a user out of a working cluster.
+func TestNativeHTTPUnavailableGroupVersionKeepsTheCatalogComplete(t *testing.T) {
 	f, client := newRefreshHTTPFixture(t)
 	f.mu.Lock()
 	f.fail = "/apis/refresh.example/v2"
 	f.mu.Unlock()
 	p := refreshTestProvider()
-	ctx, connection := refreshTestContext("partial")
+	ctx, connection := refreshTestContext("unavailable")
 	require.NoError(t, p.startNativeConnection(ctx, connection, client))
-	t.Cleanup(func() { p.retireNativeCatalog("partial") })
-	snapshot := p.catalogs["partial"]
-	require.Equal(t, "partial", snapshot.catalog.Coverage.Kind)
+	t.Cleanup(func() { p.retireNativeCatalog("unavailable") })
+	snapshot := p.catalogs["unavailable"]
+	require.Equal(t, "complete", snapshot.catalog.Coverage.Kind)
+	require.Empty(t, snapshot.catalog.Coverage.Reason)
+	require.NoError(t, resourcev2.ValidateCatalog(snapshot.catalog))
+	require.Equal(t, []nativeUnavailable{{GroupVersion: "refresh.example/v2", Reason: "unavailable"}}, snapshot.unavailable)
 	require.Contains(t, snapshot.bindings, "k8s:/pods")
 	require.Contains(t, snapshot.bindings, "k8s:refresh.example/widgets")
 	require.Len(t, snapshot.bindings["k8s:refresh.example/widgets"].Descriptor.Representations, 2)
+	require.Len(t, snapshot.bindings["k8s:refresh.example/widgets"].Served, 1, "only the version that answered is served")
 }
 
 func TestNativeHTTPInitialDiscoveryFailureDoesNotPublishEmptyCatalog(t *testing.T) {

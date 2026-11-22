@@ -8,6 +8,7 @@ import (
 	"io"
 	"maps"
 	"sync"
+	"time"
 
 	apidiscoveryv2 "k8s.io/api/apidiscovery/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,6 +28,31 @@ const (
 	// the legacy lists from servers that do not serve it, as client-go does.
 	nativeAggregatedDiscoveryAccept = discovery.AcceptV2 + "," + discovery.AcceptV1
 )
+
+// nativeGroupReadMaximum is the longest nativeGroupReadBound gives one extension group version.
+const nativeGroupReadMaximum = 5 * time.Second
+
+// nativeGroupReadBound is how long the discovery document of one extension group version may take. A document that has not answered by then is not the cluster failing: the
+// group version is named unavailable (reason timeout) and discovery goes on without it, so that one aggregated API that hangs (its backend black-holed by a network policy, or
+// on a node that died) cannot keep a user out of a working cluster. The index and the built-in groups have no such bound: they fail the start at the acquisition deadline.
+//
+// It is half of what is left of the acquisition deadline when the reads begin, so that the rest of the start has the other half, and at most nativeGroupReadMaximum. Why these
+// numbers: client-go reads every group version at once and gives each request 32 s (discovery's defaultTimeout), longer than the default acquisition deadline (10 s, 1 to 300 s as
+// configured), so there the bound never fires before the deadline; and the API server's own availability check gives up on a backend after about 5 s (a black hole was flagged
+// FailedDiscoveryCheck 5.1 s after its Pod was Ready, on kind v1.35.0), after which a read of that group answers 503 at once. A document that takes longer than that is a
+// group the user cannot use either. The bound runs from the moment the read is made and counts everything in it, the retries of a transient failure and any wait for the
+// connection's rate limiter (50 requests a second, burst 100). A heal attempt reads the group again with the same bound, so one that merely answers late is added as soon as
+// an attempt finds it in time, and one that always takes longer stays named. Tests replace it.
+var nativeGroupReadBound = func(ctx context.Context) time.Duration {
+	bound := nativeGroupReadMaximum
+	if deadline, ok := ctx.Deadline(); ok {
+		bound = min(bound, time.Until(deadline)/2)
+	}
+	return bound
+}
+
+// errNativeDiscoveryMismatch is a group version document that answered as another group version: the cluster cannot be trusted, not an extension that is unavailable.
+var errNativeDiscoveryMismatch = errors.New("kubernetes discovery returned a different group version")
 
 // nativeBudgetError marks a local discovery or schema budget limit. reason is a
 // closed enum safe for logs and span attributes; text is unchanged from the
@@ -53,6 +79,11 @@ func nativeBudgetReason(err error) string {
 
 // Native discovery uses the existing client's transport with the acquisition
 // context. client-go's ServerGroupsAndResources has no context parameter.
+//
+// On a server without aggregated discovery every group version is a request of its own. The versions of an extension group are all read at once, as client-go reads every
+// group version, and each has the bound of nativeGroupReadBound: one that has not answered by then is a group version that did not answer (reason timeout), and discovery
+// goes on without it. However many hang, together they cost one bound. The versions of the built-in groups are read by a pool of nativeCatalogRequestConcurrency and have no
+// bound but the acquisition deadline: one that does not answer is the cluster not answering, and fails the start.
 func discoverNativeResources(ctx context.Context, client discovery.DiscoveryInterface) ([]*metav1.APIGroup, []*metav1.APIResourceList, error) {
 	restClient := client.RESTClient()
 	if _, native := client.(*discovery.DiscoveryClient); !native || restClient == nil {
@@ -130,46 +161,63 @@ func discoverNativeResources(ctx context.Context, client discovery.DiscoveryInte
 	results := make([]result, len(versions))
 	workCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	var workers sync.WaitGroup
+	read := func(index int, readCtx context.Context) {
+		gv := versions[index]
+		path := "/apis/" + gv.String()
+		if gv.Group == "" {
+			path = "/api/" + gv.Version
+		}
+		entry := &results[index]
+		entry.err = readNativeDiscovery(readCtx, restClient, path, "", &entry.list, budget)
+		if entry.err == nil && entry.list.GroupVersion != gv.String() {
+			entry.err = errNativeDiscoveryMismatch
+			cancel()
+		}
+	}
+	bound := nativeGroupReadBound(ctx)
+	var readers sync.WaitGroup
+	builtin := make([]int, 0, len(versions))
+	for index, gv := range versions {
+		switch {
+		case listed[gv] != nil:
+		case nativeBuiltinGroup(gv.Group):
+			builtin = append(builtin, index)
+		default:
+			readers.Add(1)
+			go func() {
+				defer readers.Done()
+				readCtx, stopReading := context.WithTimeout(workCtx, bound)
+				defer stopReading()
+				read(index, readCtx)
+			}()
+		}
+	}
 	var nextMu sync.Mutex
 	next := 0
-	for range min(nativeCatalogRequestConcurrency, len(versions)) {
-		workers.Add(1)
+	for range min(nativeCatalogRequestConcurrency, len(builtin)) {
+		readers.Add(1)
 		go func() {
-			defer workers.Done()
+			defer readers.Done()
 			for {
 				nextMu.Lock()
-				if next == len(versions) || workCtx.Err() != nil {
+				if next == len(builtin) || workCtx.Err() != nil {
 					nextMu.Unlock()
 					return
 				}
-				index := next
+				index := builtin[next]
 				next++
 				nextMu.Unlock()
-				gv := versions[index]
-				if listed[gv] != nil {
-					continue
-				}
-				path := "/apis/" + gv.String()
-				if gv.Group == "" {
-					path = "/api/" + gv.Version
-				}
-				entry := &results[index]
-				entry.err = readNativeDiscovery(workCtx, restClient, path, "", &entry.list, budget)
-				if entry.err == nil && entry.list.GroupVersion != gv.String() {
-					entry.err = fmt.Errorf("Kubernetes discovery returned a different group version")
-					cancel()
-				}
+				read(index, workCtx)
 			}
 		}()
 	}
-	workers.Wait()
+	readers.Wait()
 	if err := ctx.Err(); err != nil {
 		return nil, nil, err
 	}
 	// A mismatched response is a hard failure, not partial discovery.
 	if workCtx.Err() != nil {
-		return nil, nil, fmt.Errorf("Kubernetes discovery returned a different group version")
+		return nil, nil, errNativeDiscoveryMismatch
 	}
 	lists := make([]*metav1.APIResourceList, 0, len(versions))
 	failed := make(map[schema.GroupVersion]error)
@@ -186,6 +234,7 @@ func discoverNativeResources(ctx context.Context, client discovery.DiscoveryInte
 		}
 	}
 	maps.Copy(failed, stale)
+	lists = withoutInvalidNativeVersions(lists, failed)
 	if len(failed) != 0 {
 		return groups, lists, &discovery.ErrGroupDiscoveryFailed{Groups: failed}
 	}

@@ -469,10 +469,10 @@ func (api *countAPI) connection(kinds ...countKind) (*clients.ClientSet, map[str
 	for _, group := range groups {
 		discovery.Resources = append(discovery.Resources, byGroup[group])
 	}
-	bindings, coverage, err := discoverNativeTypes(context.Background(), discovery)
+	bindings, _, err := discoverNativeTypes(context.Background(), discovery)
 	require.NoError(api.t, err)
 	provider := &kubernetesProvider{logger: zap.NewNop().Sugar()}
-	snapshot, err := provider.assembleNativeCatalog(context.Background(), "route", &clients.ClientSet{}, bindings, coverage, nil, nativeTestAny())
+	snapshot, err := provider.assembleNativeCatalog(context.Background(), "route", &clients.ClientSet{}, bindings, nil, nativeTestAny())
 	require.NoError(api.t, err)
 	client := &clients.ClientSet{DynamicClient: api.client()}
 	api.t.Cleanup(client.ShutdownInformers)
