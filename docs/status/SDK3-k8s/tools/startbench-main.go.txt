@@ -1,0 +1,544 @@
+// Command startbench measures how long StartConnection takes, as the host sees it, for one
+// plugin binary on the kind cluster, in the scenarios of the discovery bound (INV4):
+//
+//	a     direct, aggregated discovery, healthy cluster
+//	a1    direct, aggregated discovery, one REAL aggregated API whose backend never answers (APIService + black hole)
+//	a5    the same with five
+//	b     through the proxy that forces LEGACY discovery (Accept of /api and /apis rewritten), healthy
+//	c0    legacy, one real black-hole APIService, nothing held (what the real aggregator answers)
+//	c     legacy, one real black-hole APIService, its per-version read HELD at the proxy for 120 s
+//	d     legacy, five real black-hole APIServices, all five per-version reads held for 120 s
+//	e20   as c, the index (/apis) delayed 20 s by the proxy
+//	e40   as c, the index delayed 40 s
+//	f55, f57, f59   as c, the index delayed 55, 57, 59 s: little of the 60 s is left
+//	g     as c, and the connection stays open: the heal loop is watched (first attempt 30 s after the start)
+//
+// Every run is a fresh plugin process (launched as the host launches it), LoadConnections, then one
+// StartConnection; the time is that RPC, CreateClient and OnStart together. The proxy logs every
+// request with the harness clock, so the bound the plugin applied to a held read is read off it:
+// the time the proxy held the request before the plugin's client went away.
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+	"sort"
+	"strings"
+	"time"
+
+	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
+
+	"github.com/omniview/kubernetes/hack/zz-proof/harness"
+)
+
+type scenario struct {
+	ID         string
+	Title      string
+	Groups     int // real black-hole APIServices on the cluster
+	Proxy      bool
+	Legacy     bool
+	HoldGroups int           // how many of the groups' per-version reads the proxy holds
+	HoldPaths  []string      // other exact paths held for GroupHold (a built-in group version)
+	GroupHold  time.Duration // how long
+	IndexDelay time.Duration // /apis held this long
+	Runs       int
+	HealWatch  time.Duration // keep the connection open and watch the heal this long
+}
+
+func scenarios() []scenario {
+	hold := 120 * time.Second
+	return []scenario{
+		{ID: "a", Title: "healthy, aggregated discovery (direct)", Runs: 10},
+		{ID: "a1", Title: "aggregated discovery, 1 real black-hole APIService (direct)", Groups: 1, Runs: 5},
+		{ID: "a5", Title: "aggregated discovery, 5 real black-hole APIServices (direct)", Groups: 5, Runs: 3},
+		{ID: "b", Title: "healthy, legacy discovery (proxy)", Proxy: true, Legacy: true, Runs: 10},
+		{ID: "c0", Title: "legacy, 1 real black-hole APIService, nothing held", Proxy: true, Legacy: true, Groups: 1, Runs: 5},
+		{ID: "c", Title: "legacy, 1 hung group (real APIService + read held 120 s)", Proxy: true, Legacy: true, Groups: 1, HoldGroups: 1, GroupHold: hold, Runs: 5},
+		{ID: "d", Title: "legacy, 5 hung groups (5 real APIServices + 5 reads held 120 s)", Proxy: true, Legacy: true, Groups: 5, HoldGroups: 5, GroupHold: hold, Runs: 5},
+		{ID: "e20", Title: "legacy, index delayed 20 s, 1 hung group", Proxy: true, Legacy: true, Groups: 1, HoldGroups: 1, GroupHold: hold, IndexDelay: 20 * time.Second, Runs: 3},
+		{ID: "e40", Title: "legacy, index delayed 40 s, 1 hung group", Proxy: true, Legacy: true, Groups: 1, HoldGroups: 1, GroupHold: hold, IndexDelay: 40 * time.Second, Runs: 3},
+		{ID: "f55", Title: "legacy, index delayed 55 s, 1 hung group", Proxy: true, Legacy: true, Groups: 1, HoldGroups: 1, GroupHold: hold, IndexDelay: 55 * time.Second, Runs: 3},
+		{ID: "f57", Title: "legacy, index delayed 57 s, 1 hung group", Proxy: true, Legacy: true, Groups: 1, HoldGroups: 1, GroupHold: hold, IndexDelay: 57 * time.Second, Runs: 3},
+		{ID: "f59", Title: "legacy, index delayed 59 s, 1 hung group", Proxy: true, Legacy: true, Groups: 1, HoldGroups: 1, GroupHold: hold, IndexDelay: 59 * time.Second, Runs: 3},
+		{ID: "g", Title: "legacy, 1 hung group, connection kept open: the heal loop", Proxy: true, Legacy: true, Groups: 1, HoldGroups: 1, GroupHold: hold, Runs: 2, HealWatch: 105 * time.Second},
+		{ID: "f61", Title: "legacy, index delayed 61 s (beyond the 60 s bound), 1 hung group", Proxy: true, Legacy: true, Groups: 1, HoldGroups: 1, GroupHold: hold, IndexDelay: 61 * time.Second, Runs: 2},
+		{ID: "h60", Title: "legacy, a BUILT-IN group version (apps/v1) held 120 s, healthy otherwise", Proxy: true, Legacy: true, HoldPaths: []string{"/apis/apps/v1"}, GroupHold: hold, Runs: 2},
+	}
+}
+
+func groupName(i int) string { return fmt.Sprintf("hang%d.proof.example.com", i) }
+func groupPath(i int) string { return "/apis/" + groupName(i) + "/v1" }
+
+// Run is the record of one start.
+type Run struct {
+	Scenario   string    `json:"scenario"`
+	Run        int       `json:"run"`
+	Plugin     string    `json:"plugin"`
+	LoadBefore string    `json:"uptime_before"`
+	LoadAfter  string    `json:"uptime_after"`
+	LaunchSec  float64   `json:"launch_seconds"`
+	StartSec   float64   `json:"start_seconds"` // the StartConnection RPC
+	Status     string    `json:"status"`
+	Error      string    `json:"error,omitempty"`
+	ErrorCode  string    `json:"error_code,omitempty"`
+	CatalogSec float64   `json:"catalog_seconds_after_start,omitempty"` // the Catalog() call the host makes right after a CONNECTED start
+	CatalogErr string    `json:"catalog_error,omitempty"`
+	StartedAt  time.Time `json:"start_called_at"`
+	ReturnedAt time.Time `json:"start_returned_at"`
+	Requests   []string  `json:"requests"`
+	IndexSec   float64   `json:"index_read_seconds,omitempty"` // /apis, as the proxy saw it (held time included)
+	HeldReads  []Held    `json:"held_reads,omitempty"`
+	Boundary   []string  `json:"plugin_log_lines,omitempty"`
+	Heal       *Heal     `json:"heal,omitempty"`
+	Note       string    `json:"note,omitempty"`
+}
+
+// Held is one request the proxy held and what happened to it.
+type Held struct {
+	Path          string  `json:"path"`
+	HoldForSec    float64 `json:"hold_for_seconds"`
+	HeldSec       float64 `json:"held_seconds"`
+	Dropped       bool    `json:"dropped_by_client"`
+	AfterStartSec float64 `json:"received_seconds_after_start_call"`
+}
+
+// Heal is what a kept-open connection did after the start.
+type Heal struct {
+	WatchedSec float64       `json:"watched_seconds"`
+	Attempts   []HealAttempt `json:"attempts"`
+}
+
+// HealAttempt is one burst of discovery requests after the start returned.
+type HealAttempt struct {
+	FirstRequestAfterReturnSec float64   `json:"first_request_seconds_after_start_returned"`
+	DurationSec                float64   `json:"attempt_seconds"` // first request to the last request of the attempt ending
+	Requests                   []string  `json:"requests"`
+	HeldDroppedSec             []float64 `json:"held_requests_dropped_after_seconds,omitempty"`
+}
+
+func main() {
+	pluginBin := flag.String("plugin", "", "plugin binary (the BUMP build)")
+	label := flag.String("label", "bump", "label of the plugin build in the output")
+	kubeconfig := flag.String("kubeconfig", "", "kubeconfig of the kind cluster (one context)")
+	ctxName := flag.String("context", "kind-sdk3k8s-proof", "context name of that kubeconfig")
+	yaml := flag.String("plugin-yaml", "plugin.yaml", "plugin.yaml of the plugin tree")
+	out := flag.String("out", "", "output directory (created)")
+	only := flag.String("scenarios", "", "comma-separated scenario ids (default: all)")
+	runsOverride := flag.Int("runs", 0, "override the number of runs of every scenario")
+	proxyPort := flag.Int("proxy-port", 18080, "listen port of the proxy on 127.0.0.1")
+	logLevel := flag.String("plugin-log-level", "", "OMNIVIEW_PLUGIN_LOG_LEVEL of the plugin (default: its own, info)")
+	startTimeout := flag.Duration("rpc-timeout", 150*time.Second, "context deadline of the StartConnection call (the SDK bounds it at 60 s by itself)")
+	flag.Parse()
+	if *pluginBin == "" || *kubeconfig == "" || *out == "" {
+		flag.Usage()
+		os.Exit(2)
+	}
+	want := map[string]bool{}
+	for _, id := range strings.Split(*only, ",") {
+		if id != "" {
+			want[id] = true
+		}
+	}
+	if err := os.MkdirAll(*out, 0o755); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	k := harness.Kubectl{Kubeconfig: *kubeconfig}
+	env := &env{k: k, kubeconfig: *kubeconfig, ctxName: *ctxName, yaml: *yaml, out: *out, plugin: *pluginBin, label: *label,
+		proxyPort: *proxyPort, logLevel: *logLevel, rpcTimeout: *startTimeout}
+	var summaries []summary
+	for _, sc := range scenarios() {
+		if len(want) > 0 && !want[sc.ID] {
+			continue
+		}
+		if *runsOverride > 0 {
+			sc.Runs = *runsOverride
+		}
+		s, err := env.runScenario(sc)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "scenario %s: %v\n", sc.ID, err)
+		}
+		summaries = append(summaries, s)
+		printTable(os.Stdout, summaries[len(summaries)-1:], env.label)
+	}
+	fmt.Println()
+	fmt.Println("## All scenarios")
+	printTable(os.Stdout, summaries, env.label)
+	if data, err := json.MarshalIndent(summaries, "", "  "); err == nil {
+		_ = os.WriteFile(filepath.Join(*out, "summary-"+*label+".json"), data, 0o644)
+	}
+}
+
+type env struct {
+	k          harness.Kubectl
+	kubeconfig string
+	ctxName    string
+	yaml       string
+	out        string
+	plugin     string
+	label      string
+	proxyPort  int
+	logLevel   string
+	rpcTimeout time.Duration
+}
+
+type summary struct {
+	Scenario scenario `json:"scenario"`
+	Runs     []Run    `json:"runs"`
+	Setup    []string `json:"setup,omitempty"`
+	Toggles  []string `json:"toggles"`
+}
+
+func (e *env) runScenario(sc scenario) (summary, error) {
+	s := summary{Scenario: sc}
+	dir := filepath.Join(e.out, e.label, sc.ID)
+	if err := os.RemoveAll(dir); err != nil {
+		return s, err
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return s, err
+	}
+	setup, err := e.ensureGroups(sc.Groups, dir)
+	s.Setup = setup
+	if err != nil {
+		return s, err
+	}
+	kubeconfig := e.kubeconfig
+	ctxName := e.ctxName
+	var proxy *harness.Proxy
+	if sc.Proxy {
+		proxy, err = harness.StartProxy(e.kubeconfig, e.proxyPort, sc.Legacy)
+		if err != nil {
+			return s, err
+		}
+		defer proxy.Close()
+		kubeconfig = filepath.Join(dir, "plugin-kubeconfig.yaml")
+		ctxName = "proof"
+		if err := proxy.WriteKubeconfig(kubeconfig, ctxName); err != nil {
+			return s, err
+		}
+		for i := 1; i <= sc.HoldGroups; i++ {
+			proxy.Hold(groupPath(i), sc.GroupHold)
+		}
+		if sc.IndexDelay > 0 {
+			proxy.Hold("/apis", sc.IndexDelay)
+		}
+		for _, path := range sc.HoldPaths {
+			proxy.Hold(path, sc.GroupHold)
+		}
+		s.Toggles = append(s.Toggles, fmt.Sprintf("proxy 127.0.0.1:%d, legacy discovery (Accept of GET /api and GET /apis rewritten to application/json)=%v", proxy.Port, sc.Legacy))
+		holds := proxy.Holds()
+		paths := make([]string, 0, len(holds))
+		for p := range holds {
+			paths = append(paths, p)
+		}
+		sort.Strings(paths)
+		for _, p := range paths {
+			s.Toggles = append(s.Toggles, fmt.Sprintf("held: GET %s for %v", p, holds[p]))
+		}
+		if len(paths) == 0 {
+			s.Toggles = append(s.Toggles, "held: nothing")
+		}
+		// What the proxy's legacy /apis lists, to show the cluster state is honest: the groups are listed there.
+		if sc.Groups > 0 {
+			doc, _ := e.k.Run("get", "--raw", "/apis")
+			s.Setup = append(s.Setup, "direct (aggregated Accept absent -> legacy list) /apis groups: "+groupNames(doc))
+		}
+	} else {
+		s.Toggles = append(s.Toggles, "no proxy: the plugin talks to the kind API server directly (aggregated discovery)")
+	}
+	for i := 1; i <= sc.Runs; i++ {
+		fmt.Fprintf(os.Stderr, "[%s] scenario %s run %d/%d (%s)\n", time.Now().Format("15:04:05"), sc.ID, i, sc.Runs, sc.Title)
+		run := e.once(sc, i, dir, kubeconfig, ctxName, proxy)
+		s.Runs = append(s.Runs, run)
+		data, _ := json.MarshalIndent(run, "", "  ")
+		_ = os.WriteFile(filepath.Join(dir, fmt.Sprintf("run-%02d.json", i)), data, 0o644)
+	}
+	if proxy != nil {
+		_ = proxy.WriteEvents(filepath.Join(dir, "proxy-events.jsonl"), proxy.Events())
+	}
+	return s, nil
+}
+
+var groupRE = regexp.MustCompile(`"name":"([^"]+)"`)
+
+func groupNames(doc string) string {
+	var names []string
+	for _, m := range groupRE.FindAllStringSubmatch(doc, -1) {
+		if strings.Contains(m[1], "proof.example.com") {
+			names = append(names, m[1])
+		}
+	}
+	return strings.Join(names, ",")
+}
+
+func (e *env) once(sc scenario, i int, dir, kubeconfig, ctxName string, proxy *harness.Proxy) Run {
+	run := Run{Scenario: sc.ID, Run: i, Plugin: e.label, LoadBefore: harness.Stamp()}
+	ctx, cancel := context.WithTimeout(context.Background(), e.rpcTimeout+sc.HealWatch+30*time.Second)
+	defer cancel()
+	p, err := harness.Launch(harness.LaunchOptions{Name: e.label, Binary: e.plugin, PluginYAML: e.yaml, Kubeconfig: kubeconfig,
+		Dir: filepath.Join(dir, fmt.Sprintf("run-%02d-plugin", i)), LogLevel: e.logLevel})
+	if err != nil {
+		run.Error = err.Error()
+		return run
+	}
+	defer p.Close()
+	run.LaunchSec = p.Ready.Sub(p.Launched).Seconds()
+	conn, _, err := p.Connect(ctx, ctxName)
+	if err != nil {
+		run.Error = err.Error()
+		return run
+	}
+	mark := 0
+	if proxy != nil {
+		mark = proxy.Mark()
+	}
+	startCtx, stop := context.WithTimeout(harness.Ctx(ctx), e.rpcTimeout)
+	run.StartedAt = time.Now()
+	status, err := p.Resource.StartConnection(startCtx, conn.ID)
+	run.ReturnedAt = time.Now()
+	stop()
+	run.StartSec = run.ReturnedAt.Sub(run.StartedAt).Seconds()
+	run.Status = string(status.Status)
+	if err != nil {
+		run.Error = err.Error()
+		run.ErrorCode = resourcev2.ErrorCode(err)
+		run.Status = "ERROR"
+	} else {
+		t := time.Now()
+		_, cerr := p.Resource.Catalog(harness.Ctx(ctx), resourcev2.CatalogRequest{Route: resourcev2.AccessRoute{Connection: conn.ID}})
+		run.CatalogSec = time.Since(t).Seconds()
+		if cerr != nil {
+			run.CatalogErr = cerr.Error()
+		}
+	}
+	if proxy != nil {
+		events := proxy.EventsSince(mark)
+		run.Requests = harness.Summarize(events)
+		recv := map[int64]harness.ProxyEvent{}
+		for _, ev := range events {
+			if ev.Phase == "recv" {
+				recv[ev.ID] = ev
+			}
+		}
+		for _, ev := range events {
+			if ev.Phase != "done" || ev.At.After(run.ReturnedAt.Add(2*time.Second)) {
+				continue
+			}
+			r := recv[ev.ID]
+			if ev.Path == "/apis" && ev.Method == "GET" && run.IndexSec == 0 {
+				run.IndexSec = ev.Duration.Seconds()
+			}
+			if ev.HoldFor > 0 && ev.Path != "/apis" {
+				run.HeldReads = append(run.HeldReads, Held{Path: ev.Path, HoldForSec: ev.HoldFor.Seconds(), HeldSec: ev.Held.Seconds(),
+					Dropped: ev.Dropped, AfterStartSec: r.At.Sub(run.StartedAt).Seconds()})
+			}
+		}
+		sort.Slice(run.HeldReads, func(a, b int) bool { return run.HeldReads[a].Path < run.HeldReads[b].Path })
+	}
+	for _, line := range p.StderrLines() {
+		if strings.Contains(line, "native discovery partial") || strings.Contains(line, "native connection start failed") ||
+			strings.Contains(line, "connection start failed") || strings.Contains(line, "acquisition") || strings.Contains(line, "heal") {
+			run.Boundary = append(run.Boundary, line)
+		}
+	}
+	if sc.HealWatch > 0 && err == nil {
+		time.Sleep(sc.HealWatch)
+		if proxy != nil {
+			run.Heal = analyzeHeal(proxy.EventsSince(mark), run.ReturnedAt, sc.HealWatch)
+		}
+		for _, line := range p.StderrLines() {
+			if strings.Contains(line, "heal") || strings.Contains(line, "native catalog refresh") || strings.Contains(line, "native discovery partial") {
+				run.Boundary = appendUnique(run.Boundary, line)
+			}
+		}
+	}
+	run.LoadAfter = harness.Stamp()
+	if proxy != nil {
+		_ = proxy.WriteEvents(filepath.Join(dir, fmt.Sprintf("run-%02d-proxy-events.jsonl", i)), proxy.EventsSince(mark))
+	}
+	return run
+}
+
+func appendUnique(list []string, s string) []string {
+	for _, x := range list {
+		if x == s {
+			return list
+		}
+	}
+	return append(list, s)
+}
+
+// analyzeHeal groups the requests that reach the proxy after the start returned into attempts: a request
+// that arrives more than 2 s after the last activity begins a new one.
+func analyzeHeal(events []harness.ProxyEvent, returned time.Time, watched time.Duration) *Heal {
+	h := &Heal{WatchedSec: watched.Seconds()}
+	var cur *HealAttempt
+	var curLast time.Time
+	var curStart time.Time
+	recvAt := map[int64]time.Time{}
+	flush := func() {
+		if cur != nil {
+			cur.DurationSec = curLast.Sub(curStart).Seconds()
+			h.Attempts = append(h.Attempts, *cur)
+			cur = nil
+		}
+	}
+	for _, ev := range events {
+		if ev.Phase == "recv" {
+			recvAt[ev.ID] = ev.At
+			if ev.At.Before(returned.Add(2 * time.Second)) {
+				continue // the start's own tail (the facts observation, the catalog)
+			}
+			if cur == nil || ev.At.Sub(curLast) > 2*time.Second {
+				flush()
+				cur = &HealAttempt{FirstRequestAfterReturnSec: ev.At.Sub(returned).Seconds()}
+				curStart = ev.At
+			}
+			curLast = ev.At
+			cur.Requests = append(cur.Requests, ev.Method+" "+ev.Path)
+			continue
+		}
+		if cur != nil && !ev.At.Before(curStart) {
+			if ev.At.After(curLast) {
+				curLast = ev.At
+			}
+			if ev.Dropped {
+				cur.HeldDroppedSec = append(cur.HeldDroppedSec, ev.Held.Seconds())
+			}
+		}
+	}
+	flush()
+	return h
+}
+
+func (e *env) ensureGroups(n int, dir string) ([]string, error) {
+	var log []string
+	manifest := `apiVersion: v1
+kind: Namespace
+metadata: {name: proof-agg}
+---
+apiVersion: v1
+kind: Pod
+metadata: {name: blackhole, namespace: proof-agg, labels: {app: blackhole}}
+spec:
+  containers:
+  - name: bh
+    image: sdk3k8s-blackhole:1
+    imagePullPolicy: Never
+    ports: [{name: https, containerPort: 10250}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: blackhole, namespace: proof-agg}
+spec:
+  selector: {app: blackhole}
+  ports: [{port: 443, targetPort: https}]
+`
+	for i := 1; i <= n; i++ {
+		manifest += fmt.Sprintf(`---
+apiVersion: apiregistration.k8s.io/v1
+kind: APIService
+metadata: {name: v1.%[1]s}
+spec:
+  group: %[1]s
+  version: v1
+  groupPriorityMinimum: 100
+  versionPriority: 100
+  insecureSkipTLSVerify: true
+  service: {name: blackhole, namespace: proof-agg, port: 443}
+`, groupName(i))
+	}
+	for i := n + 1; i <= 5; i++ {
+		if out, err := e.k.Run("delete", "apiservice", "v1."+groupName(i), "--ignore-not-found"); err != nil {
+			return log, err
+		} else if strings.TrimSpace(out) != "" {
+			log = append(log, strings.TrimSpace(out))
+		}
+	}
+	if n == 0 {
+		return append(log, "cluster: no black-hole APIService"), nil
+	}
+	file := filepath.Join(dir, "aggregated.yaml")
+	if err := os.WriteFile(file, []byte(manifest), 0o644); err != nil {
+		return log, err
+	}
+	if out, err := e.k.Run("apply", "-f", file); err != nil {
+		return log, err
+	} else {
+		log = append(log, strings.Split(strings.TrimSpace(out), "\n")...)
+	}
+	if _, err := e.k.Run("-n", "proof-agg", "wait", "--for=condition=Ready", "pod/blackhole", "--timeout=90s"); err != nil {
+		return log, err
+	}
+	// Honest cluster state: wait until the API server itself has flagged every group as unavailable.
+	deadline := time.Now().Add(120 * time.Second)
+	for i := 1; i <= n; i++ {
+		name := "v1." + groupName(i)
+		for {
+			out, err := e.k.Run("get", "apiservice", name, "-o", `jsonpath={.status.conditions[?(@.type=="Available")].status}|{.status.conditions[?(@.type=="Available")].reason}|{.status.conditions[?(@.type=="Available")].message}`)
+			if err == nil && strings.HasPrefix(out, "False|FailedDiscoveryCheck|") && (strings.Contains(out, "deadline exceeded") || strings.Contains(out, "Client.Timeout") || strings.Contains(out, "timeout")) {
+				log = append(log, fmt.Sprintf("apiservice %s: Available=%s", name, out))
+				break
+			}
+			if time.Now().After(deadline) {
+				return log, fmt.Errorf("apiservice %s not flagged unavailable in time (last %q, err %v)", name, out, err)
+			}
+			time.Sleep(time.Second)
+		}
+	}
+	aggregated, _ := e.k.Run("get", "--raw", "/apis")
+	log = append(log, "aggregated-or-legacy /apis (kubectl) groups: "+groupNames(aggregated))
+	return log, nil
+}
+
+func printTable(w *os.File, ss []summary, label string) {
+	fmt.Fprintf(w, "\n| scenario | runs | median s | min s | max s | StartConnection returned | notes |\n|---|---|---|---|---|---|---|\n")
+	for _, s := range ss {
+		var secs []float64
+		results := map[string]int{}
+		for _, r := range s.Runs {
+			if r.StartSec > 0 {
+				secs = append(secs, r.StartSec)
+			}
+			key := r.Status
+			if r.ErrorCode != "" {
+				key += "/" + r.ErrorCode
+			}
+			results[key]++
+		}
+		sort.Float64s(secs)
+		res := make([]string, 0, len(results))
+		for k, v := range results {
+			res = append(res, fmt.Sprintf("%s x%d", k, v))
+		}
+		sort.Strings(res)
+		med, lo, hi := 0.0, 0.0, 0.0
+		if len(secs) > 0 {
+			lo, hi = secs[0], secs[len(secs)-1]
+			med = secs[len(secs)/2]
+			if len(secs)%2 == 0 {
+				med = (secs[len(secs)/2-1] + secs[len(secs)/2]) / 2
+			}
+		}
+		notes := s.Scenario.Title
+		var bounds []string
+		for _, r := range s.Runs {
+			for _, h := range r.HeldReads {
+				if h.Dropped {
+					bounds = append(bounds, fmt.Sprintf("%.2f", h.HeldSec))
+					break
+				}
+			}
+		}
+		if len(bounds) > 0 {
+			notes += "; held read dropped by the plugin after (s): " + strings.Join(bounds, ", ")
+		}
+		fmt.Fprintf(w, "| %s | %d | %.3f | %.3f | %.3f | %s | %s |\n", s.Scenario.ID, len(s.Runs), med, lo, hi, strings.Join(res, ", "), notes)
+	}
+}

@@ -1,0 +1,37 @@
+    sdk_v0220_test.go:41: 
+        	Error Trace:	/Users/joshuapare/Repos/omniviewdev/worktrees/sdk3-k8s-red-v0200/pkg/plugin/logs/sdk_v0220_test.go:41
+        	Error:      	An error is expected but got nil.
+        	Test:       	TestUpdatingAnEndedLogSessionThatWouldStartASourceIsAConflict
+--- FAIL: TestUpdatingAnEndedLogSessionThatWouldStartASourceIsAConflict (0.00s)
+--- PASS: TestALogSessionStartedAfterTheManagerClosedIsAConnectionError (0.00s)
+FAIL
+FAIL	github.com/omniview/kubernetes/pkg/plugin/logs	0.030s
+    sdk_v0220_test.go:46: 
+        	Error Trace:	/Users/joshuapare/Repos/omniviewdev/worktrees/sdk3-k8s-red-v0200/pkg/plugin/exec/sdk_v0220_test.go:46
+        	Error:      	An error is expected but got nil.
+        	Test:       	TestAnExecSessionStartedAfterTheManagerClosedIsAConnectionError/a_resource_session
+    sdk_v0220_test.go:48: 
+        	Error Trace:	/Users/joshuapare/Repos/omniviewdev/worktrees/sdk3-k8s-red-v0200/pkg/plugin/exec/sdk_v0220_test.go:48
+        	Error:      	Not equal: 
+        	            	expected: "CONNECTION_ERROR"
+        	            	actual  : "INTERNAL"
+        	            	
+        	            	Diff:
+        	            	--- Expected
+        	            	+++ Actual
+        	            	@@ -1 +1 @@
+        	            	-CONNECTION_ERROR
+        	            	+INTERNAL
+        	Test:       	TestAnExecSessionStartedAfterTheManagerClosedIsAConnectionError/a_session
+        	Messages:   	the plugin is stopping: a retry into the same manager cannot succeed
+    sdk_v0220_test.go:49: 
+        	Error Trace:	/Users/joshuapare/Repos/omniviewdev/worktrees/sdk3-k8s-red-v0200/pkg/plugin/exec/sdk_v0220_test.go:49
+        	Error:      	Should be zero, but was 1
+        	Test:       	TestAnExecSessionStartedAfterTheManagerClosedIsAConnectionError/a_session
+        	Messages:   	refused before the plugin's handler starts anything
+--- FAIL: TestAnExecSessionStartedAfterTheManagerClosedIsAConnectionError (0.00s)
+    --- FAIL: TestAnExecSessionStartedAfterTheManagerClosedIsAConnectionError/a_resource_session (0.00s)
+    --- FAIL: TestAnExecSessionStartedAfterTheManagerClosedIsAConnectionError/a_session (0.00s)
+FAIL
+FAIL	github.com/omniview/kubernetes/pkg/plugin/exec	0.032s
+FAIL

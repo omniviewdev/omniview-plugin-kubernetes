@@ -1,0 +1,42 @@
+#!/bin/bash
+# What the replay count assumes of a real kubelet, read with kubectl get --raw: the same HTTP API and query
+# parameters as the plugin's requests. Cluster: kind v0.30.0, node kindest/node:v1.34.0, own cluster sdk3k8s-lead.
+# Pods: probe (3000 numbered lines, then two CRLF lines, then a record with no line feed, then sleep),
+# crash (writes 7 lines and exits 1, restarted), waiting (an init container that never ends).
+set -u
+: "${KUBECONFIG:?set KUBECONFIG to the cluster kubeconfig}"
+B=/api/v1/namespaces/default/pods
+
+echo "== 1. limitBytes=100 tailLines=4 timestamps=true: follow=false and follow=true"
+for f in false true; do
+  s=$(date +%s)
+  timeout 8 kubectl get --raw "$B/probe/log?tailLines=4&timestamps=true&limitBytes=100&follow=$f" > /tmp/probe-limit-$f.bin
+  rc=$?
+  e=$(date +%s)
+  echo "follow=$f rc=$rc bytes=$(wc -c < /tmp/probe-limit-$f.bin) seconds=$((e - s)) last bytes:$(tail -c 12 /tmp/probe-limit-$f.bin | od -An -c)"
+done
+cmp /tmp/probe-limit-false.bin /tmp/probe-limit-true.bin && echo "the two responses are identical: both end after exactly 100 bytes, in the middle of a line, and the follow ends"
+
+echo "== 2. the end of the log: follow=false vs follow=true, tailLines=4 (a CRLF pair and a record with no line feed were written last)"
+kubectl get --raw "$B/probe/log?tailLines=4&timestamps=true" | tail -c 120 | od -c | tail -8
+echo "-- follow=true (3 s)"
+timeout 3 kubectl get --raw "$B/probe/log?tailLines=4&timestamps=true&follow=true" | tail -c 120 | od -c | tail -8
+
+echo "== 3. error texts"
+for q in "waiting/log?container=main" "probe/log?previous=true" "nosuch/log"; do
+  echo "-- $q"
+  kubectl get --raw "$B/$q" 2>&1 | head -3
+done
+
+echo "== 4. previous instance: follow=true ends by itself"
+s=$(date +%s)
+timeout 8 kubectl get --raw "$B/crash/log?previous=true&follow=true" | wc -l
+echo "seconds=$(( $(date +%s) - s ))"
+
+echo "== 5. huge lines (pod huge: before / a line of 200000 bytes / middle / a line of 2500000 bytes / after)"
+kubectl get --raw "$B/huge/log?timestamps=true" > /tmp/huge-ff.bin
+timeout 3 kubectl get --raw "$B/huge/log?timestamps=true&follow=true" > /tmp/huge-ft.bin
+echo "follow=false: bytes=$(wc -c < /tmp/huge-ff.bin) line feeds=$(tr -cd '\n' < /tmp/huge-ff.bin | wc -l)"
+echo "follow=true : bytes=$(wc -c < /tmp/huge-ft.bin) line feeds=$(tr -cd '\n' < /tmp/huge-ft.bin | wc -l)"
+cmp /tmp/huge-ff.bin /tmp/huge-ft.bin && echo "identical: each huge line is one line with one timestamp, whatever the runtime's 16 KiB records"
+echo "line lengths (with the timestamp): $(awk '{print length($0)}' /tmp/huge-ff.bin | tr '\n' ' ')"

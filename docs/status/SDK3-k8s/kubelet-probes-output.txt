@@ -1,0 +1,37 @@
+== 1. limitBytes=100 tailLines=4 timestamps=true: follow=false and follow=true
+follow=false rc=0 bytes=100 seconds=1 last bytes:   x   x   x   x   x   x   x  \n   2   0   2   6
+follow=true rc=0 bytes=100 seconds=0 last bytes:   x   x   x   x   x   x   x  \n   2   0   2   6
+the two responses are identical: both end after exactly 100 bytes, in the middle of a line, and the follow ends
+== 2. the end of the log: follow=false vs follow=true, tailLines=4 (a CRLF pair and a record with no line feed were written last)
+*
+0000040   x   x   x   x   x   x   x   x   x   x   x  \n   2   0   2   6
+0000060   -   1   1   -   2   2   T   2   2   :   5   7   :   0   3   .
+0000100   4   3   5   5   1   3   3   8   5   Z       c   r   l   f   -
+0000120   a  \n   2   0   2   6   -   1   1   -   2   2   T   2   2   :
+0000140   5   7   :   0   3   .   4   3   5   5   1   4   6   3   5   Z
+0000160       c   r   l   f   -   b  \n
+0000170
+-- follow=true (3 s)
+*
+0000040   x   x   x   x   x   x   x   x   x   x   x  \n   2   0   2   6
+0000060   -   1   1   -   2   2   T   2   2   :   5   7   :   0   3   .
+0000100   4   3   5   5   1   3   3   8   5   Z       c   r   l   f   -
+0000120   a  \n   2   0   2   6   -   1   1   -   2   2   T   2   2   :
+0000140   5   7   :   0   3   .   4   3   5   5   1   4   6   3   5   Z
+0000160       c   r   l   f   -   b  \n
+0000170
+== 3. error texts
+-- waiting/log?container=main
+Error from server (BadRequest): container "main" in pod "waiting" is waiting to start: PodInitializing
+-- probe/log?previous=true
+Error from server (BadRequest): previous terminated container "main" in pod "probe" not found
+-- nosuch/log
+Error from server (NotFound): pods "nosuch" not found
+== 4. previous instance: follow=true ends by itself
+7
+seconds=0
+== 5. huge lines (pod huge: before / a line of 200000 bytes / middle / a line of 2500000 bytes / after)
+follow=false: bytes=2700177 line feeds=5
+follow=true : bytes=2700177 line feeds=5
+identical: each huge line is one line with one timestamp, whatever the runtime's 16 KiB records
+line lengths (with the timestamp): 37 200031 37 2500031 36 

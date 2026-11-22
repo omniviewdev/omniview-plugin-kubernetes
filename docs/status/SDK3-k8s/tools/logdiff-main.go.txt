@@ -1,0 +1,338 @@
+// Command logdiff compares two recordings of log sessions (the files logproof writes), frame by frame.
+//
+// What it normalises: the session id, and nothing else. A recording already carries a token where the
+// session id was (harness.SessionToken), so there is nothing left to normalise at compare time; what
+// logdiff does not look at is each frame's "meta" object: the arrival time, the plugin's wall clock on
+// an event (a run cannot repeat it) and the status and source list of the create reply (the snapshot
+// is taken as the session's goroutine begins, so they race). Everything else is compared: the kind,
+// the source, the labels, the kubelet timestamp, the content (length, SHA-256 and the text kept), the
+// origin, the level, the replay flag, the event type and message, the reply's options, and a SHA-256
+// over the frame's protobuf bytes (the session id emptied, an event's timestamp cleared).
+//
+// Modes:
+//
+//	default         the two frame sequences, in order, one to one.
+//	-by-source      a session of several sources interleaves them as it likes; compare the sequence of each
+//	                source (and of the events that name none) by itself.
+//	-overlap        a live pod moves between two runs; compare only the lines both runs hold, by their number,
+//	                per source, field by field.
+//	-strip-replay   compare an asking run with a run that did not ask (same build): drop the caught-up events,
+//	                ignore the replay flag, the wire hash, and the reply's replay parameters. What is left is
+//	                "which lines, in which order": the flag and the event may add or change nothing else.
+//
+// Exit status: 0 identical, 1 not identical, 2 error.
+package main
+
+import (
+	"flag"
+	"fmt"
+	"os"
+	"reflect"
+	"sort"
+	"strings"
+
+	"github.com/omniview/kubernetes/hack/zz-proof/harness"
+)
+
+var (
+	bySource    = flag.Bool("by-source", false, "compare each source's sequence by itself")
+	overlap     = flag.Bool("overlap", false, "compare only the lines both recordings hold, matched by the number the workload put in them")
+	stripReplay = flag.Bool("strip-replay", false, "ignore replay markers: drop caught-up events, the replay flag, the wire hash and the reply's replay parameters")
+	skipReply   = flag.Bool("skip-reply", false, "leave the create reply out of the comparison (frames only)")
+	dropCut     = flag.Bool("drop-cut", false, "drop the last line of every source before comparing: a byte-limited read ends in a fragment cut at a byte offset that moves with the window")
+	quiet       = flag.Bool("q", false, "print only the verdict line")
+)
+
+func main() {
+	flag.Parse()
+	if flag.NArg() != 2 {
+		fmt.Fprintln(os.Stderr, "usage: logdiff [-by-source|-overlap] [-strip-replay] A.jsonl.gz B.jsonl.gz")
+		os.Exit(2)
+	}
+	a, err := harness.ReadRecords(flag.Arg(0))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
+	b, err := harness.ReadRecords(flag.Arg(1))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
+	if *skipReply {
+		a, b = withoutReply(a), withoutReply(b)
+	}
+	if *dropCut {
+		a, b = dropLast(a), dropLast(b)
+	}
+	if *stripReplay {
+		a, b = strip(a), strip(b)
+	}
+	var diffs []string
+	compared := 0
+	switch {
+	case *overlap:
+		diffs, compared = overlapDiff(a, b)
+	case *bySource:
+		diffs, compared = bySourceDiff(a, b)
+	default:
+		diffs, compared = sequenceDiff("all", a, b)
+	}
+	mode := "in order"
+	switch {
+	case *overlap:
+		mode = "overlap by line number"
+	case *bySource:
+		mode = "per source"
+	}
+	if *stripReplay {
+		mode += ", replay markers stripped"
+	}
+	if len(diffs) == 0 {
+		fmt.Printf("IDENTICAL: %d frames compared (%s) :: %s  vs  %s\n", compared, mode, flag.Arg(0), flag.Arg(1))
+		return
+	}
+	fmt.Printf("NOT IDENTICAL: %d differences in %d frames compared (%s) :: %s  vs  %s\n", len(diffs), compared, mode, flag.Arg(0), flag.Arg(1))
+	if !*quiet {
+		fmt.Println("first difference:")
+		fmt.Println("  " + diffs[0])
+		for i := 1; i < len(diffs) && i < 5; i++ {
+			fmt.Println("  also: " + diffs[i])
+		}
+	}
+	os.Exit(1)
+}
+
+// dropLast removes the last line frame of every source.
+func dropLast(in []harness.FrameRecord) []harness.FrameRecord {
+	last := map[string]int{}
+	for i, r := range in {
+		if r.Kind == "line" {
+			last[r.Source] = i
+		}
+	}
+	drop := map[int]bool{}
+	for _, i := range last {
+		drop[i] = true
+	}
+	var out []harness.FrameRecord
+	for i, r := range in {
+		if !drop[i] {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// lineNumber is the number the workload wrote into a line (the second word, always six digits), read from the
+// recorded content; -1 when the line has none (a fragment cut inside the number has fewer digits).
+func lineNumber(r harness.FrameRecord) int {
+	f := strings.Fields(r.Content)
+	if len(f) < 2 || len(f[1]) != 6 {
+		return -1
+	}
+	n := 0
+	for _, c := range f[1] {
+		if c < '0' || c > '9' {
+			return -1
+		}
+		n = n*10 + int(c-'0')
+	}
+	return n
+}
+
+// withoutReply drops the create reply records.
+func withoutReply(in []harness.FrameRecord) []harness.FrameRecord {
+	var out []harness.FrameRecord
+	for _, r := range in {
+		if r.Kind != "reply" {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// strip returns a copy of the recording as a client that did not ask would have seen it.
+func strip(in []harness.FrameRecord) []harness.FrameRecord {
+	var out []harness.FrameRecord
+	for _, r := range in {
+		if r.Kind == "event" && r.Type == harness.EventTypeCaughtUp {
+			continue
+		}
+		r.Replay = false
+		r.Wire = ""
+		if r.Reply != nil {
+			c := *r.Reply
+			c.ReplayMarkers = false
+			c.Params = map[string]string{}
+			for k, v := range r.Reply.Params {
+				if !strings.HasPrefix(k, "omniview.log.replay-markers") {
+					c.Params[k] = v
+				}
+			}
+			if len(c.Params) == 0 {
+				c.Params = nil
+			}
+			r.Reply = &c
+		}
+		out = append(out, r)
+	}
+	return out
+}
+
+// differ names the compared fields in which two frames differ.
+func differ(a, b harness.FrameRecord) []string {
+	var d []string
+	add := func(name string, x, y any) {
+		if !reflect.DeepEqual(x, y) {
+			d = append(d, fmt.Sprintf("%s: %v != %v", name, x, y))
+		}
+	}
+	add("kind", a.Kind, b.Kind)
+	add("session", a.Session, b.Session)
+	add("source", a.Source, b.Source)
+	add("labels", a.Labels, b.Labels)
+	add("timestamp", a.Timestamp, b.Timestamp)
+	add("content", a.Content, b.Content)
+	add("content_len", a.ContentLen, b.ContentLen)
+	add("content_sha256", a.ContentSHA, b.ContentSHA)
+	add("origin", a.Origin, b.Origin)
+	add("level", a.Level, b.Level)
+	add("replay", a.Replay, b.Replay)
+	add("type", a.Type, b.Type)
+	add("message", a.Message, b.Message)
+	add("reply", a.Reply, b.Reply)
+	add("wire", a.Wire, b.Wire)
+	add("unknown_bytes", a.Unknown, b.Unknown)
+	return d
+}
+
+func render(r harness.FrameRecord) string {
+	switch r.Kind {
+	case "line":
+		return fmt.Sprintf("line src=%q ts=%s replay=%v content=%q len=%d", r.Source, r.Timestamp, r.Replay, r.Content, r.ContentLen)
+	case "event":
+		return fmt.Sprintf("event %s src=%q msg=%q", r.TypeName, r.Source, r.Message)
+	case "reply":
+		if r.Reply != nil {
+			return fmt.Sprintf("reply markers=%v params=%v tail=%d follow=%v", r.Reply.ReplayMarkers, r.Reply.Params, r.Reply.TailLines, r.Reply.Follow)
+		}
+		return "reply " + r.Message
+	}
+	return r.Kind
+}
+
+func sequenceDiff(name string, a, b []harness.FrameRecord) ([]string, int) {
+	var diffs []string
+	n := min(len(a), len(b))
+	for i := range n {
+		if d := differ(a[i], b[i]); len(d) > 0 {
+			diffs = append(diffs, fmt.Sprintf("[%s] frame %d: %s :: A: %s | B: %s", name, i, strings.Join(d, "; "), render(a[i]), render(b[i])))
+		}
+	}
+	if len(a) != len(b) {
+		var extra harness.FrameRecord
+		who := "A"
+		if len(a) > len(b) {
+			extra = a[n]
+		} else {
+			extra, who = b[n], "B"
+		}
+		diffs = append(diffs, fmt.Sprintf("[%s] A has %d frames, B has %d; first extra frame (%s): %s", name, len(a), len(b), who, render(extra)))
+	}
+	return diffs, n
+}
+
+func bySourceDiff(a, b []harness.FrameRecord) ([]string, int) {
+	group := func(in []harness.FrameRecord) map[string][]harness.FrameRecord {
+		out := map[string][]harness.FrameRecord{}
+		for _, r := range in {
+			key := r.Source
+			if r.Kind == "reply" {
+				key = "(reply)"
+			}
+			out[key] = append(out[key], r)
+		}
+		return out
+	}
+	ga, gb := group(a), group(b)
+	keys := map[string]bool{}
+	for k := range ga {
+		keys[k] = true
+	}
+	for k := range gb {
+		keys[k] = true
+	}
+	names := make([]string, 0, len(keys))
+	for k := range keys {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	var diffs []string
+	total := 0
+	for _, k := range names {
+		d, n := sequenceDiff(k, ga[k], gb[k])
+		diffs = append(diffs, d...)
+		total += n
+	}
+	return diffs, total
+}
+
+func overlapDiff(a, b []harness.FrameRecord) ([]string, int) {
+	type key struct {
+		source string
+		seq    int
+	}
+	index := func(in []harness.FrameRecord) (map[key]harness.FrameRecord, map[string][2]int) {
+		m := map[key]harness.FrameRecord{}
+		ranges := map[string][2]int{}
+		for _, r := range in {
+			seq := lineNumber(r)
+			if r.Kind != "line" || seq < 0 {
+				continue
+			}
+			m[key{r.Source, seq}] = r
+			rg, ok := ranges[r.Source]
+			if !ok {
+				rg = [2]int{seq, seq}
+			}
+			rg[0], rg[1] = min(rg[0], seq), max(rg[1], seq)
+			ranges[r.Source] = rg
+		}
+		return m, ranges
+	}
+	ma, ra := index(a)
+	mb, rb := index(b)
+	var diffs []string
+	total := 0
+	sources := make([]string, 0, len(ra))
+	for s := range ra {
+		sources = append(sources, s)
+	}
+	sort.Strings(sources)
+	for _, s := range sources {
+		other, ok := rb[s]
+		if !ok {
+			diffs = append(diffs, fmt.Sprintf("source %q is in A and not in B", s))
+			continue
+		}
+		lo, hi := max(ra[s][0], other[0]), min(ra[s][1], other[1])
+		if lo > hi {
+			diffs = append(diffs, fmt.Sprintf("source %q: the number ranges do not overlap (A %v, B %v)", s, ra[s], other))
+			continue
+		}
+		for seq := lo; seq <= hi; seq++ {
+			x, okx := ma[key{s, seq}]
+			y, oky := mb[key{s, seq}]
+			if !okx || !oky {
+				diffs = append(diffs, fmt.Sprintf("source %q line #%d is in only one recording (A %v, B %v)", s, seq, okx, oky))
+				continue
+			}
+			total++
+			if d := differ(x, y); len(d) > 0 {
+				diffs = append(diffs, fmt.Sprintf("source %q line #%d: %s", s, seq, strings.Join(d, "; ")))
+			}
+		}
+	}
+	return diffs, total
+}

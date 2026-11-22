@@ -1,0 +1,183 @@
+#!/usr/bin/env python3
+"""Assembles RESULTS.md from work/results-head.md, the generated tables under raw/ and the prose below."""
+import glob
+import json
+import os
+import re
+import subprocess
+
+OUT = os.path.dirname(os.path.abspath(__file__))
+
+
+def read(p):
+    return open(os.path.join(OUT, p)).read()
+
+
+def run(cmd):
+    return subprocess.run(cmd, shell=True, cwd=OUT, capture_output=True, text=True).stdout
+
+
+def table_block(path):
+    """The markdown table that logproof prints after '## <label>: replay facts'."""
+    txt = read(path)
+    i = txt.find("| case | mode | reply markers")
+    return txt[i:].split("\n\n")[0] if i >= 0 else "(missing)"
+
+
+# merge the start summaries
+start_md = run("python3 report-start.py")
+
+# per-build stats from results.json
+stats = []
+for label in ("base", "bump", "head"):
+    rs = json.load(open(os.path.join(OUT, "raw/logproof/%s/results.json" % label)))
+    n_ask = sum(1 for r in rs if r["mode"] == "ask")
+    acc = sum(1 for r in rs if r["mode"] == "ask" and r["facts"]["reply_replay_markers"])
+    flagged = sum(r["facts"]["lines_flagged_replay"] for r in rs)
+    caught = sum(r["facts"]["caught_up_events"] for r in rs)
+    viol = sum(r["facts"].get("order_violations", 0) for r in rs)
+    unk = sum(r["facts"].get("unknown_proto_bytes", 0) for r in rs)
+    noask_flag = sum(r["facts"]["lines_flagged_replay"] + r["facts"]["caught_up_events"] for r in rs if r["mode"] == "noask")
+    ok = bad = 0
+    for r in rs:
+        if r["mode"] != "ask" or not r["facts"]["reply_replay_markers"]:
+            continue
+        for src, v in r["verdict_by_source"].items():
+            if v == "ok":
+                ok += 1
+            else:
+                bad += 1
+    stats.append((label, len(rs), n_ask, acc, flagged, caught, viol, unk, noask_flag, ok, bad))
+
+stat_rows = "\n".join(
+    "| %s | %d | %d | %d | %d | %d | %d | %d | %d | %d / %d |" % s[:9] + (s[9], s[9] + s[10]) if False else
+    "| %s | %d | %d | %d | %d | %d | %d | %d | %d | %d ok of %d |" % (s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], s[9], s[9] + s[10])
+    for s in stats)
+
+compare = read("raw/logproof/compare.txt")
+head_table = table_block("raw/logproof/head-stdout.txt")
+ttfl = read("raw/ttfl-main.txt")
+countbench = read("raw/ttfl/countbench-main.txt")
+countcost = read("raw/logproof/countcost-head.md")
+checks = read("raw/checks.txt")
+
+# the comparison verdicts per table
+verd = []
+cur = ""
+for line in compare.split("\n"):
+    if line.startswith("### ") or line.startswith("# "):
+        cur = line
+        continue
+    m = re.match(r"^\| ([a-z0-9-]+) \| (.*)\|$", line)
+    if m and cur and not line.startswith("| case"):
+        verd.append((cur, m.group(1), m.group(2).strip()))
+agg = {}
+for h, c, v in verd:
+    a = agg.setdefault(h, [0, 0, []])
+    a[0] += 1
+    if v.startswith("IDENTICAL"):
+        a[1] += 1
+    else:
+        a[2].append(c)
+agg_rows = "\n".join("| %s | %d | %d | %s |" % (h.lstrip("# ").strip(), n, ident, ", ".join(bad) or "-") for h, (n, ident, bad) in agg.items())
+
+doc = read("work/results-head.md")
+doc += """
+## 1. The tools, in short
+
+- `bin/startbench` (leg 2), `bin/logproof` + `bin/logdiff` + `compare.sh` (leg 3), `bin/ttfl` + `bin/countbench` (leg 4), `checks.sh` (item 5). Harness and proxy: `tools-src/hack/zz-proof/harness`.
+- The discovery proxy (`harness/proxy.go`) sits between the plugin and the kind API server on `127.0.0.1:18080`. Toggles: **legacy** (the `Accept` header of `GET /api` and `GET /apis` is rewritten to `application/json`, so the server answers the legacy lists and the plugin reads every group version with a request of its own: 25 per-version reads on this cluster) and **holds** (an exact path is held for N seconds before it is forwarded; a request whose client goes away meanwhile is dropped, and the time it was held is logged). The plugin's kubeconfig for the proxy scenarios is `http://127.0.0.1:18080` with a dummy token. A REAL aggregated API exists on the cluster whenever a group is "hung": namespace `proof-agg`, pod `blackhole` (a Go server that accepts TCP and never answers; image `sdk3k8s-blackhole:1`), a Service, and `APIService v1.hangN.proof.example.com` (`insecureSkipTLSVerify`). startbench waits until the API server itself says `Available=False FailedDiscoveryCheck ... context deadline exceeded` (a first check says `connection refused` while the pod starts; that state is not used).
+- The per-version read of a hung group is held at the proxy (the real aggregator answers a flagged APIService with `503` at once, in 1 to 2 ms, so a read that hangs cannot be had from a real kube-apiserver; this is the one synthetic element, as in the PR 281 review). Everything else is real.
+
+## 2. Leg 2: the start time (BUMP binary)
+
+Time of `StartConnection` as the host sees it (the RPC, CreateClient and OnStart together), a fresh plugin process per run, default settings (`connection_acquisition_timeout_seconds` 60). Scenarios a-d were run with the plugin at its default log level, e-g with `OMNIVIEW_PLUGIN_LOG_LEVEL=debug`. `uptime` before and after every run is in `raw/start/bump/<id>/run-NN.json`.
+
+""" + start_md + """
+
+What the tables say:
+
+- A healthy cluster starts in 13 ms (aggregated, direct) and 14 ms (legacy, 25 per-version reads); a real black-hole APIService costs nothing on aggregated discovery (a1, a5: 12 ms, the aggregator answers `/apis` at once with the group marked stale) and 0.38 s on legacy discovery when nothing is held (c0: the real aggregator answers the group's read with 503 in 1 to 2 ms and the plugin retries it twice).
+- One hung group version costs one bound: **5.013 s** (c: 5.012 to 5.017, the plugin's client dropped the held read after 5.00 s). **Five hung groups at once cost the same 5.013 s** (d: five held reads, all dropped after 5.00 s). `StartConnection` returned CONNECTED every time; the plugin logs `native discovery partial ... failed_groups=1 groups=hang1.proof.example.com/v1` (Warn).
+- A slow index shortens the bound exactly as the plugin says (half of what is left of the 60 s, at most 5 s): index 20 s -> start 25.03 s (bound 5.00 s); index 40 s -> 45.02 s (5.00 s); index 55 s -> 57.52 s (bound 2.49 to 2.50 s); index 57 s -> 58.52 s (1.50 s); index 59 s -> 59.52 s (0.50 s). All CONNECTED, none an error. The bound is not logged by the plugin; it is the time the proxy held the read before the plugin's client dropped it (column "dropped by the plugin after").
+- **The edge beyond the bound** (f61: index delayed 61 s): the start fails with `TIMEOUT` after **60.002 to 60.004 s** ("Connecting did not finish within 60 seconds; the plugin's connection timeout setting can raise this limit."); the plugin's client dropped the held `/apis` read after 59.99 s. **A built-in group version that hangs** (h60: `/apis/apps/v1` held 120 s, everything else healthy): the same `TIMEOUT` after **60.001 to 60.002 s**, no catalog, no heal (the plugin logs `connection start failed error_code=TIMEOUT` and `native connection start failed ... duration_ms=60000 outcome=canceled error_class=deadline_exceeded`). Only an extension group's read has the short bound; the index and the built-in groups fail the start at the SDK's 60 s.
+- Heal (g): StartConnection did not wait for the heal. The first heal attempt's first request reached the proxy **30.001 to 30.006 s after StartConnection returned**; one attempt costs **5.01 to 5.05 s** (one bound: the held read is dropped after 5.000 to 5.002 s; 26 requests on legacy discovery); the second attempt came 95.02 to 95.07 s after the start returned, i.e. 60 s after the first attempt ended (the schedule 30 s, then 1 min, ...). The plugin logs a Warn `native discovery partial` on every attempt and, at debug level, `native catalog refresh finished ... duration_ms=5029..5066`.
+- The start never exceeded the SDK's 60 s bound with the plugin's own discovery in play: the longest successful start was 59.523 s (f59); the four runs that failed returned `TIMEOUT` at 60.001 to 60.004 s, i.e. the SDK's bound (60 s) plus 1 to 4 ms.
+
+## 3. Leg 3: log proof
+
+Every case ran twice per build (a client that does not ask, and one that asks with `omniview.log.replay-markers=1`), one session at a time, on live pods and on pods whose logs do not move. The cases (`logproof` `cases()`): rate5 (tail 1000, 0, 5000, finite), twoc (two containers), quiet, quiet3 (tail 1000, 0, 5000, finite), initc (init container source), crash (current, previous), waiting (the main container has not started), bigtail (10 KB lines: tail 1000 = 10 MB, tail 0, tail 5000), fixed6k and done (logs that have stopped growing: deterministic), partial, byte limits (rate5 4000 B and 64 KiB, bigtail 1 MiB), since_seconds (rate5 30 s, with and without tail), and the Deployment `web` (2 replicas x 2 containers, resource key `k8s:apps/deployments`, tail 1000, 0, 5000).
+
+Per build:
+
+| build | sessions | asking sessions | of them with reply `ReplayMarkers=true` | lines flagged replay (all sessions) | caught-up events (all sessions) | order violations | unknown proto bytes | flagged + events in NO-ASK sessions | per-source verdicts of the accepted sessions |
+|---|---|---|---|---|---|---|---|---|---|
+""" + stat_rows + """
+
+- BASE (SDK v0.20.0) and BUMP (SDK v0.22.0, no `ReplayCount`): asking is accepted by nobody (`ReplayMarkers=false` in every reply), no line is flagged, no event comes: the frames are the ones of a session that did not ask (compare table 2 below).
+- HEAD: every source that opened got exactly one caught-up event, flagged lines equal `kubectl logs --tail=N` of the same container (count and first/last line number inside the range that the two kubectl reads, taken just before and just after the session, allow), no line after its source's event is flagged, no unflagged line comes before it, in all sessions that asked. The per-source table follows. Notes on its rows: (1) the four `*-finite` cases (follow=false) name their one source `pod/` (the finite canonical read leaves the container to the API server), so the tool cannot find the container's kubectl window and prints "source not in kubectl's list"; their facts are right: lines == flagged == kubectl's tail, one event at the end of the stream. Counted twice (one unexpected source `pod/`, one expected `pod/container` that delivered no frame under that name), they and `waiting/main` are the 9 per-source verdicts that are not `ok` in the per-build table above. (2) `waiting/main` never opened (kubectl: `waiting to start: PodInitializing`): 5 `Reconnecting` events and one `StreamError`, no flag, no caught-up event for it, exactly as BASE; the init container of the same pod got its event (0 lines). The plugin logged `failed to count log replay` (ERROR) with `native log operation failed` (WARN) on each of the 6 attempts. (3) the byte-limit rows: the stream ends at the limit and every delivered line, the fragment the limit cut included, is flagged (rate5 limit 4000: 31 lines delivered, 31 flagged, 1 event; bigtail 1 MiB: 105 and 105; rate5 64 KiB: 497 and 497), as the lead's brief expected. (4) the Deployment: one event per source (4 sources), `app` flagged == min(tail, lines) (1000 / 6199 / 5000), `side` 200 == min(tail, 200).
+
+""" + head_table + """
+
+### Frame comparisons (`compare.sh`, `bin/logdiff`; the session id is the only thing normalised)
+
+| comparison | cases | identical | not identical |
+|---|---|---|---|
+""" + agg_rows + """
+
+- **No-ask frames are identical between BASE and HEAD for every deterministic source** (13 cases: quiet, quiet3 x4, done x3, fixed6k x4, partial; reply included; frames in order, with their kubelet timestamps, labels, content SHA-256 and a SHA-256 of the frame's protobuf bytes), and identical for BASE and BUMP, and for BUMP and HEAD. For the live pods, the lines both runs hold (matched by the number the workload wrote) are identical in all cases whose windows overlap. The not-identical rows of the live-pod tables are not plugin differences: (a) no overlap: a live pod moved between the two recordings (BASE and HEAD ran at the same time, BUMP five minutes later, hence BASE-vs-BUMP has the most rows); (b) the three byte-limit cases: the last line of a limited read is a fragment cut at a byte offset, which is a different place when the window has moved (e.g. `content_len 33 != 100`). Nothing else differs; no frame of a no-ask session carries a replay flag or a caught-up event on any build.
+- Asking an older plugin (BASE, BUMP): frames identical to not asking (the create reply differs only by the echoed parameter, left out of that comparison); HEAD asking against HEAD not asking, with the markers stripped: same lines in the same order (so the flag and the event add, remove and reorder nothing).
+- `raw/logproof/compare.txt` has every row with its first difference.
+
+""" + "\n" + """## 4. Leg 4: time to first line
+
+20 opens per leg per case, legs interleaved in a rotating order (base-noask, head-noask, head-ask; then head-noask, head-ask, base-noask; ...), one plugin process per build, default plugin log level, `uptime` at the start and end of every case (and per iteration in `raw/ttfl/main/ttfl-*.json`). Machine load average 15 to 22 during this run (shared).
+
+""" + ttfl + """
+
+`ORPHAN FRAMES` are frames of already closed sessions that arrive after the close (the harness closes a session as soon as it has what it waits for); equal on both builds (1438, 1433): not a plugin effect.
+
+### The cost of the count
+
+Client alone (client-go `GetLogs`, follow=false, timestamps, same tail; no plugin; 20 reads each; the machine was shared, load average about 15):
+
+```
+""" + "\n".join(l for l in countbench.split("\n") if not l.startswith("uptime")) + """
+```
+
+Inside the plugin (HEAD, debug line `native log replay counted`: lines, bytes, duration of the count, from the log proof run, where HEAD and BASE ran at the same time on a loaded machine):
+
+""" + countcost + """
+
+Reading: the count costs one more read of the tail: about +16 ms for the host's default (rate5, 1000 lines of 100 bytes: first line 22.0 ms against 5.9 ms), +72 ms for the 10 MB tail (bigtail tail 1000: 87.8 ms against 15.1 ms, 10,047,000 bytes read by the count), and +260 ms for the whole 35 MB current log of bigtail with no tail (267.9 ms against 8.3 ms; count 146 to 383 ms). The first caught-up event follows the first line by the time it takes to deliver the replay (37 ms, 161 ms, 572 ms).
+
+## 5. Item 5: what could invalidate the proof, checked
+
+(`checks.sh`, raw output `raw/checks.txt`.)
+
+- **follow=false against follow=true, same options (tailLines, timestamps=true)**: the kubelet returns the same bytes, in every case on a log that does not move: fixed6k tail 1000, 0, 5000, done, quiet3 tail 5000, partial. The count of a follow=false read is the number of lines the follow=true stream delivers first.
+- **limitBytes cutting a line**: follow=false and follow=true both stop at exactly limitBytes bytes, in the middle of a line (fixed6k limit 4000: 4000 bytes = 29 complete lines + 1 fragment; bigtail limit 1 MiB: 104 + 1), and the two reads are byte-equal. The SDK's reader delivers the fragment as a line; HEAD counted it (rate5 limit 4000: 31 lines counted and flagged) and the caught-up event came.
+- **An incomplete (unterminated) last record**: containerd holds a write without a line feed back (the `partial` pod: 10 lines and a fragment; `kubectl logs` with and without `-f` return the 10 lines, 600 bytes, and never the fragment), so on kind neither read ever sees an unterminated record: the count (10) equals the lines delivered (10). The path where the kubelet itself ends a read in the middle of a record is not reachable here.
+- **No tail**: with `tail_lines=0` the stream delivers the whole current log file and so does the count (HEAD does not clamp it as the finite read does: rate5 12,749 counted, 12,749 flagged). The cost grows with the log (see leg 4).
+- **A moving log between the count and the open**: on live pods the flagged count equals the kubectl window, never more (the stream window moves forward by the few lines written in between; their number is still the counted one).
+- **kubelet log rotation**: the cluster was configured so that nothing rotates (`containerLogMaxSize 100Mi`; the default rotates a 15 MB log within 10 s and `kubectl logs` then serves only the new file). The rotation-between-count-and-open case of the SDK README was NOT run.
+- **previous of a crash-looping container** returned, when `checks.sh` ran, a 115-byte body with no line feed (the kubelet's text for a previous instance it no longer has) for both follow modes: a count of 0 lines against a stream that delivers that text once. During the log proof (17:15) `previous` returned the 40 real lines on every build and HEAD flagged 40 with one event.
+
+## 6. What was NOT run
+
+- A rotation of the kubelet's log between the count and the open (cluster configured not to rotate).
+- A count over its 5 s bound (HEAD's `native log replay not counted within its bound`): no read on this cluster is slow enough; the largest count took 0.4 s (35 MB).
+- Windows/Linux, EKS/GKE, the host itself: the harness is the host's client code path, not the host.
+- Pods with more than 20 sources, a deployment fan-out beyond the 2x2 `web` leg, a pod that restarts during a session (reopen: count again), `UpdateSessionOptions` (source disable/enable).
+- A rotation-free cluster only: see the first bullet. (The edge beyond 60 s and a hung built-in group WERE run: f61 and h60 above.)
+- The BASE and BUMP binaries were not run through the start-time scenarios (only BUMP was, as briefed); HEAD was not run through them either (its start path is BUMP's).
+
+## 7. Things that surprised me
+
+- The machine is shared and was busy (load average 5 to 34): millisecond numbers move by tens of percent between minutes; interleaving (leg 4) and the bounded-wait nature of leg 2 (seconds) are what to trust. The log-proof session timings (not a benchmark) were taken with HEAD and BASE running at the same time.
+- Aggregated discovery (what every current kube-apiserver answers) makes the whole hung-group question moot on a real cluster: 12 ms with five black-hole APIServices (a5). The bound matters for legacy discovery only, and a hung per-version read cannot be had from a real aggregator (it answers 503 at once after its availability check flagged the backend), only at a proxy.
+- `rate5` with tail 0 and the 35 MB `bigtail` with tail 0 show the cost that matters for HEAD: the count reads the whole log before the source opens (first line +260 ms on 35 MB; it would be the 5 s bound on a log of about 10 MB/s x 5 s = 50 MB at this link speed, then `replayUnknown`).
+- Each heal attempt logs a Warn (`native discovery partial`); the `waiting` pod makes HEAD log 12 lines (6 WARN, 6 ERROR) over the 31 s of reconnects.
+"""
+open(os.path.join(OUT, "RESULTS.md"), "w").write(doc)
+print("RESULTS.md", len(doc), "bytes")

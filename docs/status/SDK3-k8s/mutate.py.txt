@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+"""Negative controls for the replay count: each mutant changes the production code in one way,
+and the tests named for it must go red. Run from the plugin worktree root."""
+import os, re, subprocess, sys, shutil, json
+
+ROOT = os.getcwd()
+PKG = "pkg/plugin/logs"
+ENV = dict(os.environ, GOWORK="off", GOTOOLCHAIN="local")
+
+def sub(path, old, new, count=1):
+    def apply(src):
+        if old not in src:
+            raise SystemExit(f"mutant anchor not found in {path}: {old[:60]!r}")
+        return src.replace(old, new, count)
+    return (path, apply)
+
+MUTANTS = {
+ "M1 reads the whole body into memory": [("replay.go", None, "readall")],
+ "M2 applies the finite read's clamps (5000 lines, 1 MiB)": [sub(f"{PKG}/replay.go",
+     "\topts.Follow = false\n",
+     "\topts.Follow = false\n\tif opts.TailLines == nil || *opts.TailLines > 5000 {\n\t\tt := int64(5000)\n\t\topts.TailLines = &t\n\t}\n\tif opts.LimitBytes == nil || *opts.LimitBytes > 1<<20 {\n\t\tl := int64(1 << 20)\n\t\topts.LimitBytes = &l\n\t}\n")],
+ "M3 a count not had in time is 0": [sub(f"{PKG}/replay.go", "return replayUnknown, nil", "return 0, nil")],
+ "M4 a count not had in time is an error": [sub(f"{PKG}/replay.go", "return replayUnknown, nil", "return 0, context.DeadlineExceeded")],
+ "M5 no bound on the count": [sub(f"{PKG}/replay.go", "context.WithTimeout(ctx.Context, bound)", "context.WithTimeout(ctx.Context, 24*time.Hour)")],
+ "M6 a record with no line feed is counted": [sub(f"{PKG}/replay.go", "\tlines := found.lines\n", "\tlines := found.lines\n\tif found.endsOpen {\n\t\tlines++\n\t}\n")],
+ "M7 the fragment cut by the byte limit is not counted": [sub(f"{PKG}/replay.go", "return req.IncludePrevious || (found.cut && found.completes)", "return req.IncludePrevious")],
+ "M8 the count asks without timestamps": [sub(f"{PKG}/replay.go", "\topts.Follow = false\n", "\topts.Follow = false\n\topts.Timestamps = false\n")],
+ "M9 a refused count is 0": [sub(f"{PKG}/replay.go", "\t\tif err != nil {\n\t\t\tdiag.EndSpan(span, err, false)\n\t\t\treturn 0, safeLogError(baseCtx, log, \"replay_count\", err)\n\t\t}", "\t\tif err != nil {\n\t\t\tdiag.EndSpan(span, err, false)\n\t\t\treturn 0, nil\n\t\t}")],
+ "M10 the Pod handler does not declare the count": [sub(f"{PKG}/register.go", "\t\t\tReplayCount:   nativeReplayCountWith(borrow, bound, shared),\n", "")],
+ "M11 the count ignores the previous instance": [sub(f"{PKG}/replay.go", "\topts.Follow = false\n", "\topts.Follow = false\n\topts.Previous = false\n")],
+ "M12 a caller that gave up is unknown": [sub(f"{PKG}/replay.go", "ctx.Context.Err() == nil && errors.Is(counting.Err(), context.DeadlineExceeded)", "counting.Err() != nil")],
+ "M13 the count follows": [sub(f"{PKG}/replay.go", "\topts.Follow = false\n", "\topts.Follow = true\n")],
+ "M14 the count reads the wrong container": [sub(f"{PKG}/replay.go", "\topts := podLogOptions(req, target.container)\n", "\topts := podLogOptions(req, \"\")\n")],
+ "M15 the count ignores the tail": [sub(f"{PKG}/replay.go", "\topts.Follow = false\n", "\topts.Follow = false\n\topts.TailLines = nil\n")],
+ "M16 the count ignores the byte limit": [sub(f"{PKG}/replay.go", "\topts.Follow = false\n", "\topts.Follow = false\n\topts.LimitBytes = nil\n")],
+ "M18 a previous instance's last record with no line feed is not counted": [sub(f"{PKG}/replay.go", "return req.IncludePrevious || (found.cut && found.completes)", "return found.cut && found.completes")],
+ "M19 every last record with no line feed is counted, previous or not": [sub(f"{PKG}/replay.go", "return req.IncludePrevious || (found.cut && found.completes)", "return true")],
+ "M20 the stream does not take the instant the count resolved": [sub(f"{PKG}/replay.go", "if cutoff, ok := o.cutoffs.Load(ctx); ok {", "if cutoff, ok := o.cutoffs.Load(ctx); ok && false {")],
+ "M21 a limit that cuts a record that is not whole is counted": [sub(f"{PKG}/replay.go", "return req.IncludePrevious || (found.cut && found.completes)", "return req.IncludePrevious || found.cut")],
+ "M23 the count does not resolve the window": [sub(f"{PKG}/replay.go", "if o == nil || ctx == nil || req.SinceSeconds <= 0 || req.SinceTime != nil {\n\t\treturn req\n\t}\n\tcutoff := o.now()", "if true {\n\t\treturn req\n\t}\n\tcutoff := o.now()")],
+ "M24 the count does not apply the byte limit itself": [sub(f"{PKG}/replay.go", "within = int(min(int64(n), limit-inside))", "within = n")],
+ "M25 a count not had in time is 0 (marks the source caught up at the open)": [sub(f"{PKG}/replay.go", "return replayUnknown, nil", "return 0, nil")],
+ "M17 the stream's options are not shared (a finite read's clamp leaks into the follow)": [sub(f"{PKG}/handler.go", "\tlogOpts := podLogOptions(req, target.container)\n\tif !req.Follow {", "\tlogOpts := podLogOptions(req, target.container)\n\tif true {")],
+}
+
+READALL = '''func countLines(r io.Reader, limit int64) (lineCount, error) {
+	all, err := io.ReadAll(r)
+	if err != nil {
+		return lineCount{}, err
+	}
+	return lineCount{lines: int64(bytes.Count(all, lineFeed)), bytes: int64(len(all)), endsOpen: len(all) > 0 && all[len(all)-1] != '\\n'}, nil
+}
+'''
+
+def run(timeout):
+    p = subprocess.run(["go", "test", "-count=1", f"-timeout={timeout}s", "./" + PKG + "/"], env=ENV, cwd=ROOT,
+                       capture_output=True, text=True)
+    out = p.stdout + p.stderr
+    failed = sorted(set(re.findall(r"^--- FAIL: (\S+)", out, re.M)))
+    timedout = "panic: test timed out" in out
+    return p.returncode, failed, timedout, out
+
+def main():
+    selected = sys.argv[1:]
+    results = {}
+    inconclusive = []
+    for name, edits in MUTANTS.items():
+        if selected and not any(name.startswith(s) for s in selected):
+            continue
+        backups = {}
+        try:
+            for edit in edits:
+                path = edit[0] if edit[1] is not None else f"{PKG}/{edit[0]}"
+                full = os.path.join(ROOT, path)
+                if path not in backups:
+                    backups[path] = open(full).read()
+                src = open(full).read()
+                if edit[1] is None:  # the read-all mutant replaces countLines whole
+                    start = src.index("func countLines(r io.Reader, limit int64)")
+                    end = src.index("// openings carries, from the count of an opening")
+                    src = src[:start] + READALL + "\n" + src[end:]
+                else:
+                    src = edit[1](src)
+                open(full, "w").write(src)
+            timeout = 40 if name.startswith("M5") else 180
+            rc, failed, timedout, out = run(timeout)
+            if rc == 0:
+                status = "SURVIVED"
+            elif not failed and not timedout:
+                status = "INCONCLUSIVE (go test failed with no failing test: a build or toolchain error?)"
+                inconclusive.append(name)
+                print(out[-2000:])
+            elif timedout:
+                status = "KILLED (test binary timed out: " + ", ".join(failed) + ")" if failed else "KILLED (test binary timed out)"
+            else:
+                status = "KILLED"
+            results[name] = {"status": status, "failed": failed}
+            print(f"{name}: {status}")
+            for f in failed:
+                print(f"    {f}")
+            sys.stdout.flush()
+        finally:
+            for path, src in backups.items():
+                open(os.path.join(ROOT, path), "w").write(src)
+    json.dump(results, open("/tmp/sdk3-evidence/mutation-results.json", "w"), indent=1)
+    if inconclusive:
+        sys.exit("inconclusive mutants (not counted as killed): " + ", ".join(inconclusive))
+
+main()

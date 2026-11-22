@@ -1,0 +1,40 @@
+// Command blackhole is the backend of an aggregated API that hangs: it accepts a TCP
+// connection and never answers. The kube-apiserver's TLS handshake to it never completes,
+// so its availability check gives up after about 5 s (FailedDiscoveryCheck), and every
+// connection it opened stays open until the client closes it.
+package main
+
+import (
+	"flag"
+	"fmt"
+	"io"
+	"log"
+	"net"
+	"sync/atomic"
+	"time"
+)
+
+func main() {
+	addr := flag.String("addr", ":10250", "listen address")
+	flag.Parse()
+	l, err := net.Listen("tcp", *addr)
+	if err != nil {
+		log.Fatal(err)
+	}
+	var open atomic.Int64
+	fmt.Printf("blackhole listening on %s\n", l.Addr())
+	for {
+		c, err := l.Accept()
+		if err != nil {
+			log.Fatal(err)
+		}
+		n := open.Add(1)
+		started := time.Now()
+		fmt.Printf("%s accepted %s (open=%d)\n", started.Format(time.RFC3339Nano), c.RemoteAddr(), n)
+		go func() {
+			defer c.Close()
+			_, _ = io.Copy(io.Discard, c) // read, never write
+			fmt.Printf("%s closed by peer after %v (open=%d)\n", time.Now().Format(time.RFC3339Nano), time.Since(started).Round(time.Millisecond), open.Add(-1))
+		}()
+	}
+}

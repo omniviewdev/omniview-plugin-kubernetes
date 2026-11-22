@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Item 5: the cheap checks that could invalidate the proof. The kubelet's answer for follow=false against
+# follow=true for the same options (tailLines, timestamps=true, limitBytes), read with the client alone.
+# countbench -compare-follow reads the follow=true stream until it has as many bytes as the follow=false read
+# and says whether they are the same bytes. Static pods (fixed6k, done, partial, quiet3, bigtail's first
+# 1500 lines are static too but the pod goes on writing 1 line/s: the tail of bigtail moves) are exact.
+set -uo pipefail
+OUT=$(cd "$(dirname "$0")" && pwd)
+export KUBECONFIG="$OUT/kubeconfig"
+CB="$OUT/bin/countbench"
+run() { echo; echo "\$ countbench $*"; "$CB" -kubeconfig "$OUT/kubeconfig" "$@" 2>&1 | grep -v '^uptime'; }
+echo "# kubelet: follow=false vs follow=true, same options ($(date))"
+run -pod fixed6k -tail 1000 -n 3
+run -pod fixed6k -tail 0 -n 3
+run -pod fixed6k -tail 5000 -n 3
+run -pod fixed6k -tail 1000 -limit-bytes 4000 -n 3
+run -pod fixed6k -tail 1000 -limit-bytes 1048576 -n 3
+run -pod done -tail 1000 -n 3
+run -pod done -tail 0 -n 3
+run -pod quiet3 -tail 5000 -n 3
+run -pod partial -tail 1000 -n 3
+run -pod crash -tail 1000 -previous -n 3
+run -pod bigtail -tail 1000 -limit-bytes 1048576 -n 3
+echo
+echo "# kubelet's log file of bigtail (one file, no rotation: containerLogMaxSize 100Mi)"
+docker exec sdk3k8s-proof-control-plane sh -c 'ls -la /var/log/pods/proof_bigtail*/bigtail/'

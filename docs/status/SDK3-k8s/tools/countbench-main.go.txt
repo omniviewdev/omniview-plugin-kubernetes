@@ -1,0 +1,172 @@
+// Command countbench times the read a replay count makes (a follow=false pod log read with a tail and
+// optionally a byte limit, timestamps on, read to its end and its newline-terminated lines counted),
+// with the client alone: no plugin involved. It also compares that read with the follow=true read the
+// plugin's stream makes for the same options: the same lines, in the same order, or not.
+//
+//	countbench -kubeconfig K -pod rate5 -tail 1000 -n 20
+//	countbench -kubeconfig K -pod bigtail -tail 1000 -limit-bytes 1048576 -n 20
+package main
+
+import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"flag"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"sort"
+	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
+)
+
+func main() {
+	kubeconfig := flag.String("kubeconfig", "", "kubeconfig")
+	ns := flag.String("namespace", "proof", "namespace")
+	pod := flag.String("pod", "", "pod")
+	container := flag.String("container", "", "container (default: the pod's only/first)")
+	tail := flag.Int64("tail", 1000, "tailLines; 0 sends none (the whole current log)")
+	limit := flag.Int64("limit-bytes", 0, "limitBytes; 0 sends none")
+	n := flag.Int("n", 20, "repetitions")
+	previous := flag.Bool("previous", false, "previous instance")
+	compare := flag.Bool("compare-follow", true, "also compare with the follow=true read once")
+	flag.Parse()
+	if *kubeconfig == "" || *pod == "" {
+		flag.Usage()
+		os.Exit(2)
+	}
+	cfg, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+	if err != nil {
+		fatal(err)
+	}
+	cfg.QPS, cfg.Burst = 1000, 1000
+	cs, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		fatal(err)
+	}
+	opts := func(follow bool) *corev1.PodLogOptions {
+		o := &corev1.PodLogOptions{Container: *container, Follow: follow, Previous: *previous, Timestamps: true}
+		if *tail > 0 {
+			t := *tail
+			o.TailLines = &t
+		}
+		if *limit > 0 {
+			l := *limit
+			o.LimitBytes = &l
+		}
+		return o
+	}
+	ctx := context.Background()
+	fmt.Printf("uptime: %s\n", uptime())
+	var total, first []float64
+	var bytesRead, lines int
+	var lastPartial int
+	for range *n {
+		t0 := time.Now()
+		rc, err := cs.CoreV1().Pods(*ns).GetLogs(*pod, opts(false)).Stream(ctx)
+		if err != nil {
+			fatal(err)
+		}
+		buf := make([]byte, 64<<10)
+		var got int
+		var nl int
+		var tfirst time.Duration
+		var lastByte byte
+		for {
+			m, err := rc.Read(buf)
+			if m > 0 {
+				if got == 0 {
+					tfirst = time.Since(t0)
+				}
+				got += m
+				nl += bytes.Count(buf[:m], []byte{'\n'})
+				lastByte = buf[m-1]
+			}
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				fatal(err)
+			}
+		}
+		_ = rc.Close()
+		d := time.Since(t0)
+		total = append(total, float64(d.Microseconds())/1000)
+		first = append(first, float64(tfirst.Microseconds())/1000)
+		bytesRead, lines = got, nl
+		lastPartial = 0
+		if got > 0 && lastByte != '\n' {
+			lastPartial = 1
+		}
+	}
+	st := func(v []float64) string {
+		s := append([]float64(nil), v...)
+		sort.Float64s(s)
+		med := s[len(s)/2]
+		if len(s)%2 == 0 {
+			med = (s[len(s)/2-1] + s[len(s)/2]) / 2
+		}
+		p90 := s[min(max(int(0.9*float64(len(s))+0.999999)-1, 0), len(s)-1)]
+		return fmt.Sprintf("median %.1f  min %.1f  p90 %.1f  max %.1f ms", med, s[0], p90, s[len(s)-1])
+	}
+	fmt.Printf("count read pod=%s tail=%d limitBytes=%d previous=%v follow=false timestamps=true, n=%d\n", *pod, *tail, *limit, *previous, *n)
+	fmt.Printf("  bytes=%d newline-terminated lines=%d last line unterminated=%d\n", bytesRead, lines, lastPartial)
+	fmt.Printf("  time to first byte: %s\n", st(first))
+	fmt.Printf("  time to end:        %s\n", st(total))
+	if !*compare {
+		return
+	}
+	// follow=false vs follow=true: the first `lines` lines of the follow=true read must be the same bytes.
+	rc, err := cs.CoreV1().Pods(*ns).GetLogs(*pod, opts(false)).Stream(ctx)
+	if err != nil {
+		fatal(err)
+	}
+	a, err := io.ReadAll(rc)
+	_ = rc.Close()
+	if err != nil {
+		fatal(err)
+	}
+	fctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+	rf, err := cs.CoreV1().Pods(*ns).GetLogs(*pod, opts(true)).Stream(fctx)
+	if err != nil {
+		fatal(err)
+	}
+	want := len(a)
+	b := make([]byte, 0, want)
+	chunk := make([]byte, 64<<10)
+	for len(b) < want {
+		m, err := rf.Read(chunk)
+		b = append(b, chunk[:m]...)
+		if err != nil {
+			break
+		}
+	}
+	_ = rf.Close()
+	cut := b
+	if len(cut) > want {
+		cut = cut[:want]
+	}
+	sa, sb := sha256.Sum256(a), sha256.Sum256(cut)
+	fmt.Printf("follow=true read of the same options: first %d bytes %s the follow=false read (%d bytes; sha256 %s / %s)\n", want,
+		map[bool]string{true: "EQUAL", false: "DIFFER from"}[bytes.Equal(a, cut)], len(a), hex.EncodeToString(sa[:4]), hex.EncodeToString(sb[:4]))
+	fmt.Printf("  follow=true lines in those bytes: %d; follow=false lines: %d\n", bytes.Count(cut, []byte{'\n'}), bytes.Count(a, []byte{'\n'}))
+}
+
+func uptime() string {
+	out, err := exec.Command("uptime").Output()
+	if err != nil {
+		return err.Error()
+	}
+	return string(bytes.TrimSpace(out))
+}
+
+func fatal(err error) {
+	fmt.Fprintln(os.Stderr, "fatal:", err)
+	os.Exit(1)
+}

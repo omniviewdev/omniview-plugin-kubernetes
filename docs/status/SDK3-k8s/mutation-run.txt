@@ -1,0 +1,113 @@
+M1 reads the whole body into memory: KILLED
+    TestCountLinesHoldsNoLineInMemory
+    TestReplayCountOfAHugeLineAllocatesNothingOfItsSize
+    TestReplayCountOfATailCutByTheByteLimit
+M2 applies the finite read's clamps (5000 lines, 1 MiB): KILLED
+    TestASessionThatAsksIsToldWhereEachContainersReplayEnds
+    TestReplayCountAsksForTheStreamsLinesAndNothingElse
+    TestReplayCountDoesNotStopAtTheFiniteReadsBounds
+    TestReplayCountIsTheNumberOfLinesTheFollowStreamDeliversFirst
+    TestReplayCountOfAHugeLineAllocatesNothingOfItsSize
+M3 a count not had in time is 0: KILLED
+    TestACountThatIsNotHadInTimeLeavesTheSourceUnmarkedAndTheStreamOpen
+    TestReplayCountThatTakesLongerThanItsBoundIsUnknown
+M4 a count not had in time is an error: KILLED
+    TestACountThatIsNotHadInTimeLeavesTheSourceUnmarkedAndTheStreamOpen
+    TestReplayCountThatTakesLongerThanItsBoundIsUnknown
+M5 no bound on the count: KILLED (test binary timed out: TestACountThatIsNotHadInTimeLeavesTheSourceUnmarkedAndTheStreamOpen)
+    TestACountThatIsNotHadInTimeLeavesTheSourceUnmarkedAndTheStreamOpen
+M6 a record with no line feed is counted: KILLED
+    TestReplayCountCountsLineFeeds
+    TestReplayCountDoesNotCountTheRecordTheStreamHoldsBack
+    TestReplayCountOfAByteLimitThatCutsTheRecordAContainerIsStillWriting
+    TestReplayCountOfAPreviousInstanceThatEndsInARecordWithNoLineFeed
+    TestReplayCountOfATailCutByTheByteLimit
+M7 the fragment cut by the byte limit is not counted: KILLED
+    TestReplayCountOfATailCutByTheByteLimit
+M8 the count asks without timestamps: KILLED
+    TestASessionThatAsksIsToldWhereEachContainersReplayEnds
+    TestReplayCountAsksForTheStreamsLinesAndNothingElse
+    TestReplayCountOfATailCutByTheByteLimit
+M9 a refused count is 0: KILLED
+    TestAReplayCountThatFailsFailsTheAttemptAsAFailedOpenDoes
+    TestReplayCountOfAContainerWithNoPreviousInstanceIsAnError
+    TestReplayCountOfARefusalIsAnErrorOfTheClassTheStreamsOpenGets
+    TestReplayCountOfAnErrorNeverCarriesTheKubernetesText
+    TestReplayCountResolvesTheContainerThroughTheStreamsRules
+    TestReplayCountThatIsCancelledIsAnErrorNotUnknown
+M10 the Pod handler does not declare the count: KILLED
+    TestACountThatIsNotHadInTimeLeavesTheSourceUnmarkedAndTheStreamOpen
+    TestACountedLogThatRotatesBeforeTheOpenLosesNoLine
+    TestAReplayCountThatFailsFailsTheAttemptAsAFailedOpenDoes
+    TestASessionThatAsksIsToldWhereEachContainersReplayEnds
+    TestASessionThatDoesNotAskGetsTheStreamItAlwaysGot
+    TestAWorkloadSessionCountsEachSourceItsResolverGives
+    TestHandlerDeclaresReplayCountBesideTheStream
+M11 the count ignores the previous instance: KILLED
+    TestReplayCountAsksForTheStreamsLinesAndNothingElse
+    TestReplayCountOfAContainerWithNoPreviousInstanceIsAnError
+    TestReplayCountOfAPreviousInstanceThatEndsInARecordWithNoLineFeed
+    TestReplayCountOfThePreviousInstance
+M12 a caller that gave up is unknown: KILLED
+    TestReplayCountThatIsCancelledIsAnErrorNotUnknown
+M13 the count follows: KILLED
+    TestACountThatIsNotHadInTimeLeavesTheSourceUnmarkedAndTheStreamOpen
+    TestAReplayCountThatFailsFailsTheAttemptAsAFailedOpenDoes
+    TestASessionThatAsksIsToldWhereEachContainersReplayEnds
+    TestAWorkloadSessionCountsEachSourceItsResolverGives
+    TestReplayCountAsksForTheStreamsLinesAndNothingElse
+    TestReplayCountDoesNotCountTheRecordTheStreamHoldsBack
+    TestReplayCountDoesNotStopAtTheFiniteReadsBounds
+    TestReplayCountIsLoggedAndTraced
+    TestReplayCountIsTheNumberOfLinesTheFollowStreamDeliversFirst
+    TestReplayCountOfAByteLimitThatCutsTheRecordAContainerIsStillWriting
+    TestReplayCountOfACanonicalReferenceReadsOnlyTheLog
+    TestReplayCountOfATailCutByTheByteLimit
+    TestReplayCountOfFewerLinesThanTheTailAndOfNone
+    TestReplayCountRunsAtTheSameTimeForDifferentSources
+    TestTheWindowOfSinceSecondsStartsAtTheSameInstantForTheCountAndTheStream
+M14 the count reads the wrong container: KILLED
+    TestACountThatIsNotHadInTimeLeavesTheSourceUnmarkedAndTheStreamOpen
+    TestACountedLogThatRotatesBeforeTheOpenLosesNoLine
+    TestAReplayCountThatFailsFailsTheAttemptAsAFailedOpenDoes
+    TestASessionThatAsksIsToldWhereEachContainersReplayEnds
+    TestASessionThatDoesNotAskGetsTheStreamItAlwaysGot
+    TestAWorkloadSessionCountsEachSourceItsResolverGives
+    TestReplayCountAsksForTheStreamsLinesAndNothingElse
+    TestReplayCountOfACanonicalReferenceReadsOnlyTheLog
+    TestReplayCountOfThePreviousInstance
+    TestReplayCountRunsAtTheSameTimeForDifferentSources
+    TestTheWindowOfSinceSecondsStartsAtTheSameInstantForTheCountAndTheStream
+M15 the count ignores the tail: KILLED
+    TestASessionThatAsksIsToldWhereEachContainersReplayEnds
+    TestAWorkloadSessionCountsEachSourceItsResolverGives
+    TestReplayCountAsksForTheStreamsLinesAndNothingElse
+    TestReplayCountIsTheNumberOfLinesTheFollowStreamDeliversFirst
+M16 the count ignores the byte limit: KILLED
+    TestReplayCountAsksForTheStreamsLinesAndNothingElse
+    TestReplayCountOfATailCutByTheByteLimit
+M18 a previous instance's last record with no line feed is not counted: KILLED
+    TestReplayCountOfAPreviousInstanceThatEndsInARecordWithNoLineFeed
+M19 every last record with no line feed is counted, previous or not: KILLED
+    TestReplayCountCountsLineFeeds
+    TestReplayCountDoesNotCountTheRecordTheStreamHoldsBack
+    TestReplayCountOfAByteLimitThatCutsTheRecordAContainerIsStillWriting
+M20 the stream does not take the instant the count resolved: KILLED
+    TestReplayCountAsksForTheStreamsLinesAndNothingElse
+    TestTheWindowOfSinceSecondsStartsAtTheSameInstantForTheCountAndTheStream
+M21 a limit that cuts a record that is not whole is counted: KILLED
+    TestReplayCountOfAByteLimitThatCutsTheRecordAContainerIsStillWriting
+M23 the count does not resolve the window: KILLED
+    TestReplayCountAsksForTheStreamsLinesAndNothingElse
+    TestTheWindowOfSinceSecondsStartsAtTheSameInstantForTheCountAndTheStream
+M24 the count does not apply the byte limit itself: KILLED
+    TestReplayCountOfATailCutByTheByteLimit
+M25 a count not had in time is 0 (marks the source caught up at the open): KILLED
+    TestACountThatIsNotHadInTimeLeavesTheSourceUnmarkedAndTheStreamOpen
+    TestReplayCountThatTakesLongerThanItsBoundIsUnknown
+M17 the stream's options are not shared (a finite read's clamp leaks into the follow): KILLED
+    TestNativeFollowLeaseCloseAndCancel
+    TestReplayCountAsksForTheStreamsLinesAndNothingElse
+    TestReplayCountDoesNotStopAtTheFiniteReadsBounds
+    TestReplayCountIsTheNumberOfLinesTheFollowStreamDeliversFirst
+mutation-exit=0

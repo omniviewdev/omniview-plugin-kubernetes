@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# HEAD2 leg: logproof of head2 (ask and no-ask) on the byte-limit, since and plain cases, and of base (no-ask) on the
+# 13 deterministic cases, at the same time (two plugin processes, one cluster); recordings in raw/logproof2/<label>/.
+set -uo pipefail
+OUT=$(cd "$(dirname "$0")" && pwd)
+export GOWORK=off GOTOOLCHAIN=local KUBECONFIG="$OUT/kubeconfig"
+YAML="$OUT/tools-src/plugin.yaml"
+DET13="quiet-t1000,quiet3-t1000,quiet3-t0,quiet3-t5000,quiet3-finite,done-t1000,done-t0,done-finite,fixed6k-t1000,fixed6k-t0,fixed6k-t5000,fixed6k-finite,partial-t1000"
+ASKED="rate5-since30,rate5-since30-t50,rate5-limit4000,rate5-limit64k,bigtail-limit1m,rate5-t1000,twoc-t1000,initc-t1000,crash-previous,web-t1000"
+mkdir -p "$OUT/raw/logproof2"
+rm -rf "$OUT/raw/logproof2/head2" "$OUT/raw/logproof2/base"
+{ echo "# uptime at start: $(uptime)"; "$OUT/bin/logproof" -plugin "$OUT/bin/head2-plugin" -label head2 -kubeconfig "$OUT/kubeconfig" -plugin-yaml "$YAML" -out "$OUT/raw/logproof2" -cases "$ASKED,$DET13" -modes noask,ask; echo "# uptime at end: $(uptime)"; } > "$OUT/raw/logproof2/head2-stdout.txt" 2> "$OUT/raw/logproof2/head2-stderr.txt" &
+{ echo "# uptime at start: $(uptime)"; "$OUT/bin/logproof" -plugin "$OUT/bin/base-plugin" -label base -kubeconfig "$OUT/kubeconfig" -plugin-yaml "$YAML" -out "$OUT/raw/logproof2" -cases "$DET13" -modes noask; echo "# uptime at end: $(uptime)"; } > "$OUT/raw/logproof2/base-stdout.txt" 2> "$OUT/raw/logproof2/base-stderr.txt" &
+wait
+echo "done $(date)"

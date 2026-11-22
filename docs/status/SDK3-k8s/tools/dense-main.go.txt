@@ -1,0 +1,313 @@
+// Command dense opens log sessions that ask for replay markers on a pod that writes about 500 lines a
+// second, with a relative window (since_seconds, no tail), through several plugin builds in turn
+// (leg A, leg B, leg A, ...), and compares the replay flag with the clock:
+//
+//	F  the number of lines the plugin flagged as replay
+//	R  the number of lines delivered before the first line whose kubelet stamp is later than the time the
+//	   session was created (the lines the source held when the session was created, as the stream delivered them)
+//	F-R, and FL = the flagged lines stamped after the create time
+//
+// A plugin that counts the window from the arrival of its count request and opens the stream with a window
+// counted from the arrival of the stream's request (the old behaviour) flags the lines written while it
+// counted; one that resolves the window once and uses it for both flags the lines written until the count's
+// request only.
+//
+// The create time is the harness clock; the lines are stamped by the node's clock (containerd, in the kind
+// node's VM). The skew between the two is measured twice (docker exec date, bracketed by the host clock;
+// and the smallest arrival-minus-stamp of the live lines, which is the skew plus the delay of the fastest
+// line) and reported; R and FL use the first (they move by 500 lines per second of skew).
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/omniviewdev/plugin-sdk/pkg/types"
+
+	"github.com/omniview/kubernetes/hack/zz-proof/harness"
+)
+
+type list []string
+
+func (l *list) String() string     { return strings.Join(*l, ",") }
+func (l *list) Set(v string) error { *l = append(*l, v); return nil }
+
+type proc struct {
+	name string
+	p    *harness.Plugin
+	ls   *harness.LogStream
+	conn types.Connection
+	pod  harness.PodRecord
+}
+
+// Sample is one session.
+type Sample struct {
+	Leg         string  `json:"leg"`
+	Iteration   int     `json:"iteration"`
+	Uptime      string  `json:"uptime"`
+	Markers     bool    `json:"reply_replay_markers"`
+	Lines       int     `json:"lines"`
+	Flagged     int     `json:"F_flagged"`
+	BeforeLate  int     `json:"R_lines_before_first_line_later_than_create"`
+	Drift       int     `json:"F_minus_R"`
+	FlaggedLate int     `json:"FL_flagged_lines_later_than_create"`
+	LastFlagMS  float64 `json:"last_flagged_ms_after_create"`
+	FirstUnflMS float64 `json:"first_unflagged_ms_after_create"`
+	CaughtUp    int     `json:"caught_up_events"`
+	FlagAfterUn int     `json:"flagged_after_unflagged"`
+	CountLines  int     `json:"plugin_count_lines"`
+	CountEndMS  float64 `json:"plugin_count_end_ms_after_create"`
+	FlagAfterCt int     `json:"FC_flagged_lines_later_than_the_count"`
+	CountMS     int     `json:"plugin_count_ms"`
+	MinArrMS    float64 `json:"min_arrival_minus_stamp_ms"`
+	Record      string  `json:"record"`
+	Err         string  `json:"error,omitempty"`
+}
+
+var countRE = regexp.MustCompile(`native log replay counted.* lines=(\d+) bytes=\d+ duration_ms=(\d+)`)
+var countAtRE = regexp.MustCompile(`native log replay counted: timestamp=(\S+)`)
+
+func main() {
+	var procs list
+	flag.Var(&procs, "proc", "name=binary (repeatable; the legs are taken in this order, rotated every iteration)")
+	kubeconfig := flag.String("kubeconfig", "", "kubeconfig of the kind cluster")
+	ctxName := flag.String("context", "kind-sdk3k8s-proof", "context (= connection) name")
+	yaml := flag.String("plugin-yaml", "plugin.yaml", "plugin.yaml")
+	out := flag.String("out", "", "output directory")
+	ns := flag.String("namespace", "proof", "namespace")
+	pod := flag.String("pod", "dense", "pod")
+	since := flag.Int64("since", 10, "since_seconds of the session (no tail)")
+	n := flag.Int("n", 8, "iterations")
+	node := flag.String("node", "sdk3k8s-proof-control-plane", "docker container of the kind node (clock skew)")
+	settle := flag.Duration("settle", 1500*time.Millisecond, "how long a session goes on after its caught-up event")
+	level := flag.String("plugin-log-level", "debug", "OMNIVIEW_PLUGIN_LOG_LEVEL")
+	flag.Parse()
+	if *kubeconfig == "" || *out == "" || len(procs) == 0 {
+		flag.Usage()
+		os.Exit(2)
+	}
+	if err := os.MkdirAll(*out, 0o755); err != nil {
+		fatal(err)
+	}
+	ctx := context.Background()
+	var legs []*proc
+	for _, s := range procs {
+		name, bin, ok := strings.Cut(s, "=")
+		if !ok {
+			fatal(fmt.Errorf("bad -proc %q", s))
+		}
+		pr := &proc{name: name}
+		p, err := harness.Launch(harness.LaunchOptions{Name: name, Binary: bin, PluginYAML: *yaml, Kubeconfig: *kubeconfig,
+			Dir: filepath.Join(*out, fmt.Sprintf("proc-%s-%d", name, time.Now().Unix())), LogLevel: *level})
+		if err != nil {
+			fatal(err)
+		}
+		defer p.Close()
+		pr.p = p
+		conn, _, err := p.Connect(ctx, *ctxName)
+		if err != nil {
+			fatal(err)
+		}
+		st, err := p.Resource.StartConnection(harness.Ctx(ctx), conn.ID)
+		if err != nil {
+			fatal(fmt.Errorf("%s: StartConnection: %w", name, err))
+		}
+		if st.Connection != nil {
+			conn = *st.Connection
+		}
+		pr.conn = conn
+		pr.ls, err = p.OpenLogStream(ctx)
+		if err != nil {
+			fatal(err)
+		}
+		defer pr.ls.Close()
+		pods, err := p.Pods(ctx, conn, *ns)
+		if err != nil {
+			fatal(err)
+		}
+		rec, ok := pods[*pod]
+		if !ok {
+			fatal(fmt.Errorf("no pod %s/%s", *ns, *pod))
+		}
+		pr.pod = rec
+		legs = append(legs, pr)
+	}
+
+	skew, rtt := measureSkew(*node)
+	fmt.Printf("node clock minus harness clock, from `docker exec %s date` bracketed by the host clock: %.1f ms (best round trip %.1f ms: the estimate is good to about half of it)\n",
+		*node, float64(skew.Microseconds())/1000, float64(rtt.Microseconds())/1000)
+
+	var samples []Sample
+	for it := 1; it <= *n; it++ {
+		for j := range legs {
+			l := legs[(it-1+j)%len(legs)]
+			spec := harness.HostSpec(*ns, *pod)
+			spec.TailLines = 0
+			spec.SinceSeconds = *since
+			spec.Ask = true
+			smp := Sample{Leg: l.name, Iteration: it, Uptime: harness.Stamp()}
+			s := l.p.OpenSession(ctx, l.ls, l.conn, l.pod, spec)
+			if s.Err != nil {
+				smp.Err = s.Err.Error()
+				samples = append(samples, smp)
+				continue
+			}
+			smp.Markers = s.Reply != nil && s.Reply.ReplayMarkers
+			ok := s.Wait(30*time.Second, func(f []harness.FrameRecord) bool {
+				for _, r := range f {
+					if r.Kind == "event" && r.Type == harness.EventTypeCaughtUp {
+						return true
+					}
+				}
+				return false
+			})
+			if !ok {
+				smp.Err = "no caught-up event in 30 s"
+			}
+			time.Sleep(*settle)
+			recs := s.Records()
+			tc := s.T0.Add(skew)
+			var countEnd time.Time // host clock
+			for _, line := range l.p.StderrLines() {
+				if !strings.Contains(line, s.ID) {
+					continue
+				}
+				if m := countRE.FindStringSubmatch(line); m != nil {
+					smp.CountLines, _ = strconv.Atoi(m[1])
+					smp.CountMS, _ = strconv.Atoi(m[2])
+				}
+				if m := countAtRE.FindStringSubmatch(line); m != nil {
+					if t, err := time.Parse(time.RFC3339Nano, m[1]); err == nil {
+						countEnd = t
+						smp.CountEndMS = float64(t.Sub(s.T0).Microseconds()) / 1000
+					}
+				}
+			}
+			ce := time.Time{}
+			if !countEnd.IsZero() {
+				ce = countEnd.Add(skew) // the node's clock
+			}
+			facts := harness.Analyze(recs)
+			late := harness.Late(recs, tc, ce)
+			src := *pod + "/" + *pod
+			if lf := late[src]; lf != nil {
+				smp.Lines, smp.Flagged, smp.BeforeLate, smp.FlaggedLate = lf.Lines, lf.Flagged, lf.BeforeLate, lf.FlaggedLate
+				smp.Drift = lf.Flagged - lf.BeforeLate
+				smp.LastFlagMS, smp.FirstUnflMS, smp.FlagAfterUn = lf.LastFlaggedAfterMS, lf.FirstUnflaggedAfterMS, lf.FlaggedAfterUnflagged
+				smp.FlagAfterCt = lf.FlaggedAfterCount
+			}
+			if sf, ok := facts.SourceByName(src); ok {
+				smp.CaughtUp = sf.CaughtUp
+			}
+			if d, ok := harness.MinArrivalMinusStamp(recs, s.T0); ok {
+				smp.MinArrMS = float64(d.Microseconds()) / 1000
+			}
+			file := filepath.Join(*out, fmt.Sprintf("%s-%02d.jsonl.gz", l.name, it))
+			_ = harness.WriteRecords(file, recs)
+			smp.Record = file
+			_ = s.Close(ctx)
+			samples = append(samples, smp)
+			time.Sleep(300 * time.Millisecond)
+		}
+	}
+	data, _ := json.MarshalIndent(map[string]any{"skew_ms": float64(skew.Microseconds()) / 1000, "rtt_ms": float64(rtt.Microseconds()) / 1000, "samples": samples}, "", " ")
+	_ = os.WriteFile(filepath.Join(*out, "dense.json"), data, 0o644)
+
+	fmt.Printf("\n| leg | iteration | F flagged | R lines before the first line later than the create time | F-R | FL flagged lines later than the create time | last flagged, ms after create | first unflagged, ms after create | caught-up events | plugin's count (lines, ms; ends ms after create) | FC flagged lines stamped after the count finished | min arrival-stamp ms |\n|---|---|---|---|---|---|---|---|---|---|---|---|\n")
+	for _, s := range samples {
+		if s.Err != "" {
+			fmt.Printf("| %s | %d | error: %s | | | | | | | | | |\n", s.Leg, s.Iteration, s.Err)
+			continue
+		}
+		fmt.Printf("| %s | %d | %d | %d | %d | %d | %.1f | %.1f | %d | %d, %d ms, ends %.1f | %d | %.1f |\n", s.Leg, s.Iteration, s.Flagged, s.BeforeLate, s.Drift, s.FlaggedLate,
+			s.LastFlagMS, s.FirstUnflMS, s.CaughtUp, s.CountLines, s.CountMS, s.CountEndMS, s.FlagAfterCt, s.MinArrMS)
+	}
+	fmt.Printf("\n| leg | n | F-R median (min..max) | FL median (min..max) | F median | R median | plugin count ms median (min..max) | FC median (min..max) | last flagged ms after create, median | flagged after an unflagged line |\n|---|---|---|---|---|---|---|---|---|---|\n")
+	for _, l := range legs {
+		var drift, fl, f, r, cm, lf, fc []float64
+		bad := 0
+		for _, s := range samples {
+			if s.Leg != l.name || s.Err != "" {
+				continue
+			}
+			drift = append(drift, float64(s.Drift))
+			fl = append(fl, float64(s.FlaggedLate))
+			f = append(f, float64(s.Flagged))
+			r = append(r, float64(s.BeforeLate))
+			cm = append(cm, float64(s.CountMS))
+			lf = append(lf, s.LastFlagMS)
+			fc = append(fc, float64(s.FlagAfterCt))
+			bad += s.FlagAfterUn
+		}
+		fmt.Printf("| %s | %d | %s | %s | %.0f | %.0f | %s | %s | %.1f | %d |\n", l.name, len(drift), span(drift), span(fl), med(f), med(r), span(cm), span(fc), med(lf), bad)
+	}
+	var arr []float64
+	for _, s := range samples {
+		if s.MinArrMS != 0 {
+			arr = append(arr, s.MinArrMS)
+		}
+	}
+	if len(arr) > 0 {
+		sort.Float64s(arr)
+		fmt.Printf("\nsmallest arrival-minus-stamp over every live line of every session: %.1f ms (= delay of the fastest line + node clock skew; the docker-exec skew above is what R and FL used)\n", arr[0])
+	}
+}
+
+func span(v []float64) string {
+	if len(v) == 0 {
+		return "-"
+	}
+	s := append([]float64(nil), v...)
+	sort.Float64s(s)
+	return fmt.Sprintf("%.0f (%.0f..%.0f)", med(s), s[0], s[len(s)-1])
+}
+
+func med(v []float64) float64 {
+	if len(v) == 0 {
+		return 0
+	}
+	s := append([]float64(nil), v...)
+	sort.Float64s(s)
+	if len(s)%2 == 1 {
+		return s[len(s)/2]
+	}
+	return (s[len(s)/2-1] + s[len(s)/2]) / 2
+}
+
+// measureSkew returns node clock minus harness clock, from the sample with the smallest round trip.
+func measureSkew(container string) (skew, rtt time.Duration) {
+	best := time.Duration(1<<62 - 1)
+	for range 15 {
+		t0 := time.Now()
+		o, err := exec.Command("docker", "exec", container, "date", "+%s%N").Output()
+		t1 := time.Now()
+		if err != nil {
+			continue
+		}
+		ns, err := strconv.ParseInt(strings.TrimSpace(string(o)), 10, 64)
+		if err != nil {
+			continue
+		}
+		if r := t1.Sub(t0); r < best {
+			best = r
+			mid := t0.Add(r / 2)
+			skew = time.Unix(0, ns).Sub(mid)
+		}
+	}
+	return skew, best
+}
+
+func fatal(err error) {
+	fmt.Fprintln(os.Stderr, "fatal:", err)
+	os.Exit(1)
+}

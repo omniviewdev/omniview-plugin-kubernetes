@@ -1,0 +1,272 @@
+package harness
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net"
+	"net/http"
+	"net/http/httputil"
+	"net/url"
+	"os"
+	"path/filepath"
+	"sort"
+	"sync"
+	"time"
+
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+)
+
+// Proxy sits between the plugin and the kube-apiserver of the kind cluster. It forwards every request
+// (with the client certificate of the cluster's kubeconfig, which the plugin never sees) and has two
+// toggles:
+//
+//   - Legacy: the Accept header of GET /api and GET /apis is rewritten to application/json, so that the
+//     server answers the legacy discovery lists, and the plugin reads every group version with a request
+//     of its own, as it does on a server without aggregated discovery.
+//   - Holds: a request for an exact path is held for a given time before it is forwarded; a request whose
+//     client goes away meanwhile (the plugin's own timeout) is dropped and the time it was held recorded.
+//
+// Every request is logged twice, when it arrives and when it ends, with the harness clock.
+type Proxy struct {
+	URL      string // http://127.0.0.1:<port>
+	Port     int
+	Legacy   bool
+	upstream *url.URL
+	server   *http.Server
+	listener net.Listener
+
+	mu    sync.Mutex
+	holds map[string]time.Duration
+	log   []ProxyEvent
+	next  int64
+}
+
+// ProxyEvent is one line of the proxy's log.
+type ProxyEvent struct {
+	ID       int64         `json:"id"`
+	Phase    string        `json:"phase"` // "recv" or "done"
+	At       time.Time     `json:"at"`
+	Method   string        `json:"method"`
+	Path     string        `json:"path"`
+	Accept   string        `json:"accept,omitempty"`
+	Rewrote  bool          `json:"rewrote_accept,omitempty"`
+	HoldFor  time.Duration `json:"hold_for,omitempty"`
+	Held     time.Duration `json:"held,omitempty"`     // how long it was actually held
+	Dropped  bool          `json:"dropped,omitempty"`  // the client went away while it was held
+	Status   int           `json:"status,omitempty"`   // upstream status, "done" only
+	Duration time.Duration `json:"duration,omitempty"` // arrival to end, "done" only
+	Err      string        `json:"err,omitempty"`
+}
+
+// StartProxy listens on 127.0.0.1:port (0 picks a free port) in front of the cluster of kubeconfig.
+func StartProxy(upstreamKubeconfig string, port int, legacy bool) (*Proxy, error) {
+	cfg, err := clientcmd.BuildConfigFromFlags("", upstreamKubeconfig)
+	if err != nil {
+		return nil, err
+	}
+	transport, err := rest.TransportFor(cfg)
+	if err != nil {
+		return nil, err
+	}
+	upstream, err := url.Parse(cfg.Host)
+	if err != nil {
+		return nil, err
+	}
+	l, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		return nil, err
+	}
+	p := &Proxy{Legacy: legacy, upstream: upstream, listener: l, holds: map[string]time.Duration{}}
+	p.Port = l.Addr().(*net.TCPAddr).Port
+	p.URL = fmt.Sprintf("http://127.0.0.1:%d", p.Port)
+	rp := &httputil.ReverseProxy{
+		Rewrite: func(r *httputil.ProxyRequest) {
+			r.SetURL(upstream)
+			r.Out.Header.Del("Authorization")
+			if legacy && r.In.Method == http.MethodGet && (r.In.URL.Path == "/api" || r.In.URL.Path == "/apis") {
+				r.Out.Header.Set("Accept", "application/json")
+			}
+		},
+		Transport:     transport,
+		FlushInterval: -1,
+	}
+	p.server = &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p.serve(rp, w, r)
+	})}
+	go func() { _ = p.server.Serve(l) }()
+	return p, nil
+}
+
+// Hold makes the proxy hold every request for path (exact match) for d before forwarding it; d = 0 clears it.
+func (p *Proxy) Hold(path string, d time.Duration) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if d <= 0 {
+		delete(p.holds, path)
+		return
+	}
+	p.holds[path] = d
+}
+
+// ClearHolds removes every hold.
+func (p *Proxy) ClearHolds() {
+	p.mu.Lock()
+	p.holds = map[string]time.Duration{}
+	p.mu.Unlock()
+}
+
+// Holds returns the current holds, sorted by path.
+func (p *Proxy) Holds() map[string]time.Duration {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	out := make(map[string]time.Duration, len(p.holds))
+	for k, v := range p.holds {
+		out[k] = v
+	}
+	return out
+}
+
+// Events returns a copy of the log.
+func (p *Proxy) Events() []ProxyEvent {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]ProxyEvent(nil), p.log...)
+}
+
+// Mark returns the length of the log, for EventsSince.
+func (p *Proxy) Mark() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return len(p.log)
+}
+
+// EventsSince returns the events logged after mark.
+func (p *Proxy) EventsSince(mark int) []ProxyEvent {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if mark > len(p.log) {
+		mark = len(p.log)
+	}
+	return append([]ProxyEvent(nil), p.log[mark:]...)
+}
+
+func (p *Proxy) record(e ProxyEvent) {
+	p.mu.Lock()
+	p.log = append(p.log, e)
+	p.mu.Unlock()
+}
+
+func (p *Proxy) serve(rp *httputil.ReverseProxy, w http.ResponseWriter, r *http.Request) {
+	p.mu.Lock()
+	p.next++
+	id := p.next
+	hold := p.holds[r.URL.Path]
+	p.mu.Unlock()
+	arrived := time.Now()
+	rewrote := p.Legacy && r.Method == http.MethodGet && (r.URL.Path == "/api" || r.URL.Path == "/apis")
+	p.record(ProxyEvent{ID: id, Phase: "recv", At: arrived, Method: r.Method, Path: r.URL.Path, Accept: r.Header.Get("Accept"), Rewrote: rewrote, HoldFor: hold})
+	done := ProxyEvent{ID: id, Phase: "done", Method: r.Method, Path: r.URL.Path, HoldFor: hold, Rewrote: rewrote}
+	if hold > 0 {
+		t := time.NewTimer(hold)
+		select {
+		case <-t.C:
+		case <-r.Context().Done():
+			t.Stop()
+			done.At = time.Now()
+			done.Held = done.At.Sub(arrived)
+			done.Dropped = true
+			done.Duration = done.Held
+			p.record(done)
+			return
+		}
+		done.Held = time.Since(arrived)
+	}
+	sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
+	rp.ServeHTTP(sw, r)
+	done.At = time.Now()
+	done.Duration = done.At.Sub(arrived)
+	done.Status = sw.status
+	p.record(done)
+}
+
+type statusWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (s *statusWriter) WriteHeader(code int) {
+	s.status = code
+	s.ResponseWriter.WriteHeader(code)
+}
+
+func (s *statusWriter) Flush() {
+	if f, ok := s.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+// Close stops the proxy.
+func (p *Proxy) Close() {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_ = p.server.Shutdown(ctx)
+	_ = p.server.Close()
+}
+
+// WriteKubeconfig writes a kubeconfig with one context named context that points at the proxy.
+func (p *Proxy) WriteKubeconfig(path, context string) error {
+	return os.WriteFile(path, []byte(fmt.Sprintf(`apiVersion: v1
+kind: Config
+clusters:
+- name: %[1]s
+  cluster: {server: %[2]s}
+users:
+- name: %[1]s
+  user: {token: unused}
+contexts:
+- name: %[1]s
+  context: {cluster: %[1]s, user: %[1]s}
+current-context: %[1]s
+`, context, p.URL)), 0o600)
+}
+
+// WriteEvents writes the log as JSON lines.
+func (p *Proxy) WriteEvents(path string, events []ProxyEvent) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	enc := json.NewEncoder(f)
+	for _, e := range events {
+		if err := enc.Encode(e); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Summarize counts requests by path in the events (a request is counted at its "recv").
+func Summarize(events []ProxyEvent) []string {
+	counts := map[string]int{}
+	for _, e := range events {
+		if e.Phase == "recv" {
+			counts[e.Method+" "+e.Path]++
+		}
+	}
+	keys := make([]string, 0, len(counts))
+	for k := range counts {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	out := make([]string, 0, len(keys))
+	for _, k := range keys {
+		out = append(out, fmt.Sprintf("%s x%d", k, counts[k]))
+	}
+	return out
+}

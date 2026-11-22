@@ -1,0 +1,18 @@
+# crash2: 40 lines, then 20 s alive, then exit 1 (restartPolicy Always): while its 2nd instance runs, `previous` is
+# the 1st instance, whose log the kubelet still holds (crash exits after 1 s: its previous is gone by the time anyone asks).
+apiVersion: v1
+kind: Pod
+metadata: {name: crash2, namespace: proof, labels: {proof: "true"}}
+spec:
+  restartPolicy: Always
+  containers:
+  - name: crash2
+    image: busybox:1.37.0
+    imagePullPolicy: IfNotPresent
+    command: ["sh", "-c"]
+    args:
+    - |
+      i=1
+      while [ $i -le 40 ]; do printf 'crash2 %06d crashing line\n' $i; i=$((i+1)); done
+      sleep 20
+      exit 1

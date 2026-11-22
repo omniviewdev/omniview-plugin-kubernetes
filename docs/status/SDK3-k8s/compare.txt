@@ -1,0 +1,257 @@
+## Frame comparisons (2026-11-22 17:22:43)
+
+# 1. A client that does not ask: do the builds send the same frames?
+
+### no-ask, deterministic sources, in order, reply included: base vs bump
+
+A = base/noask, B = bump/noask, logdiff flags: (none)
+
+| case | verdict |
+|---|---|
+| quiet-t1000 | IDENTICAL: 3 frames compared (in order) |
+| quiet3-t1000 | IDENTICAL: 6 frames compared (in order) |
+| quiet3-t0 | IDENTICAL: 6 frames compared (in order) |
+| quiet3-t5000 | IDENTICAL: 6 frames compared (in order) |
+| quiet3-finite | IDENTICAL: 7 frames compared (in order) |
+| done-t1000 | IDENTICAL: 54 frames compared (in order) |
+| done-t0 | IDENTICAL: 54 frames compared (in order) |
+| done-finite | IDENTICAL: 54 frames compared (in order) |
+| fixed6k-t1000 | IDENTICAL: 1003 frames compared (in order) |
+| fixed6k-t0 | IDENTICAL: 6003 frames compared (in order) |
+| fixed6k-t5000 | IDENTICAL: 5003 frames compared (in order) |
+| fixed6k-finite | IDENTICAL: 1004 frames compared (in order) |
+| partial-t1000 | IDENTICAL: 13 frames compared (in order) |
+
+### no-ask, deterministic sources, in order, reply included: base vs head
+
+A = base/noask, B = head/noask, logdiff flags: (none)
+
+| case | verdict |
+|---|---|
+| quiet-t1000 | IDENTICAL: 3 frames compared (in order) |
+| quiet3-t1000 | IDENTICAL: 6 frames compared (in order) |
+| quiet3-t0 | IDENTICAL: 6 frames compared (in order) |
+| quiet3-t5000 | IDENTICAL: 6 frames compared (in order) |
+| quiet3-finite | IDENTICAL: 7 frames compared (in order) |
+| done-t1000 | IDENTICAL: 54 frames compared (in order) |
+| done-t0 | IDENTICAL: 54 frames compared (in order) |
+| done-finite | IDENTICAL: 54 frames compared (in order) |
+| fixed6k-t1000 | IDENTICAL: 1003 frames compared (in order) |
+| fixed6k-t0 | IDENTICAL: 6003 frames compared (in order) |
+| fixed6k-t5000 | IDENTICAL: 5003 frames compared (in order) |
+| fixed6k-finite | IDENTICAL: 1004 frames compared (in order) |
+| partial-t1000 | IDENTICAL: 13 frames compared (in order) |
+
+### no-ask, deterministic sources, in order, reply included: bump vs head
+
+A = bump/noask, B = head/noask, logdiff flags: (none)
+
+| case | verdict |
+|---|---|
+| quiet-t1000 | IDENTICAL: 3 frames compared (in order) |
+| quiet3-t1000 | IDENTICAL: 6 frames compared (in order) |
+| quiet3-t0 | IDENTICAL: 6 frames compared (in order) |
+| quiet3-t5000 | IDENTICAL: 6 frames compared (in order) |
+| quiet3-finite | IDENTICAL: 7 frames compared (in order) |
+| done-t1000 | IDENTICAL: 54 frames compared (in order) |
+| done-t0 | IDENTICAL: 54 frames compared (in order) |
+| done-finite | IDENTICAL: 54 frames compared (in order) |
+| fixed6k-t1000 | IDENTICAL: 1003 frames compared (in order) |
+| fixed6k-t0 | IDENTICAL: 6003 frames compared (in order) |
+| fixed6k-t5000 | IDENTICAL: 5003 frames compared (in order) |
+| fixed6k-finite | IDENTICAL: 1004 frames compared (in order) |
+| partial-t1000 | IDENTICAL: 13 frames compared (in order) |
+
+### no-ask, live pods, the lines both runs hold (matched by number), field by field: base vs bump
+
+A = base/noask, B = bump/noask, logdiff flags: -overlap
+
+| case | verdict |
+|---|---|
+| rate5-t1000 | NOT IDENTICAL: 1 differences in 0 frames compared (overlap by line number); first difference: source "rate5/rate5": the number ranges do not overlap (A [11698 12709], B [12958 13969]) |
+| rate5-t0 | IDENTICAL: 12742 frames compared (overlap by line number) |
+| rate5-t5000 | IDENTICAL: 3755 frames compared (overlap by line number) |
+| rate5-finite | NOT IDENTICAL: 1 differences in 0 frames compared (overlap by line number); first difference: source "rate5/": the number ranges do not overlap (A [11799 12798], B [13055 14054]) |
+| rate5-limit4000 | NOT IDENTICAL: 12821 differences in 0 frames compared (overlap by line number); first difference: source "rate5/rate5" line #14 is in only one recording (A false, B true) |
+| rate5-limit64k | NOT IDENTICAL: 1 differences in 0 frames compared (overlap by line number); first difference: source "rate5/rate5": the number ranges do not overlap (A [12684 13180], B [13969 14465]) |
+| rate5-since30 | NOT IDENTICAL: 1 differences in 0 frames compared (overlap by line number); first difference: source "rate5/rate5": the number ranges do not overlap (A [13595 13756], B [14883 15043]) |
+| rate5-since30-t50 | NOT IDENTICAL: 1 differences in 0 frames compared (overlap by line number); first difference: source "rate5/rate5": the number ranges do not overlap (A [13724 13785], B [15015 15076]) |
+| twoc-t1000 | NOT IDENTICAL: 1 differences in 750 frames compared (overlap by line number); first difference: source "twoc/a": the number ranges do not overlap (A [8807 9818], B [10062 11074]) |
+| twoc-t0 | IDENTICAL: 11731 frames compared (overlap by line number) |
+| twoc-t5000 | IDENTICAL: 5646 frames compared (overlap by line number) |
+| web-t1000 | NOT IDENTICAL: 2 differences in 400 frames compared (overlap by line number); first difference: source "web-8c455f76f-97lmf/app": the number ranges do not overlap (A [5131 6142], B [6424 7435]) |
+| web-t0 | IDENTICAL: 12755 frames compared (overlap by line number) |
+| web-t5000 | IDENTICAL: 7816 frames compared (overlap by line number) |
+| initc-t1000 | NOT IDENTICAL: 1 differences in 50 frames compared (overlap by line number); first difference: source "initc/main": the number ranges do not overlap (A [6026 7037], B [7275 8287]) |
+| bigtail-t1000 | IDENTICAL: 751 frames compared (overlap by line number) |
+| bigtail-t0 | IDENTICAL: 3004 frames compared (overlap by line number) |
+| bigtail-t5000 | IDENTICAL: 3010 frames compared (overlap by line number) |
+| bigtail-limit1m | NOT IDENTICAL: 1 differences in 0 frames compared (overlap by line number); first difference: source "bigtail/bigtail": the number ranges do not overlap (A [2054 2158], B [2312 2416]) |
+
+### no-ask, live pods, the lines both runs hold (matched by number), field by field: base vs head
+
+A = base/noask, B = head/noask, logdiff flags: -overlap
+
+| case | verdict |
+|---|---|
+| rate5-t1000 | IDENTICAL: 1012 frames compared (overlap by line number) |
+| rate5-t0 | IDENTICAL: 12742 frames compared (overlap by line number) |
+| rate5-t5000 | IDENTICAL: 5011 frames compared (overlap by line number) |
+| rate5-finite | IDENTICAL: 999 frames compared (overlap by line number) |
+| rate5-limit4000 | NOT IDENTICAL: 12804 differences in 20 frames compared (overlap by line number); first difference: source "rate5/rate5" line #12: timestamp: 2026-11-22T23:14:25.30482484Z != 2026-11-22T23:14:27.522959799Z; wire: 6af850009a721502abb8c61056934f0ee4c5313c3ab68c68a9ad6f62a0876a4b != b087f976662c1c847daea40746b2fd9fb16e61c70ab4ce43cf0f595ab51ae933 |
+| rate5-limit64k | NOT IDENTICAL: 1 differences in 486 frames compared (overlap by line number); first difference: source "rate5/rate5" line #13180: content: rate5 013180 xxxxxxxxxxxxxxxxxxxx != rate5 013180 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx; content_len: 33 != 100; content_sha256: db8ed79f4e6e23eb7c0c10e195124ee83974d6e1598c05c3ab5039e6ac13a392 != a9f08bbe39 |
+| rate5-since30 | IDENTICAL: 151 frames compared (overlap by line number) |
+| rate5-since30-t50 | IDENTICAL: 51 frames compared (overlap by line number) |
+| twoc-t1000 | IDENTICAL: 2013 frames compared (overlap by line number) |
+| twoc-t0 | IDENTICAL: 11731 frames compared (overlap by line number) |
+| twoc-t5000 | IDENTICAL: 6895 frames compared (overlap by line number) |
+| web-t1000 | IDENTICAL: 2402 frames compared (overlap by line number) |
+| web-t0 | IDENTICAL: 12755 frames compared (overlap by line number) |
+| web-t5000 | IDENTICAL: 10398 frames compared (overlap by line number) |
+| initc-t1000 | IDENTICAL: 1056 frames compared (overlap by line number) |
+| bigtail-t1000 | IDENTICAL: 1001 frames compared (overlap by line number) |
+| bigtail-t0 | IDENTICAL: 3004 frames compared (overlap by line number) |
+| bigtail-t5000 | IDENTICAL: 3010 frames compared (overlap by line number) |
+| bigtail-limit1m | NOT IDENTICAL: 1 differences in 103 frames compared (overlap by line number); first difference: source "bigtail/bigtail" line #2158: content_len: 3657 != 10015; content_sha256: e03abe6ef1df6f3f19c4392d37a42eb73608125053361848ceb8434cecbb4dd6 != 52dac225c32e7e4f1c6047272e0f68237e380a00340dda8237ce7c19d6a333e4; wire: 1cadd452b0d94b6fb9db341d1429840881b35cd1f3315a9c89255f0093186633 != 008619a4839 |
+
+# 2. Asking an older plugin (BASE: SDK v0.20.0; BUMP: SDK v0.22.0, no ReplayCount): same frames as not asking
+
+### base: ask vs no-ask, deterministic sources, frames in order (reply left out: it echoes the parameter)
+
+A = base/noask, B = base/ask, logdiff flags: -skip-reply
+
+| case | verdict |
+|---|---|
+| quiet-t1000 | IDENTICAL: 2 frames compared (in order) |
+| quiet3-t1000 | IDENTICAL: 5 frames compared (in order) |
+| quiet3-t0 | IDENTICAL: 5 frames compared (in order) |
+| quiet3-t5000 | IDENTICAL: 5 frames compared (in order) |
+| quiet3-finite | IDENTICAL: 6 frames compared (in order) |
+| done-t1000 | IDENTICAL: 53 frames compared (in order) |
+| done-t0 | IDENTICAL: 53 frames compared (in order) |
+| done-finite | IDENTICAL: 53 frames compared (in order) |
+| fixed6k-t1000 | IDENTICAL: 1002 frames compared (in order) |
+| fixed6k-t0 | IDENTICAL: 6002 frames compared (in order) |
+| fixed6k-t5000 | IDENTICAL: 5002 frames compared (in order) |
+| fixed6k-finite | IDENTICAL: 1003 frames compared (in order) |
+| partial-t1000 | IDENTICAL: 12 frames compared (in order) |
+
+### base: ask vs no-ask, live pods, overlapping lines
+
+A = base/noask, B = base/ask, logdiff flags: -overlap
+
+| case | verdict |
+|---|---|
+| rate5-t1000 | IDENTICAL: 997 frames compared (overlap by line number) |
+| rate5-t0 | IDENTICAL: 12742 frames compared (overlap by line number) |
+| rate5-t5000 | IDENTICAL: 4996 frames compared (overlap by line number) |
+| rate5-finite | IDENTICAL: 998 frames compared (overlap by line number) |
+| rate5-limit4000 | NOT IDENTICAL: 12807 differences in 17 frames compared (overlap by line number); first difference: source "rate5/rate5" line #12: timestamp: 2026-11-22T23:14:25.30482484Z != 2026-11-22T23:14:28.125626133Z; wire: 6af850009a721502abb8c61056934f0ee4c5313c3ab68c68a9ad6f62a0876a4b != 0e23ce12330c51420232ef37482caf6949bdc1436fd201f5cf2e0a1a16c21418 |
+| rate5-limit64k | NOT IDENTICAL: 1 differences in 482 frames compared (overlap by line number); first difference: source "rate5/rate5" line #13180: content: rate5 013180 xxxxxxxxxxxxxxxxxxxx != rate5 013180 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx; content_len: 33 != 100; content_sha256: db8ed79f4e6e23eb7c0c10e195124ee83974d6e1598c05c3ab5039e6ac13a392 != a9f08bbe39 |
+| rate5-since30 | IDENTICAL: 147 frames compared (overlap by line number) |
+| rate5-since30-t50 | IDENTICAL: 46 frames compared (overlap by line number) |
+| twoc-t1000 | IDENTICAL: 1997 frames compared (overlap by line number) |
+| twoc-t0 | IDENTICAL: 11731 frames compared (overlap by line number) |
+| twoc-t5000 | IDENTICAL: 6883 frames compared (overlap by line number) |
+| web-t1000 | IDENTICAL: 2392 frames compared (overlap by line number) |
+| web-t0 | IDENTICAL: 12755 frames compared (overlap by line number) |
+| web-t5000 | IDENTICAL: 10392 frames compared (overlap by line number) |
+| initc-t1000 | IDENTICAL: 1047 frames compared (overlap by line number) |
+| bigtail-t1000 | IDENTICAL: 1000 frames compared (overlap by line number) |
+| bigtail-t0 | IDENTICAL: 3004 frames compared (overlap by line number) |
+| bigtail-t5000 | IDENTICAL: 3010 frames compared (overlap by line number) |
+| bigtail-limit1m | NOT IDENTICAL: 1 differences in 102 frames compared (overlap by line number); first difference: source "bigtail/bigtail" line #2158: content_len: 3657 != 10015; content_sha256: e03abe6ef1df6f3f19c4392d37a42eb73608125053361848ceb8434cecbb4dd6 != 52dac225c32e7e4f1c6047272e0f68237e380a00340dda8237ce7c19d6a333e4; wire: 1cadd452b0d94b6fb9db341d1429840881b35cd1f3315a9c89255f0093186633 != 008619a4839 |
+
+### bump: ask vs no-ask, deterministic sources, frames in order (reply left out: it echoes the parameter)
+
+A = bump/noask, B = bump/ask, logdiff flags: -skip-reply
+
+| case | verdict |
+|---|---|
+| quiet-t1000 | IDENTICAL: 2 frames compared (in order) |
+| quiet3-t1000 | IDENTICAL: 5 frames compared (in order) |
+| quiet3-t0 | IDENTICAL: 5 frames compared (in order) |
+| quiet3-t5000 | IDENTICAL: 5 frames compared (in order) |
+| quiet3-finite | IDENTICAL: 6 frames compared (in order) |
+| done-t1000 | IDENTICAL: 53 frames compared (in order) |
+| done-t0 | IDENTICAL: 53 frames compared (in order) |
+| done-finite | IDENTICAL: 53 frames compared (in order) |
+| fixed6k-t1000 | IDENTICAL: 1002 frames compared (in order) |
+| fixed6k-t0 | IDENTICAL: 6002 frames compared (in order) |
+| fixed6k-t5000 | IDENTICAL: 5002 frames compared (in order) |
+| fixed6k-finite | IDENTICAL: 1003 frames compared (in order) |
+| partial-t1000 | IDENTICAL: 12 frames compared (in order) |
+
+### bump: ask vs no-ask, live pods, overlapping lines
+
+A = bump/noask, B = bump/ask, logdiff flags: -overlap
+
+| case | verdict |
+|---|---|
+| rate5-t1000 | IDENTICAL: 997 frames compared (overlap by line number) |
+| rate5-t0 | IDENTICAL: 14001 frames compared (overlap by line number) |
+| rate5-t5000 | IDENTICAL: 4996 frames compared (overlap by line number) |
+| rate5-finite | IDENTICAL: 997 frames compared (overlap by line number) |
+| rate5-limit4000 | NOT IDENTICAL: 14097 differences in 15 frames compared (overlap by line number); first difference: source "rate5/rate5" line #14: timestamp: 2026-11-22T23:18:44.88184396Z != 2026-11-22T23:18:48.100286503Z; wire: df9198ed6f07bbe67719266562402caf99b12a48a978d6fed759297892f55a82 != c2a3cb69d336e7a3604cb529d88d7868d81145fdde6cfd168799a271c8c7d35f |
+| rate5-limit64k | NOT IDENTICAL: 1 differences in 482 frames compared (overlap by line number); first difference: source "rate5/rate5" line #14465: content: rate5 014465 xxxxxxxxxxxxxxxxxxxx != rate5 014465 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx; content_len: 33 != 100; content_sha256: fb5ff6315257a106072d09a6ba4716564f412eb8250ba66899aaac37a74b3f30 != 3d8c464125 |
+| rate5-since30 | IDENTICAL: 146 frames compared (overlap by line number) |
+| rate5-since30-t50 | IDENTICAL: 47 frames compared (overlap by line number) |
+| twoc-t1000 | IDENTICAL: 1997 frames compared (overlap by line number) |
+| twoc-t0 | IDENTICAL: 13237 frames compared (overlap by line number) |
+| twoc-t5000 | IDENTICAL: 7135 frames compared (overlap by line number) |
+| web-t1000 | IDENTICAL: 2382 frames compared (overlap by line number) |
+| web-t0 | IDENTICAL: 15357 frames compared (overlap by line number) |
+| web-t5000 | IDENTICAL: 10386 frames compared (overlap by line number) |
+| initc-t1000 | IDENTICAL: 1047 frames compared (overlap by line number) |
+| bigtail-t1000 | IDENTICAL: 999 frames compared (overlap by line number) |
+| bigtail-t0 | IDENTICAL: 3257 frames compared (overlap by line number) |
+| bigtail-t5000 | IDENTICAL: 3265 frames compared (overlap by line number) |
+| bigtail-limit1m | NOT IDENTICAL: 1 differences in 101 frames compared (overlap by line number); first difference: source "bigtail/bigtail" line #2416: content_len: 3657 != 10015; content_sha256: 2e0fd264cd566c93e35ee7fd14b6ddcfece3dc2214357ef4152ad7804851ca3e != e2a0b57e1336bc069b8852a2f8b45492c3bd3726d7e7ae7c97d4fb770d86e17b; wire: 0a6be633d396c496f84a1985cadda527fd9c7372d7ae8936f78b0b9d1812ce90 != 25c620b2471 |
+
+# 3. HEAD asking vs HEAD not asking: only the flag and the events may differ
+
+### head: ask vs no-ask, deterministic sources, replay markers stripped (caught-up events dropped, replay flag/wire ignored), in order
+
+A = head/noask, B = head/ask, logdiff flags: -strip-replay
+
+| case | verdict |
+|---|---|
+| quiet-t1000 | IDENTICAL: 3 frames compared (in order, replay markers stripped) |
+| quiet3-t1000 | IDENTICAL: 6 frames compared (in order, replay markers stripped) |
+| quiet3-t0 | IDENTICAL: 6 frames compared (in order, replay markers stripped) |
+| quiet3-t5000 | IDENTICAL: 6 frames compared (in order, replay markers stripped) |
+| quiet3-finite | IDENTICAL: 7 frames compared (in order, replay markers stripped) |
+| done-t1000 | IDENTICAL: 54 frames compared (in order, replay markers stripped) |
+| done-t0 | IDENTICAL: 54 frames compared (in order, replay markers stripped) |
+| done-finite | IDENTICAL: 54 frames compared (in order, replay markers stripped) |
+| fixed6k-t1000 | IDENTICAL: 1003 frames compared (in order, replay markers stripped) |
+| fixed6k-t0 | IDENTICAL: 6003 frames compared (in order, replay markers stripped) |
+| fixed6k-t5000 | IDENTICAL: 5003 frames compared (in order, replay markers stripped) |
+| fixed6k-finite | IDENTICAL: 1004 frames compared (in order, replay markers stripped) |
+| partial-t1000 | IDENTICAL: 13 frames compared (in order, replay markers stripped) |
+
+### head: ask vs no-ask, live pods, replay markers stripped, overlapping lines
+
+A = head/noask, B = head/ask, logdiff flags: -strip-replay -overlap
+
+| case | verdict |
+|---|---|
+| rate5-t1000 | IDENTICAL: 997 frames compared (overlap by line number, replay markers stripped) |
+| rate5-t0 | IDENTICAL: 12742 frames compared (overlap by line number, replay markers stripped) |
+| rate5-t5000 | IDENTICAL: 4996 frames compared (overlap by line number, replay markers stripped) |
+| rate5-finite | IDENTICAL: 997 frames compared (overlap by line number, replay markers stripped) |
+| rate5-limit4000 | NOT IDENTICAL: 12818 differences in 17 frames compared (overlap by line number, replay markers stripped); first difference: source "rate5/rate5" line #12: timestamp: 2026-11-22T23:14:27.522959799Z != 2026-11-22T23:14:30.3395398Z |
+| rate5-limit64k | NOT IDENTICAL: 1 differences in 482 frames compared (overlap by line number, replay markers stripped); first difference: source "rate5/rate5" line #13191: content: rate5 013191 xxxxxxxxxxxxxxxxxxxx != rate5 013191 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx; content_len: 33 != 100; content_sha256: f7229696f0ec89cbb1c4ed6cfc9fa719df78de2879a1c1d4e739072e867fa5ef != 3500eb7942 |
+| rate5-since30 | IDENTICAL: 147 frames compared (overlap by line number, replay markers stripped) |
+| rate5-since30-t50 | IDENTICAL: 47 frames compared (overlap by line number, replay markers stripped) |
+| twoc-t1000 | IDENTICAL: 1996 frames compared (overlap by line number, replay markers stripped) |
+| twoc-t0 | IDENTICAL: 11734 frames compared (overlap by line number, replay markers stripped) |
+| twoc-t5000 | IDENTICAL: 6884 frames compared (overlap by line number, replay markers stripped) |
+| web-t1000 | IDENTICAL: 2392 frames compared (overlap by line number, replay markers stripped) |
+| web-t0 | IDENTICAL: 12785 frames compared (overlap by line number, replay markers stripped) |
+| web-t5000 | IDENTICAL: 10390 frames compared (overlap by line number, replay markers stripped) |
+| initc-t1000 | IDENTICAL: 1046 frames compared (overlap by line number, replay markers stripped) |
+| bigtail-t1000 | IDENTICAL: 1000 frames compared (overlap by line number, replay markers stripped) |
+| bigtail-t0 | IDENTICAL: 3005 frames compared (overlap by line number, replay markers stripped) |
+| bigtail-t5000 | IDENTICAL: 3012 frames compared (overlap by line number, replay markers stripped) |
+| bigtail-limit1m | NOT IDENTICAL: 1 differences in 102 frames compared (overlap by line number, replay markers stripped); first difference: source "bigtail/bigtail" line #2160: content_len: 3657 != 10015; content_sha256: cdf4966d27b20914bab35defddd3c7817c01844d1ea310b63668383d2bc5498d != c7a2498b6a2f2fd4b59d8d992d241bec26ee37f3752d5d51cca602167128a4ee |

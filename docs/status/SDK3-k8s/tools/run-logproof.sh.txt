@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Leg 3 for the builds that are here: logproof on head and base at the same time (two plugin processes,
+# one cluster), then on bump. Usage: ./run-logproof.sh [labels...]  (default: head base, then bump)
+# Exits non-zero when any logproof run failed.
+set -uo pipefail
+OUT=$(cd "$(dirname "$0")" && pwd)
+export GOWORK=off GOTOOLCHAIN=local KUBECONFIG="$OUT/kubeconfig"
+YAML="$OUT/tools-src/plugin.yaml"
+mkdir -p "$OUT/raw/logproof"
+run() {
+  local label=$1 status
+  rm -rf "$OUT/raw/logproof/$label"
+  { echo "# uptime at start: $(uptime)"; "$OUT/bin/logproof" -plugin "$OUT/bin/$label-plugin" -label "$label" -kubeconfig "$OUT/kubeconfig" -plugin-yaml "$YAML" -out "$OUT/raw/logproof"; status=$?; echo "# uptime at end: $(uptime)"; return $status; } \
+    > "$OUT/raw/logproof/$label-stdout.txt" 2> "$OUT/raw/logproof/$label-stderr.txt"
+}
+failed=0
+wait_all() {
+  local pid
+  for pid in "$@"; do wait "$pid" || failed=1; done
+}
+if [ $# -gt 0 ]; then
+  pids=()
+  for l in "$@"; do run "$l" & pids+=($!); done
+  wait_all "${pids[@]}"
+else
+  run head & p1=$!
+  run base & p2=$!
+  wait_all "$p1" "$p2"
+  run bump || failed=1
+fi
+echo "done $(date) failed=$failed"
+exit "$failed"

@@ -10,7 +10,8 @@ require (
 	github.com/aws/smithy-go v1.28.8
 	github.com/fairwindsops/polaris v0.0.0-20261106180842-ff72eb2d3c01
 	github.com/fsnotify/fsnotify v1.10.1
-	github.com/omniviewdev/plugin-sdk v0.20.0
+	github.com/lib/pq v1.12.3
+	github.com/omniviewdev/plugin-sdk v0.22.0
 	github.com/stretchr/testify v1.12.1
 	github.com/tidwall/gjson v1.18.0
 	go.opentelemetry.io/otel v1.47.0
@@ -109,7 +110,6 @@ require (
 	github.com/klauspost/compress v1.20.3 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
-	github.com/lib/pq v1.12.3 // indirect
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
 	github.com/mattn/go-colorable v0.1.16 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
