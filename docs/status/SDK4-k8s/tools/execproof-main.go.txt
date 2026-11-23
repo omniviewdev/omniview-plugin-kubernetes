@@ -1,0 +1,1357 @@
+// Command execproof measures how many bytes of a short command's output the Kubernetes plugin's
+// exec lane loses, through the real plugin binary on a real cluster, driven the way the Omniview
+// host drives it: one long-lived Stream per plugin process, then per session CreateSession,
+// AttachSession at once, and every session's frames arriving on that one Stream.
+//
+// It runs two plugin builds (BEFORE and AFTER; they differ only in the plugin-sdk they pin) at the
+// same time against the same cluster and the same pod, and a control that bypasses the plugin.
+//
+// Payload: the pod runs `sh -c 'head -c 65521 /dev/zero | tr "\0" x; printf ENDMARK-0123456'`, which
+// prints exactly 65,536 bytes (no newline, so no tty translation) and exits at once. What a session
+// delivers is the AttachSession snapshot followed by the Data of the frames with no signal; the Close
+// signal's own text ("Session closed") is not output. Anything but those 65,536 bytes is a loss (fewer
+// bytes) or a leak (more bytes, or other bytes).
+//
+// Legs (-legs picks; the default is m1,m2,m3,m4):
+//
+//	m1  host-like, 200 sequential runs per build, the builds interleaved in blocks (order alternates)
+//	m2  late attach: the first attach comes 1.5 s after the create, after the session has ended
+//	m3  concurrency: 8 workers in parallel per build, host-like, on the one Stream
+//	m4  control: client-go remotecommand with a tty into memory, and kubectl exec without a tty
+//	m5  attach-delay sweep: host-like, the first attach after 0, 10, ... 400 ms (not in the default legs)
+//
+// Every run is one JSON line in <out>/<leg>-<build>.jsonl; the tables are printed and kept in
+// <out>/tables.md. The exit status is non-zero when the harness failed (a plugin did not start, a file
+// could not be written, ...). Measured losses are results, not failures.
+//
+// This is a dev tool (not part of the plugin). It must build in the plugin's module, whose go.mod pins
+// the plugin-sdk release the tool talks with (the client side of the exec RPCs).
+package main
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"math"
+	"os"
+	"os/exec"
+	"os/signal"
+	"path/filepath"
+	"slices"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/hashicorp/go-hclog"
+	goplugin "github.com/hashicorp/go-plugin"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/remotecommand"
+	"k8s.io/streaming/pkg/httpstream"
+
+	"github.com/omniviewdev/plugin-sdk/pkg/config"
+	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
+	resourceplugin "github.com/omniviewdev/plugin-sdk/pkg/resource/v2/plugin"
+	"github.com/omniviewdev/plugin-sdk/pkg/sdk"
+	"github.com/omniviewdev/plugin-sdk/pkg/types"
+	ep "github.com/omniviewdev/plugin-sdk/pkg/v1/exec"
+)
+
+const (
+	pluginID  = "kubernetes"
+	namespace = "proof"
+	podName   = "execproof"
+	container = "main"
+	podType   = "k8s:/pods"
+	marker    = "ENDMARK-0123456"
+	xCount    = 65521 // xCount + len(marker) is 65,536
+	callLimit = time.Minute
+)
+
+var (
+	script   = fmt.Sprintf(`head -c %d /dev/zero | tr '\0' x; printf %s`, xCount, marker)
+	expected = append(bytes.Repeat([]byte{'x'}, xCount), marker...)
+)
+
+// ---------------------------------------------------------------------------------------------
+// Records: one JSON line per run.
+// ---------------------------------------------------------------------------------------------
+
+// runRec is one host-like run (m1, m3, warmup).
+type runRec struct {
+	Build         string   `json:"build"`
+	Leg           string   `json:"leg"`
+	Run           int      `json:"run"`
+	Worker        int      `json:"worker,omitempty"`
+	Session       string   `json:"session"`
+	Start         string   `json:"start"`
+	CreateMs      float64  `json:"create_ms"`
+	AttachMs      float64  `json:"attach_ms"`
+	AttachDelayMs float64  `json:"attach_delay_ms,omitempty"`
+	Snapshot      int      `json:"snapshot_bytes"`
+	Streamed      int      `json:"streamed_bytes"`
+	Total         int      `json:"total_bytes"`
+	Expected      int      `json:"expected_bytes"`
+	Lost          int      `json:"lost_bytes"` // expected - total; negative means extra bytes
+	TailIntact    bool     `json:"tail_intact"`
+	Exact         bool     `json:"exact_match"`
+	FirstDiff     int      `json:"first_diff"` // -1 when exact
+	DiffPreview   string   `json:"diff_preview,omitempty"`
+	Frames        int      `json:"stream_frames"`
+	SeqGaps       int      `json:"seq_gaps"`
+	FirstFrameMs  float64  `json:"create_to_first_frame_ms"` // -1: no streamed frame
+	CloseMs       float64  `json:"create_to_close_ms"`       // -1: no Close signal
+	TimedOut      bool     `json:"timed_out,omitempty"`
+	Errors        []string `json:"errors,omitempty"`
+}
+
+// lateRec is one late-attach run (m2).
+type lateRec struct {
+	Build         string   `json:"build"`
+	Run           int      `json:"run"`
+	Session       string   `json:"session"`
+	CreateMs      float64  `json:"create_ms"`
+	Attach1       string   `json:"attach1"` // "ok" or the gRPC code
+	Attach1Ms     float64  `json:"attach1_ms"`
+	Attach1Bytes  int      `json:"attach1_bytes"`
+	Attach1Exact  bool     `json:"attach1_exact_match"`
+	Attach2       string   `json:"attach2"`
+	Attach2Bytes  int      `json:"attach2_bytes"`
+	CloseSession  string   `json:"close_session"`
+	CloseMs       float64  `json:"create_to_close_ms"` // -1: no Close signal
+	CloseBeforeAt bool     `json:"close_before_attach"`
+	StreamFrames  int      `json:"stream_frames"` // data frames the Stream carried (nobody was attached when the process ended)
+	StreamBytes   int      `json:"stream_bytes"`
+	Errors        []string `json:"errors,omitempty"`
+}
+
+// ctlRec is one control run (m4): no plugin in the path.
+type ctlRec struct {
+	Control     string  `json:"control"` // client-go | kubectl
+	Run         int     `json:"run"`
+	Bytes       int     `json:"bytes"`
+	Lost        int     `json:"lost_bytes"`
+	TailIntact  bool    `json:"tail_intact"`
+	Exact       bool    `json:"exact_match"`
+	FirstDiff   int     `json:"first_diff"`
+	DiffPreview string  `json:"diff_preview,omitempty"`
+	Ms          float64 `json:"ms"`
+	Transport   string  `json:"transport,omitempty"`
+	Error       string  `json:"error,omitempty"`
+}
+
+// score fills the byte accounting of what a session delivered (got) against the payload.
+func score(got []byte) (lost int, tail, exact bool, firstDiff int, preview string) {
+	lost, tail, exact = len(expected)-len(got), bytes.HasSuffix(got, []byte(marker)), bytes.Equal(got, expected)
+	if exact {
+		return lost, tail, exact, -1, ""
+	}
+	firstDiff = min(len(got), len(expected))
+	for i := range firstDiff {
+		if got[i] != expected[i] {
+			firstDiff = i
+			break
+		}
+	}
+	return lost, tail, exact, firstDiff, fmt.Sprintf("%q", got[firstDiff:min(len(got), firstDiff+48)])
+}
+
+func ms(d time.Duration) float64 { return float64(d.Microseconds()) / 1000 }
+
+// code names a failed call by its gRPC code (NotFound, ...), or by its text when it has none.
+func code(err error) string {
+	if err == nil {
+		return "ok"
+	}
+	if s, ok := status.FromError(err); ok && s.Code() != codes.Unknown {
+		return s.Code().String()
+	}
+	return "error: " + err.Error()
+}
+
+// ---------------------------------------------------------------------------------------------
+// The Stream: every session's frames arrive on one channel and are told apart by session id.
+// ---------------------------------------------------------------------------------------------
+
+// capture is what the Stream delivered for one session.
+type capture struct {
+	mu        sync.Mutex
+	data      []byte // Data of the frames with no signal, in arrival order
+	frames    int
+	nextSeq   uint64 // the Seq the next data frame has when none was lost
+	seqGaps   int    // data frames whose Seq did not follow the one before
+	firstAt   time.Time
+	closeAt   time.Time
+	errFrames []string
+	released  bool // the run has taken its numbers: data that comes later only counts as late
+	lateBytes int
+	lateCount int
+	dupClose  int
+	done      chan struct{} // closed by the Close signal
+}
+
+// add records one frame of the session.
+func (c *capture) add(f ep.StreamOutput, now time.Time) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	switch f.Signal {
+	case ep.StreamSignalNone:
+		if c.released || !c.closeAt.IsZero() { // after the Close signal, which is the last thing a session sends
+			c.lateCount++
+			c.lateBytes += len(f.Data)
+			return
+		}
+		if c.frames > 0 && f.Seq != c.nextSeq {
+			c.seqGaps++
+		}
+		c.nextSeq = f.Seq + 1
+		if c.frames == 0 {
+			c.firstAt = now
+		}
+		c.frames++
+		c.data = append(c.data, f.Data...)
+	case ep.StreamSignalClose:
+		if c.closeAt.IsZero() {
+			c.closeAt = now
+			close(c.done)
+		} else {
+			c.dupClose++
+		}
+	case ep.StreamSignalError:
+		msg := "error signal"
+		if f.Error != nil {
+			msg = f.Error.Title + ": " + f.Error.Message
+		}
+		c.errFrames = append(c.errFrames, msg)
+	default:
+	}
+}
+
+// taken is a capture's numbers at the time a run takes them.
+type taken struct {
+	data      []byte
+	frames    int
+	seqGaps   int
+	firstAt   time.Time
+	closeAt   time.Time
+	errFrames []string
+}
+
+// release hands the run what has arrived and keeps the capture only to count what comes later.
+func (c *capture) release() taken {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	t := taken{c.data, c.frames, c.seqGaps, c.firstAt, c.closeAt, slices.Clone(c.errFrames)}
+	c.data, c.released = nil, true
+	return t
+}
+
+// hub reads the one Stream of a plugin process and hands each frame to its session's capture.
+type hub struct {
+	mu       sync.Mutex
+	sessions map[string]*capture
+	orphans  int           // frames of sessions nobody registered
+	dead     chan struct{} // closed when the Stream ended
+}
+
+func newHub(out <-chan ep.StreamOutput) *hub {
+	h := &hub{sessions: map[string]*capture{}, dead: make(chan struct{})}
+	go func() {
+		defer close(h.dead)
+		for f := range out {
+			now := time.Now()
+			h.mu.Lock()
+			c := h.sessions[f.SessionID]
+			if c == nil {
+				h.orphans++
+			}
+			h.mu.Unlock()
+			if c != nil {
+				c.add(f, now)
+			}
+		}
+	}()
+	return h
+}
+
+// register makes the capture of a session before the session is created, so that no frame is missed.
+func (h *hub) register(id string) *capture {
+	c := &capture{done: make(chan struct{})}
+	h.mu.Lock()
+	h.sessions[id] = c
+	h.mu.Unlock()
+	return c
+}
+
+// audit sums what no run saw: frames of unknown sessions, data after the Close signal, repeated Close signals.
+func (h *hub) audit() (orphans, lateFrames, lateBytes, dupClose int) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	orphans = h.orphans
+	for _, c := range h.sessions {
+		c.mu.Lock()
+		lateFrames, lateBytes, dupClose = lateFrames+c.lateCount, lateBytes+c.lateBytes, dupClose+c.dupClose
+		c.mu.Unlock()
+	}
+	return orphans, lateFrames, lateBytes, dupClose
+}
+
+// ---------------------------------------------------------------------------------------------
+// A plugin process, started as the host starts it.
+// ---------------------------------------------------------------------------------------------
+
+type podRecord struct {
+	record   resourcev2.Record
+	revision string // the catalog revision the record was read under
+}
+
+// proc is one running plugin binary and what the host holds of it: the exec provider, the one Stream, the pod.
+type proc struct {
+	label  string
+	client *goplugin.Client
+	res    *resourceplugin.Client
+	exec   ep.Provider
+	conn   types.Connection
+	pod    podRecord
+	hub    *hub
+	in     chan ep.StreamInput
+	stop   context.CancelFunc
+	stderr *os.File
+}
+
+func session(ctx context.Context) context.Context {
+	return resourcev2.WithSession(ctx, resourcev2.Session{RequestID: uuid.NewString(), RequesterID: "execproof"})
+}
+
+// launch starts the plugin binary as the host does (go-plugin, the SDK handshake, AutoMTLS, the broker multiplexed on
+// the process listener) with a throwaway HOME holding the kubeconfig and the plugin.yaml, and opens its one exec Stream.
+func launch(ctx context.Context, label, binary, pluginYAML, kubeconfig, dir, logLevel string) (*proc, error) {
+	binary, err := filepath.Abs(binary)
+	if err != nil {
+		return nil, err
+	}
+	// The SDK refuses a state directory that is not absolute and symlink-free.
+	if dir, err = filepath.Abs(dir); err != nil {
+		return nil, err
+	}
+	if err = os.MkdirAll(dir, 0o700); err != nil {
+		return nil, err
+	}
+	if dir, err = filepath.EvalSymlinks(dir); err != nil {
+		return nil, err
+	}
+	home := filepath.Join(dir, "home")
+	state := filepath.Join(home, ".omniview")
+	pluginDir := filepath.Join(state, "plugins", pluginID)
+	for _, d := range []string{filepath.Join(home, ".kube"), pluginDir} {
+		if err := os.MkdirAll(d, 0o700); err != nil {
+			return nil, err
+		}
+	}
+	for src, dst := range map[string]string{kubeconfig: filepath.Join(home, ".kube", "config"), pluginYAML: filepath.Join(pluginDir, "plugin.yaml")} {
+		data, err := os.ReadFile(src)
+		if err != nil {
+			return nil, err
+		}
+		if err := os.WriteFile(dst, data, 0o600); err != nil {
+			return nil, err
+		}
+	}
+	// The host's child environment, with the scratch HOME; KUBECONFIG is dropped (the plugin reads $HOME/.kube/config).
+	var env []string
+	for _, e := range os.Environ() {
+		k, _, _ := strings.Cut(e, "=")
+		if k == "HOME" || k == "KUBECONFIG" || k == "GOWORK" || strings.HasPrefix(k, "OMNIVIEW_") || strings.HasPrefix(k, "OTEL_EXPORTER_OTLP_") {
+			continue
+		}
+		env = append(env, e)
+	}
+	env = append(env, "HOME="+home, "GOWORK=off", "OMNIVIEW_STATE_DIR="+state, "OMNIVIEW_INSTANCE_ID="+uuid.NewString(),
+		"OMNIVIEW_GENERATION="+uuid.NewString(), "OMNIVIEW_WORKSPACE_ID=", "OMNIVIEW_PLUGIN_ID="+pluginID)
+	if logLevel != "" {
+		env = append(env, sdk.LogLevelEnvironment+"="+logLevel)
+	}
+	stderr, err := os.Create(filepath.Join(dir, "plugin-stderr.log"))
+	if err != nil {
+		return nil, err
+	}
+	cmd := exec.Command(binary)
+	cmd.Env = env
+	meta := config.PluginMeta{ID: pluginID}
+	client := goplugin.NewClient(&goplugin.ClientConfig{
+		HandshakeConfig: meta.GenerateHandshakeConfig(),
+		VersionedPlugins: map[int]goplugin.PluginSet{1: {
+			"resource": &resourceplugin.GRPCPlugin{},
+			"exec":     &ep.Plugin{Plugin: nil, Impl: nil},
+		}},
+		GRPCBrokerMultiplex: true,
+		AutoMTLS:            true,
+		GRPCDialOptions:     sdk.GRPCDialOptions(),
+		Cmd:                 cmd,
+		SkipHostEnv:         true,
+		StartTimeout:        time.Minute, // the host's is 15 s; the machine is shared and loaded
+		AllowedProtocols:    []goplugin.Protocol{goplugin.ProtocolGRPC},
+		Stderr:              stderr,
+		Logger:              hclog.NewNullLogger(),
+	})
+	p := &proc{label: label, client: client, stderr: stderr}
+	fail := func(err error) (*proc, error) {
+		return nil, errors.Join(fmt.Errorf("launch %s: %w", label, err), p.close())
+	}
+	rpc, err := client.Client()
+	if err != nil {
+		return fail(err)
+	}
+	rawRes, err := rpc.Dispense("resource")
+	if err != nil {
+		return fail(err)
+	}
+	rawExec, err := rpc.Dispense("exec")
+	if err != nil {
+		return fail(err)
+	}
+	var ok bool
+	if p.res, ok = rawRes.(*resourceplugin.Client); !ok {
+		return fail(fmt.Errorf("resource capability is %T", rawRes))
+	}
+	if p.exec, ok = rawExec.(ep.Provider); !ok {
+		return fail(fmt.Errorf("exec capability is %T", rawExec))
+	}
+	// The host opens one Stream per plugin when the plugin starts (backend/pkg/plugin/exec/controller.go OnPluginStart).
+	streamCtx, cancel := context.WithCancel(ctx)
+	p.stop, p.in = cancel, make(chan ep.StreamInput)
+	out, err := p.exec.Stream(streamCtx, p.in)
+	if err != nil {
+		return fail(err)
+	}
+	p.hub = newHub(out)
+	return p, nil
+}
+
+// close ends the Stream and kills the process (the host's Kill). It is safe to call on a partly started proc.
+func (p *proc) close() error {
+	if p.stop != nil {
+		p.stop()
+	}
+	if p.in != nil {
+		close(p.in)
+		p.in = nil
+	}
+	p.client.Kill()
+	if p.stderr != nil {
+		err := p.stderr.Close()
+		p.stderr = nil
+		return err
+	}
+	return nil
+}
+
+// connect loads the connections the plugin finds in $HOME/.kube/config, starts the one named name, and reads the pod's
+// record the way the host's pod page does (catalog, then enumerate), which is where the reference and the body come from.
+func (p *proc) connect(ctx context.Context, name string) error {
+	conns, err := p.res.LoadConnections(session(ctx))
+	if err != nil {
+		return fmt.Errorf("LoadConnections: %w", err)
+	}
+	i := slices.IndexFunc(conns, func(c types.Connection) bool { return c.Name == name })
+	if i < 0 {
+		return fmt.Errorf("connection %q not found among %d", name, len(conns))
+	}
+	st, err := p.res.StartConnection(session(ctx), conns[i].ID)
+	if err != nil {
+		return fmt.Errorf("StartConnection: %w", err)
+	}
+	p.conn = conns[i]
+	if st.Connection != nil {
+		p.conn = *st.Connection
+	}
+	route := resourcev2.AccessRoute{Connection: p.conn.ID}
+	ctx = session(ctx)
+	catalog, err := p.res.Catalog(ctx, resourcev2.CatalogRequest{Route: route})
+	if err != nil {
+		return fmt.Errorf("Catalog: %w", err)
+	}
+	di := slices.IndexFunc(catalog.Types, func(t resourcev2.ResourceType) bool { return t.Type == podType })
+	if di < 0 {
+		return fmt.Errorf("catalog has no %s", podType)
+	}
+	descriptor := catalog.Types[di]
+	representation := descriptor.DefaultRepresentation
+	if representation == "" && len(descriptor.Representations) > 0 {
+		representation = descriptor.Representations[0].ID
+	}
+	scope := resourcev2.QueryScope{}
+	for _, d := range descriptor.QueryDimensions {
+		if d.Name == "namespace" {
+			values := []string{namespace}
+			scope = append(scope, resourcev2.ScopeConstraint{Dimension: d.Name, Match: resourcev2.ScopeOneOf, Values: &values})
+			continue
+		}
+		scope = append(scope, resourcev2.ScopeConstraint{Dimension: d.Name, Match: resourcev2.ScopeAny})
+	}
+	pinned := resourcev2.WithCatalogRevisionForRoute(resourcev2.WithCatalogRevision(ctx, catalog.Revision), catalog.Provider, route, catalog.Revision)
+	var cursor *string
+	for {
+		page, err := p.res.Enumerate(pinned, resourcev2.EnumerateRequest{
+			Target:   resourcev2.ReadTarget{Route: route, Provider: catalog.Provider, Authority: "execproof", Type: podType, Scope: scope, Representation: representation},
+			PageSize: 200, Cursor: cursor,
+		})
+		if err != nil {
+			return fmt.Errorf("Enumerate: %w", err)
+		}
+		for _, r := range page.Records {
+			if r.Reference.Address.ID == podName {
+				p.pod = podRecord{record: r, revision: catalog.Revision}
+				return nil
+			}
+		}
+		if page.NextCursor == nil || *page.NextCursor == "" {
+			return fmt.Errorf("pod %s/%s not found", namespace, podName)
+		}
+		cursor = page.NextCursor
+	}
+}
+
+// pctx is the plugin context the host builds for a call: the connection, a resource session, and, for a create, the
+// catalog revision the reference was admitted under. The call is bounded by callLimit.
+func (p *proc) pctx(ctx context.Context, create bool) (*types.PluginContext, context.CancelFunc) {
+	ctx, cancel := context.WithTimeout(session(ctx), callLimit)
+	if create {
+		ctx = resourcev2.WithCatalogRevision(ctx, p.pod.revision)
+	}
+	conn := p.conn
+	return types.NewPluginContextWithConnection(ctx, "exec", nil, nil, &conn), cancel
+}
+
+// options are the session options the pod's exec action sends: the resource intent (reference, route, body) and the command.
+func (p *proc) options(id string) ep.SessionOptions {
+	body, ref, route := p.pod.record.Body, p.pod.record.Reference, resourcev2.AccessRoute{Connection: p.conn.ID}
+	return ep.SessionOptions{ID: id, ResourcePlugin: pluginID, ResourceKey: podType, ResourceData: &body, Reference: &ref, Route: &route,
+		Command: []string{"sh", "-c", script}, TTY: true, Params: map[string]string{"container": container}}
+}
+
+func (p *proc) create(ctx context.Context, id string) error {
+	pc, cancel := p.pctx(ctx, true)
+	defer cancel()
+	_, err := p.exec.CreateSession(pc, p.options(id))
+	return err
+}
+
+func (p *proc) attach(ctx context.Context, id string) ([]byte, error) {
+	pc, cancel := p.pctx(ctx, false)
+	defer cancel()
+	_, buf, err := p.exec.AttachSession(pc, id)
+	return buf, err
+}
+
+func (p *proc) closeSession(ctx context.Context, id string) error {
+	pc, cancel := p.pctx(ctx, false)
+	defer cancel()
+	return p.exec.CloseSession(pc, id)
+}
+
+// runSpec says which host-like run it is: its leg, its number, its worker (m3), and how long after the create the host attaches.
+type runSpec struct {
+	leg         string
+	run, worker int
+	delay       time.Duration
+}
+
+// hostRun is one host-like run: create, attach (at once unless the spec delays it), collect the snapshot and the frames
+// until the Close signal.
+func (p *proc) hostRun(ctx context.Context, s runSpec, closeWait time.Duration) runRec {
+	id := uuid.NewString()
+	rec := runRec{Build: p.label, Leg: s.leg, Run: s.run, Worker: s.worker, AttachDelayMs: ms(s.delay), Session: id, Expected: len(expected),
+		AttachMs: -1, FirstFrameMs: -1, CloseMs: -1}
+	c := p.hub.register(id)
+	t0 := time.Now()
+	rec.Start = t0.UTC().Format(time.RFC3339Nano)
+	err := p.create(ctx, id)
+	rec.CreateMs = ms(time.Since(t0))
+	if err != nil {
+		rec.Errors = append(rec.Errors, "create: "+code(err))
+		rec.Lost, rec.TailIntact, rec.Exact, rec.FirstDiff, rec.DiffPreview = score(nil)
+		return rec
+	}
+	time.Sleep(time.Until(t0.Add(s.delay))) // the host attaches when its terminal is up: after a short command is over, if that is late
+	t1 := time.Now()
+	snapshot, err := p.attach(ctx, id)
+	rec.AttachMs = ms(time.Since(t1))
+	if err != nil {
+		rec.Errors = append(rec.Errors, "attach: "+code(err))
+	}
+	timer := time.NewTimer(closeWait)
+	defer timer.Stop()
+	select {
+	case <-c.done:
+	case <-p.hub.dead:
+		rec.Errors = append(rec.Errors, "stream ended")
+	case <-timer.C:
+		rec.TimedOut = true
+		if err := p.closeSession(ctx, id); err != nil {
+			rec.Errors = append(rec.Errors, "close after timeout: "+code(err))
+		}
+	}
+	t := c.release()
+	rec.Snapshot, rec.Streamed, rec.Frames, rec.SeqGaps = len(snapshot), len(t.data), t.frames, t.seqGaps
+	rec.Total = rec.Snapshot + rec.Streamed
+	rec.Lost, rec.TailIntact, rec.Exact, rec.FirstDiff, rec.DiffPreview = score(slices.Concat(snapshot, t.data))
+	if !t.firstAt.IsZero() {
+		rec.FirstFrameMs = ms(t.firstAt.Sub(t0))
+	}
+	if !t.closeAt.IsZero() {
+		rec.CloseMs = ms(t.closeAt.Sub(t0))
+	}
+	rec.Errors = append(rec.Errors, t.errFrames...)
+	return rec
+}
+
+// lateRun is one late-attach run: the first attach comes after the process is over, then a second attach and a close.
+func (p *proc) lateRun(ctx context.Context, run int, wait time.Duration) lateRec {
+	id := uuid.NewString()
+	rec := lateRec{Build: p.label, Run: run, Session: id, Attach1Ms: -1, CloseMs: -1}
+	c := p.hub.register(id)
+	t0 := time.Now()
+	if err := p.create(ctx, id); err != nil {
+		rec.Errors = append(rec.Errors, "create: "+code(err))
+		return rec
+	}
+	rec.CreateMs = ms(time.Since(t0))
+	time.Sleep(time.Until(t0.Add(wait)))
+	select {
+	case <-c.done:
+		rec.CloseBeforeAt = true
+	default:
+	}
+	t1 := time.Now()
+	first, err := p.attach(ctx, id)
+	rec.Attach1Ms, rec.Attach1, rec.Attach1Bytes = ms(time.Since(t1)), code(err), len(first)
+	rec.Attach1Exact = bytes.Equal(first, expected)
+	second, err := p.attach(ctx, id)
+	rec.Attach2, rec.Attach2Bytes = code(err), len(second)
+	rec.CloseSession = code(p.closeSession(ctx, id))
+	t := c.release()
+	rec.StreamFrames, rec.StreamBytes = t.frames, len(t.data)
+	if !t.closeAt.IsZero() {
+		rec.CloseMs = ms(t.closeAt.Sub(t0))
+	}
+	rec.Errors = append(rec.Errors, t.errFrames...)
+	return rec
+}
+
+// ---------------------------------------------------------------------------------------------
+// The control: the same command without the plugin.
+// ---------------------------------------------------------------------------------------------
+
+// syncBuffer is a buffer that client-go's copy goroutines can write to together.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) snapshot() []byte {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return slices.Clone(b.buf.Bytes())
+}
+
+// idleStdin is a stdin nobody types in, as a tty nobody types in: Read waits until released, then reports the end of input.
+type idleStdin struct{ released chan struct{} }
+
+func (s *idleStdin) Read([]byte) (int, error) {
+	<-s.released
+	return 0, io.EOF
+}
+
+// kube is the control's access to the cluster.
+type kube struct {
+	cfg        *rest.Config
+	client     kubernetes.Interface
+	kubeconfig string
+	ctxName    string
+}
+
+func newKube(kubeconfig, ctxName string) (*kube, error) {
+	cfg, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+		&clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeconfig}, &clientcmd.ConfigOverrides{CurrentContext: ctxName}).ClientConfig()
+	if err != nil {
+		return nil, err
+	}
+	client, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return &kube{cfg: cfg, client: client, kubeconfig: kubeconfig, ctxName: ctxName}, nil
+}
+
+// clientGoRun runs the command through client-go remotecommand as the plugin's streamPod does (a websocket executor
+// with the SPDY executor as the fallback; Tty, stdin, stdout and stderr), with the output going to memory: no local pty.
+func (k *kube) clientGoRun(ctx context.Context, run int) ctlRec {
+	rec := ctlRec{Control: "client-go", Run: run}
+	ctx, cancel := context.WithTimeout(ctx, callLimit)
+	defer cancel()
+	req := k.client.CoreV1().RESTClient().Post().Resource("pods").Name(podName).Namespace(namespace).SubResource("exec")
+	req.VersionedParams(&v1.PodExecOptions{Command: []string{"sh", "-c", script}, Container: container, Stdin: true, Stdout: true, Stderr: true, TTY: true}, scheme.ParameterCodec)
+	spdy, err := remotecommand.NewSPDYExecutor(k.cfg, "POST", req.URL())
+	if err != nil {
+		rec.Error = "spdy executor: " + err.Error()
+		return rec
+	}
+	ws, err := remotecommand.NewWebSocketExecutor(k.cfg, "GET", req.URL().String())
+	if err != nil {
+		rec.Error = "websocket executor: " + err.Error()
+		return rec
+	}
+	rec.Transport = "websocket"
+	executor, err := remotecommand.NewFallbackExecutor(ws, spdy, func(err error) bool {
+		fell := httpstream.IsUpgradeFailure(err)
+		if fell {
+			rec.Transport = "spdy (fallback)"
+		}
+		return fell
+	})
+	if err != nil {
+		rec.Error = "fallback executor: " + err.Error()
+		return rec
+	}
+	var out syncBuffer
+	stdin := &idleStdin{released: make(chan struct{})}
+	t0 := time.Now()
+	err = executor.StreamWithContext(ctx, remotecommand.StreamOptions{Stdin: stdin, Stdout: &out, Stderr: &out, Tty: true})
+	rec.Ms = ms(time.Since(t0))
+	close(stdin.released)
+	if err != nil {
+		rec.Error = "stream: " + err.Error()
+	}
+	got := out.snapshot()
+	rec.Bytes = len(got)
+	rec.Lost, rec.TailIntact, rec.Exact, rec.FirstDiff, rec.DiffPreview = score(got)
+	return rec
+}
+
+// kubectlRun runs the command with kubectl exec, no -t, and counts the bytes it prints (what wc -c counts).
+func (k *kube) kubectlRun(ctx context.Context, run int) ctlRec {
+	rec := ctlRec{Control: "kubectl", Run: run}
+	ctx, cancel := context.WithTimeout(ctx, callLimit)
+	defer cancel()
+	t0 := time.Now()
+	got, err := exec.CommandContext(ctx, "kubectl", "--kubeconfig", k.kubeconfig, "--context", k.ctxName, "-n", namespace,
+		"exec", podName, "-c", container, "--", "sh", "-c", script).Output()
+	rec.Ms = ms(time.Since(t0))
+	if err != nil {
+		rec.Error = err.Error()
+		var ee *exec.ExitError
+		if errors.As(err, &ee) {
+			rec.Error += ": " + strings.TrimSpace(string(ee.Stderr))
+		}
+	}
+	rec.Bytes = len(got)
+	rec.Lost, rec.TailIntact, rec.Exact, rec.FirstDiff, rec.DiffPreview = score(got)
+	return rec
+}
+
+// podState says which pod incarnation the runs saw: the same uid and restart count at both ends means the same cluster state.
+func (k *kube) podState(ctx context.Context) string {
+	out, err := exec.CommandContext(ctx, "kubectl", "--kubeconfig", k.kubeconfig, "--context", k.ctxName, "-n", namespace, "get", "pod", podName, "-o",
+		`jsonpath=uid={.metadata.uid} restarts={.status.containerStatuses[0].restartCount} started={.status.containerStatuses[0].state.running.startedAt} node={.spec.nodeName}`).Output()
+	if err != nil {
+		return "unavailable: " + err.Error()
+	}
+	return string(out)
+}
+
+// uptime returns the load averages (1, 5 and 15 minutes) that `uptime` prints.
+func uptime() string {
+	out, err := exec.Command("uptime").Output()
+	if err != nil {
+		return "uptime: " + err.Error()
+	}
+	_, after, found := strings.Cut(string(out), "load average")
+	if !found {
+		return strings.TrimSpace(string(out))
+	}
+	_, after, _ = strings.Cut(after, ":")
+	return "load " + strings.TrimSpace(after)
+}
+
+// ---------------------------------------------------------------------------------------------
+// The run.
+// ---------------------------------------------------------------------------------------------
+
+type options struct {
+	before, after, kubeconfig, kctx, pluginYAML, out, legs, logLevel string
+	m1, m2, m3, workers, m4, kubectl, block, warmup, m5              int
+	late, closeWait                                                  time.Duration
+	delays                                                           []time.Duration
+}
+
+type legLoad struct{ name, start, end string }
+
+type app struct {
+	o     options
+	ctx   context.Context // the run's: when it is done (an interrupt) the legs stop
+	procs []*proc         // BEFORE, AFTER
+	kube  *kube
+	mu    sync.Mutex // guards files, fails and the records by leg
+	files map[string]*json.Encoder
+	fds   []*os.File
+	fails []string
+	loads []legLoad
+	runs  map[string][]runRec // by leg+build
+	late  map[string][]lateRec
+	ctl   map[string][]ctlRec
+}
+
+// failf notes a harness failure: the run goes on to its next boundary, and the exit status is non-zero.
+func (a *app) failf(format string, args ...any) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.fails = append(a.fails, fmt.Sprintf(format, args...))
+}
+
+func (a *app) failed() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.ctx.Err() != nil || len(a.fails) > 0
+}
+
+// emit writes one JSON line to <out>/<name>.jsonl.
+func (a *app) emit(name string, v any) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	enc, ok := a.files[name]
+	if !ok {
+		f, err := os.Create(filepath.Join(a.o.out, name+".jsonl"))
+		if err != nil {
+			a.fails = append(a.fails, err.Error())
+			return
+		}
+		a.fds = append(a.fds, f)
+		enc = json.NewEncoder(f)
+		a.files[name] = enc
+	}
+	if err := enc.Encode(v); err != nil {
+		a.fails = append(a.fails, "write "+name+": "+err.Error())
+	}
+}
+
+func (a *app) keepRun(leg string, r runRec) {
+	a.emit(leg+"-"+r.Build, r)
+	a.mu.Lock()
+	a.runs[leg+"-"+r.Build] = append(a.runs[leg+"-"+r.Build], r)
+	a.mu.Unlock()
+}
+
+// order alternates which build goes first from one block to the next, so that neither always gets the first slot.
+func (a *app) order(block int) []*proc {
+	if block%2 == 1 {
+		return []*proc{a.procs[1], a.procs[0]}
+	}
+	return a.procs
+}
+
+func (a *app) leg(ctx context.Context, name string, fn func(context.Context) error) error {
+	l := legLoad{name: name, start: uptime()}
+	fmt.Fprintf(os.Stderr, "[%s] leg %s starts: %s\n", time.Now().Format("15:04:05"), name, l.start)
+	err := fn(ctx)
+	l.end = uptime()
+	a.loads = append(a.loads, l)
+	fmt.Fprintf(os.Stderr, "[%s] leg %s ends: %s\n", time.Now().Format("15:04:05"), name, l.end)
+	return err
+}
+
+// warmup runs a few sessions on each build first (the first exec of a process builds its clients); they are kept apart.
+func (a *app) warmup(ctx context.Context) error {
+	for _, p := range a.procs {
+		for i := 1; i <= a.o.warmup; i++ {
+			a.keepRun("warmup", p.hostRun(ctx, runSpec{leg: "warmup", run: i}, a.o.closeWait))
+		}
+	}
+	return nil
+}
+
+// m1 is the headline: host-like sequential runs, the two builds interleaved in blocks.
+func (a *app) m1(ctx context.Context) error {
+	for done, blk := 0, 0; done < a.o.m1 && !a.failed(); blk++ {
+		n := min(a.o.block, a.o.m1-done)
+		var line []string
+		for _, p := range a.order(blk) {
+			lost := 0
+			for i := 1; i <= n; i++ {
+				r := p.hostRun(ctx, runSpec{leg: "m1", run: done + i}, a.o.closeWait)
+				a.keepRun("m1", r)
+				lost += max(r.Lost, 0)
+			}
+			line = append(line, fmt.Sprintf("%s lost %d", p.label, lost))
+		}
+		done += n
+		fmt.Fprintf(os.Stderr, "[%s] m1 %d/%d: %s\n", time.Now().Format("15:04:05"), done, a.o.m1, strings.Join(line, ", "))
+	}
+	return nil
+}
+
+// m5 sweeps the delay of the first attach: the host attaches when its terminal is up, which for a command that is over at
+// once can be after the session has ended. One block per delay; the builds alternate who goes first.
+func (a *app) m5(ctx context.Context) error {
+	for blk, d := range a.o.delays {
+		if a.failed() {
+			break
+		}
+		for _, p := range a.order(blk) {
+			for i := 1; i <= a.o.m5; i++ {
+				a.keepRun("m5", p.hostRun(ctx, runSpec{leg: "m5", run: i, delay: d}, a.o.closeWait))
+			}
+		}
+		fmt.Fprintf(os.Stderr, "[%s] m5 delay %s done\n", time.Now().Format("15:04:05"), d)
+	}
+	return nil
+}
+
+// m2 attaches after the session has ended; the two builds run at the same time, each one run after the other.
+func (a *app) m2(ctx context.Context) error {
+	var wg sync.WaitGroup
+	for _, p := range a.procs {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 1; i <= a.o.m2 && !a.failed(); i++ {
+				r := p.lateRun(ctx, i, a.o.late)
+				a.emit("m2-"+p.label, r)
+				a.mu.Lock()
+				a.late["m2-"+p.label] = append(a.late["m2-"+p.label], r)
+				a.mu.Unlock()
+			}
+		}()
+	}
+	wg.Wait()
+	return nil
+}
+
+// m3 runs the workers of one build at a time, host-like, in 5 rounds that alternate the builds: each worker does its runs
+// in rounds, so that load drift hits both builds.
+func (a *app) m3(ctx context.Context) error {
+	const rounds = 5
+	for round := 0; round < rounds && !a.failed(); round++ {
+		lo, hi := round*a.o.m3/rounds, (round+1)*a.o.m3/rounds
+		for _, p := range a.order(round) {
+			var wg sync.WaitGroup
+			for w := 1; w <= a.o.workers; w++ {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					for i := lo + 1; i <= hi; i++ {
+						a.keepRun("m3", p.hostRun(ctx, runSpec{leg: "m3", run: i, worker: w}, a.o.closeWait))
+					}
+				}()
+			}
+			wg.Wait()
+		}
+		fmt.Fprintf(os.Stderr, "[%s] m3 round %d/%d\n", time.Now().Format("15:04:05"), round+1, rounds)
+	}
+	return nil
+}
+
+// m4 is the control: no plugin, so what it loses (if anything) is the cluster side's.
+func (a *app) m4(ctx context.Context) error {
+	for i := 1; i <= a.o.m4 && !a.failed(); i++ {
+		r := a.kube.clientGoRun(ctx, i)
+		a.emit("m4-client-go", r)
+		a.mu.Lock()
+		a.ctl["client-go"] = append(a.ctl["client-go"], r)
+		a.mu.Unlock()
+	}
+	for i := 1; i <= a.o.kubectl && !a.failed(); i++ {
+		r := a.kube.kubectlRun(ctx, i)
+		a.emit("m4-kubectl", r)
+		a.mu.Lock()
+		a.ctl["kubectl"] = append(a.ctl["kubectl"], r)
+		a.mu.Unlock()
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------------------------
+// Tables.
+// ---------------------------------------------------------------------------------------------
+
+// quant is the nearest-rank quantile of sorted values.
+func quant(s []float64, q float64) float64 {
+	if len(s) == 0 {
+		return math.NaN()
+	}
+	return s[max(0, min(len(s)-1, int(math.Ceil(q*float64(len(s))))-1))]
+}
+
+func sorted(v []float64) []float64 {
+	v = slices.Clone(v)
+	slices.Sort(v)
+	return v
+}
+
+// spread prints min / median / p90 / max.
+func spread(v []float64, format string) string {
+	s := sorted(v)
+	return fmt.Sprintf(format+" / "+format+" / "+format+" / "+format, quant(s, 0), quant(s, 0.5), quant(s, 0.9), quant(s, 1))
+}
+
+// trio prints median / p90 / max.
+func trio(v []float64) string {
+	s := sorted(v)
+	return fmt.Sprintf("%.1f / %.1f / %.1f", quant(s, 0.5), quant(s, 0.9), quant(s, 1))
+}
+
+func table(b *strings.Builder, head []string, rows [][]string) {
+	fmt.Fprintf(b, "| %s |\n|%s\n", strings.Join(head, " | "), strings.Repeat("---|", len(head)))
+	for _, r := range rows {
+		fmt.Fprintf(b, "| %s |\n", strings.Join(r, " | "))
+	}
+	b.WriteString("\n")
+}
+
+func tally(v []string) string {
+	count := map[string]int{}
+	for _, s := range v {
+		count[s]++
+	}
+	keys := make([]string, 0, len(count))
+	for k := range count {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, fmt.Sprintf("%s x%d", k, count[k]))
+	}
+	if len(parts) == 0 {
+		return "-"
+	}
+	return strings.Join(parts, ", ")
+}
+
+// runTables prints the byte table and the timing table of host-like runs (m1, m3).
+func runTables(b *strings.Builder, byBuild map[string][]runRec, builds []string, load string) {
+	var bytesRows, timeRows [][]string
+	for _, label := range builds {
+		recs := byBuild[label]
+		var lossRuns, extraRuns, zero, tail, exact, timeouts, errRuns, gaps, lostTotal, extraTotal int
+		var lost, create, attach, first, closeMs []float64
+		var errs []string
+		for _, r := range recs {
+			switch {
+			case r.Lost > 0:
+				lossRuns++
+				lostTotal += r.Lost
+			case r.Lost < 0:
+				extraRuns++
+				extraTotal -= r.Lost
+			}
+			zero += btoi(r.Total == 0)
+			tail += btoi(r.TailIntact)
+			exact += btoi(r.Exact)
+			timeouts += btoi(r.TimedOut)
+			errRuns += btoi(len(r.Errors) > 0)
+			gaps += r.SeqGaps
+			errs = append(errs, r.Errors...)
+			lost = append(lost, float64(r.Lost))
+			create = append(create, r.CreateMs)
+			if r.AttachMs >= 0 {
+				attach = append(attach, r.AttachMs)
+			}
+			if r.FirstFrameMs >= 0 {
+				first = append(first, r.FirstFrameMs)
+			}
+			if r.CloseMs >= 0 {
+				closeMs = append(closeMs, r.CloseMs)
+			}
+		}
+		bytesRows = append(bytesRows, []string{label, fmt.Sprint(len(recs)), fmt.Sprint(lossRuns), fmt.Sprint(lostTotal), spread(lost, "%.0f"),
+			fmt.Sprint(zero), fmt.Sprint(tail), fmt.Sprint(exact), fmt.Sprintf("%d (%d bytes)", extraRuns, extraTotal),
+			fmt.Sprintf("%d runs: %s", errRuns, tally(errs)), fmt.Sprint(timeouts), fmt.Sprint(gaps)})
+		timeRows = append(timeRows, []string{label, trio(create), trio(attach), trio(first), trio(closeMs), load})
+	}
+	table(b, []string{"build", "runs", "runs with loss", "bytes lost (total)", "lost per run: min / median / p90 / max", "runs with 0 bytes",
+		"tail intact", "exact match", "runs with extra bytes", "runs with errors", "timeouts", "seq gaps"}, bytesRows)
+	table(b, []string{"build", "create ms: median / p90 / max", "attach ms", "create to first frame ms", "create to Close signal ms", "load (uptime) at the leg's start / end"}, timeRows)
+}
+
+func btoi(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+func (a *app) tables(podBefore, podAfter string) string {
+	var b strings.Builder
+	builds := make([]string, 0, len(a.procs))
+	for _, p := range a.procs {
+		builds = append(builds, p.label)
+	}
+	loadOf := map[string]string{}
+	for _, l := range a.loads {
+		loadOf[l.name] = "start: " + l.start + "; end: " + l.end
+	}
+	fmt.Fprintf(&b, "Payload: %d x 'x' + %q = %d bytes. Pod %s/%s container %s.\n\n", xCount, marker, len(expected), namespace, podName, container)
+	fmt.Fprintf(&b, "Pod at the start: %s\n\nPod at the end: %s\n\n", podBefore, podAfter)
+	for _, leg := range []struct{ id, title string }{{"m1", "M1 host-like (one Stream per plugin, attach at once, sequential, builds interleaved in blocks)"},
+		{"m3", fmt.Sprintf("M3 concurrency (%d workers in parallel per build, host-like, rounds alternate the builds)", a.o.workers)}} {
+		byBuild := map[string][]runRec{}
+		for _, l := range builds {
+			byBuild[l] = a.runs[leg.id+"-"+l]
+		}
+		if len(byBuild[builds[0]])+len(byBuild[builds[1]]) == 0 {
+			continue
+		}
+		fmt.Fprintf(&b, "### %s\n\n", leg.title)
+		runTables(&b, byBuild, builds, loadOf[leg.id])
+	}
+	if recs := a.late["m2-"+builds[0]]; len(recs)+len(a.late["m2-"+builds[1]]) > 0 {
+		fmt.Fprintf(&b, "### M2 late attach (first attach %s after the create, after the session ended; load %s)\n\n", a.o.late, loadOf["m2"])
+		var rows [][]string
+		for _, l := range builds {
+			var a1, a2, cs []string
+			var closeMs, n1 []float64
+			var exact, before, streamFrames, errRuns int
+			for _, r := range a.late["m2-"+l] {
+				a1, a2, cs = append(a1, r.Attach1), append(a2, r.Attach2), append(cs, r.CloseSession)
+				n1 = append(n1, float64(r.Attach1Bytes))
+				exact += btoi(r.Attach1Exact)
+				before += btoi(r.CloseBeforeAt)
+				streamFrames += r.StreamFrames
+				errRuns += btoi(len(r.Errors) > 0)
+				if r.CloseMs >= 0 {
+					closeMs = append(closeMs, r.CloseMs)
+				}
+			}
+			// one row per build
+			rows = append(rows, []string{l, fmt.Sprint(len(a.late["m2-"+l])), tally(a1), spread(n1, "%.0f"), fmt.Sprint(exact), tally(a2), tally(cs),
+				fmt.Sprintf("%d of %d, %s", len(closeMs), len(a.late["m2-"+l]), trio(closeMs)), fmt.Sprint(before), fmt.Sprint(streamFrames), fmt.Sprint(errRuns)})
+		}
+		table(&b, []string{"build", "runs", "first attach", "first attach bytes: min / median / p90 / max", "first attach exact 65,536", "second attach", "CloseSession after both",
+			"Close signal on the Stream: runs, create to Close ms median / p90 / max", "Close before the attach", "data frames on the Stream", "runs with errors"}, rows)
+	}
+	if len(a.runs["m5-"+builds[0]])+len(a.runs["m5-"+builds[1]]) > 0 {
+		fmt.Fprintf(&b, "### M5 attach-delay sweep (host-like; the first attach comes after the delay; load %s)\n\n", loadOf["m5"])
+		var rows [][]string
+		for _, d := range a.o.delays {
+			for _, l := range builds {
+				var recs []runRec
+				for _, r := range a.runs["m5-"+l] {
+					if r.AttachDelayMs == ms(d) {
+						recs = append(recs, r)
+					}
+				}
+				var notFound, lossRuns, zero, exact, lostTotal int
+				var closeMs []float64
+				for _, r := range recs {
+					notFound += btoi(slices.Contains(r.Errors, "attach: NotFound"))
+					lossRuns += btoi(r.Lost > 0)
+					lostTotal += max(r.Lost, 0)
+					zero += btoi(r.Total == 0)
+					exact += btoi(r.Exact)
+					if r.CloseMs >= 0 {
+						closeMs = append(closeMs, r.CloseMs)
+					}
+				}
+				rows = append(rows, []string{d.String(), l, fmt.Sprint(len(recs)), fmt.Sprint(notFound), fmt.Sprint(lossRuns), fmt.Sprint(lostTotal),
+					fmt.Sprint(zero), fmt.Sprint(exact), trio(closeMs)})
+			}
+		}
+		table(&b, []string{"attach delay", "build", "runs", "first attach NotFound", "runs with loss", "bytes lost (total)", "runs with 0 bytes", "exact match",
+			"create to Close signal ms: median / p90 / max"}, rows)
+	}
+	if len(a.ctl["client-go"])+len(a.ctl["kubectl"]) > 0 {
+		fmt.Fprintf(&b, "### M4 control (no plugin; load %s)\n\n", loadOf["m4"])
+		var rows [][]string
+		for _, c := range []string{"client-go", "kubectl"} {
+			recs := a.ctl[c]
+			var lossRuns, tail, exact, errRuns, lostTotal int
+			var lost, dur []float64
+			var transports, errs []string
+			for _, r := range recs {
+				lossRuns += btoi(r.Lost > 0)
+				lostTotal += max(r.Lost, 0)
+				tail += btoi(r.TailIntact)
+				exact += btoi(r.Exact)
+				errRuns += btoi(r.Error != "")
+				lost = append(lost, float64(r.Lost))
+				dur = append(dur, r.Ms)
+				if r.Transport != "" {
+					transports = append(transports, r.Transport)
+				}
+				if r.Error != "" {
+					errs = append(errs, r.Error)
+				}
+			}
+			rows = append(rows, []string{c, fmt.Sprint(len(recs)), fmt.Sprint(lossRuns), fmt.Sprint(lostTotal), spread(lost, "%.0f"), fmt.Sprint(tail), fmt.Sprint(exact),
+				tally(transports), fmt.Sprintf("%d: %s", errRuns, tally(errs)), trio(dur)})
+		}
+		table(&b, []string{"control", "runs", "runs with loss", "bytes lost (total)", "lost per run: min / median / p90 / max", "tail intact", "exact match", "transport", "runs with errors",
+			"duration ms: median / p90 / max"}, rows)
+	}
+	b.WriteString("### Harness checks (frames no run saw, sessions left behind)\n\n")
+	var rows [][]string
+	for _, p := range a.procs {
+		orphans, lateFrames, lateBytes, dup := p.hub.audit()
+		var left string
+		pc, cancel := p.pctx(context.Background(), false)
+		if sessions, err := p.exec.ListSessions(pc); err != nil {
+			left = "ListSessions: " + code(err)
+		} else {
+			left = fmt.Sprint(len(sessions))
+		}
+		cancel()
+		select {
+		case <-p.hub.dead:
+			left += " (Stream ended)"
+		default:
+		}
+		rows = append(rows, []string{p.label, fmt.Sprint(orphans), fmt.Sprintf("%d (%d bytes)", lateFrames, lateBytes), fmt.Sprint(dup), left})
+	}
+	table(&b, []string{"build", "frames of unregistered sessions", "data frames after the Close signal", "repeated Close signals", "sessions left in the plugin"}, rows)
+	b.WriteString("Load at each leg:\n\n")
+	for _, l := range a.loads {
+		fmt.Fprintf(&b, "- %s: start `%s`; end `%s`\n", l.name, l.start, l.end)
+	}
+	return b.String()
+}
+
+func run() error {
+	var o options
+	flag.StringVar(&o.before, "before", "", "plugin binary of the BEFORE build")
+	flag.StringVar(&o.after, "after", "", "plugin binary of the AFTER build")
+	flag.StringVar(&o.kubeconfig, "kubeconfig", "", "kubeconfig of the cluster")
+	flag.StringVar(&o.kctx, "context", "", "kubeconfig context, which is also the connection's name (default: the current context)")
+	flag.StringVar(&o.pluginYAML, "plugin-yaml", "", "plugin.yaml of the plugin tree")
+	flag.StringVar(&o.out, "out", "", "output directory (it is created and must not exist)")
+	flag.StringVar(&o.legs, "legs", "m1,m2,m3,m4", "legs to run")
+	flag.StringVar(&o.logLevel, "plugin-log-level", "", "OMNIVIEW_PLUGIN_LOG_LEVEL of the plugins (empty keeps the default)")
+	flag.IntVar(&o.m1, "m1", 200, "m1: runs per build")
+	flag.IntVar(&o.m2, "m2", 100, "m2: runs per build")
+	flag.IntVar(&o.m3, "m3", 25, "m3: runs per worker")
+	flag.IntVar(&o.workers, "workers", 8, "m3: workers per build")
+	flag.IntVar(&o.m4, "m4", 200, "m4: client-go runs")
+	flag.IntVar(&o.kubectl, "kubectl", 50, "m4: kubectl exec runs")
+	flag.IntVar(&o.block, "block", 10, "m1: runs of one build before the other takes over")
+	flag.IntVar(&o.warmup, "warmup", 3, "runs per build before the legs, kept apart")
+	flag.DurationVar(&o.late, "late", 1500*time.Millisecond, "m2: delay of the first attach after the create")
+	flag.DurationVar(&o.closeWait, "close-wait", 30*time.Second, "how long a run waits for the Close signal")
+	flag.IntVar(&o.m5, "m5", 20, "m5: runs per build and delay")
+	delays := flag.String("delays", "0s,10ms,20ms,30ms,40ms,60ms,80ms,120ms,200ms,400ms", "m5: delays of the first attach after the create")
+	flag.Parse()
+	if o.before == "" || o.after == "" || o.kubeconfig == "" || o.pluginYAML == "" || o.out == "" {
+		flag.Usage()
+		return errors.New("-before, -after, -kubeconfig, -plugin-yaml and -out are required")
+	}
+	if len(expected) != 65536 {
+		return fmt.Errorf("payload is %d bytes, not 65536", len(expected))
+	}
+	if o.block < 1 || o.m3 < 5 || o.workers < 1 {
+		return errors.New("-block and -workers must be positive, -m3 at least 5")
+	}
+	if o.kctx == "" {
+		cfg, err := clientcmd.LoadFromFile(o.kubeconfig)
+		if err != nil {
+			return err
+		}
+		o.kctx = cfg.CurrentContext
+	}
+	legs := map[string]bool{}
+	for _, l := range strings.Split(o.legs, ",") {
+		if !slices.Contains([]string{"m1", "m2", "m3", "m4", "m5"}, l) {
+			return fmt.Errorf("unknown leg %q", l)
+		}
+		legs[l] = true
+	}
+	for _, s := range strings.Split(*delays, ",") {
+		d, err := time.ParseDuration(s)
+		if err != nil {
+			return fmt.Errorf("-delays: %w", err)
+		}
+		o.delays = append(o.delays, d)
+	}
+	if err := os.Mkdir(o.out, 0o755); err != nil {
+		return err
+	}
+	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stopSignals()
+	defer goplugin.CleanupClients()
+
+	a := &app{ctx: ctx, o: o, files: map[string]*json.Encoder{}, runs: map[string][]runRec{}, late: map[string][]lateRec{}, ctl: map[string][]ctlRec{}}
+	var err error
+	if a.kube, err = newKube(o.kubeconfig, o.kctx); err != nil {
+		return err
+	}
+	for _, b := range []struct{ label, binary string }{{"before", o.before}, {"after", o.after}} {
+		p, err := launch(ctx, b.label, b.binary, o.pluginYAML, o.kubeconfig, filepath.Join(o.out, "plugin-"+b.label), o.logLevel)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			if err := p.close(); err != nil {
+				fmt.Fprintln(os.Stderr, "close", p.label+":", err)
+			}
+		}()
+		if err := p.connect(ctx, o.kctx); err != nil {
+			return fmt.Errorf("%s: %w", b.label, err)
+		}
+		a.procs = append(a.procs, p)
+	}
+	podBefore := a.kube.podState(ctx)
+	steps := []struct {
+		id string
+		fn func(context.Context) error
+	}{{"m1", a.m1}, {"m2", a.m2}, {"m3", a.m3}, {"m4", a.m4}, {"m5", a.m5}}
+	if o.warmup > 0 && (legs["m1"] || legs["m2"] || legs["m3"] || legs["m5"]) {
+		if err := a.leg(ctx, "warmup", a.warmup); err != nil {
+			return err
+		}
+	}
+	for _, s := range steps {
+		if legs[s.id] && ctx.Err() == nil {
+			if err := a.leg(ctx, s.id, s.fn); err != nil {
+				return err
+			}
+		}
+	}
+	tables := a.tables(podBefore, a.kube.podState(ctx))
+	fmt.Print(tables)
+	if err := os.WriteFile(filepath.Join(o.out, "tables.md"), []byte(tables), 0o644); err != nil {
+		a.failf("write tables.md: %v", err)
+	}
+	for _, f := range a.fds {
+		if err := f.Close(); err != nil {
+			a.failf("close %s: %v", f.Name(), err)
+		}
+	}
+	if ctx.Err() != nil {
+		a.failf("interrupted")
+	}
+	if len(a.fails) > 0 {
+		return errors.New("harness failures: " + strings.Join(a.fails, "; "))
+	}
+	return nil
+}
+
+func main() {
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, "execproof:", err)
+		os.Exit(1)
+	}
+}

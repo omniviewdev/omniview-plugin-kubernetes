@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# One command: redo the exec-lane proof (M1-M4; M5 on request) and print the tables.
+#
+#   BEFORE_BIN=...  plugin binary on the older plugin-sdk (the pin before the bump)
+#   AFTER_BIN=...   plugin binary on the newer plugin-sdk
+#   KUBECONFIG=...  kubeconfig of a cluster you may run pods in (one context; it is also the plugin's connection name)
+#   PLUGIN_YAML=... the plugin.yaml at the root of the plugin tree
+#
+# Optional:
+#   TOOL_MODULE=... a Go module whose go.mod/go.sum are the plugin's (pinning the plugin-sdk the tool talks with) and that
+#                   holds the tool at hack/zz-proof/execproof/main.go (default: ./tools-src next to this script)
+#   OUT_DIR=...     where the JSONL files and tables.md go; it must not exist (default: ./runs/<timestamp>)
+#   LEGS=...        comma-separated legs (default m1,m2,m3,m4; m5 is the attach-delay sweep)
+#   any further arguments are passed to the tool (see: execproof -h), e.g. -m1 50 -m2 20
+#
+# It touches only the cluster in KUBECONFIG (namespace "proof", pod "execproof", busybox:1.37.0, left in place) and
+# its own scratch directories. The pod's image must be pullable by the cluster's nodes (for kind: kind load image-archive).
+set -euo pipefail
+: "${BEFORE_BIN:?set BEFORE_BIN}" "${AFTER_BIN:?set AFTER_BIN}" "${KUBECONFIG:?set KUBECONFIG}" "${PLUGIN_YAML:?set PLUGIN_YAML}"
+HERE=$(cd "$(dirname "$0")" && pwd)
+TOOL_MODULE=${TOOL_MODULE:-$HERE/tools-src}
+OUT_DIR=${OUT_DIR:-$HERE/runs/$(date +%Y%m%d-%H%M%S)}
+LEGS=${LEGS:-m1,m2,m3,m4}
+export GOWORK=off GOTOOLCHAIN=local
+
+# The pod the command runs in: one container, sleeping.
+kubectl --kubeconfig "$KUBECONFIG" apply -f - <<'EOF'
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: proof
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: execproof
+  namespace: proof
+spec:
+  terminationGracePeriodSeconds: 1
+  containers:
+  - name: main
+    image: busybox:1.37.0
+    imagePullPolicy: IfNotPresent
+    command: ["sleep", "3600"]
+EOF
+kubectl --kubeconfig "$KUBECONFIG" -n proof wait --for=condition=Ready pod/execproof --timeout=120s
+
+# The tool, built with the plugin-sdk pinned by TOOL_MODULE's go.mod.
+mkdir -p "$(dirname "$OUT_DIR")" "$HERE/bin"
+(cd "$TOOL_MODULE" && go build -o "$HERE/bin/execproof" ./hack/zz-proof/execproof)
+
+"$HERE/bin/execproof" -before "$BEFORE_BIN" -after "$AFTER_BIN" -kubeconfig "$KUBECONFIG" -plugin-yaml "$PLUGIN_YAML" \
+  -out "$OUT_DIR" -legs "$LEGS" "$@"

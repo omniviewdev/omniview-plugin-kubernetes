@@ -931,6 +931,13 @@ Exec into any running container directly from the resource table. The plugin han
 - Terminal resize support
 - SPDY and WebSocket protocol fallback
 
+Built-in sessions run on the SDK's pty, which the plugin hands to the stream and never closes. Since plugin-sdk v0.22.1 the SDK writes an end mark after a command's last output and
+waits for its reader to take it, for at most 500 ms, before it closes the pty and sends the Close signal, so a command that prints and exits at once keeps its tail (measured on kind through
+the plugin binary: 0 of 800 sessions lost bytes on v0.22.1, 27 of 800 on v0.22.0, which lost up to 1,024 bytes of the end); output that the reader has not taken within the bound is still lost,
+and the Close signal follows it. The plugin also keeps the output of a session that ended before anyone attached for the first attach (at most 32 sessions, one minute), but the current host's own
+attach after the Close signal still answers NotFound before it asks the plugin, so that output does not reach the UI until the host changes.
+Details: `docs/status/SDK4-k8s.md`.
+
 On macOS, supported Pod **Exec** menus in both the row and drawer show an explicit
 **container — Open in Native Terminal** choice beside each ordinary container's
 built-in action. Native choices stay disabled while launching. A successful
@@ -1219,7 +1226,7 @@ use that runtime's `useMetricObservation().isPartial` and `.stepMs` APIs with
 the matching host backend. Registry-only CI consumes the published packages
 through the checked-in frozen lockfile, without a source-workspace fallback.
 The published runtime and Vite plugin must match; host application builds use the host lockfile.
-The backend pins the reviewed SDK release `v0.22.0` and replaces
+The backend pins the reviewed SDK release `v0.22.1` and replaces
 grpc-go with `github.com/omniviewdev/grpc-go` at
 `v1.85.1-0.20261107225428-6ba964c95af2` for source-session receive controls.
 The shared partial-status row has a tracked transient layout limitation:
