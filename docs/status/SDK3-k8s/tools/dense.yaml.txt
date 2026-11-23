@@ -1,0 +1,22 @@
+# dense: a 2000-line burst, then about 500 lines/s (6 lines every ~12 ms) for as long as the pod runs.
+# Applied right before the dense case (its log grows by about 66 KB/s).
+apiVersion: v1
+kind: Pod
+metadata: {name: dense, namespace: proof, labels: {proof: "true"}}
+spec:
+  restartPolicy: Never
+  containers:
+  - name: dense
+    image: busybox:1.37.0
+    imagePullPolicy: IfNotPresent
+    command: ["sh", "-c"]
+    args:
+    - |
+      P=$(head -c 87 /dev/zero | tr '\0' 'd')
+      i=1
+      while [ $i -le 2000 ]; do printf 'dense %06d %s\n' $i "$P"; i=$((i+1)); done
+      while true; do
+        j=0
+        while [ $j -lt 6 ]; do printf 'dense %06d %s\n' $i "$P"; i=$((i+1)); j=$((j+1)); done
+        sleep 0.01
+      done

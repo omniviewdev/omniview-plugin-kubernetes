@@ -1,0 +1,249 @@
+package harness
+
+import (
+	"bufio"
+	"compress/gzip"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+	"strconv"
+	"strings"
+	"time"
+
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
+	logspb "github.com/omniviewdev/plugin-sdk/proto/v1/logs"
+)
+
+// SessionToken is the stable name every session id is replaced by in a recording: the only thing the
+// recording normalises. Two runs of the same case give frames that compare equal.
+const SessionToken = "S"
+
+// maxInlineContent is how much of a line's content a record keeps in clear: longer lines keep a prefix,
+// their length and their SHA-256 (the 10 KB lines of the big-tail case would make a 10 MB record each).
+const maxInlineContent = 256
+
+// FrameRecord is one frame the plugin sent on the log Stream, or the reply to the create call.
+// Everything outside Meta is compared by logdiff; Meta is what a run cannot repeat (arrival times, the
+// plugin's wall clock on an event).
+type FrameRecord struct {
+	Kind    string `json:"kind"`    // "reply", "line" or "event"
+	Session string `json:"session"` // SessionToken
+
+	// line
+	Source     string            `json:"source,omitempty"`
+	Labels     map[string]string `json:"labels,omitempty"`
+	Timestamp  string            `json:"timestamp,omitempty"` // the kubelet's time of the line, as sent (RFC3339Nano UTC); empty when the wire has none
+	Content    string            `json:"content,omitempty"`
+	ContentLen int               `json:"content_len,omitempty"`
+	ContentSHA string            `json:"content_sha256,omitempty"`
+	Origin     int32             `json:"origin,omitempty"`
+	Level      int32             `json:"level,omitempty"`
+	Replay     bool              `json:"replay,omitempty"`
+
+	// event
+	Type     int32  `json:"type,omitempty"`
+	TypeName string `json:"type_name,omitempty"`
+	Message  string `json:"message,omitempty"`
+
+	// reply
+	Reply *ReplyRecord `json:"reply,omitempty"`
+
+	// Wire is the SHA-256 of the frame's protobuf bytes (deterministic marshal) with the session id emptied
+	// and, for an event, its timestamp cleared (the plugin's wall clock). Unknown is the number of bytes of
+	// fields this client's proto does not know; it must stay 0.
+	Wire    string `json:"wire,omitempty"`
+	Unknown int    `json:"unknown_bytes,omitempty"`
+
+	Meta FrameMeta `json:"meta"`
+}
+
+// FrameMeta is what a second run cannot reproduce and logdiff does not compare.
+type FrameMeta struct {
+	N         int     `json:"n"`                    // arrival order in the session, from 1
+	AtMS      float64 `json:"at_ms"`                // arrival, milliseconds after the create call began
+	Seq       int     `json:"seq"`                  // the number the workload put in the line (second word of the content), -1 if none
+	WireBytes int     `json:"wire_bytes,omitempty"` // size of the frame
+	EventWall string  `json:"event_wall,omitempty"` // an event's timestamp: the plugin's clock when it sent it
+	// Reply: the status and the sources of the session snapshot the create reply carries race with the
+	// session's own start (the snapshot is taken as its goroutine begins), so they differ between runs.
+	ReplyStatus        int      `json:"reply_status,omitempty"`
+	ReplyActiveSources []string `json:"reply_active_sources,omitempty"`
+}
+
+// ReplyRecord is the create reply, less what is not repeatable (the id and the creation time).
+type ReplyRecord struct {
+	PluginID      string            `json:"plugin_id,omitempty"`
+	ConnectionID  string            `json:"connection_id,omitempty"`
+	ResourceKey   string            `json:"resource_key"`
+	ResourceID    string            `json:"resource_id"`
+	ReplayMarkers bool              `json:"replay_markers"`
+	Params        map[string]string `json:"params,omitempty"`
+	Follow        bool              `json:"follow"`
+	Previous      bool              `json:"include_previous"`
+	Timestamps    bool              `json:"include_timestamps"`
+	TailLines     int64             `json:"tail_lines"`
+	SinceSeconds  int64             `json:"since_seconds"`
+	LimitBytes    int64             `json:"limit_bytes"`
+	SourceEvents  bool              `json:"include_source_events"`
+	Target        string            `json:"target,omitempty"`
+}
+
+var eventTypeNames = map[logspb.LogStreamEventType]string{
+	logspb.LogStreamEventType_LOG_STREAM_EVENT_SOURCE_ADDED:     "SourceAdded",
+	logspb.LogStreamEventType_LOG_STREAM_EVENT_SOURCE_REMOVED:   "SourceRemoved",
+	logspb.LogStreamEventType_LOG_STREAM_EVENT_STREAM_ERROR:     "StreamError",
+	logspb.LogStreamEventType_LOG_STREAM_EVENT_RECONNECTING:     "Reconnecting",
+	logspb.LogStreamEventType_LOG_STREAM_EVENT_RECONNECTED:      "Reconnected",
+	logspb.LogStreamEventType_LOG_STREAM_EVENT_STREAM_ENDED:     "StreamEnded",
+	logspb.LogStreamEventType_LOG_STREAM_EVENT_SESSION_READY:    "SessionReady",
+	logspb.LogStreamEventType_LOG_STREAM_EVENT_SOURCE_CAUGHT_UP: "SourceCaughtUp",
+}
+
+// EventTypeCaughtUp is the wire value of LOG_STREAM_EVENT_SOURCE_CAUGHT_UP.
+const EventTypeCaughtUp = int32(logspb.LogStreamEventType_LOG_STREAM_EVENT_SOURCE_CAUGHT_UP)
+
+// recordFrame turns one received message into a record. at is the arrival time since the create call began.
+func recordFrame(msg *logspb.LogStreamOutput, n int, at time.Duration) FrameRecord {
+	rec := FrameRecord{Session: SessionToken, Meta: FrameMeta{N: n, AtMS: float64(at.Microseconds()) / 1000, Seq: -1}}
+	rec.Meta.WireBytes = proto.Size(msg)
+	rec.Unknown = len(msg.ProtoReflect().GetUnknown())
+	norm := proto.Clone(msg).(*logspb.LogStreamOutput)
+	norm.SessionId = ""
+	switch payload := msg.GetPayload().(type) {
+	case *logspb.LogStreamOutput_Line:
+		l := payload.Line
+		rec.Kind = "line"
+		rec.Source = l.GetSourceId()
+		rec.Labels = l.GetLabels()
+		if ts := l.GetTimestamp(); ts != nil {
+			rec.Timestamp = ts.AsTime().UTC().Format(time.RFC3339Nano)
+		}
+		content := l.GetContent()
+		rec.ContentLen = len(content)
+		sum := sha256.Sum256(content)
+		rec.ContentSHA = hex.EncodeToString(sum[:])
+		if len(content) <= maxInlineContent {
+			rec.Content = string(content)
+		} else {
+			rec.Content = string(content[:64]) + "…"
+		}
+		rec.Meta.Seq = seqOf(string(content[:min(len(content), 64)]))
+		rec.Origin = int32(l.GetOrigin())
+		rec.Level = int32(l.GetLevel())
+		rec.Replay = l.GetReplay()
+		rec.Unknown += len(l.ProtoReflect().GetUnknown())
+		if l := norm.GetLine(); l != nil {
+			l.SessionId = ""
+		}
+	case *logspb.LogStreamOutput_Event:
+		e := payload.Event
+		rec.Kind = "event"
+		rec.Type = int32(e.GetType())
+		rec.TypeName = eventTypeNames[e.GetType()]
+		if rec.TypeName == "" {
+			rec.TypeName = fmt.Sprintf("Unknown(%d)", rec.Type)
+		}
+		rec.Source = e.GetSourceId()
+		rec.Message = e.GetMessage()
+		if ts := e.GetTimestamp(); ts != nil {
+			rec.Meta.EventWall = ts.AsTime().UTC().Format(time.RFC3339Nano)
+		}
+		rec.Unknown += len(e.ProtoReflect().GetUnknown())
+		if ev := norm.GetEvent(); ev != nil {
+			ev.Timestamp = (*timestamppb.Timestamp)(nil)
+		}
+	default:
+		rec.Kind = "empty"
+	}
+	if b, err := (proto.MarshalOptions{Deterministic: true}).Marshal(norm); err == nil {
+		sum := sha256.Sum256(b)
+		rec.Wire = hex.EncodeToString(sum[:])
+	}
+	return rec
+}
+
+// seqOf reads the number a workload writes as the second word of its lines ("rate5 000123 xxx"), -1 if there is none.
+func seqOf(content string) int {
+	fields := strings.Fields(content)
+	if len(fields) < 2 {
+		return -1
+	}
+	n, err := strconv.Atoi(fields[1])
+	if err != nil {
+		return -1
+	}
+	return n
+}
+
+// SeqOfLine is seqOf for a kubectl line ("<timestamp> rate5 000123 xxx").
+func SeqOfLine(kubectlLine string) int {
+	_, content, ok := strings.Cut(kubectlLine, " ")
+	if !ok {
+		return -1
+	}
+	return seqOf(content)
+}
+
+// WriteRecords writes records as JSON lines, gzipped when the path ends in .gz.
+func WriteRecords(path string, recs []FrameRecord) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	var w io.Writer = f
+	var gz *gzip.Writer
+	if strings.HasSuffix(path, ".gz") {
+		gz = gzip.NewWriter(f)
+		w = gz
+	}
+	bw := bufio.NewWriterSize(w, 1<<20)
+	enc := json.NewEncoder(bw)
+	for i := range recs {
+		if err := enc.Encode(&recs[i]); err != nil {
+			return err
+		}
+	}
+	if err := bw.Flush(); err != nil {
+		return err
+	}
+	if gz != nil {
+		return gz.Close()
+	}
+	return nil
+}
+
+// ReadRecords reads what WriteRecords wrote.
+func ReadRecords(path string) ([]FrameRecord, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	var r io.Reader = f
+	if strings.HasSuffix(path, ".gz") {
+		gz, err := gzip.NewReader(f)
+		if err != nil {
+			return nil, err
+		}
+		defer gz.Close()
+		r = gz
+	}
+	dec := json.NewDecoder(bufio.NewReaderSize(r, 1<<20))
+	var out []FrameRecord
+	for {
+		var rec FrameRecord
+		if err := dec.Decode(&rec); err != nil {
+			if err == io.EOF {
+				return out, nil
+			}
+			return nil, err
+		}
+		out = append(out, rec)
+	}
+}

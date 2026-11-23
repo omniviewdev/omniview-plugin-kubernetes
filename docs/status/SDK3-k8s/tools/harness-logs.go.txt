@@ -1,0 +1,357 @@
+package harness
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"sync"
+	"time"
+
+	"github.com/google/uuid"
+
+	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
+	"github.com/omniviewdev/plugin-sdk/pkg/types"
+	lp "github.com/omniviewdev/plugin-sdk/pkg/v1/logs"
+	logspb "github.com/omniviewdev/plugin-sdk/proto/v1/logs"
+)
+
+// LogStream is the one bidirectional Stream the host opens per plugin when the plugin starts
+// (backend/pkg/plugin/logs/controller.go OnPluginStart). Every session's frames arrive on it, tagged
+// with the session id; LogStream hands each frame to its session.
+type LogStream struct {
+	stream logspb.LogPlugin_StreamClient
+	cancel context.CancelFunc
+
+	mu       sync.Mutex
+	sessions map[string]*Session
+	orphans  []FrameRecord // frames for a session nobody registered
+	done     chan struct{}
+	err      error
+}
+
+// OpenLogStream opens the plugin's log Stream.
+func (p *Plugin) OpenLogStream(ctx context.Context) (*LogStream, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	stream, err := logspb.NewLogPluginClient(p.Conn).Stream(ctx)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	s := &LogStream{stream: stream, cancel: cancel, sessions: map[string]*Session{}, done: make(chan struct{})}
+	go s.receive()
+	return s, nil
+}
+
+// Close ends the stream.
+func (s *LogStream) Close() {
+	s.cancel()
+	<-s.done
+}
+
+func (s *LogStream) receive() {
+	defer close(s.done)
+	for {
+		msg, err := s.stream.Recv()
+		now := time.Now()
+		if err != nil {
+			s.mu.Lock()
+			if !errors.Is(err, io.EOF) && !errors.Is(err, context.Canceled) {
+				s.err = err
+			}
+			s.mu.Unlock()
+			return
+		}
+		s.mu.Lock()
+		sess := s.sessions[msg.GetSessionId()]
+		if sess == nil {
+			s.orphans = append(s.orphans, recordFrame(msg, len(s.orphans)+1, 0))
+			s.mu.Unlock()
+			continue
+		}
+		s.mu.Unlock()
+		sess.deliver(msg, now)
+	}
+}
+
+// Err is the error that ended the stream, if any.
+func (s *LogStream) Err() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.err
+}
+
+// Orphans returns the frames that arrived for a session nobody registered.
+func (s *LogStream) Orphans() []FrameRecord {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]FrameRecord(nil), s.orphans...)
+}
+
+// SessionSpec is what a log session is opened for.
+type SessionSpec struct {
+	Namespace string
+	Pod       string // the resource id: a pod's name, or the name of the Deployment when ResourceKey says so
+	// ResourceKey is the plugin's key of the kind logs are read for; empty is a Pod ("k8s:/pods").
+	ResourceKey  string
+	Target       string // one container; "" reads every source the pod has (the host's default)
+	Follow       bool
+	Previous     bool
+	TailLines    int64
+	SinceSeconds int64
+	LimitBytes   int64 // limit_bytes of the session (the host's viewer sends 0)
+	// Ask sets the replay-markers session parameter (logs.ParamReplayMarkers = "1").
+	Ask bool
+	// Params are added to the session's params (the host's viewer sends filter_labels=container).
+	Params map[string]string
+}
+
+// HostSpec is the request the Kubernetes plugin's UI hands openLogStream for a Pod
+// (ui/src/pod/logs/target.ts): follow, 1,000 lines, not previous, every container, filter_labels=container.
+func HostSpec(namespace, pod string) SessionSpec {
+	return SessionSpec{Namespace: namespace, Pod: pod, Follow: true, TailLines: 1000, Params: map[string]string{"filter_labels": "container"}}
+}
+
+// Session is one log session and every frame it has received.
+type Session struct {
+	ID     string
+	Spec   SessionSpec
+	T0     time.Time // just before the create call began
+	TReply time.Time // when the create reply arrived
+	Reply  *lp.LogSession
+	Err    error // the create error, if any
+
+	owner *LogStream
+	pl    *Plugin
+	conn  types.Connection
+
+	mu     sync.Mutex
+	frames []FrameRecord
+	notify chan struct{}
+
+	// FirstLine and FirstCaughtUp are the time from T0 to the first line frame and to the first
+	// caught-up event; -1 until they happen.
+	FirstLine     time.Duration
+	FirstCaughtUp time.Duration
+}
+
+// RecordedFrames returns a copy of the frames received so far.
+func (s *Session) RecordedFrames() []FrameRecord {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]FrameRecord(nil), s.frames...)
+}
+
+func (s *Session) deliver(msg *logspb.LogStreamOutput, now time.Time) {
+	s.mu.Lock()
+	rec := recordFrame(msg, len(s.frames)+1, now.Sub(s.T0))
+	at := now.Sub(s.T0)
+	if rec.Kind == "line" && s.FirstLine < 0 {
+		s.FirstLine = at
+	}
+	if rec.Kind == "event" && rec.Type == EventTypeCaughtUp && s.FirstCaughtUp < 0 {
+		s.FirstCaughtUp = at
+	}
+	s.frames = append(s.frames, rec)
+	old := s.notify
+	s.notify = make(chan struct{})
+	s.mu.Unlock()
+	close(old)
+}
+
+// Wait returns when cond is true of the frames received so far, or when timeout passes (false).
+func (s *Session) Wait(timeout time.Duration, cond func(frames []FrameRecord) bool) bool {
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+	for {
+		s.mu.Lock()
+		ok := cond(s.frames)
+		ch := s.notify
+		s.mu.Unlock()
+		if ok {
+			return true
+		}
+		select {
+		case <-ch:
+		case <-deadline.C:
+			return false
+		}
+	}
+}
+
+// Sleep waits for d, returning early when the stream ends (frames keep arriving meanwhile).
+func (s *Session) Sleep(d time.Duration) { time.Sleep(d) }
+
+// PodRecord is a pod as the host's data hooks hold it: the canonical record the plugin returned for it.
+type PodRecord struct {
+	Record   resourcev2.Record
+	Revision string // the catalog revision the record was read under
+}
+
+// Pods enumerates the pods of a namespace through the plugin's resource provider, as the host's pod page
+// does, and returns them by name. The plugin must have started the connection.
+func (p *Plugin) Pods(ctx context.Context, conn types.Connection, namespace string) (map[string]PodRecord, error) {
+	return p.Resources(ctx, conn, "k8s:/pods", namespace)
+}
+
+// Resources enumerates the records of one kind in a namespace (the host's list page of that kind) and
+// returns them by name. The plugin must have started the connection.
+func (p *Plugin) Resources(ctx context.Context, conn types.Connection, resourceType, namespace string) (map[string]PodRecord, error) {
+	route := resourcev2.AccessRoute{Connection: conn.ID}
+	ctx = Ctx(ctx)
+	catalog, err := p.Resource.Catalog(ctx, resourcev2.CatalogRequest{Route: route})
+	if err != nil {
+		return nil, fmt.Errorf("Catalog: %w", err)
+	}
+	var descriptor *resourcev2.ResourceType
+	for i := range catalog.Types {
+		if catalog.Types[i].Type == resourceType {
+			descriptor = &catalog.Types[i]
+		}
+	}
+	if descriptor == nil {
+		return nil, fmt.Errorf("catalog has no %s (%d types)", resourceType, len(catalog.Types))
+	}
+	representation := descriptor.DefaultRepresentation
+	if representation == "" && len(descriptor.Representations) > 0 {
+		representation = descriptor.Representations[0].ID
+	}
+	scope := resourcev2.QueryScope{}
+	for _, d := range descriptor.QueryDimensions {
+		if d.Name == "namespace" {
+			values := []string{namespace}
+			scope = append(scope, resourcev2.ScopeConstraint{Dimension: d.Name, Match: resourcev2.ScopeOneOf, Values: &values})
+			continue
+		}
+		scope = append(scope, resourcev2.ScopeConstraint{Dimension: d.Name, Match: resourcev2.ScopeAny})
+	}
+	pinned := resourcev2.WithCatalogRevisionForRoute(resourcev2.WithCatalogRevision(ctx, catalog.Revision), catalog.Provider, route, catalog.Revision)
+	out := map[string]PodRecord{}
+	var cursor *string
+	for {
+		page, err := p.Resource.Enumerate(pinned, resourcev2.EnumerateRequest{
+			Target: resourcev2.ReadTarget{Route: route, Provider: catalog.Provider, Authority: "zz-proof-authority",
+				Type: resourceType, Scope: scope, Representation: representation},
+			PageSize: 200, Cursor: cursor,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("Enumerate %s: %w", resourceType, err)
+		}
+		for _, r := range page.Records {
+			out[r.Reference.Address.ID] = PodRecord{Record: r, Revision: catalog.Revision}
+		}
+		if page.NextCursor == nil || *page.NextCursor == "" {
+			return out, nil
+		}
+		cursor = page.NextCursor
+	}
+}
+
+// OpenSession creates a log session the way the host does (controller.createSessionWithContext): the
+// request the pod's UI builds (resource key, id, the record's body, its reference, its route), the
+// connection in the plugin context, the catalog revision pinned by the reference admission, and a
+// session id reserved by the caller so that the stream can be subscribed before the plugin sends.
+func (p *Plugin) OpenSession(ctx context.Context, ls *LogStream, conn types.Connection, pod PodRecord, spec SessionSpec) *Session {
+	id := uuid.NewString()
+	s := &Session{ID: id, Spec: spec, owner: ls, pl: p, conn: conn, notify: make(chan struct{}),
+		FirstLine: -1, FirstCaughtUp: -1}
+	ls.mu.Lock()
+	ls.sessions[id] = s
+	ls.mu.Unlock()
+
+	route := resourcev2.AccessRoute{Connection: conn.ID}
+	ref := pod.Record.Reference
+	body := pod.Record.Body
+	params := map[string]string{}
+	for k, v := range spec.Params {
+		params[k] = v
+	}
+	if spec.Ask {
+		params[lp.ParamReplayMarkers] = lp.ReplayMarkersOn
+	}
+	opts := lp.CreateSessionOptions{
+		SessionID:    id,
+		ResourceKey:  resourceKey(spec),
+		ResourceID:   spec.Pod,
+		ResourceData: &body,
+		Reference:    &ref,
+		Route:        &route,
+		Options: lp.LogSessionOptions{
+			Target:              spec.Target,
+			Follow:              spec.Follow,
+			IncludePrevious:     spec.Previous,
+			IncludeTimestamps:   true,
+			TailLines:           spec.TailLines,
+			SinceSeconds:        spec.SinceSeconds,
+			LimitBytes:          spec.LimitBytes,
+			IncludeSourceEvents: true,
+			Params:              params,
+		},
+	}
+	// The host admits the reference first (AdmitReference: the catalog of the route, its revision pinned
+	// on the context), then builds the plugin context with the connection.
+	admitted := resourcev2.WithCatalogRevision(Ctx(ctx), pod.Revision)
+	pc := types.NewPluginContextWithConnection(admitted, "log", nil, nil, &conn)
+	s.T0 = time.Now()
+	reply, err := p.Logs.CreateSession(pc, opts)
+	s.TReply = time.Now()
+	s.Reply, s.Err = reply, err
+	if err == nil && reply != nil && reply.ID != id {
+		s.Err = fmt.Errorf("reply session id %q differs from the reserved %q", reply.ID, id)
+	}
+	return s
+}
+
+// Close closes the session in the plugin (the host's CloseSession) and forgets it. Frames that arrive
+// afterwards are counted as orphans.
+func (s *Session) Close(ctx context.Context) error {
+	pc := types.NewPluginContextWithConnection(Ctx(ctx), "log", nil, nil, &s.conn)
+	err := s.pl.Logs.CloseSession(pc, s.ID)
+	s.owner.mu.Lock()
+	delete(s.owner.sessions, s.ID)
+	s.owner.mu.Unlock()
+	return err
+}
+
+// Records returns the recording of the session: the reply, then every frame in arrival order.
+func (s *Session) Records() []FrameRecord {
+	var out []FrameRecord
+	reply := FrameRecord{Kind: "reply", Session: SessionToken, Meta: FrameMeta{Seq: -1}}
+	if s.Err != nil {
+		reply.Message = "create error: " + s.Err.Error()
+		out = append(out, reply)
+	} else if s.Reply != nil {
+		r := s.Reply
+		rr := &ReplyRecord{
+			PluginID:      r.PluginID,
+			ConnectionID:  r.ConnectionID,
+			ResourceKey:   r.ResourceKey,
+			ResourceID:    r.ResourceID,
+			ReplayMarkers: r.ReplayMarkers,
+			Params:        r.Options.Params,
+			Follow:        r.Options.Follow,
+			Previous:      r.Options.IncludePrevious,
+			Timestamps:    r.Options.IncludeTimestamps,
+			TailLines:     r.Options.TailLines,
+			SinceSeconds:  r.Options.SinceSeconds,
+			LimitBytes:    r.Options.LimitBytes,
+			SourceEvents:  r.Options.IncludeSourceEvents,
+			Target:        r.Options.Target,
+		}
+		reply.Meta.ReplyStatus = int(r.Status)
+		for _, src := range r.ActiveSources {
+			reply.Meta.ReplyActiveSources = append(reply.Meta.ReplyActiveSources, src.ID)
+		}
+		reply.Reply = rr
+		out = append(out, reply)
+	}
+	return append(out, s.RecordedFrames()...)
+}
+
+// resourceKey is the plugin's key of the kind a spec reads logs for.
+func resourceKey(spec SessionSpec) string {
+	if spec.ResourceKey == "" {
+		return "k8s:/pods"
+	}
+	return spec.ResourceKey
+}

@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# The frame comparisons of the log proof, printed as tables (logdiff on the recordings of raw/logproof).
+#
+# logdiff normalises the session id and nothing else; it does not look at a frame's "meta" (arrival time,
+# an event's wall clock, the racy status/sources of the create reply). See tools-src/hack/zz-proof/logdiff.
+set -uo pipefail
+OUT=$(cd "$(dirname "$0")" && pwd)
+LD="$OUT/bin/logdiff"
+R="$OUT/raw/logproof"
+
+DET="quiet-t1000 quiet3-t1000 quiet3-t0 quiet3-t5000 quiet3-finite done-t1000 done-t0 done-finite fixed6k-t1000 fixed6k-t0 fixed6k-t5000 fixed6k-finite partial-t1000"
+LIVE="rate5-t1000 rate5-t0 rate5-t5000 rate5-finite rate5-limit4000 rate5-limit64k rate5-since30 rate5-since30-t50 twoc-t1000 twoc-t0 twoc-t5000 web-t1000 web-t0 web-t5000 initc-t1000 bigtail-t1000 bigtail-t0 bigtail-t5000 bigtail-limit1m"
+
+# table <title> <labelA> <modeA> <labelB> <modeB> "<logdiff flags>" <cases...>
+table() {
+  local title=$1 la=$2 ma=$3 lb=$4 mb=$5 flags=$6
+  shift 6
+  echo
+  echo "### $title"
+  echo
+  echo "A = $la/$ma, B = $lb/$mb, logdiff flags: ${flags:-(none)}"
+  echo
+  echo "| case | verdict |"
+  echo "|---|---|"
+  local c a b out
+  for c in "$@"; do
+    a="$R/$la/$c-$ma.jsonl.gz"
+    b="$R/$lb/$c-$mb.jsonl.gz"
+    if [ ! -f "$a" ] || [ ! -f "$b" ]; then
+      echo "| $c | (no recording: $([ -f "$a" ] || echo "$la/$ma ")$([ -f "$b" ] || echo "$lb/$mb")) |"
+      continue
+    fi
+    # shellcheck disable=SC2086
+    out=$("$LD" $flags "$a" "$b" 2>&1)
+    v=$(echo "$out" | head -1 | sed -e 's/ :: .*//')
+    d=$(echo "$out" | sed -n '3p' | sed -e 's/^ *//' | cut -c1-300)
+    if [ -n "$d" ]; then
+      echo "| $c | $v; first difference: $d |"
+    else
+      echo "| $c | $v |"
+    fi
+  done
+}
+
+echo "## Frame comparisons ($(date '+%Y-%m-%d %H:%M:%S'))"
+
+echo
+echo "# 1. A client that does not ask: do the builds send the same frames?"
+for pair in "base bump" "base head" "bump head"; do
+  set -- $pair
+  [ -d "$R/$2" ] || continue
+  table "no-ask, deterministic sources, in order, reply included: $1 vs $2" "$1" noask "$2" noask "" $DET
+done
+for pair in "base bump" "base head"; do
+  set -- $pair
+  [ -d "$R/$2" ] || continue
+  table "no-ask, live pods, the lines both runs hold (matched by number), field by field: $1 vs $2" "$1" noask "$2" noask "-overlap" $LIVE
+done
+
+echo
+echo "# 2. Asking an older plugin (BASE: SDK v0.20.0; BUMP: SDK v0.22.0, no ReplayCount): same frames as not asking"
+for b in base bump; do
+  [ -d "$R/$b" ] || continue
+  table "$b: ask vs no-ask, deterministic sources, frames in order (reply left out: it echoes the parameter)" "$b" noask "$b" ask "-skip-reply" $DET
+  table "$b: ask vs no-ask, live pods, overlapping lines" "$b" noask "$b" ask "-overlap" $LIVE
+done
+
+if [ -d "$R/head" ]; then
+  echo
+  echo "# 3. HEAD asking vs HEAD not asking: only the flag and the events may differ"
+  table "head: ask vs no-ask, deterministic sources, replay markers stripped (caught-up events dropped, replay flag/wire ignored), in order" head noask head ask "-strip-replay" $DET
+  table "head: ask vs no-ask, live pods, replay markers stripped, overlapping lines" head noask head ask "-strip-replay -overlap" $LIVE
+fi

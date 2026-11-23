@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# Rebuilds HEAD from a plugin tree and re-runs the HEAD legs of the log proof (3) and of the
+# time to first line (4), then prints the tables.
+#
+#   HEAD_SRC=/path/to/plugin/tree  ./redo.sh
+#
+# Needs the cluster `sdk3k8s-proof` up (setup.sh made it) and the BASE and BUMP binaries and recordings
+# that are already here (bin/base-plugin, bin/bump-plugin, raw/logproof/{base,bump}). HEAD_SRC is only
+# read: it is copied (without .git and ui) into work/head-src and built there.
+#
+# Variables:  HEAD_SRC (required)   the plugin tree to build
+#             N=20                  opens per leg per case for the time to first line
+#             SKIP_TTFL=1           skip leg 4
+#             SKIP_LOGPROOF=1       skip leg 3
+set -euo pipefail
+OUT=$(cd "$(dirname "$0")" && pwd)
+: "${HEAD_SRC:?set HEAD_SRC to the plugin tree}"
+N=${N:-20}
+export GOWORK=off GOTOOLCHAIN=local
+export KUBECONFIG="$OUT/kubeconfig"
+KC="$OUT/kubeconfig"
+YAML="$OUT/tools-src/plugin.yaml"
+STAMP=$(date +%Y%m%d-%H%M%S)
+
+echo "== uptime: $(uptime)"
+echo "== cluster: $(kubectl get nodes --no-headers | awk '{print $1, $2, $5}')"
+
+# 1. HEAD binary, built from a copy of the tree
+rm -rf "$OUT/work/head-src"
+mkdir -p "$OUT/work/head-src"
+rsync -a --exclude .git --exclude ui "$HEAD_SRC"/ "$OUT/work/head-src"/
+(cd "$OUT/work/head-src" && go build -o "$OUT/bin/head-plugin" ./pkg)
+echo "== head-plugin sha256: $(shasum -a 256 "$OUT/bin/head-plugin" | cut -d' ' -f1)"
+go version -m "$OUT/bin/head-plugin" | grep -E 'plugin-sdk|^\s*path|mod\s' | head -5
+if ! grep -rq ReplayCount "$HEAD_SRC/pkg/plugin/logs/"; then
+  echo "!! HEAD_SRC has no ReplayCount in pkg/plugin/logs: this HEAD is the bump only"
+fi
+
+# 2. the tools, rebuilt from their sources (tools-src is a copy of the HEAD module's go.mod/go.sum + hack/zz-proof)
+(cd "$OUT/tools-src" && for t in logproof logdiff ttfl countbench; do go build -o "$OUT/bin/$t" "./hack/zz-proof/$t"; done)
+
+# 3. log proof on HEAD, asking and not asking
+if [ -z "${SKIP_LOGPROOF:-}" ]; then
+  mkdir -p "$OUT/raw/logproof"
+  rm -rf "$OUT/raw/logproof/head"
+  "$OUT/bin/logproof" -plugin "$OUT/bin/head-plugin" -label head -kubeconfig "$KC" -plugin-yaml "$YAML" -out "$OUT/raw/logproof" \
+    | tee "$OUT/raw/logproof/head-stdout.txt"
+  echo
+  echo "== frame comparisons (compare.sh)"
+  "$OUT/compare.sh" | tee "$OUT/raw/logproof/compare-$STAMP.txt"
+fi
+
+# 4. time to first line, interleaved base-noask / head-noask / head-ask
+if [ -z "${SKIP_TTFL:-}" ]; then
+  mkdir -p "$OUT/raw/ttfl"
+  "$OUT/bin/ttfl" -kubeconfig "$KC" -plugin-yaml "$YAML" -out "$OUT/raw/ttfl/head-$STAMP" -n "$N" \
+    -proc base="$OUT/bin/base-plugin" -proc head="$OUT/bin/head-plugin" \
+    -leg base-noask=base:noask -leg head-noask=head:noask -leg head-ask=head:ask \
+    -case rate5:1000 -case bigtail:1000 -case bigtail:0 | tee "$OUT/raw/ttfl/head-$STAMP.txt"
+  echo
+  echo "== the count request alone (client-go, no plugin)"
+  for spec in "rate5 1000 0" "bigtail 1000 0" "bigtail 1000 1048576" "bigtail 0 0" "fixed6k 0 0"; do
+    set -- $spec
+    "$OUT/bin/countbench" -kubeconfig "$KC" -pod "$1" -tail "$2" -limit-bytes "$3" -n "$N" | tee -a "$OUT/raw/ttfl/countbench-$STAMP.txt"
+  done
+fi

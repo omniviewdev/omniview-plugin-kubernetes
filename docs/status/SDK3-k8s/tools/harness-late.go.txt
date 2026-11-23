@@ -1,0 +1,104 @@
+package harness
+
+import (
+	"time"
+)
+
+// LateFacts are the facts of one source of one session against an instant tc: the time the session was
+// created, on the clock of the node that stamps the lines (the harness clock plus the skew between them).
+// A line whose stamp is later than tc did not exist when the session was created.
+type LateFacts struct {
+	Lines   int `json:"lines"`
+	Flagged int `json:"flagged"`
+	// BeforeLate is the number of lines delivered before the first line whose stamp is later than tc: the
+	// lines the source held when the session was created, as the stream delivered them. The lines the
+	// stream's own window dropped (a relative since window moves) are not in it, so it is what a reader
+	// that knows the create time would call the replay.
+	BeforeLate int `json:"lines_before_first_line_later_than_tc"`
+	// FlaggedLate is the number of flagged lines whose stamp is later than tc: lines that were written after
+	// the session was created and are flagged as replay anyway.
+	FlaggedLate int `json:"flagged_lines_later_than_tc"`
+	// LastFlaggedAfterMS is the stamp of the last flagged line, in milliseconds after tc (negative: before it).
+	LastFlaggedAfterMS float64 `json:"last_flagged_ms_after_tc"`
+	// FirstUnflaggedAfterMS is the same for the first line that is not flagged.
+	FirstUnflaggedAfterMS float64 `json:"first_unflagged_ms_after_tc"`
+	// FlaggedAfterUnflagged counts the flagged lines that come after an unflagged one (must be 0).
+	FlaggedAfterUnflagged int `json:"flagged_after_unflagged"`
+	// FlaggedAfterCount counts the flagged lines stamped after ce, the instant the plugin's count finished:
+	// lines the count cannot have seen, flagged as replay anyway (must be 0 for a consistent count).
+	FlaggedAfterCount int `json:"flagged_lines_later_than_the_count"`
+}
+
+// Late derives LateFacts for every source of a recording (the output of Session.Records).
+func Late(records []FrameRecord, tc, ce time.Time) map[string]*LateFacts {
+	out := map[string]*LateFacts{}
+	seenLate := map[string]bool{}
+	seenUnflagged := map[string]bool{}
+	for _, r := range records {
+		if r.Kind != "line" || r.Timestamp == "" {
+			continue
+		}
+		ts, err := time.Parse(time.RFC3339Nano, r.Timestamp)
+		if err != nil {
+			continue
+		}
+		lf := out[r.Source]
+		if lf == nil {
+			lf = &LateFacts{LastFlaggedAfterMS: -1e12, FirstUnflaggedAfterMS: 1e12}
+			out[r.Source] = lf
+		}
+		after := float64(ts.Sub(tc).Microseconds()) / 1000
+		if !seenLate[r.Source] && ts.After(tc) {
+			seenLate[r.Source] = true
+			lf.BeforeLate = lf.Lines
+		}
+		lf.Lines++
+		if r.Replay {
+			lf.Flagged++
+			if ts.After(tc) {
+				lf.FlaggedLate++
+			}
+			if !ce.IsZero() && ts.After(ce) {
+				lf.FlaggedAfterCount++
+			}
+			lf.LastFlaggedAfterMS = after
+			if seenUnflagged[r.Source] {
+				lf.FlaggedAfterUnflagged++
+			}
+		} else {
+			if !seenUnflagged[r.Source] {
+				lf.FirstUnflaggedAfterMS = after
+			}
+			seenUnflagged[r.Source] = true
+		}
+	}
+	for src, lf := range out {
+		if !seenLate[src] {
+			lf.BeforeLate = lf.Lines
+		}
+	}
+	return out
+}
+
+// MinArrivalMinusStamp is the smallest difference between the time a line reached the harness (t0 plus the
+// arrival offset the recording keeps) and the line's stamp, over the lines stamped after t0 (written once
+// the session existed). It is the delay of the fastest line plus the skew of the node clock against the
+// harness clock: with a delay of a few milliseconds it bounds the skew.
+func MinArrivalMinusStamp(records []FrameRecord, t0 time.Time) (time.Duration, bool) {
+	best := time.Duration(1<<62 - 1)
+	found := false
+	for _, r := range records {
+		if r.Kind != "line" || r.Timestamp == "" {
+			continue
+		}
+		ts, err := time.Parse(time.RFC3339Nano, r.Timestamp)
+		if err != nil || !ts.After(t0) {
+			continue
+		}
+		arrival := t0.Add(time.Duration(r.Meta.AtMS * float64(time.Millisecond)))
+		if d := arrival.Sub(ts); d < best {
+			best, found = d, true
+		}
+	}
+	return best, found
+}

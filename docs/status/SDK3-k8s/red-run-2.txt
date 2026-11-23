@@ -1,0 +1,11 @@
+--- FAIL: TestReplayCountAsksForTheStreamsLinesAndNothingElse (0.22s)
+    --- FAIL: TestReplayCountAsksForTheStreamsLinesAndNothingElse/a_tail,_the_previous_instance,_a_limit_and_a_window (0.00s)
+    --- FAIL: TestReplayCountAsksForTheStreamsLinesAndNothingElse/limits_above_the_finite_read's_own (0.05s)
+--- FAIL: TestTheWindowOfSinceSecondsStartsAtTheSameInstantForTheCountAndTheStream (0.11s)
+    --- FAIL: TestTheWindowOfSinceSecondsStartsAtTheSameInstantForTheCountAndTheStream/the_clock_is_on_a_second (0.05s)
+    --- FAIL: TestTheWindowOfSinceSecondsStartsAtTheSameInstantForTheCountAndTheStream/the_clock_is_inside_a_second (0.06s)
+--- FAIL: TestReplayCountOfAByteLimitThatCutsTheRecordAContainerIsStillWriting (0.00s)
+    --- FAIL: TestReplayCountOfAByteLimitThatCutsTheRecordAContainerIsStillWriting/the_limit_falls_inside_the_unfinished_record (0.00s)
+FAIL
+FAIL	github.com/omniview/kubernetes/pkg/plugin/logs	2.467s
+FAIL

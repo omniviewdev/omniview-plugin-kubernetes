@@ -1,0 +1,435 @@
+// Command logproof opens log sessions on the pods of the `proof` namespace through a plugin binary,
+// launched as the host launches it, and records everything the plugin sends: the create reply and
+// every frame of the Stream (lines with their replay flag, events), with the session id replaced by a
+// token and nothing else changed. For every session it derives the facts of replay markers (see
+// harness.Analyze) and compares the replay with `kubectl logs --tail=N` taken just before and just
+// after the session was opened.
+//
+// Each case runs twice: a client that does not ask for replay markers (the host's request as it is
+// today) and one that asks (session param omniview.log.replay-markers=1).
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/omniviewdev/plugin-sdk/pkg/types"
+
+	"github.com/omniview/kubernetes/hack/zz-proof/harness"
+)
+
+type caseSpec struct {
+	ID          string
+	Pod         string
+	Tail        int64 // the session's tail_lines; 0 asks for the whole current log
+	Previous    bool
+	Limit       int64         // limit_bytes
+	Since       int64         // since_seconds
+	ResourceKey string        // the plugin's key of the kind (default k8s:/pods)
+	Selector    string        // label selector of the pods a group resource resolves to (the sources to expect)
+	Finite      bool          // follow=false
+	Live        time.Duration // how long to go on reading live lines after the replay is in
+	MaxWait     time.Duration
+	// Expect is a note on what the case is for.
+	Note string
+}
+
+func cases() []caseSpec {
+	live := 2500 * time.Millisecond
+	return []caseSpec{
+		{ID: "rate5-t1000", Pod: "rate5", Tail: 1000, Live: live, Note: "the host's default: follow, tail 1000, a log of 6000+ lines, 5 lines/s live"},
+		{ID: "rate5-t0", Pod: "rate5", Tail: 0, Live: live, Note: "no tail: the whole current log file"},
+		{ID: "rate5-t5000", Pod: "rate5", Tail: 5000, Live: live, Note: "tail 5000, below the 6000+ lines"},
+		{ID: "rate5-finite", Pod: "rate5", Tail: 1000, Finite: true, Note: "follow=false: the stream ends"},
+		{ID: "twoc-t1000", Pod: "twoc", Tail: 1000, Live: live, Note: "two sources: a has 3000 lines (tail cuts it), b has 500 (tail above)"},
+		{ID: "twoc-t0", Pod: "twoc", Tail: 0, Live: live, Note: "two sources, whole log"},
+		{ID: "twoc-t5000", Pod: "twoc", Tail: 5000, Live: live, Note: "tail 5000 above both logs"},
+		{ID: "quiet-t1000", Pod: "quiet", Tail: 1000, Live: 3 * time.Second, Note: "writes nothing: the replay is empty, caught up at once"},
+		{ID: "quiet3-t1000", Pod: "quiet3", Tail: 1000, Live: 3 * time.Second, Note: "3 lines, then silent"},
+		{ID: "quiet3-t0", Pod: "quiet3", Tail: 0, Live: 2 * time.Second},
+		{ID: "quiet3-t5000", Pod: "quiet3", Tail: 5000, Live: 2 * time.Second, Note: "tail above the number of lines"},
+		{ID: "quiet3-finite", Pod: "quiet3", Tail: 1000, Finite: true},
+		{ID: "initc-t1000", Pod: "initc", Tail: 1000, Live: live, Note: "sources include the init container (50 lines, ended)"},
+		{ID: "crash-t1000", Pod: "crash", Tail: 1000, Live: 2 * time.Second, Note: "the current instance of a crash-looping container"},
+		{ID: "crash-previous", Pod: "crash", Tail: 1000, Previous: true, Live: 2 * time.Second, Note: "previous=true: the instance before"},
+		{ID: "crash2-previous", Pod: "crash2", Tail: 1000, Previous: true, Live: 2 * time.Second, Note: "previous=true on a container whose previous instance still has its log (crash2 lives 20 s per instance)"},
+		{ID: "waiting-t1000", Pod: "waiting", Tail: 1000, MaxWait: 45 * time.Second, Live: time.Second, Note: "main container waiting to start: the open fails"},
+		{ID: "bigtail-t1000", Pod: "bigtail", Tail: 1000, MaxWait: 120 * time.Second, Live: 2 * time.Second, Note: "10 KB lines: a tail of 1000 is 10 MB"},
+		{ID: "bigtail-t0", Pod: "bigtail", Tail: 0, MaxWait: 120 * time.Second, Live: 2 * time.Second, Note: "10 KB lines, no tail: the whole 15 MB log"},
+		{ID: "bigtail-t5000", Pod: "bigtail", Tail: 5000, MaxWait: 120 * time.Second, Live: 2 * time.Second, Note: "10 KB lines, tail above the 1500 lines"},
+		{ID: "fixed6k-t1000", Pod: "fixed6k", Tail: 1000, Live: 2 * time.Second, Note: "a log that has stopped growing (6000 lines): deterministic"},
+		{ID: "fixed6k-t0", Pod: "fixed6k", Tail: 0, Live: 2 * time.Second, Note: "6000 lines, no tail"},
+		{ID: "fixed6k-t5000", Pod: "fixed6k", Tail: 5000, Live: 2 * time.Second},
+		{ID: "fixed6k-finite", Pod: "fixed6k", Tail: 1000, Finite: true},
+		{ID: "done-t1000", Pod: "done", Tail: 1000, Live: 2 * time.Second, Note: "a completed pod: a fixed log, the stream ends"},
+		{ID: "done-t0", Pod: "done", Tail: 0, Live: 2 * time.Second},
+		{ID: "done-finite", Pod: "done", Tail: 1000, Finite: true},
+		{ID: "partial-t1000", Pod: "partial", Tail: 1000, Live: 2 * time.Second, Note: "10 lines and an unterminated fragment (containerd holds the fragment back)"},
+		{ID: "rate5-limit64k", Pod: "rate5", Tail: 1000, Limit: 65536, Live: live, Note: "limit_bytes 64 KiB cuts the 1000-line tail in the middle of a line"},
+		{ID: "bigtail-limit1m", Pod: "bigtail", Tail: 1000, Limit: 1 << 20, MaxWait: 60 * time.Second, Live: live, Note: "limit_bytes 1 MiB on the 10 MB tail: cut in the middle of a 10 KB line"},
+		{ID: "rate5-since30", Pod: "rate5", Tail: 0, Since: 30, Live: live, Note: "since_seconds 30, no tail: only the lines of the last 30 s (about 150)"},
+		{ID: "rate5-since30-t50", Pod: "rate5", Tail: 50, Since: 30, Live: live, Note: "tail 50 and since 30 s together"},
+		{ID: "rate5-limit4000", Pod: "rate5", Tail: 1000, Limit: 4000, Live: live, Note: "limit_bytes 4000 on a 1000-line tail: the kubelet cuts follow too, in the middle of a line; the stream ends at the limit"},
+		{ID: "web-t1000", Pod: "web", ResourceKey: "k8s:apps/deployments", Selector: "app=web", Tail: 1000, Live: live, Note: "Deployment web, 2 replicas x 2 containers (app: 3000 lines then 5/s; side: 200 lines): the resolver picks the pods, one source per pod/container"},
+		{ID: "web-t0", Pod: "web", ResourceKey: "k8s:apps/deployments", Selector: "app=web", Tail: 0, Live: live, Note: "Deployment, no tail"},
+		{ID: "web-t5000", Pod: "web", ResourceKey: "k8s:apps/deployments", Selector: "app=web", Tail: 5000, Live: live, Note: "Deployment, tail above the lines of every container"},
+	}
+}
+
+// Result is what a case produced.
+type Result struct {
+	Label           string                  `json:"label"`
+	Case            string                  `json:"case"`
+	Mode            string                  `json:"mode"` // "ask" or "noask"
+	Note            string                  `json:"note,omitempty"`
+	CreateMS        float64                 `json:"create_reply_ms"`
+	FirstLineMS     float64                 `json:"first_line_ms"`
+	FirstCaughtUpMS float64                 `json:"first_caught_up_ms"`
+	Facts           harness.Facts           `json:"facts"`
+	Windows         []harness.KubectlWindow `json:"kubectl"`
+	Verdicts        map[string]string       `json:"verdict_by_source"`
+	Record          string                  `json:"record_file"`
+	PluginLog       string                  `json:"plugin_log_file,omitempty"`
+	WaitedOut       bool                    `json:"wait_timed_out,omitempty"`
+	Orphans         int                     `json:"orphan_frames_so_far"`
+}
+
+func main() {
+	pluginBin := flag.String("plugin", "", "plugin binary")
+	label := flag.String("label", "", "label of the build (base, bump, head)")
+	kubeconfig := flag.String("kubeconfig", "", "kubeconfig of the kind cluster (one context)")
+	ctxName := flag.String("context", "kind-sdk3k8s-proof", "context (= connection) name")
+	yaml := flag.String("plugin-yaml", "plugin.yaml", "plugin.yaml")
+	out := flag.String("out", "", "output directory")
+	only := flag.String("cases", "all", "comma-separated case ids, or all")
+	modes := flag.String("modes", "noask,ask", "comma-separated: noask, ask")
+	level := flag.String("plugin-log-level", "debug", "OMNIVIEW_PLUGIN_LOG_LEVEL of the plugin")
+	ns := flag.String("namespace", "proof", "namespace of the workloads")
+	flag.Parse()
+	if *pluginBin == "" || *label == "" || *kubeconfig == "" || *out == "" {
+		flag.Usage()
+		os.Exit(2)
+	}
+	dir := filepath.Join(*out, *label)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		fatal(err)
+	}
+	want := map[string]bool{}
+	if *only != "all" {
+		for _, id := range strings.Split(*only, ",") {
+			want[id] = true
+		}
+	}
+	ctx := context.Background()
+	runDir := filepath.Join(dir, fmt.Sprintf("plugin-run-%d", time.Now().Unix()))
+	p, err := harness.Launch(harness.LaunchOptions{Name: *label, Binary: *pluginBin, PluginYAML: *yaml, Kubeconfig: *kubeconfig, Dir: runDir, LogLevel: *level})
+	if err != nil {
+		fatal(err)
+	}
+	defer p.Close()
+	conn, _, err := p.Connect(ctx, *ctxName)
+	if err != nil {
+		fatal(err)
+	}
+	status, err := p.Resource.StartConnection(harness.Ctx(ctx), conn.ID)
+	if err != nil {
+		fatal(fmt.Errorf("StartConnection: %w", err))
+	}
+	if status.Connection != nil {
+		conn = *status.Connection
+	}
+	ls, err := p.OpenLogStream(ctx)
+	if err != nil {
+		fatal(err)
+	}
+	defer ls.Close()
+	k := harness.Kubectl{Kubeconfig: *kubeconfig}
+
+	var results []Result
+	for _, c := range cases() {
+		if len(want) > 0 && !want[c.ID] {
+			continue
+		}
+		for _, mode := range strings.Split(*modes, ",") {
+			fmt.Fprintf(os.Stderr, "[%s] %s %s %s\n", time.Now().Format("15:04:05"), *label, c.ID, mode)
+			r := runCase(ctx, p, ls, conn, k, *ns, dir, *label, c, mode == "ask")
+			results = append(results, r)
+			printResult(os.Stdout, r)
+		}
+	}
+	data, _ := json.MarshalIndent(results, "", " ")
+	_ = os.WriteFile(filepath.Join(dir, "results.json"), data, 0o644)
+	fmt.Println()
+	fmt.Println("## " + *label + ": replay facts")
+	printTable(os.Stdout, results)
+	if orphans := ls.Orphans(); len(orphans) > 0 {
+		fmt.Printf("\nORPHAN FRAMES (a session nobody had registered): %d\n", len(orphans))
+	}
+	if err := ls.Err(); err != nil {
+		fmt.Printf("\nSTREAM ERROR: %v\n", err)
+	}
+	_ = os.WriteFile(filepath.Join(dir, "plugin-stderr-copy.log"), []byte(strings.Join(p.StderrLines(), "\n")+"\n"), 0o644)
+}
+
+func fatal(err error) {
+	fmt.Fprintln(os.Stderr, "fatal:", err)
+	os.Exit(1)
+}
+
+func containersOf(k harness.Kubectl, ns, pod string) []string {
+	out, err := k.Run("-n", ns, "get", "pod", pod, "-o", `jsonpath={range .spec.initContainers[*]}{.name}{"\n"}{end}{range .spec.containers[*]}{.name}{"\n"}{end}{range .spec.ephemeralContainers[*]}{.name}{"\n"}{end}`)
+	if err != nil {
+		return nil
+	}
+	var names []string
+	for _, n := range strings.Split(out, "\n") {
+		if n != "" {
+			names = append(names, n)
+		}
+	}
+	return names
+}
+
+// target is one source a session is expected to read: a container of a pod.
+type target struct {
+	pod, container, source string
+}
+
+// targetsOf lists the sources a case expects: the containers of its pod, or of every pod its selector
+// names (a Deployment's), with the id the SDK gives each source (pod/container).
+func targetsOf(k harness.Kubectl, ns string, c caseSpec) []target {
+	pods := []string{c.Pod}
+	if c.Selector != "" {
+		out, err := k.Run("-n", ns, "get", "pods", "-l", c.Selector, "-o", "jsonpath={range .items[*]}{.metadata.name}{\"\\n\"}{end}")
+		if err != nil {
+			return nil
+		}
+		pods = nil
+		for _, n := range strings.Split(out, "\n") {
+			if n != "" {
+				pods = append(pods, n)
+			}
+		}
+		sort.Strings(pods)
+	}
+	var ts []target
+	for _, pod := range pods {
+		for _, name := range containersOf(k, ns, pod) {
+			ts = append(ts, target{pod: pod, container: name, source: pod + "/" + name})
+		}
+	}
+	return ts
+}
+
+func runCase(ctx context.Context, p *harness.Plugin, ls *harness.LogStream, conn types.Connection, k harness.Kubectl, ns, dir, label string, c caseSpec, ask bool) Result {
+	mode := "noask"
+	if ask {
+		mode = "ask"
+	}
+	r := Result{Label: label, Case: c.ID, Mode: mode, Note: c.Note, FirstLineMS: -1, FirstCaughtUpMS: -1, Verdicts: map[string]string{}}
+	targets := targetsOf(k, ns, c)
+	tail := c.Tail
+	if tail == 0 {
+		tail = -1 // kubectl: the whole log
+	}
+	before := map[string][]string{}
+	windows := map[string]*harness.KubectlWindow{}
+	for _, t := range targets {
+		lines, w := k.Window(ns, t.pod, t.container, tail, c.Previous, c.Since, c.Limit)
+		w.Source = t.source
+		before[t.source] = lines
+		w.FillBefore(lines)
+		windows[t.source] = &w
+	}
+	resourceType := c.ResourceKey
+	if resourceType == "" {
+		resourceType = "k8s:/pods"
+	}
+	records, err := p.Resources(ctx, conn, resourceType, ns)
+	if err != nil {
+		r.Facts.CreateError = "records: " + err.Error()
+		return r
+	}
+	spec := harness.HostSpec(ns, c.Pod)
+	spec.ResourceKey = c.ResourceKey
+	spec.TailLines = c.Tail
+	spec.Previous = c.Previous
+	spec.LimitBytes = c.Limit
+	spec.SinceSeconds = c.Since
+	spec.Follow = !c.Finite
+	spec.Ask = ask
+	s := p.OpenSession(ctx, ls, conn, records[c.Pod], spec)
+	if s.Err != nil {
+		r.Facts.CreateError = s.Err.Error()
+	} else {
+		maxWait := c.MaxWait
+		if maxWait == 0 {
+			maxWait = 40 * time.Second
+		}
+		expect := map[string]int{}
+		failing := map[string]bool{}
+		for _, t := range targets {
+			expect[t.source] = len(before[t.source])
+			if windows[t.source].Error != "" {
+				failing[t.source] = true
+			}
+		}
+		markers := s.Reply != nil && s.Reply.ReplayMarkers
+		done := func(frames []harness.FrameRecord) bool {
+			lines := map[string]int{}
+			caught := map[string]int{}
+			ended, errored := false, map[string]bool{}
+			for _, f := range frames {
+				switch f.Kind {
+				case "line":
+					lines[f.Source]++
+				case "event":
+					switch f.Type {
+					case harness.EventTypeCaughtUp:
+						caught[f.Source]++
+					case 5:
+						ended = true
+					case 2:
+						errored[f.Source] = true
+					}
+				}
+			}
+			if c.Finite {
+				return ended
+			}
+			for src, want := range expect {
+				if failing[src] {
+					if !errored[src] {
+						return false
+					}
+					continue
+				}
+				if lines[src] < want {
+					return false
+				}
+				if markers && caught[src] == 0 {
+					return false
+				}
+			}
+			return true
+		}
+		r.WaitedOut = !s.Wait(maxWait, done)
+		if !r.WaitedOut && !c.Finite && c.Live > 0 {
+			time.Sleep(c.Live) // live lines after the replay: none of them may be flagged
+		}
+	}
+	frames := s.Records()
+	r.CreateMS = float64(s.TReply.Sub(s.T0).Microseconds()) / 1000
+	if s.FirstLine >= 0 {
+		r.FirstLineMS = float64(s.FirstLine.Microseconds()) / 1000
+	}
+	if s.FirstCaughtUp >= 0 {
+		r.FirstCaughtUpMS = float64(s.FirstCaughtUp.Microseconds()) / 1000
+	}
+	r.Facts = harness.Analyze(frames)
+	for _, t := range targets {
+		lines, _ := k.Window(ns, t.pod, t.container, tail, c.Previous, c.Since, c.Limit)
+		windows[t.source].FillAfter(lines)
+		r.Windows = append(r.Windows, *windows[t.source])
+	}
+	for _, sf := range r.Facts.Sources {
+		if w, ok := windows[sf.Source]; ok {
+			slack := 0
+			if c.Since > 0 {
+				slack = 8 // a since window is not monotonic: lines leave it at one end as they enter at the other
+			}
+			r.Verdicts[sf.Source] = sf.Verdict(*w, r.Facts.ReplayMarkers, c.Limit > 0, slack)
+		} else {
+			r.Verdicts[sf.Source] = "source not in kubectl's list of the pod(s)"
+		}
+	}
+	for _, t := range targets {
+		if _, ok := r.Facts.SourceByName(t.source); !ok && !windows[t.source].IsError() {
+			r.Verdicts[t.source] = "expected source delivered no frame at all"
+		}
+	}
+	file := filepath.Join(dir, c.ID+"-"+mode+".jsonl.gz")
+	if err := harness.WriteRecords(file, frames); err != nil {
+		r.Verdicts["write"] = err.Error()
+	}
+	r.Record = file
+	// the plugin's own log lines of the session (debug level: the counted replay, the opens)
+	var logLines []string
+	for _, line := range p.StderrLines() {
+		stamp, rest, ok := strings.Cut(line, " | ")
+		if !ok {
+			continue
+		}
+		t, err := time.Parse("2006-01-02T15:04:05.000000Z", stamp)
+		if err != nil {
+			continue
+		}
+		if !t.Before(s.T0.Add(-time.Millisecond)) && strings.Contains(rest, s.ID) {
+			logLines = append(logLines, strings.ReplaceAll(line, s.ID, harness.SessionToken))
+		}
+	}
+	if len(logLines) > 0 {
+		pf := filepath.Join(dir, c.ID+"-"+mode+".plugin-log.txt")
+		_ = os.WriteFile(pf, []byte(strings.Join(logLines, "\n")+"\n"), 0o644)
+		r.PluginLog = pf
+	}
+	r.Orphans = len(ls.Orphans())
+	_ = s.Close(ctx)
+	time.Sleep(300 * time.Millisecond)
+	return r
+}
+
+func printResult(w *os.File, r Result) {
+	fmt.Fprintf(w, "%-16s %-6s markers=%-5v lines=%-6d flagged=%-5d caughtUp=%d  create=%.1fms firstLine=%.1fms firstCaughtUp=%.1fms%s\n",
+		r.Case, r.Mode, r.Facts.ReplayMarkers, r.Facts.Lines, r.Facts.Flagged, r.Facts.CaughtUpEvents, r.CreateMS, r.FirstLineMS, r.FirstCaughtUpMS,
+		map[bool]string{true: "  WAIT TIMED OUT", false: ""}[r.WaitedOut])
+	for _, sf := range r.Facts.Sources {
+		fmt.Fprintf(w, "    %-22s lines=%-5d flagged=%-5d events=%d beforeFirstEvent=%-5d flaggedAfterEvent=%d unflaggedBeforeEvent=%d seq[%d..%d] flaggedSeq[%d..%d]  %s\n",
+			sf.Source, sf.Lines, sf.Flagged, sf.CaughtUp, sf.LinesBeforeCaughtUp, sf.FlaggedAfterCaughtUp, sf.UnflaggedBeforeCaughtUp,
+			sf.FirstSeq, sf.LastSeq, sf.FlaggedFirstSeq, sf.FlaggedLastSeq, r.Verdicts[sf.Source])
+	}
+	if r.Facts.CreateError != "" {
+		fmt.Fprintf(w, "    create error: %s\n", r.Facts.CreateError)
+	}
+}
+
+func printTable(w *os.File, rs []Result) {
+	fmt.Fprintln(w, "\n| case | mode | reply markers | source | lines | flagged | caught-up events | lines before first event | flagged after event | kubectl window before/after | verdict |")
+	fmt.Fprintln(w, "|---|---|---|---|---|---|---|---|---|---|---|")
+	for _, r := range rs {
+		if len(r.Facts.Sources) == 0 {
+			fmt.Fprintf(w, "| %s | %s | %v | - | %d | %d | %d | - | - | - | %s |\n", r.Case, r.Mode, r.Facts.ReplayMarkers, r.Facts.Lines, r.Facts.Flagged, r.Facts.CaughtUpEvents, r.Facts.CreateError)
+			continue
+		}
+		for _, sf := range r.Facts.Sources {
+			if sf.Source == "" {
+				continue
+			}
+			window := "-"
+			for _, kw := range r.Windows {
+				if kw.Source == sf.Source {
+					window = fmt.Sprintf("%d / %d (#%d..#%d)", kw.BeforeLines, kw.AfterLines, kw.AfterFirst, kw.AfterLast)
+					if kw.Error != "" {
+						window = "kubectl: " + trunc(kw.Error, 60)
+					}
+				}
+			}
+			fmt.Fprintf(w, "| %s | %s | %v | %s | %d | %d | %d | %d | %d | %s | %s |\n", r.Case, r.Mode, r.Facts.ReplayMarkers, sf.Source, sf.Lines, sf.Flagged, sf.CaughtUp,
+				sf.LinesBeforeCaughtUp, sf.FlaggedAfterCaughtUp, window, r.Verdicts[sf.Source])
+		}
+	}
+}
+
+func trunc(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
+}

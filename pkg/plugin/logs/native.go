@@ -101,8 +101,17 @@ func (r *borrowedReader) Close() error {
 	return safeLogError(r.ctx, r.log, "close", r.err)
 }
 
+// nativeHandler opens the stream of a source with the request it is given.
 func nativeHandler(borrow ClientBorrower) sdklogs.LogHandlerFunc {
+	return nativeHandlerWith(borrow, nil)
+}
+
+// nativeHandlerWith opens the stream of a source. When a count of the same opening resolved a relative
+// since window, the stream starts at the instant the count read from (openings); a stream that no count
+// preceded is the request it always was.
+func nativeHandlerWith(borrow ClientBorrower, shared *openings) sdklogs.LogHandlerFunc {
 	return func(ctx *types.PluginContext, req sdklogs.LogStreamRequest) (io.ReadCloser, error) {
+		req = shared.applySince(ctx.Context, req)
 		type opened struct {
 			reader io.ReadCloser
 			err    error

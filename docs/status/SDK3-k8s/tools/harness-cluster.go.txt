@@ -1,0 +1,69 @@
+package harness
+
+import (
+	"bytes"
+	"fmt"
+	"os"
+	"os/exec"
+	"strings"
+	"time"
+)
+
+// Kubectl runs kubectl against one kubeconfig. It never reads ~/.kube/config: every call passes --kubeconfig.
+type Kubectl struct {
+	Kubeconfig string
+}
+
+// Run returns stdout (stderr is appended to the error).
+func (k Kubectl) Run(args ...string) (string, error) {
+	cmd := exec.Command("kubectl", append([]string{"--kubeconfig", k.Kubeconfig}, args...)...)
+	cmd.Env = append(os.Environ(), "KUBECONFIG="+k.Kubeconfig)
+	var out, errb bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &errb
+	if err := cmd.Run(); err != nil {
+		return out.String(), fmt.Errorf("kubectl %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(errb.String()))
+	}
+	return out.String(), nil
+}
+
+// Logs returns `kubectl logs --timestamps` of one container: tail < 0 asks for the whole current log.
+func (k Kubectl) Logs(namespace, pod, container string, tail int64, previous bool, sinceSeconds, limitBytes int64) ([]string, error) {
+	args := []string{"-n", namespace, "logs", pod, "--timestamps"}
+	if container != "" {
+		args = append(args, "-c", container)
+	}
+	if tail >= 0 {
+		args = append(args, fmt.Sprintf("--tail=%d", tail))
+	}
+	if previous {
+		args = append(args, "--previous")
+	}
+	if sinceSeconds > 0 {
+		args = append(args, fmt.Sprintf("--since=%ds", sinceSeconds))
+	}
+	if limitBytes > 0 {
+		args = append(args, fmt.Sprintf("--limit-bytes=%d", limitBytes))
+	}
+	out, err := k.Run(args...)
+	if err != nil {
+		return nil, err
+	}
+	if out == "" {
+		return nil, nil
+	}
+	return strings.Split(strings.TrimSuffix(out, "\n"), "\n"), nil
+}
+
+// Uptime returns the output of uptime(1), for the load average of the shared machine.
+func Uptime() string {
+	out, err := exec.Command("uptime").Output()
+	if err != nil {
+		return "uptime: " + err.Error()
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// Stamp returns uptime with the time of day it was taken.
+func Stamp() string {
+	return time.Now().Format("2006-01-02 15:04:05.000") + " :: " + Uptime()
+}

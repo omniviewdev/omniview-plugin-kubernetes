@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# The frame comparisons of the log proof, printed as tables (logdiff on the recordings of raw/logproof).
+#
+# logdiff normalises the session id and nothing else; it does not look at a frame's "meta" (arrival time,
+# an event's wall clock, the racy status/sources of the create reply). See tools-src/hack/zz-proof/logdiff.
+set -uo pipefail
+OUT=$(cd "$(dirname "$0")" && pwd)
+LD="$OUT/bin/logdiff"
+R="$OUT/raw/logproof2"
+
+DET="quiet-t1000 quiet3-t1000 quiet3-t0 quiet3-t5000 quiet3-finite done-t1000 done-t0 done-finite fixed6k-t1000 fixed6k-t0 fixed6k-t5000 fixed6k-finite partial-t1000"
+LIVE="rate5-since30 rate5-since30-t50 rate5-t1000 twoc-t1000 initc-t1000 web-t1000"
+LIMITED="rate5-limit4000 rate5-limit64k bigtail-limit1m"
+
+# table <title> <labelA> <modeA> <labelB> <modeB> "<logdiff flags>" <cases...>
+table() {
+  local title=$1 la=$2 ma=$3 lb=$4 mb=$5 flags=$6
+  shift 6
+  echo
+  echo "### $title"
+  echo
+  echo "A = $la/$ma, B = $lb/$mb, logdiff flags: ${flags:-(none)}"
+  echo
+  echo "| case | verdict |"
+  echo "|---|---|"
+  local c a b out v d
+  for c in "$@"; do
+    a="$R/$la/$c-$ma.jsonl.gz"
+    b="$R/$lb/$c-$mb.jsonl.gz"
+    if [ ! -f "$a" ] || [ ! -f "$b" ]; then
+      echo "| $c | (no recording: $([ -f "$a" ] || echo "$la/$ma ")$([ -f "$b" ] || echo "$lb/$mb")) |"
+      continue
+    fi
+    # shellcheck disable=SC2086
+    out=$("$LD" $flags "$a" "$b" 2>&1)
+    v=$(echo "$out" | head -1 | sed -e 's/ :: .*//')
+    d=$(echo "$out" | sed -n '3p' | sed -e 's/^ *//' | cut -c1-300)
+    if [ -n "$d" ]; then
+      echo "| $c | $v; first difference: $d |"
+    else
+      echo "| $c | $v |"
+    fi
+  done
+}
+
+echo "## HEAD2 frame comparisons ($(date '+%Y-%m-%d %H:%M:%S'))"
+table "no-ask, the 13 deterministic cases, in order, create reply included: base vs head2" base noask head2 noask "" $DET
+table "head2: ask vs no-ask, the 13 deterministic cases, in order, replay markers stripped (caught-up events dropped, replay flag and wire hash ignored)" head2 noask head2 ask "-strip-replay" $DET
+table "head2: ask vs no-ask, live pods, overlapping lines (matched by number), replay markers stripped" head2 noask head2 ask "-strip-replay -overlap" $LIVE
+table "head2: ask vs no-ask, the three byte-limited sessions on the moving window: overlapping lines, markers stripped, the last line (the fragment the limit cuts, at an offset that moves with the window) dropped" head2 noask head2 ask "-strip-replay -overlap -drop-cut" $LIMITED

@@ -1,0 +1,91 @@
+#!/usr/bin/env python3
+"""Prints the start-time tables of RESULTS.md from the summaries startbench wrote (raw/start/summary-*.json)."""
+import glob
+import json
+import os
+import statistics
+import sys
+
+# Usage: report-start.py [output directory that holds raw/start] (default: this script's directory)
+OUT = os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 else os.path.dirname(os.path.abspath(__file__))
+files = sorted(glob.glob(os.path.join(OUT, "raw", "start", "summary-bump-*.json")))
+if not files:  # startbench -label bump writes summary-bump.json
+    files = sorted(glob.glob(os.path.join(OUT, "raw", "start", "summary-bump.json")))
+if not files:
+    sys.exit("no summaries")
+
+rows = []
+for f in files:
+    rows.extend(json.load(open(f)))
+
+order = ["a", "a1", "a5", "b", "c0", "c", "d", "e20", "e40", "f55", "f57", "f59", "g", "f61", "h60"]
+rows.sort(key=lambda s: order.index(s["scenario"]["ID"]) if s["scenario"]["ID"] in order else 99)
+
+
+def fmt(x):
+    return "%.3f" % x
+
+
+print("| id | scenario | runs | median s | min s | max s | StartConnection returned | the held read, dropped by the plugin after (s) | index read (s) | Catalog() after start (s) |")
+print("|---|---|---|---|---|---|---|---|---|---|")
+for s in rows:
+    sc = s["scenario"]
+    runs = s["Runs"] if "Runs" in s else s.get("runs", [])
+    secs = [r["start_seconds"] for r in runs if r.get("start_seconds", 0) > 0]
+    res = {}
+    for r in runs:
+        key = r["status"] + ("/" + r["error_code"] if r.get("error_code") else "")
+        res[key] = res.get(key, 0) + 1
+    held = []
+    for r in runs:
+        for h in r.get("held_reads") or []:
+            if h.get("dropped_by_client"):
+                held.append("%.2f" % h["held_seconds"])
+                break
+    idx = [r["index_read_seconds"] for r in runs if r.get("index_read_seconds")]
+    cat = [r["catalog_seconds_after_start"] for r in runs if r.get("catalog_seconds_after_start")]
+    print("| %s | %s | %d | %s | %s | %s | %s | %s | %s | %s |" % (
+        sc["ID"], sc["Title"], len(runs),
+        fmt(statistics.median(secs)) if secs else "-", fmt(min(secs)) if secs else "-", fmt(max(secs)) if secs else "-",
+        ", ".join("%s x%d" % (k, v) for k, v in sorted(res.items())),
+        ", ".join(held) if held else "-",
+        ("%.3f..%.3f" % (min(idx), max(idx))) if idx else "-",
+        ("%.4f..%.4f" % (min(cat), max(cat))) if cat else "-"))
+
+print()
+print("Toggles (proxy 127.0.0.1:<port>, held paths):")
+print()
+for s in rows:
+    print("- **%s**: %s" % (s["scenario"]["ID"], "; ".join(s.get("toggles") or [])))
+
+print()
+print("Load (uptime) at the first and last run of each scenario:")
+print()
+for s in rows:
+    runs = s.get("runs", [])
+    if runs:
+        print("- %s: before first run `%s`; after last run `%s`" % (s["scenario"]["ID"], runs[0]["uptime_before"].split(":: ")[-1], runs[-1]["uptime_after"].split(":: ")[-1]))
+
+print()
+print("Heal (scenario g):")
+print()
+for s in rows:
+    if s["scenario"]["ID"] != "g":
+        continue
+    for r in s.get("runs", []):
+        h = r.get("heal")
+        print("- run %d: StartConnection returned %s after %.3f s (CONNECTED=%s); the watch lasted %.0f s" % (
+            r["run"], r["start_returned_at"], r["start_seconds"], r["status"] == "CONNECTED", h["watched_seconds"] if h else 0))
+        for i, a in enumerate((h or {}).get("attempts", []), 1):
+            print("    - attempt %d: first request %.3f s after StartConnection returned; the attempt lasted %.3f s; %d requests; held read dropped after %s s" % (
+                i, a["first_request_seconds_after_start_returned"], a["attempt_seconds"], len(a["requests"]),
+                ", ".join("%.3f" % x for x in a.get("held_requests_dropped_after_seconds") or []) or "-"))
+
+print()
+mx = 0.0
+who = ""
+for s in rows:
+    for r in s.get("runs", []):
+        if r.get("start_seconds", 0) > mx:
+            mx, who = r["start_seconds"], "%s run %d" % (s["scenario"]["ID"], r["run"])
+print("Longest StartConnection of every run in every scenario: %.3f s (%s); SDK acquisition bound: 60 s." % (mx, who))

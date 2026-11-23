@@ -1,0 +1,24 @@
+#!/usr/bin/env python3
+"""The per-source table of the HEAD2 leg, from raw/logproof2/head2/results.json."""
+import json
+import os
+import sys
+
+OUT = os.path.dirname(os.path.abspath(__file__))
+label = sys.argv[1] if len(sys.argv) > 1 else "head2"
+rs = json.load(open(os.path.join(OUT, "raw/logproof2/%s/results.json" % label)))
+print("| case | mode | source | lines delivered | flagged | caught-up events | flagged after the event | kubectl window before/after (lines) | verdict |")
+print("|---|---|---|---|---|---|---|---|---|")
+for r in rs:
+    f = r["facts"]
+    wins = {w.get("source") or w["container"]: w for w in (r.get("kubectl") or [])}
+    if not f["sources"]:
+        print("| %s | %s | - | %d | %d | %d | - | - | %s |" % (r["case"], r["mode"], f["lines"], f["lines_flagged_replay"], f["caught_up_events"], f.get("create_error", "")))
+        continue
+    for sf in f["sources"]:
+        if sf["source"] == "":
+            continue
+        w = wins.get(sf["source"])
+        win = "-" if not w else ("kubectl: error" if w.get("error") else "%d / %d" % (w["before_lines"], w["after_lines"]))
+        v = r["verdict_by_source"].get(sf["source"], "")
+        print("| %s | %s | %s | %d | %d | %d | %d | %s | %s |" % (r["case"], r["mode"], sf["source"], sf["lines"], sf["flagged"], sf["caught_up_events"], sf["flagged_after_first_caught_up"], win, v[:160]))

@@ -1,0 +1,287 @@
+// Command ttfl measures the time from the create call of a log session to its first line frame, and to
+// its first caught-up event, for several legs interleaved (A B C A B C ...): a leg is a plugin
+// process (a build) and a mode (asks for replay markers or not). All processes are launched first;
+// then, for each case, every iteration opens one session per leg in a rotating order, so that the
+// drift of a shared machine's load falls on every leg alike.
+//
+//	ttfl -proc base=bin/base-plugin -proc head=bin/head-plugin \
+//	     -leg base-noask=base:noask -leg head-noask=head:noask -leg head-ask=head:ask \
+//	     -case rate5:1000 -case bigtail:1000 -case bigtail:0 -n 20 ...
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/omniviewdev/plugin-sdk/pkg/types"
+
+	"github.com/omniview/kubernetes/hack/zz-proof/harness"
+)
+
+type list []string
+
+func (l *list) String() string     { return strings.Join(*l, ",") }
+func (l *list) Set(v string) error { *l = append(*l, v); return nil }
+
+type proc struct {
+	name string
+	bin  string
+	p    *harness.Plugin
+	ls   *harness.LogStream
+	conn types.Connection
+}
+
+type leg struct {
+	name string
+	proc *proc
+	ask  bool
+}
+
+// Sample is one open.
+type Sample struct {
+	Leg           string  `json:"leg"`
+	Iteration     int     `json:"iteration"`
+	Position      int     `json:"position_in_rotation"`
+	ReplyMS       float64 `json:"create_reply_ms"`
+	FirstLineMS   float64 `json:"first_line_ms"`
+	FirstCaughtMS float64 `json:"first_caught_up_ms"`
+	Markers       bool    `json:"reply_replay_markers"`
+	Lines         int     `json:"lines_received_when_done"`
+	Err           string  `json:"error,omitempty"`
+}
+
+// CaseResult is one case with all its samples.
+type CaseResult struct {
+	Case               string   `json:"case"`
+	Pod                string   `json:"pod"`
+	Tail               int64    `json:"tail"`
+	N                  int      `json:"n"`
+	UptimeStart        string   `json:"uptime_start"`
+	UptimeEnd          string   `json:"uptime_end"`
+	UptimePerIteration []string `json:"uptime_per_iteration"`
+	Samples            []Sample `json:"samples"`
+}
+
+func main() {
+	var procs, legs, caseFlags list
+	flag.Var(&procs, "proc", "name=binary (repeatable)")
+	flag.Var(&legs, "leg", "name=proc:mode, mode ask|noask (repeatable, in the order of the first rotation)")
+	flag.Var(&caseFlags, "case", "pod:tail (repeatable); tail 0 is no tail")
+	kubeconfig := flag.String("kubeconfig", "", "kubeconfig of the kind cluster")
+	ctxName := flag.String("context", "kind-sdk3k8s-proof", "context (= connection) name")
+	yaml := flag.String("plugin-yaml", "plugin.yaml", "plugin.yaml")
+	out := flag.String("out", "", "output directory")
+	n := flag.Int("n", 20, "iterations (opens per leg per case)")
+	level := flag.String("plugin-log-level", "", "OMNIVIEW_PLUGIN_LOG_LEVEL (default: the plugin's own, info)")
+	ns := flag.String("namespace", "proof", "namespace")
+	pause := flag.Duration("pause", 250*time.Millisecond, "pause after closing a session")
+	waitMax := flag.Duration("wait", 90*time.Second, "longest wait for a first line or a caught-up event")
+	flag.Parse()
+	if *kubeconfig == "" || *out == "" || len(procs) == 0 || len(legs) == 0 || len(caseFlags) == 0 {
+		flag.Usage()
+		os.Exit(2)
+	}
+	if err := os.MkdirAll(*out, 0o755); err != nil {
+		fatal(err)
+	}
+	ctx := context.Background()
+	byName := map[string]*proc{}
+	for _, s := range procs {
+		name, bin, ok := strings.Cut(s, "=")
+		if !ok {
+			fatal(fmt.Errorf("bad -proc %q", s))
+		}
+		pr := &proc{name: name, bin: bin}
+		p, err := harness.Launch(harness.LaunchOptions{Name: name, Binary: bin, PluginYAML: *yaml, Kubeconfig: *kubeconfig,
+			Dir: filepath.Join(*out, fmt.Sprintf("proc-%s-%d", name, time.Now().Unix())), LogLevel: *level})
+		if err != nil {
+			fatal(err)
+		}
+		defer p.Close()
+		pr.p = p
+		conn, _, err := p.Connect(ctx, *ctxName)
+		if err != nil {
+			fatal(err)
+		}
+		st, err := p.Resource.StartConnection(harness.Ctx(ctx), conn.ID)
+		if err != nil {
+			fatal(fmt.Errorf("%s: StartConnection: %w", name, err))
+		}
+		if st.Connection != nil {
+			conn = *st.Connection
+		}
+		pr.conn = conn
+		pr.ls, err = p.OpenLogStream(ctx)
+		if err != nil {
+			fatal(err)
+		}
+		defer pr.ls.Close()
+		byName[name] = pr
+	}
+	var order []leg
+	for _, s := range legs {
+		name, rest, ok := strings.Cut(s, "=")
+		pn, mode, ok2 := strings.Cut(rest, ":")
+		if !ok || !ok2 || byName[pn] == nil || (mode != "ask" && mode != "noask") {
+			fatal(fmt.Errorf("bad -leg %q", s))
+		}
+		order = append(order, leg{name: name, proc: byName[pn], ask: mode == "ask"})
+	}
+	var all []CaseResult
+	for _, cf := range caseFlags {
+		pod, tailS, ok := strings.Cut(cf, ":")
+		tail, err := strconv.ParseInt(tailS, 10, 64)
+		if !ok || err != nil {
+			fatal(fmt.Errorf("bad -case %q", cf))
+		}
+		res := CaseResult{Case: cf, Pod: pod, Tail: tail, N: *n, UptimeStart: harness.Stamp()}
+		// one pod record per process, fetched once
+		recs := map[string]harness.PodRecord{}
+		for name, pr := range byName {
+			pods, err := pr.p.Pods(ctx, pr.conn, *ns)
+			if err != nil {
+				fatal(err)
+			}
+			recs[name] = pods[pod]
+		}
+		for it := 1; it <= *n; it++ {
+			res.UptimePerIteration = append(res.UptimePerIteration, harness.Stamp())
+			for j := range order {
+				l := order[(it-1+j)%len(order)]
+				spec := harness.HostSpec(*ns, pod)
+				spec.TailLines = tail
+				spec.Ask = l.ask
+				s := l.proc.p.OpenSession(ctx, l.proc.ls, l.proc.conn, recs[l.proc.name], spec)
+				smp := Sample{Leg: l.name, Iteration: it, Position: j, FirstLineMS: -1, FirstCaughtMS: -1}
+				if s.Err != nil {
+					smp.Err = s.Err.Error()
+				} else {
+					smp.ReplyMS = ms(s.TReply.Sub(s.T0))
+					smp.Markers = s.Reply != nil && s.Reply.ReplayMarkers
+					if !s.Wait(*waitMax, func(f []harness.FrameRecord) bool {
+						for _, r := range f {
+							if r.Kind == "line" {
+								return true
+							}
+						}
+						return false
+					}) {
+						smp.Err = "no line in time"
+					}
+					if smp.Markers && smp.Err == "" {
+						if !s.Wait(*waitMax, func(f []harness.FrameRecord) bool {
+							for _, r := range f {
+								if r.Kind == "event" && r.Type == harness.EventTypeCaughtUp {
+									return true
+								}
+							}
+							return false
+						}) {
+							smp.Err = "no caught-up event in time"
+						}
+					}
+					if s.FirstLine >= 0 {
+						smp.FirstLineMS = ms(s.FirstLine)
+					}
+					if s.FirstCaughtUp >= 0 {
+						smp.FirstCaughtMS = ms(s.FirstCaughtUp)
+					}
+					smp.Lines = len(s.RecordedFrames())
+				}
+				_ = s.Close(ctx)
+				res.Samples = append(res.Samples, smp)
+				time.Sleep(*pause)
+			}
+		}
+		res.UptimeEnd = harness.Stamp()
+		all = append(all, res)
+		data, _ := json.MarshalIndent(res, "", " ")
+		_ = os.WriteFile(filepath.Join(*out, "ttfl-"+strings.ReplaceAll(cf, ":", "-t")+".json"), data, 0o644)
+		printCase(os.Stdout, res, order)
+	}
+	data, _ := json.MarshalIndent(all, "", " ")
+	_ = os.WriteFile(filepath.Join(*out, "ttfl-all.json"), data, 0o644)
+	for _, pr := range byName {
+		if err := pr.ls.Err(); err != nil {
+			fmt.Printf("\nSTREAM ERROR on %s: %v\n", pr.name, err)
+		}
+		if o := pr.ls.Orphans(); len(o) > 0 {
+			fmt.Printf("\nORPHAN FRAMES on %s: %d\n", pr.name, len(o))
+		}
+	}
+}
+
+func ms(d time.Duration) float64 { return float64(d.Microseconds()) / 1000 }
+
+func fatal(err error) {
+	fmt.Fprintln(os.Stderr, "fatal:", err)
+	os.Exit(1)
+}
+
+type stats struct {
+	n                  int
+	med, min, p90, max float64
+}
+
+func summarize(v []float64) stats {
+	if len(v) == 0 {
+		return stats{}
+	}
+	s := append([]float64(nil), v...)
+	sort.Float64s(s)
+	med := s[len(s)/2]
+	if len(s)%2 == 0 {
+		med = (s[len(s)/2-1] + s[len(s)/2]) / 2
+	}
+	rank := func(p float64) float64 {
+		i := int(p*float64(len(s))+0.999999) - 1
+		return s[min(max(i, 0), len(s)-1)]
+	}
+	return stats{n: len(s), med: med, min: s[0], p90: rank(0.9), max: s[len(s)-1]}
+}
+
+func printCase(w *os.File, res CaseResult, order []leg) {
+	fmt.Fprintf(w, "\n### %s (pod %s, tail %d), %d opens per leg\n\nuptime at start: %s\nuptime at end:   %s\n\n", res.Case, res.Pod, res.Tail, res.N, res.UptimeStart, res.UptimeEnd)
+	fmt.Fprintln(w, "| leg | metric | n | median ms | min ms | p90 ms | max ms | errors |")
+	fmt.Fprintln(w, "|---|---|---|---|---|---|---|---|")
+	for _, l := range order {
+		var reply, line, caught []float64
+		errs := 0
+		for _, s := range res.Samples {
+			if s.Leg != l.name {
+				continue
+			}
+			if s.Err != "" {
+				errs++
+			}
+			if s.ReplyMS > 0 {
+				reply = append(reply, s.ReplyMS)
+			}
+			if s.FirstLineMS >= 0 {
+				line = append(line, s.FirstLineMS)
+			}
+			if s.FirstCaughtMS >= 0 {
+				caught = append(caught, s.FirstCaughtMS)
+			}
+		}
+		row := func(metric string, v []float64) {
+			if len(v) == 0 {
+				fmt.Fprintf(w, "| %s | %s | 0 | - | - | - | - | %d |\n", l.name, metric, errs)
+				return
+			}
+			st := summarize(v)
+			fmt.Fprintf(w, "| %s | %s | %d | %.1f | %.1f | %.1f | %.1f | %d |\n", l.name, metric, st.n, st.med, st.min, st.p90, st.max, errs)
+		}
+		row("create -> reply", reply)
+		row("create -> first line", line)
+		row("create -> first caught-up", caught)
+	}
+}

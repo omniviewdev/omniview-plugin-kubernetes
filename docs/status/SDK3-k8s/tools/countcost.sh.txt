@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# The plugin's own account of its replay counts (debug line "native log replay counted": lines, bytes,
+# duration_ms) and of the counts it gave up on (Warn "not counted within its bound"), per case.
+set -uo pipefail
+OUT=$(cd "$(dirname "$0")" && pwd)
+D="$OUT/raw/logproof/${1:-head}"
+echo "| case | source | lines counted | bytes read | count ms (plugin's clock) |"
+echo "|---|---|---|---|---|"
+for f in "$D"/*-ask.plugin-log.txt; do
+  [ -f "$f" ] || continue
+  case=$(basename "$f" -ask.plugin-log.txt)
+  grep -h "native log replay counted" "$f" | sed -E 's/.*source_id=([^ ]+) .* lines=([0-9]+) bytes=([0-9]+) duration_ms=([0-9]+).*/| '"$case"' | \1 | \2 | \3 | \4 |/'
+done
+echo
+echo "counts over the bound / errors:"
+grep -h "not counted within its bound\|failed to count log replay\|replay_count" "$D"/*.plugin-log.txt 2>/dev/null | cut -c1-260 | head -20

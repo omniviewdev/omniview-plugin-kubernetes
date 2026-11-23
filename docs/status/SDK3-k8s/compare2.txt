@@ -1,0 +1,64 @@
+## HEAD2 frame comparisons (2026-11-22 18:27:30)
+
+### no-ask, the 13 deterministic cases, in order, create reply included: base vs head2
+
+A = base/noask, B = head2/noask, logdiff flags: (none)
+
+| case | verdict |
+|---|---|
+| quiet-t1000 | IDENTICAL: 3 frames compared (in order) |
+| quiet3-t1000 | IDENTICAL: 6 frames compared (in order) |
+| quiet3-t0 | IDENTICAL: 6 frames compared (in order) |
+| quiet3-t5000 | IDENTICAL: 6 frames compared (in order) |
+| quiet3-finite | IDENTICAL: 7 frames compared (in order) |
+| done-t1000 | IDENTICAL: 54 frames compared (in order) |
+| done-t0 | IDENTICAL: 54 frames compared (in order) |
+| done-finite | IDENTICAL: 54 frames compared (in order) |
+| fixed6k-t1000 | IDENTICAL: 1003 frames compared (in order) |
+| fixed6k-t0 | IDENTICAL: 6003 frames compared (in order) |
+| fixed6k-t5000 | IDENTICAL: 5003 frames compared (in order) |
+| fixed6k-finite | IDENTICAL: 1004 frames compared (in order) |
+| partial-t1000 | IDENTICAL: 13 frames compared (in order) |
+
+### head2: ask vs no-ask, the 13 deterministic cases, in order, replay markers stripped (caught-up events dropped, replay flag and wire hash ignored)
+
+A = head2/noask, B = head2/ask, logdiff flags: -strip-replay
+
+| case | verdict |
+|---|---|
+| quiet-t1000 | IDENTICAL: 3 frames compared (in order, replay markers stripped) |
+| quiet3-t1000 | IDENTICAL: 6 frames compared (in order, replay markers stripped) |
+| quiet3-t0 | IDENTICAL: 6 frames compared (in order, replay markers stripped) |
+| quiet3-t5000 | IDENTICAL: 6 frames compared (in order, replay markers stripped) |
+| quiet3-finite | IDENTICAL: 7 frames compared (in order, replay markers stripped) |
+| done-t1000 | IDENTICAL: 54 frames compared (in order, replay markers stripped) |
+| done-t0 | IDENTICAL: 54 frames compared (in order, replay markers stripped) |
+| done-finite | IDENTICAL: 54 frames compared (in order, replay markers stripped) |
+| fixed6k-t1000 | IDENTICAL: 1003 frames compared (in order, replay markers stripped) |
+| fixed6k-t0 | IDENTICAL: 6003 frames compared (in order, replay markers stripped) |
+| fixed6k-t5000 | IDENTICAL: 5003 frames compared (in order, replay markers stripped) |
+| fixed6k-finite | IDENTICAL: 1004 frames compared (in order, replay markers stripped) |
+| partial-t1000 | IDENTICAL: 13 frames compared (in order, replay markers stripped) |
+
+### head2: ask vs no-ask, live pods, overlapping lines (matched by number), replay markers stripped
+
+A = head2/noask, B = head2/ask, logdiff flags: -strip-replay -overlap
+
+| case | verdict |
+|---|---|
+| rate5-since30 | IDENTICAL: 147 frames compared (overlap by line number, replay markers stripped) |
+| rate5-since30-t50 | IDENTICAL: 44 frames compared (overlap by line number, replay markers stripped) |
+| rate5-t1000 | IDENTICAL: 996 frames compared (overlap by line number, replay markers stripped) |
+| twoc-t1000 | IDENTICAL: 1591 frames compared (overlap by line number, replay markers stripped) |
+| initc-t1000 | IDENTICAL: 686 frames compared (overlap by line number, replay markers stripped) |
+| web-t1000 | IDENTICAL: 2378 frames compared (overlap by line number, replay markers stripped) |
+
+### head2: ask vs no-ask, the three byte-limited sessions on the moving window: overlapping lines, markers stripped, the last line (the fragment the limit cuts, at an offset that moves with the window) dropped
+
+A = head2/noask, B = head2/ask, logdiff flags: -strip-replay -overlap -drop-cut
+
+| case | verdict |
+|---|---|
+| rate5-limit4000 | IDENTICAL: 14 frames compared (overlap by line number, replay markers stripped) |
+| rate5-limit64k | IDENTICAL: 481 frames compared (overlap by line number, replay markers stripped) |
+| bigtail-limit1m | IDENTICAL: 101 frames compared (overlap by line number, replay markers stripped) |

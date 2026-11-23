@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Builds the proof cluster from nothing (what was run, in this order). It touches only the cluster
+# `sdk3k8s-proof` and the kubeconfig next to this file; never ~/.kube/config.
+set -euo pipefail
+OUT=$(cd "$(dirname "$0")" && pwd)
+export KUBECONFIG="$OUT/kubeconfig"
+export GOWORK=off GOTOOLCHAIN=local
+mkdir -p "$OUT/work/bh-img"
+
+# 1. kind v0.30.0, node kindest/node:v1.35.0, kubelet log rotation raised to 100Mi so that a 15 MB log
+#    (the `bigtail` pod) stays in the current log file (the default, 10Mi, rotates it within 10 s).
+kind create cluster --name sdk3k8s-proof --config "$OUT/kind-config.yaml" --kubeconfig "$KUBECONFIG" --wait 180s
+
+# 2. images (Docker Desktop's image store keeps multi-platform indexes: save one platform, load the archive)
+docker save --platform linux/arm64 busybox:1.37.0 -o "$OUT/work/busybox.tar"
+kind load image-archive "$OUT/work/busybox.tar" --name sdk3k8s-proof
+
+# 3. the black-hole backend of the aggregated APIs that hang (accepts TCP, never answers)
+(cd "$OUT/tools-src" && GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -o "$OUT/work/bh-img/blackhole" ./hack/zz-proof/blackhole)
+printf 'FROM scratch\nCOPY blackhole /blackhole\nENTRYPOINT ["/blackhole"]\n' > "$OUT/work/bh-img/Dockerfile"
+docker build --platform linux/arm64 -t sdk3k8s-blackhole:1 "$OUT/work/bh-img"
+docker save --platform linux/arm64 sdk3k8s-blackhole:1 -o "$OUT/work/blackhole.tar"
+kind load image-archive "$OUT/work/blackhole.tar" --name sdk3k8s-proof
+
+# 4. the log workloads (namespace proof). The aggregated APIs of the start-time scenarios are made by startbench itself.
+kubectl apply -f "$OUT/workloads.yaml"

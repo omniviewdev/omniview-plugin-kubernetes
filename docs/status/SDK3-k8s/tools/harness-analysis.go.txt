@@ -1,0 +1,257 @@
+package harness
+
+import (
+	"fmt"
+	"sort"
+	"strings"
+)
+
+// SourceFacts are the replay facts of one source of one session, read from the recorded frames.
+type SourceFacts struct {
+	Source string `json:"source"`
+	Lines  int    `json:"lines"`
+	// Flagged is the number of lines with the replay flag set.
+	Flagged int `json:"flagged"`
+	// CaughtUp is the number of caught-up events for the source.
+	CaughtUp int `json:"caught_up_events"`
+	// LinesBeforeCaughtUp is the number of lines of the source that arrived before its first caught-up event; -1 if none came.
+	LinesBeforeCaughtUp int `json:"lines_before_first_caught_up"`
+	// FlaggedAfterCaughtUp counts lines flagged after the first caught-up event: it must be 0.
+	FlaggedAfterCaughtUp int `json:"flagged_after_first_caught_up"`
+	// UnflaggedBeforeCaughtUp counts lines NOT flagged that arrived before the first caught-up event: with
+	// markers on, the replay is flagged, so the events' line count equals the flagged count when this is 0.
+	UnflaggedBeforeCaughtUp int `json:"unflagged_before_first_caught_up"`
+	// FlaggedFirst/LastSeq and FirstLast are the workload numbers (the second word of a line) of the first and
+	// last flagged line, and of the first and last line of the source; -1 if none.
+	FlaggedFirstSeq int `json:"flagged_first_seq"`
+	FlaggedLastSeq  int `json:"flagged_last_seq"`
+	FirstSeq        int `json:"first_seq"`
+	LastSeq         int `json:"last_seq"`
+	// Errors and Reconnecting count the events that say the source failed.
+	StreamErrors  int    `json:"stream_error_events"`
+	Reconnecting  int    `json:"reconnecting_events"`
+	StreamEnded   int    `json:"stream_ended_events"`
+	AddedEvents   int    `json:"source_added_events"`
+	NonMonotonic  int    `json:"non_monotonic_seq"` // lines whose number is not above the previous line's of the source
+	FirstLineTime string `json:"first_line_timestamp,omitempty"`
+	LastLineTime  string `json:"last_line_timestamp,omitempty"`
+}
+
+// Facts are the derived facts of one session.
+type Facts struct {
+	ReplayMarkers   bool           `json:"reply_replay_markers"`
+	CreateError     string         `json:"create_error,omitempty"`
+	Lines           int            `json:"lines"`
+	Flagged         int            `json:"lines_flagged_replay"`
+	CaughtUpEvents  int            `json:"caught_up_events"`
+	StreamErrors    int            `json:"stream_error_events"`
+	SessionEnded    int            `json:"session_ended_events"`
+	Unknown         int            `json:"unknown_proto_bytes"`
+	OrderViolations int            `json:"order_violations"` // a flagged line after the first caught-up event of its source, or an unflagged one before it
+	Sources         []*SourceFacts `json:"sources"`
+}
+
+// Analyze derives the facts of a recording (the output of Session.Records).
+func Analyze(records []FrameRecord) Facts {
+	var f Facts
+	by := map[string]*SourceFacts{}
+	get := func(name string) *SourceFacts {
+		if sf, ok := by[name]; ok {
+			return sf
+		}
+		sf := &SourceFacts{Source: name, LinesBeforeCaughtUp: -1, FlaggedFirstSeq: -1, FlaggedLastSeq: -1, FirstSeq: -1, LastSeq: -1}
+		by[name] = sf
+		f.Sources = append(f.Sources, sf)
+		return sf
+	}
+	for _, r := range records {
+		f.Unknown += r.Unknown
+		switch r.Kind {
+		case "reply":
+			if r.Reply != nil {
+				f.ReplayMarkers = r.Reply.ReplayMarkers
+			} else {
+				f.CreateError = r.Message
+			}
+		case "line":
+			sf := get(r.Source)
+			f.Lines++
+			sf.Lines++
+			if sf.FirstSeq < 0 {
+				sf.FirstSeq = r.Meta.Seq
+			}
+			if sf.LastSeq >= 0 && r.Meta.Seq >= 0 && r.Meta.Seq <= sf.LastSeq {
+				sf.NonMonotonic++
+			}
+			if r.Meta.Seq >= 0 {
+				sf.LastSeq = r.Meta.Seq
+			}
+			if sf.FirstLineTime == "" {
+				sf.FirstLineTime = r.Timestamp
+			}
+			sf.LastLineTime = r.Timestamp
+			if r.Replay {
+				f.Flagged++
+				sf.Flagged++
+				if sf.FlaggedFirstSeq < 0 {
+					sf.FlaggedFirstSeq = r.Meta.Seq
+				}
+				sf.FlaggedLastSeq = r.Meta.Seq
+				if sf.CaughtUp > 0 {
+					sf.FlaggedAfterCaughtUp++
+					f.OrderViolations++
+				}
+			} else if sf.CaughtUp == 0 && sf.LinesBeforeCaughtUp < 0 {
+				sf.UnflaggedBeforeCaughtUp++
+			}
+		case "event":
+			if r.Type == 2 {
+				f.StreamErrors++
+			}
+			if r.Type == EventTypeCaughtUp {
+				f.CaughtUpEvents++
+			}
+			if r.Type == 5 && r.Source == "" {
+				f.SessionEnded++
+			}
+			if r.Source == "" {
+				continue
+			}
+			sf := get(r.Source)
+			switch r.Type {
+			case EventTypeCaughtUp:
+				if sf.CaughtUp == 0 {
+					sf.LinesBeforeCaughtUp = sf.Lines
+				}
+				sf.CaughtUp++
+			case 2:
+				sf.StreamErrors++
+			case 3:
+				sf.Reconnecting++
+			case 5:
+				sf.StreamEnded++
+			case 0:
+				sf.AddedEvents++
+			}
+		}
+	}
+	sort.Slice(f.Sources, func(i, j int) bool { return f.Sources[i].Source < f.Sources[j].Source })
+	// A caught-up event with no line after it counts the unflagged lines before it only when markers were on.
+	for _, sf := range f.Sources {
+		if sf.CaughtUp == 0 {
+			sf.UnflaggedBeforeCaughtUp = 0
+		}
+		f.OrderViolations += sf.UnflaggedBeforeCaughtUp
+	}
+	return f
+}
+
+// KubectlWindow is `kubectl logs --tail=N --timestamps` of one container, read before and after a session.
+type KubectlWindow struct {
+	Source      string `json:"source,omitempty"` // the SDK's id of the source: pod/container
+	Container   string `json:"container"`
+	Tail        int64  `json:"tail"` // < 0: the whole current log
+	Previous    bool   `json:"previous"`
+	BeforeLines int    `json:"before_lines"`
+	BeforeFirst int    `json:"before_first_seq"`
+	BeforeLast  int    `json:"before_last_seq"`
+	AfterLines  int    `json:"after_lines"`
+	AfterFirst  int    `json:"after_first_seq"`
+	AfterLast   int    `json:"after_last_seq"`
+	Error       string `json:"error,omitempty"`
+}
+
+// IsError reports whether kubectl could not read the container (a container that waits to start).
+func (w *KubectlWindow) IsError() bool { return w.Error != "" }
+
+// SourceByName returns the facts of one source.
+func (f Facts) SourceByName(name string) (*SourceFacts, bool) {
+	for _, sf := range f.Sources {
+		if sf.Source == name {
+			return sf, true
+		}
+	}
+	return nil, false
+}
+
+// Window reads one container's window with kubectl.
+func (k Kubectl) Window(namespace, pod, container string, tail int64, previous bool, sinceSeconds, limitBytes int64) (lines []string, w KubectlWindow) {
+	w = KubectlWindow{Container: container, Tail: tail, Previous: previous}
+	lines, err := k.Logs(namespace, pod, container, tail, previous, sinceSeconds, limitBytes)
+	if err != nil {
+		w.Error = err.Error()
+		return nil, w
+	}
+	return lines, w
+}
+
+// FillBefore and FillAfter record a kubectl read into the window.
+func (w *KubectlWindow) FillBefore(lines []string) {
+	w.BeforeLines, w.BeforeFirst, w.BeforeLast = len(lines), -1, -1
+	if len(lines) > 0 {
+		w.BeforeFirst, w.BeforeLast = SeqOfLine(lines[0]), SeqOfLine(lines[len(lines)-1])
+	}
+}
+
+func (w *KubectlWindow) FillAfter(lines []string) {
+	w.AfterLines, w.AfterFirst, w.AfterLast = len(lines), -1, -1
+	if len(lines) > 0 {
+		w.AfterFirst, w.AfterLast = SeqOfLine(lines[0]), SeqOfLine(lines[len(lines)-1])
+	}
+}
+
+// Verdict compares a source's replay with the kubectl windows taken just before the session was
+// opened and just after it was read. The plugin's count is made between the two reads, and the
+// kubelet's answer only moves forward with a live pod, so the flagged lines must fall in the range
+// the two reads give: their number between the numbers of lines the reads returned, the number
+// of the first flagged line between the numbers of the first lines, that of the last between the last.
+// slack widens the count range for a window that is not monotonic (since_seconds: lines leave it
+// at one end as they enter at the other). limited says the session had a byte limit: the stream
+// ends at the limit, so every delivered line, the fragment the limit cut included, is replay.
+func (sf *SourceFacts) Verdict(w KubectlWindow, replayMarkers, limited bool, slack int) string {
+	if w.Error != "" {
+		return "kubectl: " + w.Error
+	}
+	if !replayMarkers {
+		if sf.Flagged != 0 || sf.CaughtUp != 0 {
+			return fmt.Sprintf("NO MARKERS ACCEPTED but %d lines flagged, %d caught-up events", sf.Flagged, sf.CaughtUp)
+		}
+		return "ok (no markers: nothing flagged, no event)"
+	}
+	var notes []string
+	if sf.CaughtUp != 1 {
+		notes = append(notes, fmt.Sprintf("%d caught-up events (want 1)", sf.CaughtUp))
+	}
+	low, high := min(w.BeforeLines, w.AfterLines), max(w.BeforeLines, w.AfterLines)
+	if sf.Flagged < low-slack || sf.Flagged > high+slack {
+		notes = append(notes, fmt.Sprintf("flagged %d outside kubectl's %d..%d", sf.Flagged, low, high))
+	}
+	if sf.FlaggedFirstSeq >= 0 && w.BeforeFirst >= 0 {
+		lo, hi := min(w.BeforeFirst, w.AfterFirst), max(w.BeforeFirst, w.AfterFirst)
+		if sf.FlaggedFirstSeq < lo-slack || sf.FlaggedFirstSeq > hi+slack {
+			notes = append(notes, fmt.Sprintf("first flagged #%d outside kubectl's #%d..#%d", sf.FlaggedFirstSeq, lo, hi))
+		}
+	}
+	if sf.FlaggedLastSeq >= 0 && w.BeforeLast >= 0 {
+		lo, hi := min(w.BeforeLast, w.AfterLast), max(w.BeforeLast, w.AfterLast)
+		if sf.FlaggedLastSeq < lo-slack || sf.FlaggedLastSeq > hi+slack {
+			notes = append(notes, fmt.Sprintf("last flagged #%d outside kubectl's #%d..#%d", sf.FlaggedLastSeq, lo, hi))
+		}
+	}
+	if sf.Flagged == 0 && high > 0 {
+		notes = append(notes, "nothing flagged although kubectl read lines")
+	}
+	if limited && sf.Flagged != sf.Lines {
+		notes = append(notes, fmt.Sprintf("byte limit: %d lines delivered, %d flagged (want all)", sf.Lines, sf.Flagged))
+	}
+	if sf.FlaggedAfterCaughtUp != 0 {
+		notes = append(notes, fmt.Sprintf("%d flagged after the event", sf.FlaggedAfterCaughtUp))
+	}
+	if sf.UnflaggedBeforeCaughtUp != 0 {
+		notes = append(notes, fmt.Sprintf("%d unflagged before the event", sf.UnflaggedBeforeCaughtUp))
+	}
+	if len(notes) == 0 {
+		return "ok"
+	}
+	return strings.Join(notes, "; ")
+}

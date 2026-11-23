@@ -1,0 +1,28 @@
+--- FAIL: TestASessionThatAsksIsToldWhereEachContainersReplayEnds (15.00s)
+--- FAIL: TestASessionThatDoesNotAskGetsTheStreamItAlwaysGot (0.01s)
+--- FAIL: TestACountedLogThatRotatesBeforeTheOpenLosesNoLine (0.11s)
+--- FAIL: TestAReplayCountThatFailsFailsTheAttemptAsAFailedOpenDoes (0.01s)
+--- FAIL: TestReplayCountIsTheNumberOfLinesTheFollowStreamDeliversFirst (0.28s)
+--- FAIL: TestReplayCountDoesNotStopAtTheFiniteReadsBounds (0.06s)
+--- FAIL: TestReplayCountOfFewerLinesThanTheTailAndOfNone (0.11s)
+--- FAIL: TestReplayCountOfThePreviousInstance (0.00s)
+--- FAIL: TestReplayCountOfAContainerWithNoPreviousInstanceIsAnError (0.00s)
+--- FAIL: TestReplayCountAsksForTheStreamsLinesAndNothingElse (0.21s)
+--- FAIL: TestReplayCountOfARefusalIsAnErrorOfTheClassTheStreamsOpenGets (0.00s)
+--- FAIL: TestReplayCountOfAnErrorNeverCarriesTheKubernetesText (0.00s)
+--- FAIL: TestReplayCountCountsLineFeeds (0.00s)
+--- FAIL: TestReplayCountDoesNotCountTheRecordTheStreamHoldsBack (0.05s)
+--- FAIL: TestReplayCountOfATailCutByTheByteLimit (0.05s)
+--- FAIL: TestCountLinesHoldsNoLineInMemory (0.00s)
+--- FAIL: TestReplayCountOfAHugeLineAllocatesNothingOfItsSize (0.00s)
+--- FAIL: TestReplayCountThatTakesLongerThanItsBoundIsUnknown (10.00s)
+--- FAIL: TestReplayCountThatIsCancelledIsAnErrorNotUnknown (0.00s)
+--- FAIL: TestReplayCountHoldsTheClientOnlyWhileItCounts (0.00s)
+--- FAIL: TestReplayCountRunsAtTheSameTimeForDifferentSources (5.00s)
+--- FAIL: TestReplayCountResolvesTheContainerThroughTheStreamsRules (0.00s)
+--- FAIL: TestReplayCountIsLoggedAndTraced (0.00s)
+FAIL
+FAIL	github.com/omniview/kubernetes/pkg/plugin/logs	31.122s
+ok  	github.com/omniview/kubernetes/pkg/plugin/exec	3.749s
+FAIL
+exit=1
