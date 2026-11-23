@@ -17,6 +17,7 @@ import (
 	"k8s.io/streaming/pkg/httpstream"
 
 	"github.com/omniview/kubernetes/pkg/diag"
+	"github.com/omniview/kubernetes/pkg/plugin/execv2"
 	"github.com/omniview/kubernetes/pkg/pluginid"
 	"github.com/omniview/kubernetes/pkg/utils/remoteerr"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
@@ -37,6 +38,7 @@ func Register(plugin *sdk.Plugin) {
 				DefaultCommand: []string{"/bin/bash"},
 			},
 		},
+		Targets: []exec.Target{execv2.Target()},
 	}); err != nil {
 		panic(err)
 	}

@@ -10,8 +10,9 @@ require (
 	github.com/aws/smithy-go v1.28.8
 	github.com/fairwindsops/polaris v0.0.0-20261106180842-ff72eb2d3c01
 	github.com/fsnotify/fsnotify v1.10.1
+	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/lib/pq v1.12.3
-	github.com/omniviewdev/plugin-sdk v0.22.1
+	github.com/omniviewdev/plugin-sdk v0.22.1-0.20261123110854-abbcad0d7fe5
 	github.com/stretchr/testify v1.12.1
 	github.com/tidwall/gjson v1.18.0
 	go.opentelemetry.io/otel v1.47.0
@@ -90,7 +91,6 @@ require (
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/gnostic-models v0.7.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
 	github.com/gosuri/uitable v0.0.4 // indirect
 	github.com/grafana/otel-profiling-go v0.7.0 // indirect
 	github.com/grafana/pyroscope-go v1.4.3 // indirect
