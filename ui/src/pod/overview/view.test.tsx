@@ -24,7 +24,7 @@ const rich: unknown = JSON.parse(readFileSync(path.join(import.meta.dirname, 'fi
 const pods: { readonly captures: readonly Capture[] } = JSON.parse(readFileSync(path.join(import.meta.dirname, '../../kinds/pods/fixtures/pods-table.json'), 'utf8'));
 
 const logs = { onSelect: vi.fn(), disabledReason: undefined };
-const inputs = { age: '10m', invoke: vi.fn(), logs };
+const inputs = { age: '10m', invoke: vi.fn(), logs, forward: { entries: [] } };
 const viewOf = (object: unknown, age = '10m'): DetailView => podView(podOverview(podDetail(hostRecord(object))), { ...inputs, age });
 const fixture = (name: string): unknown => {
   const found = pods.captures[1]?.rows.find(({ object }) => object.metadata.name === name);
@@ -125,10 +125,21 @@ describe('the header', () => {
 
   it('carries the reason the page gives for Logs, and reports an invoked command that is not wired to the place it was given', () => {
     const invoke = vi.fn();
-    const view = podView(podOverview(podDetail(hostRecord(rich))), { age: '1m', invoke, logs: { onSelect: vi.fn(), disabledReason: 'No container of this Pod has started, so it has no logs yet.' } });
+    const view = podView(podOverview(podDetail(hostRecord(rich))), { age: '1m', invoke, logs: { onSelect: vi.fn(), disabledReason: 'No container of this Pod has started, so it has no logs yet.' }, forward: { entries: [] } });
     expect(view.commands?.primary?.disabledReason).toBe('No container of this Pod has started, so it has no logs yet.');
     view.commands?.secondary?.[0]?.onSelect();
     expect(invoke).toHaveBeenCalledWith('shell');
+  });
+
+  it('gives the header the Forward port entries the page gave, and the operation the forward is at, and says nothing of an operation when there is none', () => {
+    const entries = [{ id: 'forward-port:0', label: 'Forward port 8080 (http)', onSelect: vi.fn(), disabled: false }];
+    const operation = { title: 'Forward port 8080 of rich', state: 'running', text: 'Forwarding port 8080 of rich', progress: 'indeterminate' } as const;
+    const forwarding = podView(podOverview(podDetail(hostRecord(rich))), { ...inputs, forward: { entries, operation } });
+    expect(forwarding.commands?.menu?.[0]).toBe(entries[0]);
+    expect(forwarding.operation).toBe(operation);
+    const resting = viewOf(rich);
+    expect(resting).not.toHaveProperty('operation');
+    expect(resting.commands?.menu?.[0]).toMatchObject({ id: 'forward-port', disabled: true });
   });
 });
 

@@ -88,7 +88,7 @@ func (l *reconnectLoop) start(ctx context.Context, initialPod string) *networker
 			errCh <- err
 		}
 	}()
-	return &networker.ForwarderResult{Ready: l.ready, ErrCh: errCh}
+	return &networker.ForwarderResult{LocalHost: localListenAddress, Ready: l.ready, ErrCh: errCh}
 }
 
 // run blocks until the session ends. It returns nil on a clean shutdown or

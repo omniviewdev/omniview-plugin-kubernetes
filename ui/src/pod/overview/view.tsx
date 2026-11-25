@@ -1,6 +1,7 @@
 import { MissingValue, type DataTableColumn, type KeyValueRow, type PageHeaderFact, type PageHeaderState, type TagItem } from '@omniviewdev/kit';
 
 import type { DetailSection, DetailTableSection, DetailView } from '../../contract/v1';
+import type { PodForwardCommand } from '../forward/command';
 import type { PodLogsCommand } from '../logs/command';
 
 import { ImageCell, ReadyCell, Run, Since, StateCell } from './cells';
@@ -143,14 +144,17 @@ export type PodViewInputs = {
   readonly invoke: (action: PodAction) => void;
   /** The Logs command: the page's own (`../logs/command.ts`), which opens a session in the host's Logs tool, or says why it cannot. */
   readonly logs: PodLogsCommand;
+  /** The entries that forward a port of the Pod and the operation the forward is at: the page's own (`../forward/command.ts`), which asks the host to start the forward, or gives no entry. */
+  readonly forward: PodForwardCommand;
 };
 
-/** The page's view of the Pod: what the host draws while the object is there. A function of the Pod's overview, of the age the clock gives it and of the Logs command the page gives the header. */
-export function podView(overview: PodOverview, { age, invoke, logs }: PodViewInputs): DetailView {
+/** The page's view of the Pod: what the host draws while the object is there. A function of the Pod's overview, of the age the clock gives it and of the Logs and Forward port commands the page gives the header. */
+export function podView(overview: PodOverview, { age, invoke, logs, forward }: PodViewInputs): DetailView {
   return {
     state: stateOf(overview.header.state),
     facts: factsOf(overview.header, age),
-    commands: podCommands(invoke, logs),
+    commands: podCommands(invoke, logs, forward),
+    ...(forward.operation === undefined ? {} : { operation: forward.operation }),
     tabs: { overview: { kind: 'overview', summary: overview.summary, sections: sectionsOf(overview) } },
   };
 }

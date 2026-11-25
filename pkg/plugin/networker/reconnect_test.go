@@ -130,6 +130,18 @@ func TestReconnectLoopReportsFirstReadinessOnly(t *testing.T) {
 	require.NoError(t, drain(t, result.ErrCh))
 }
 
+// The session of a workload forward states where it listens: the address its tunnels ask client-go to
+// bind, which is "localhost" (both loopback families).
+func TestReconnectLoopStatesWhereItListens(t *testing.T) {
+	clock := &fakeClock{now: time.Unix(1000, 0)}
+	loop, _ := newTestLoop(clock, nil)
+
+	result := loop.start(context.Background(), "pod-a")
+
+	require.NoError(t, drain(t, result.ErrCh))
+	assert.Equal(t, "localhost", result.LocalHost)
+}
+
 func TestReconnectLoopNotReadyWhenTunnelNeverComesUp(t *testing.T) {
 	clock := &fakeClock{now: time.Unix(1000, 0)}
 	loop, _ := newTestLoop(clock, nil)
