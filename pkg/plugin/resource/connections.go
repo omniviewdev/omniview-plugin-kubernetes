@@ -2,6 +2,7 @@ package resource
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/omniview/kubernetes/pkg/connid"
@@ -18,12 +19,50 @@ const (
 	EstimatedContexts = 10
 )
 
+// eksContextARN is the name of a context that `aws eks update-kubeconfig` writes: the ARN of the cluster, `arn:<partition>:eks:<region>:<account>:cluster/<cluster>`. The partition is
+// aws, aws-cn or aws-us-gov, the account is 12 digits, and a cluster name is 1 to 100 characters that start with a letter or a digit and go on with letters, digits, `-` or `_`.
+// The whole text must match: anything else is not such an ARN. It reads the display name and only that; the environment inference (eksClusterARN) keeps its own, stricter rule.
+var eksContextARN = regexp.MustCompile(`^arn:(?:aws|aws-cn|aws-us-gov):eks:([a-z0-9-]+):([0-9]{12}):cluster/([A-Za-z0-9][A-Za-z0-9_-]{0,99})$`)
+
+// eksCluster is what the name of a context that is an EKS cluster ARN says about the cluster.
+type eksCluster struct {
+	Cluster string
+	Region  string
+	Account string
+}
+
+// parseEKSClusterARN reads the name of a context as an EKS cluster ARN. It reports false for a name that is not exactly one.
+func parseEKSClusterARN(contextName string) (eksCluster, bool) {
+	match := eksContextARN.FindStringSubmatch(contextName)
+	if match == nil {
+		return eksCluster{}, false
+	}
+	return eksCluster{Region: match[1], Account: match[2], Cluster: match[3]}, true
+}
+
+// description is the secondary text of the cluster's connection: `EKS · <region> · <account>`, with a space, a middle dot (U+00B7) and a space between the parts.
+func (c eksCluster) description() string {
+	return "EKS \u00B7 " + c.Region + " \u00B7 " + c.Account
+}
+
+// connectionDisplay is the Name and the Description of the connection made from one context. The host prints them and parses neither, so the plugin says them: the name of a context that
+// is an EKS cluster ARN reads as the cluster's name, with the region and the account as the description; any other context name is the Name as it is, with no Description.
+func connectionDisplay(contextName string) (name, description string) {
+	if cluster, ok := parseEKSClusterARN(contextName); ok {
+		return cluster.Cluster, cluster.description()
+	}
+	return contextName, ""
+}
+
 // connectionsFromKubeconfig reads the contexts of one kubeconfig file as connections.
 //
-// The Name of a connection is the exact name of its context. Its public data carries that name
-// under connid.DataKeyContext, which is what selects the context wherever clients are built. Its
-// ID is derived from the file and the name (see package connid), so that two files that define a
-// context of the same name give two IDs.
+// The Name of a connection is the name of its context, except for a context that is named by an EKS
+// cluster ARN: its Name is the cluster's name and its Description is `EKS · <region> · <account>`
+// (see connectionDisplay). The Name is for reading and the user may edit it. Its public data carries
+// the exact context name, the full ARN included, under connid.DataKeyContext, which is what selects
+// the context wherever clients are built. Its ID is derived from the file and the exact context name
+// (see package connid), so that two files that define a context of the same name give two IDs, and
+// two clusters of one name in two regions give two IDs.
 //
 // It also returns the target of the file, the key under which one file that is reached by two
 // paths is recognized (see kubeconfigIdentity).
@@ -47,6 +86,7 @@ func connectionsFromKubeconfig(kubeconfigPath string) ([]types.Connection, strin
 	connections := make([]types.Connection, 0, len(config.Contexts))
 
 	for contextName, context := range config.Contexts {
+		name, description := connectionDisplay(contextName)
 		labels := map[string]interface{}{
 			"kubeconfig": utils.DeexpandTilde(kubeconfigPath),
 			"cluster":    context.Cluster,
@@ -56,8 +96,8 @@ func connectionsFromKubeconfig(kubeconfigPath string) ([]types.Connection, strin
 
 		connections = append(connections, types.Connection{
 			ID:          connid.ID(connid.KindFile, locator, contextName),
-			Name:        contextName,
-			Description: "",
+			Name:        name,
+			Description: description,
 			Avatar:      "",
 			Labels:      labels,
 			Data: map[string]interface{}{
