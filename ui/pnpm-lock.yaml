@@ -737,7 +737,7 @@ packages:
       react-dom: ^19.3.1
 
   '@omniviewdev/runtime@file:vendor/omniviewdev-runtime-0.7.4.tgz':
-    resolution: {integrity: sha512-EX1wr3MOmZ6HHkglHV7vgenSOKxBYsCcepHtmFRlBJodbW/A95pKqQQ8kblOd0IILcdpHn00SnPf/xZnzSUy8g==, tarball: file:vendor/omniviewdev-runtime-0.7.4.tgz}
+    resolution: {integrity: sha512-K6trHPeogPGgLB0LOsFh2Dmf+Ay4/vrePguR/pBwWs071mdsFo3zMysUdThn/v3L3oevNKVU734CZgEo4dHkhQ==, tarball: file:vendor/omniviewdev-runtime-0.7.4.tgz}
     version: 0.7.4
     peerDependencies:
       '@omniviewdev/base-ui': ~0.17.0
