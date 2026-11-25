@@ -124,11 +124,19 @@ func TestInventoryConnectionsCarryTheExactContextNameAndADerivedID(t *testing.T)
 	require.NoError(t, err)
 	require.Len(t, connections, len(names))
 	assertDistinctIDs(t, connections) // "prod" and "Prod" have one slug, and still two IDs
+	// The display name is the context name, except that a context named by an EKS cluster ARN reads as its cluster.
+	displayed := map[string]string{"arn:aws:eks:us-east-1:111122223333:cluster/prod": "prod"}
 	for _, connection := range connections {
-		assert.Contains(t, names, connection.Name, "the display name is the exact context name")
-		assert.Equal(t, connection.Name, connection.Data[connid.DataKeyContext], "the kube context travels in the data")
-		assert.Equal(t, connid.ID(connid.KindFile, inventoryLocator(t, path), connection.Name), connection.ID)
-		assert.NotEqual(t, connection.Name, connection.ID)
+		contextName, ok := connection.Data[connid.DataKeyContext].(string)
+		require.True(t, ok)
+		assert.Contains(t, names, contextName, "the kube context travels in the data, exact")
+		wantName, renamed := displayed[contextName]
+		if !renamed {
+			wantName = contextName
+		}
+		assert.Equal(t, wantName, connection.Name)
+		assert.Equal(t, connid.ID(connid.KindFile, inventoryLocator(t, path), contextName), connection.ID, "the ID derives from the exact context name")
+		assert.NotEqual(t, contextName, connection.ID)
 		assert.Equal(t, path, connection.Data["kubeconfig"], "the path of the file is what the clients read")
 	}
 }

@@ -6,8 +6,8 @@ import type { ShellScopeFace } from './contract/v1';
 // read the same connection for the same route and say the same thing in the lane.
 //
 // A connection has two things that look alike and are not. Its ID (`<slug>-<10 hex>`, e.g. `kind-dev-54c660ecd1`) is a key and a route: pages read by it, a tab is found by it, a Logs
-// target is told apart by it. Its NAME is the exact name of the context it was made from, or what the user renamed it to: it is the only one of the two a person reads. The frame prints
-// names and never ids.
+// target is told apart by it. Its NAME is what a person reads: the plugin states it (the name of the context it was made from, or the cluster's name for an EKS context, whose context
+// name is an unreadable ARN), or the user renamed it. Its DESCRIPTION is the secondary text the plugin gives it (`EKS · us-east-1 · 111122223333`). The frame prints names and never ids.
 
 export type PageConnection = {
   /** The connection the page reads. Absent while the plugin's connections are on their way, and when the plugin has none. Its `id` is the key the page reads by; never print it. */
@@ -44,20 +44,30 @@ function kubeconfigSegments(connection: Connection): readonly string[] {
 }
 
 /**
- * The name the frame gives a connection among the plugin's. Its own name when no other connection has it. Names are not unique (two kubeconfig files may both define `prod`, and both
- * connections are live, with ids that differ), so connections that share a name get a second word: `<name> · <where>`, where `<where>` is the shortest trailing run of segments of the
- * path of the kubeconfig (the `kubeconfig` label the plugin sets) that tells them apart: `~/.kube/config` and `~/work/other` read `config` and `other`, and `~/.kube/config` and `~/work/config`
- * read `.kube/config` and `work/config`. A connection with no usable label keeps the bare name. The answer depends only on the connection and the list, never on their order.
+ * The name the frame gives a connection among the plugin's. Its own name when no other connection has it. Names are not unique (two kubeconfig files may both define `prod`, two EKS
+ * clusters of one name may sit in two regions of one file, and all the connections are live, with ids that differ), so connections that share a name get a second word: `<name> · <where>`.
+ *
+ * When the connections that share a name do not all have the same description, `<where>` is the connection's own description (`prod · EKS · us-east-1 · 111122223333`): the path cannot
+ * tell two contexts of one file apart, and the plugin has already said what does. A connection with a blank description among them falls to the path.
+ *
+ * Otherwise `<where>` is the shortest trailing run of segments of the path of the kubeconfig (the `kubeconfig` label the plugin sets) that tells them apart: `~/.kube/config` and
+ * `~/work/other` read `config` and `other`, and `~/.kube/config` and `~/work/config` read `.kube/config` and `work/config`. A connection with no usable label keeps the bare name.
+ * The answer depends only on the connection and the list, never on their order.
  */
 export function connectionName(connection: Connection, list: readonly Connection[]): string {
   const name = ownName(connection);
-  const own = kubeconfigSegments(connection);
-  if (own.length === 0) {
+  const same = list.filter((other) => ownName(other) === name);
+  if (same.length < 2) {
     return name;
   }
 
-  const same = list.filter((other) => ownName(other) === name);
-  if (same.length < 2) {
+  const description = text(connection.description);
+  if (description !== '' && new Set(same.map((other) => text(other.description))).size > 1) {
+    return `${name}${WHERE_SEPARATOR}${description}`;
+  }
+
+  const own = kubeconfigSegments(connection);
+  if (own.length === 0) {
     return name;
   }
 

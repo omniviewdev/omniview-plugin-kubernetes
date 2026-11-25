@@ -23,10 +23,11 @@
 // 59 characters. The path of a kubeconfig, the home directory and the user name
 // are hashed and never appear in it.
 //
-// The ID is not the kube context. The Name of a connection is the exact context
-// name, and its public data carries it under DataKeyContext, which is what any
-// code that selects a context (client-go, kubectl) must read. Nothing may pass
-// an ID where a kubeconfig context name is expected.
+// The ID is not the kube context, and neither is the Name of a connection: the Name is what a
+// person reads (the context name, or the cluster name for a context that is an EKS cluster ARN),
+// and the user may edit it. The exact context name is carried by the public data of the connection
+// under DataKeyContext, which is what any code that selects a context (client-go, kubectl) must
+// read. Nothing may pass an ID or a Name where a kubeconfig context name is expected.
 //
 // Every function here is a pure function of its arguments: no file system, no
 // environment, no clock.
@@ -41,9 +42,10 @@ import (
 
 const (
 	// DataKeyContext is the key, in the public data of a connection, of the exact
-	// name of the kubeconfig context the connection stands for. Name carries the
-	// same text for display, and the user may edit it, so code that selects a
-	// context reads this key instead.
+	// name of the kubeconfig context the connection stands for. Name is the text
+	// a person reads (for a context that is an EKS cluster ARN, the cluster's name
+	// and not the ARN), and the user may edit it, so code that selects a context
+	// reads this key instead.
 	DataKeyContext = "context"
 
 	maxSlug   = 48
