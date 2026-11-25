@@ -730,14 +730,14 @@ packages:
     resolution: {integrity: sha512-dXn3FZhPv0US+7dtJsIi2R+c7qWYiReoEh5zUntWCf4oSpMNib8FDhSoed6m3QyZdx5hK7iLFkYk3rNxwt8vTA==}
 
   '@omniviewdev/kit@file:vendor/omniviewdev-kit-0.7.4.tgz':
-    resolution: {integrity: sha512-qiKSW7hbcDRnQpmOQBmevnMOOOW6L81jd0i+aIEkLfa49N7KZ2xuhKM6x6FrLMW9QJKepkFRVniUdqSjIZQWZg==, tarball: file:vendor/omniviewdev-kit-0.7.4.tgz}
+    resolution: {integrity: sha512-mVMHy3q3XmCAm8mIUzEpJOaW+sLDb6RShukBAkWagMHsCNgM4zQO8jeP82+EngdX2XavB+KrC1GNxhb1ac6hhA==, tarball: file:vendor/omniviewdev-kit-0.7.4.tgz}
     version: 0.7.4
     peerDependencies:
       react: ^19.3.1
       react-dom: ^19.3.1
 
   '@omniviewdev/runtime@file:vendor/omniviewdev-runtime-0.7.4.tgz':
-    resolution: {integrity: sha512-tFZcNj17/xIIe/x9zSu7s8jyFJrPZ5lFviZhIt0sv4E1nUk3WXgyepnyPCUF9fcCZZSxgqzR6HJDk4PxpBuFfg==, tarball: file:vendor/omniviewdev-runtime-0.7.4.tgz}
+    resolution: {integrity: sha512-EX1wr3MOmZ6HHkglHV7vgenSOKxBYsCcepHtmFRlBJodbW/A95pKqQQ8kblOd0IILcdpHn00SnPf/xZnzSUy8g==, tarball: file:vendor/omniviewdev-runtime-0.7.4.tgz}
     version: 0.7.4
     peerDependencies:
       '@omniviewdev/base-ui': ~0.17.0

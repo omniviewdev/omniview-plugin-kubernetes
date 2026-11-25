@@ -1,4 +1,4 @@
-import { GENERIC_TILE, column, typeOf, type KindDefinition } from '../definition';
+import { column, typeOf, type KindDefinition } from '../definition';
 import { ageCell, flagCell, textCell } from '../display';
 
 import { storageClassRow, storageClassRows, storageClassSearchText, type StorageClassRow } from './row';
@@ -14,8 +14,8 @@ export const storageClassDefinition: KindDefinition<StorageClassRow> = {
   kind: 'StorageClass',
   nouns: { one: 'StorageClass', other: 'StorageClasses' },
   page: 'storageclasses',
-  // The mock's glyph is Lucide `archive`, which the kit's registry does not have yet: the generic tile stands for it.
-  tile: GENERIC_TILE,
+  // The mock's glyph is Lucide `archive`, which the kit's registry has since the landing parts (host #765).
+  tile: { icon: 'archive', tone: 'blue' },
   model: { row: storageClassRow, rows: storageClassRows, searchText: storageClassSearchText },
   columns: [
     column('name', 'Name', 'id', 160, 'left', 'text', { required: true }),

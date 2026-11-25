@@ -58,7 +58,7 @@ describe('the contribution', () => {
     ]);
   });
 
-  it('has, in each group, its entries in the mock\'s order, each with the glyph of its kind (the mock\'s, or the generic tile for the seven the kit has none for) and its count slot held (`count: null`: the counts arrive from the sidebar\'s hook)', () => {
+  it('has, in each group, its entries in the mock\'s order, each with the glyph of its kind (the mock\'s, or the generic tile for the six the kit has none for) and its count slot held (`count: null`: the counts arrive from the sidebar\'s hook)', () => {
     const [overview, nodes, namespaces, workloads, config, network, storage, access] = contributionV1.sidebar.nodes;
     expect([overview, nodes, namespaces].map((node) => [node?.id, node?.icon])).toEqual([['overview', 'layout-template'], ['nodes', 'server'], ['namespaces', 'folder-tree']]);
     expect(workloads?.icon).toBe('layers');
@@ -92,7 +92,7 @@ describe('the contribution', () => {
     expect(storage?.children?.map((leaf) => [leaf.id, leaf.label, leaf.icon])).toEqual([
       ['persistentvolumes', 'PersistentVolumes', 'hard-drive'],
       ['persistentvolumeclaims', 'PersistentVolumeClaims', 'hard-drive-download'],
-      ['storageclasses', 'StorageClasses', 'box'],
+      ['storageclasses', 'StorageClasses', 'archive'],
     ]);
     expect(access?.children?.map((leaf) => [leaf.id, leaf.label, leaf.icon])).toEqual([
       ['serviceaccounts', 'ServiceAccounts', 'box'],
@@ -118,7 +118,7 @@ describe('the contribution', () => {
   });
 
   it('has the Overview page, the list page of each kind, the page of one Pod and the page of one object of each kind that has one: none of the last has a sidebar entry, because it needs an object, so the list\'s links reach it', () => {
-    expect(Object.keys(contributionV1.pages)).toEqual(['overview', ...LISTS, ...DETAILS, 'pod']);
+    expect(Object.keys(contributionV1.pages)).toEqual(['overview', ...LISTS, ...DETAILS, 'pod', 'landing', 'connections']);
     expect(contributionV1.pages.overview.kind).toBe('overview');
     for (const id of LISTS) {
       expect(contributionV1.pages[id as keyof typeof contributionV1.pages].kind, id).toBe('list');
@@ -127,6 +127,24 @@ describe('the contribution', () => {
       expect(contributionV1.pages[id as keyof typeof contributionV1.pages].kind, id).toBe('detail');
       expect(leaves(contributionV1.sidebar.nodes).map((leaf) => leaf.id)).not.toContain(id);
     }
+  });
+
+  // What the host's admission asks of a landing (`admit.ts` in omniviewdev/omniview): it names a custom page of scope `plugin`, a page that is read in no connection. Such a page has no sidebar entry (the window draws no
+  // sidebar for it), and the page a chosen connection opens is `home`, which stays the Overview.
+  it('declares its landing, the plugin\'s home page, and the page of all the connections beside it: both are custom pages read in no connection, with no sidebar entry, and a chosen connection still opens the Overview', () => {
+    const { landing, home, pages } = contributionV1;
+
+    expect(landing).toBe('landing');
+    expect(pages.landing).toMatchObject({ kind: 'custom', scope: 'plugin', title: 'Kubernetes', icon: 'ship' });
+    expect(pages.connections).toMatchObject({ kind: 'custom', scope: 'plugin', title: 'Connections', icon: 'server', layout: 'pane' });
+    for (const page of [pages.landing, pages.connections]) {
+      expect(isIconName(page.icon)).toBe(true);
+      expect(typeof page.Body).toBe('function');
+    }
+    const entries = leaves(contributionV1.sidebar.nodes).map((leaf) => leaf.id);
+    expect(entries).not.toContain('landing');
+    expect(entries).not.toContain('connections');
+    expect(home).toBe('overview');
   });
 
   it('gives each page that has an entry the words of its entry: the heading of a list is the plural the sidebar entry says, and the Overview\'s title is its entry\'s label', () => {
@@ -225,7 +243,7 @@ describe('the contribution', () => {
     const strip = (nodes: readonly SidebarNodeV1[]): unknown => nodes.map(({ keywords: _keywords, children, ...node }) => (children === undefined ? node : { ...node, children: strip(children) }));
 
     expect(older.length).toBe(contributionV1.sidebar.nodes.length);
-    expect(Object.keys(contributionV1)).toEqual(['plugin', 'rail', 'sidebar', 'pages', 'home', 'panel']);
+    expect(Object.keys(contributionV1)).toEqual(['plugin', 'rail', 'sidebar', 'pages', 'home', 'landing', 'panel']);
     expect(JSON.stringify(strip(contributionV1.sidebar.nodes))).not.toContain('keywords');
     expect(leaves(strip(contributionV1.sidebar.nodes) as readonly SidebarNodeV1[]).map((leaf) => leaf.id)).toEqual(leaves(contributionV1.sidebar.nodes).map((leaf) => leaf.id));
   });
