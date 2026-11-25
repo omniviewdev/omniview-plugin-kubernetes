@@ -189,7 +189,7 @@ export function typeOf({ group, resource }: KindDefinition<KindRow>['identity'])
 }
 
 /**
- * The tile of a kind whose glyph in the mock the kit's registry still lacks (the mock gives each kind its own: a card for a Role, a link for a RoleBinding, an archive for a StorageClass). The registry's
+ * The tile of a kind whose glyph in the mock the kit's registry still lacks (the mock gives each kind its own: a card for a Role, a link for a RoleBinding). The registry's
  * `box` is the mock's own fallback for a kind with no glyph of its own (`kindIcon`), and no other kind's glyph is taken for the missing one, so a tile never says a kind it is not. A kind wears
  * this tile until the kit has its glyph, and then names it.
  */

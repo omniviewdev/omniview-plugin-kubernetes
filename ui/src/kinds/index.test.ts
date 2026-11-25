@@ -305,7 +305,7 @@ const MOCK_KIND_GLYPHS: ReadonlyArray<readonly [kind: string, mock: string, kit:
   ['ConfigMap', 'LuFileCog', 'file-cog'], ['Secret', 'LuKeyRound', 'key-round'], ['ResourceQuota', 'LuGauge', 'gauge'], ['LimitRange', 'LuRuler', 'ruler'],
   ['HorizontalPodAutoscaler', 'LuScaling', 'scaling'], ['PodDisruptionBudget', 'LuUmbrella', 'umbrella'],
   ['Service', 'LuWaypoints', 'waypoints'], ['Endpoints', 'LuTarget', 'target'], ['EndpointSlice', 'LuSplit', 'split'], ['Ingress', 'LuGlobe', 'globe'], ['IngressClass', 'LuListTree', null], ['NetworkPolicy', 'LuBrickWall', 'brick-wall'],
-  ['PersistentVolume', 'LuHardDrive', 'hard-drive'], ['PersistentVolumeClaim', 'LuHardDriveDownload', 'hard-drive-download'], ['StorageClass', 'LuArchive', null],
+  ['PersistentVolume', 'LuHardDrive', 'hard-drive'], ['PersistentVolumeClaim', 'LuHardDriveDownload', 'hard-drive-download'], ['StorageClass', 'LuArchive', 'archive'],
   ['ServiceAccount', 'LuUserCog', null], ['Role', 'LuIdCard', null], ['ClusterRole', 'LuBadgeCheck', null], ['RoleBinding', 'LuLink2', null], ['ClusterRoleBinding', 'LuMerge', null],
 ];
 
@@ -372,7 +372,7 @@ describe('the registry as a whole', () => {
     const own = KINDS.filter((kind) => kind.tile !== GENERIC_TILE);
     expect(new Set(own.map((kind) => kind.tile.icon)).size).toBe(own.length);
     expect(KINDS.filter((kind) => kind.tile === GENERIC_TILE).map((kind) => kind.kind)).toEqual([
-      'IngressClass', 'StorageClass', 'ServiceAccount', 'Role', 'ClusterRole', 'RoleBinding', 'ClusterRoleBinding',
+      'IngressClass', 'ServiceAccount', 'Role', 'ClusterRole', 'RoleBinding', 'ClusterRoleBinding',
     ]);
     expect(isIconName(GENERIC_TILE.icon)).toBe(true);
     expect(GENERIC_TILE.tone).toBe('blue');

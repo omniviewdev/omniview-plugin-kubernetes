@@ -1,5 +1,7 @@
 import type { ContributionV1 } from './contract/v1';
 import { kindPages, sidebarNodes } from './kinds';
+import { LANDING_PAGE } from './landing/entry';
+import { landingPages } from './landing/pages';
 import { OVERVIEW_PAGE } from './overview/entry';
 import { overviewPage } from './overview/page';
 import { podPage } from './pod';
@@ -7,7 +9,8 @@ import { podLogsCard } from './pod/logs/card';
 import { useSidebarNodes } from './sidebar/useSidebarNodes';
 
 // The bundle's one export: what this plugin contributes to the new shell (contribution contract, version 1). The host loads `assets/entry.js`, reads this
-// value and builds the frame from it; the plugin never imports the shell. The window opens a connection on its Overview (`home`: the cluster overview, `overview/`), which is also the first entry of the sidebar. The
+// value and builds the frame from it; the plugin never imports the shell. The plugin is opened at its LANDING (`landing/`): the plugin's home page, and the page of all its connections one link from it, which the
+// plugin draws itself from the kit and which are read in no connection. The window opens a connection on its Overview (`home`: the cluster overview, `overview/`), which is also the first entry of the sidebar. The
 // sidebar is a static skeleton that draws before any data is read: the Overview, the mock's top level (Nodes, Namespaces) and its groups (Workloads, Config, Network, Storage, Access control), and in them the kinds
 // the plugin lists (`kinds/index.ts`), each with the slot of its count held (`count: null`, which a host that predates the slot refuses by name at admission, so the bundle is never drawn wrong there). `useNodes`
 // fills the counts in (`sidebar/`) once it knows the connection, for the kinds that are on screen only. Each kind's page carries its own definition and its one data hook, and so does the page of one Pod, which has
@@ -22,7 +25,8 @@ export const contributionV1 = {
     nodes: sidebarNodes(),
     useNodes: useSidebarNodes,
   },
-  pages: { [OVERVIEW_PAGE]: overviewPage, ...kindPages(), pod: podPage },
+  pages: { [OVERVIEW_PAGE]: overviewPage, ...kindPages(), pod: podPage, ...landingPages },
   home: OVERVIEW_PAGE,
+  landing: LANDING_PAGE,
   panel: { sessions: { logs: { card: podLogsCard } } },
 } satisfies ContributionV1;
