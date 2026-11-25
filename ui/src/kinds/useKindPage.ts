@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-import { connectionFace, namespacesFace, useChosenConnection, type PageConnection } from '../connection';
+import { connectionFace, namespacesFace, NO_CONNECTIONS_TEXT, useChosenConnection, type PageConnection } from '../connection';
 import type { ContextV1, FrameV1, ListPageViewV1 } from '../contract/v1';
 import { sidebarCount } from '../sidebar/count';
 import { openKey, publishOpenCount } from '../sidebar/openCounts';
@@ -19,7 +19,7 @@ const refreshNothing = (): Promise<void> => Promise.resolve();
 /** The connections are on their way: the page is loading, with nothing to list. */
 const WAITING: KindListSource<never> = { state: { kind: 'loading' }, rows: [], complete: false, refreshing: false, refresh: refreshNothing };
 /** The plugin has no connection (or is not installed): there is nothing to read, and nothing to retry. */
-const NO_CONNECTIONS: KindListSource<never> = { ...WAITING, state: { kind: 'failed', message: 'No connections' } };
+const NO_CONNECTIONS: KindListSource<never> = { ...WAITING, state: { kind: 'failed', message: NO_CONNECTIONS_TEXT } };
 
 /**
  * How the page sits in the frame: the tab, the status bar's path and the scope lane, as plain data. The lane is declared from the first render (`connectionFace`): the

@@ -23,14 +23,27 @@ export type KindListSource<TRow extends KindRow> = {
 /** The words a failure is said in: what the user calls the kind ("Pods"), and the sentence for a list the user may not read. */
 type Words = { readonly plural: string; readonly refusal: string };
 
-/** What each failure means when the runtime sent no words of its own. A refusal is not here: it is never said in the runtime's words, or in words the runtime may have sent (`failed`). */
-function sentence(kind: Exclude<KindFailureKind | 'not-found', 'denied'>, plural: string): string {
+/**
+ * What a connection that is not ready says when the runtime sent no words of its own: the same for every page that reads through the connection, a list or the cluster overview, which takes them from here
+ * so that two pages never say two things of one state.
+ */
+export function connectionSentence(kind: 'needs-sign-in' | 'unreachable' | 'not-found'): string {
   switch (kind) {
     case 'needs-sign-in': return 'The connection needs you to sign in.';
     case 'unreachable': return 'The cluster did not answer.';
+    case 'not-found': return 'This connection no longer exists.';
+  }
+}
+
+/** What each failure means when the runtime sent no words of its own. A refusal is not here: it is never said in the runtime's words, or in words the runtime may have sent (`failed`). */
+function sentence(kind: Exclude<KindFailureKind | 'not-found', 'denied'>, plural: string): string {
+  switch (kind) {
+    case 'needs-sign-in':
+    case 'unreachable':
+    case 'not-found':
+      return connectionSentence(kind);
     case 'unsupported': return `This cluster does not serve ${plural}.`;
     case 'failed': return `${plural} could not be read.`;
-    case 'not-found': return 'This connection no longer exists.';
   }
 }
 

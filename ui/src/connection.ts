@@ -98,6 +98,9 @@ export function useChosenConnection(plugin: string, route: string | undefined): 
   return { chosen, pending, named: chosen === undefined ? undefined : connectionName(chosen, list) };
 }
 
+/** What a page says when the plugin has no connection (or is not installed): there is nothing to read, and nothing to retry. The lists and the cluster overview say it alike. */
+export const NO_CONNECTIONS_TEXT = 'No connections';
+
 /** What the Connection face says before the plugin's connections have answered, and when the plugin has none. */
 const WAITING_TEXT = 'Loading…';
 const NO_CONNECTION_TEXT = 'None';

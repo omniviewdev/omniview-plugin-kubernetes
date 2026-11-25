@@ -87,12 +87,16 @@ describe('useSidebarNodes: which connection it is for', () => {
 });
 
 describe('useSidebarNodes: the nodes it answers', () => {
-  it('are the skeleton\'s, with the slot of every kind held and no number in it, until a count has been read', () => {
+  it('are the skeleton\'s, with the slot of every kind held and no number in it, until a count has been read; the Overview is no kind and holds no slot', () => {
     const { result } = mount();
 
     expect(result.current).toEqual(sidebarNodes());
     for (const leaf of leaves(result.current ?? [])) {
-      expect(leaf.count).toBeNull();
+      if (leaf.id === 'overview') {
+        expect(leaf).not.toHaveProperty('count');
+      } else {
+        expect(leaf.count, leaf.id).toBeNull();
+      }
     }
   });
 

@@ -74,28 +74,42 @@ export function kindFailure(error: unknown): KindFailure | undefined {
 /** A source that fails after it opened says so in its status, not in the error of the query. */
 const sourceError = (source: HostSourceStatus | undefined): unknown => (source?.state === 'failed' ? source.error : undefined);
 
+/** The states a connection that is not ready can be in: what its phase says. */
+export type ConnectionState = Extract<KindState, { readonly kind: 'connecting' | 'disconnected' | 'needs-sign-in' | 'denied' | 'not-found' | 'unreachable' }>;
+
+/**
+ * What the phase of the connection says, and nothing else: the state of a connection that is not ready, in the words of the lists. A connection that is ready says nothing here, because what it holds is
+ * decided by what is read. The cluster overview asks this alone (it lists no kind to ask `readKindState` for), and `readKindState` begins with it, so the two never say two things.
+ */
+export function connectionState(phase: ConnectionReadinessPhase, message: string | undefined): ConnectionState | undefined {
+  switch (phase) {
+    case 'checking':
+    case 'connecting':
+      return { kind: 'connecting' };
+    case 'disconnected':
+      return { kind: 'disconnected' };
+    case 'unauthorized':
+      return { kind: 'needs-sign-in', message };
+    case 'forbidden':
+      return { kind: 'denied', message };
+    case 'not-found':
+      return { kind: 'not-found', message };
+    case 'error':
+      return { kind: 'unreachable', message };
+    case 'connected':
+      return undefined;
+  }
+}
+
 /**
  * The state of the body, and the failure to show beside rows that are kept. A failure with rows does not replace the list (plan 1.4);
  * without rows it is the state. Nothing is read before the connection is ready: an old error or count never speaks for a connection
  * the runtime has since replaced.
  */
 export function readKindState(reads: KindReads): { readonly state: KindState; readonly failure: KindFailure | undefined } {
-  switch (reads.phase) {
-    case 'checking':
-    case 'connecting':
-      return { state: { kind: 'connecting' }, ...WHOLE };
-    case 'disconnected':
-      return { state: { kind: 'disconnected' }, ...WHOLE };
-    case 'unauthorized':
-      return { state: { kind: 'needs-sign-in', message: reads.message }, ...WHOLE };
-    case 'forbidden':
-      return { state: { kind: 'denied', message: reads.message }, ...WHOLE };
-    case 'not-found':
-      return { state: { kind: 'not-found', message: reads.message }, ...WHOLE };
-    case 'error':
-      return { state: { kind: 'unreachable', message: reads.message }, ...WHOLE };
-    case 'connected':
-      break;
+  const connection = connectionState(reads.phase, reads.message);
+  if (connection !== undefined) {
+    return { state: connection, ...WHOLE };
   }
 
   const failure

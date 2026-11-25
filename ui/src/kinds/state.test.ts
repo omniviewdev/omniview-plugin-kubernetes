@@ -1,7 +1,7 @@
 import type { HostSourceStatus } from '@omniviewdev/runtime/ui/v1';
 import { describe, expect, it } from 'vitest';
 
-import { readKindState, type KindReads } from './state';
+import { connectionState, readKindState, type KindReads } from './state';
 
 // What the runtime hooks return for each state of a connection, captured on 2026-11-16 from the real host (server mode, the Kubernetes
 // plugin 0.21.2, kind v1.35) through a kubeconfig with four contexts: a good one, a bogus token, a service account with no rights, and
@@ -60,6 +60,19 @@ describe('the connection, before anything is read (useConnectionReadiness)', () 
     const result = readKindState(reads({ phase: 'disconnected', catalog: { loaded: true, offersType: false, error: FORBIDDEN }, rows: 12, complete: true }));
 
     expect(result).toEqual({ state: { kind: 'disconnected' }, failure: undefined });
+  });
+});
+
+// The overview page reads the connection without reading any kind: it asks the phase alone, which is the first thing `readKindState` asks (so the two never say two things).
+describe('connectionState: what the phase of the connection says, with nothing else read', () => {
+  const phases: ReadonlyArray<KindReads['phase']> = ['checking', 'connecting', 'disconnected', 'unauthorized', 'forbidden', 'not-found', 'error'];
+
+  it.each(phases)('is what readKindState says for the phase %s, whatever else was read', (phase) => {
+    expect(connectionState(phase, 'words')).toEqual(readKindState(reads({ phase, message: 'words', catalog: { loaded: true, offersType: false, error: FORBIDDEN }, rows: 3, complete: true })).state);
+  });
+
+  it('is nothing for a connection that is ready: the reads decide what it says', () => {
+    expect(connectionState('connected', undefined)).toBeUndefined();
   });
 });
 

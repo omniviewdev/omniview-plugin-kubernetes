@@ -56,15 +56,29 @@ export function catalogType(kind: { readonly type: string; readonly kind: string
 /** The kinds the fake catalog serves to begin with. `fake.reset` is given them. */
 let everything: readonly ResourceType[] = [];
 
+/** What `useConnectionMetadata` answers (the runtime's own shape, `connection/metadata.ts`), with the snapshot left as the test writes it. Nothing read: the runtime's own first state. */
+type Metadata = {
+  supported: boolean | undefined;
+  transportAvailable: boolean;
+  snapshot: unknown;
+  isLoading: boolean;
+  error: unknown;
+};
+
+const NO_METADATA: Metadata = { supported: undefined, transportAvailable: false, snapshot: undefined, isLoading: false, error: undefined };
+
 type World = {
   phase: ConnectionReadinessPhase;
-  connections: readonly { readonly id: string }[];
+  /** What the readiness says beside the phase (`useConnectionReadiness().message`). */
+  message: string | undefined;
+  connections: readonly { readonly id: string; readonly name?: string }[];
   connectionsPending: boolean;
   /** The catalog; undefined while it has not answered. */
   types: readonly ResourceType[] | undefined;
+  metadata: Metadata;
 };
 
-const initial = (): World => ({ phase: 'connected', connections: [{ id: 'kind-a' }], connectionsPending: false, types: everything });
+const initial = (): World => ({ phase: 'connected', message: undefined, connections: [{ id: 'kind-a' }], connectionsPending: false, types: everything, metadata: NO_METADATA });
 
 let world = initial();
 let version = 0;
@@ -83,6 +97,7 @@ const targets = new Map<string, ResolvedResourceTarget>();
 const connect = vi.fn(() => Promise.resolve());
 const retry = vi.fn(() => Promise.resolve());
 const refetch = vi.fn(() => Promise.resolve());
+const metadataRefresh = vi.fn(() => Promise.resolve());
 
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
@@ -160,7 +175,13 @@ function useFakeConnections(_options: { readonly plugin: string }) {
 
 function useFakeReadiness({ enabled = true }: { readonly pluginID?: string; readonly connectionID: string; readonly enabled?: boolean }) {
   useWorld();
-  return { phase: enabled ? world.phase : 'checking', message: undefined, connect, retry };
+  return { phase: enabled ? world.phase : 'checking', message: world.message, connect, retry };
+}
+
+/** The facts of a connection, as the runtime's hook answers them: nothing for a connection it is not asked about. */
+function useFakeMetadata({ connectionID, enabled = true }: { readonly pluginID?: string; readonly connectionID: string | undefined; readonly enabled?: boolean }) {
+  useWorld();
+  return { ...(connectionID === undefined || !enabled ? NO_METADATA : world.metadata), refresh: metadataRefresh };
 }
 
 function useFakeResourceTypes({ enabled = true }: { readonly pluginID?: string; readonly route: AccessRoute; readonly enabled?: boolean }) {
@@ -205,7 +226,7 @@ function useFakeResources({ request, collection = false }: UseResourcesOptions) 
   return {
     resources: {
       data: read?.state === 'answered' ? read.page : undefined,
-      error: read?.state === 'failed' ? read.error : null,
+      error: read?.error ?? null,
       isPending: read === undefined || read.state === 'pending',
       isFetching: false,
       refetch,
@@ -224,6 +245,7 @@ export const hooks = {
   useResourceTypes: vi.fn(useFakeResourceTypes),
   useResolvedResourceTarget: vi.fn(useFakeTarget),
   useResources: vi.fn(useFakeResources),
+  useConnectionMetadata: vi.fn(useFakeMetadata),
 };
 
 const DEFAULT_COUNT: Outcome = { count: { kind: 'exact', value: '1' } };
@@ -249,10 +271,15 @@ export const fake = {
     targetErrors = new Map();
     targets.clear();
     version = 0;
-    for (const mock of [connect, retry, refetch, ...Object.values(hooks)]) {
+    for (const mock of [connect, retry, refetch, metadataRefresh, ...Object.values(hooks)]) {
       mock.mockClear();
     }
   },
+
+  /** The connection's `retry` of a failed check and the collections' `refetch`, which a Retry and a Refresh ask for; and the facts' `refresh`. */
+  connectionRetry: retry,
+  refetch,
+  metadataRefresh,
 
   /** Changes the world, and tells every component that reads it. Call it inside `act`. */
   set(patch: Partial<World>): void {
@@ -324,6 +351,19 @@ export const fake = {
       read.page = pageOf(outcome);
     }
 
+    notify();
+  },
+
+  /**
+   * A read that answered and then failed to refresh, as a control plane that stops answering under an open page does: the page it held stays, with the failure beside it, as the runtime's query keeps the data of a
+   * refetch that failed. Call it inside `act`.
+   */
+  degrade(read: FakeRead, error: unknown): void {
+    if (read.state !== 'answered') {
+      throw new Error(`The read of ${read.type} is ${read.state}: it holds no page to keep`);
+    }
+
+    read.error = error;
     notify();
   },
 
