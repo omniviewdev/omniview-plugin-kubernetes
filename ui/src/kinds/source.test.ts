@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ALL_NAMESPACES, type NamespaceScope } from '../sidebar/scope';
 
 import type { PodRow } from './pods/row';
-import { kindListSource } from './source';
+import { connectionSentence, kindListSource } from './source';
 import type { KindFailure as PodsFailure, KindState as PodsState } from './state';
 import type { KindView } from './useKindRows';
 
@@ -159,5 +159,18 @@ describe('kindListSource: a list the user may not read', () => {
     expect(state).toHaveProperty('retry');
     expect(podsListSource(view({ state: { kind: 'failed' } })).state).toHaveProperty('retry');
     expect(podsListSource(view({ state: { kind: 'needs-sign-in' } })).state).toHaveProperty('retry');
+  });
+});
+
+// The pages that read the connection without listing a kind (the cluster overview) say the same words for the states a connection can be in: they take them from here, so a list and the overview never say two things.
+describe('connectionSentence: what a connection that is not ready says when the runtime gave no words', () => {
+  it.each<['needs-sign-in' | 'unreachable' | 'not-found']>([['needs-sign-in'], ['unreachable'], ['not-found']])('is what the list says for %s', (kind) => {
+    expect(podsListSource(view({ state: { kind } })).state).toMatchObject({ kind: 'failed', message: connectionSentence(kind) });
+  });
+
+  it('is the words of the connection, not of a kind: none of them names the Pods', () => {
+    for (const kind of ['needs-sign-in', 'unreachable', 'not-found'] as const) {
+      expect(connectionSentence(kind)).not.toMatch(/Pods/);
+    }
   });
 });

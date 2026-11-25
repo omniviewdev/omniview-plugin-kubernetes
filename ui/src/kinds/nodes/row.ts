@@ -36,6 +36,9 @@ export function nodeState({ spec, status }: NodeObject): string | undefined {
   return spec?.unschedulable === true ? 'Scheduling disabled' : 'Ready';
 }
 
+/** Whether the Node's Ready condition is True: its word is Ready, or Scheduling disabled (`nodeState` says that of a Node that is cordoned and Ready, and of no other). The cluster overview counts them. */
+export const nodeIsReady = ({ status }: NodeRow): boolean => status?.word === 'Ready' || status?.word === 'Scheduling disabled';
+
 // The Nodes' rows: one per record object, computed once (`../rows.ts`). A Node lives in no namespace, so its row has none.
 export const { row: nodeRow, rows: nodeRows, searchText: nodeSearchText } = rowModel(
   (host): NodeRow => {

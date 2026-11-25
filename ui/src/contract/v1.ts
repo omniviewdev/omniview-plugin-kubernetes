@@ -1,10 +1,11 @@
 // Vendored from omniviewdev/omniview ui-next/plugins/contract/v1.ts (the commit in ui/vendor/HOST_COMMIT): types only. Do not edit; hack/vendor-host.sh writes it.
 import type { ReactNode } from 'react';
 import type { IconName, LogFeed, LogFeedSnapshot } from '@omniviewdev/kit';
-import type { DetailPageDefinition, DetailSource, ListPageDefinition, ListSource } from './page';
+import type { ResourceReference, Value } from '@omniviewdev/runtime/ui/v1';
+import type { DetailPageDefinition, DetailSource, DetailTab, ListPageDefinition, ListSource } from './page';
 import type { ShellAccent, ShellScopeFace, ShellTreeNode } from './shell';
 
-// A plugin writes its contribution against this one module: the types of the list page, the detail page and the shell it fills in come out of it.
+// A plugin writes its contribution against this one module: the types of the list page, the detail page, the overview page and the shell it fills in come out of it.
 export type {
   DetailIdentity,
   DetailKvSection,
@@ -113,6 +114,37 @@ export type { ShellAccent, ShellScopeFace } from './shell';
 // between a definition of either contract, and that each is the other's in types). The page reads `defaultSort` where it is used and never refuses for it: one that names a column that does not sort (no such column, or one with no `sortKey`) is
 // no default, and the list is drawn in the source's order. The sort a person chose is the page's own, kept in the tab's page state for the window to give back (`ui-next/page/memory.ts`); a plugin never writes it.
 //
+// The ports handle (PF1) is minor, on the terms of the panel handle: `PanelHostV1.ports` is a NEW optional member of the handle the HOST fills in, and what it holds is how a plugin's page asks the host to forward a port of one of its
+// resources to this computer, `ctx.panel?.ports?.forward(request)`. (1) Nothing that exists is removed, renamed or given another meaning: `PanelHostV1` is what it was and one member more, so a handle written without it (a test's, a
+// plugin's own stand-in) is still a `PanelHostV1`, and so is a context, or a command's context, with no handle at all (`contract/ports.test.ts` proves both with the compiler). (2) Every bundle written before it is admitted and drawn as
+// before: a hook that never reads `ctx.panel.ports` is unchanged, and admission reads nothing of it, because the handle is not in the artifact. (3) Rule (3) turns round exactly as it does for the panel handle: a host that lacks the
+// member leaves `ctx.panel.ports` absent, and so does a window with no port-forward service, and so does a handle made for no connection (a page that is read in none, and a command of the palette: a member that could only refuse is
+// worse than one that is absent), so a plugin that offers a forward tests for it, `ctx.panel?.ports?.forward(...)`, and a command may say why it is unavailable; no bundle is drawn wrong, because a page has the member or has not. What
+// the host fills in is what the page's own scope already says: the plugin that asks and the connection the page is read in (`ContextV1.route.connection`), so a page forwards in its own connection and in no other, whatever its request
+// carries. What the plugin is answered is a forward it can read and stop (`PortForwardSessionV1`), and what it is refused with is a `PortForwardErrorV1`: the host's own code and plain words, never a stack and never raw JSON. How long a forward
+// lives, what address it is reached at and which codes a refusal has are written where the member is (`PanelHostV1.ports`, `PortForwardSessionV1`, `PortForwardErrorCodeV1`), and a change to any of them is a change to this contract.
+//
+// The overview page (HM3) is minor, on the terms of the detail page, the other kind of page version 1 gained after its first release: `overview` is a NEW kind of page (`OverviewPageV1`, a member of the `PageV1` union) and optional, and a contribution that has none is what it was.
+// It is the page of a SCOPE, a connection, where a detail page is the page of an object: it draws the detail page's anatomy (the page header, the in-page tabs and the Overview's typed summary and sections, with the connection's NAME as the heading) for the connection the
+// route names, so that a plugin can land a freshly opened connection on a page about the connection itself. A detail page cannot be that, because it needs an object (admission refuses it as `home` and as an entry of the sidebar); an overview page needs none, takes no route
+// parameters, and may be both. (1) It is new, and nothing that exists is removed, renamed or given another meaning: its hook answers what a detail page's hook answers (`DetailPageViewV1`), no kind of section and no type of view is added, and a list page and a detail page are read and drawn
+// exactly as they were. (2) Every bundle written before it is admitted and drawn as before (`admit.test.ts` keeps one with list pages only and one with a detail page, and the tests of every other kind of page are unchanged). (3) A host that lacks it refuses a bundle that uses it by name, at
+// admission, from the artifact: its check reads a page's `kind` as `list` or `detail` and nothing else, so it answers `pages.<id>.kind is "overview", and this version draws "list" and "detail" pages`. That is a `ContractError`, which the loader reports as the `contract` failure ("This plugin does
+// not describe its pages in a way this version understands", the problems in its detail), R11's refusal on proof of mismatch: a typed refusal, never a crash, and the page is never drawn wrong. The cost falls on the plugin's whole contribution on that host, as it did for the detail page: a plugin that
+// makes the overview its `home` has no list-only contribution to give a host that predates the kind, and a second export would have meant two builds of one plugin for hosts that, on the feature channel, update together with their plugins.
+//
+// What an overview page says, and what it shares with the detail page (HM3, from the review of #724). Three things are called `overview` and they are three: the PAGE KIND (`kind: 'overview'`, a member of `PageV1`: the page of a scope), the IN-PAGE TAB a plugin names by its own id
+// (`tabs: [{ id: 'overview', label: 'Overview' }]`: an id is the plugin's own word, the host reads no meaning from it, and `metrics` or `status` would do as well), and `DetailTabContent.kind: 'overview'` (the typed content a tab may hold, a summary line and sections the page lays out, as against
+// `custom`: it is the OVERVIEW OF A TAB, and any tab of any detail page or overview page may hold it). None implies another: an overview page's first tab may be called `overview` and hold `custom` content, and a detail page has the typed content in its first tab. AN OVERVIEW FOLLOWS THE DETAIL VIEW: a
+// change to the detail view's types (`DetailPageViewV1`, `DetailView`, `DetailSource`, `DetailState`, `DetailSection`, `DetailTab`, the tile) reaches overviews, because an overview page is drawn by the detail page and its hook answers the detail page's view (`OverviewPageV1.usePage` returns
+// `DetailPageViewV1`). That is the point of the reuse, and nobody should change one believing it is the other's alone: a change of that kind is judged for both kinds, by the rule above.
+//
+// No fake zeros (the rule of the Overview's sections, which an overview page is made of). A section states loading, partial, failed or not available; a plugin never draws a zero, a dash or `None` for a read that has not answered or has failed. An overview is the aggregate of independent reads, so a
+// partial failure is its normal failure, and every plugin has to say it. What the PAGE says is one state for the whole page (`DetailState`: loading, ready, not found, denied, failed: it replaces the body, or, once a view is on screen, is a failed Refresh in the header's slot) and nothing of any one section. A
+// section's own state is the plugin's own words IN THE SECTION, in its rows and its cells, its `count` and its `action` (a Retry on the section): a count that is still being read says it is, a list built from some of the reads says which it lacks, a read that failed says that it failed and, where asking again
+// helps, offers the way. The kit's `MissingValue` is the dash of a value that does not apply and never the answer for a read that failed. The host cannot enforce this rule, because it cannot know what a read is; what it does enforce is that a section cannot take the page with it. A section that throws while it
+// draws, or whose rows or items are not a list, is that section's card saying `<title> failed to display.` with a Retry, and the header, the summary and every other section stay (`SectionBoundary`, `ui-next/page`).
+//
 // Everything a plugin may use at run time is the shared list (`../loader/specifiers.ts`): React, the kit and, with the curated runtime entry, the
 // data hooks. A contribution is plain data and functions; it never reaches into the shell's DOM and never imports the host.
 
@@ -130,7 +162,7 @@ export type SidebarNodeV1 = Omit<ShellTreeNode, 'children'> & {
 
 /**
  * Where the host asks a contribution to show itself. `connection` is the scope the user chose; it is absent until one is chosen. `params` are the route's other parameters, strings: empty
- * for a list page, the object's identity for a detail page (`connection` is not repeated in them).
+ * for a list page and for an overview page, the object's identity for a detail page (`connection` is not repeated in them).
  */
 export type RouteV1 = {
   /** A key of `ContributionV1.pages`. */
@@ -176,7 +208,10 @@ export type ListPageV1<TRow> = {
   readonly usePage: (context: ContextV1) => ListPageViewV1<TRow>;
 };
 
-/** What a detail page's data hook answers: the object's source (its state, and the view while it is read) and, once the plugin has them, the faces of the scope lane. The host draws both. */
+/**
+ * What a detail page's data hook answers: the object's source (its state, and the view while it is read) and, once the plugin has them, the faces of the scope lane. The host draws both. An overview page's hook answers it too (`OverviewPageV1`), so what this type says is what an overview says: a
+ * change to it reaches overviews (the rule above, "an overview follows the detail view"). The state is ONE state, for the whole page; a section's own loading, partial, failed or not available is the plugin's own words in the section (the rule above, "no fake zeros").
+ */
 export type DetailPageViewV1 = {
   /** At most two faces (ch16 S10). Absent or empty: no lane. The tab's title, the status bar's path and the tab's glyph are not here: they come from the route and the definition (`ui-next/page/detailIdentity.ts`). */
   readonly scope?: readonly ShellScopeFace[] | undefined;
@@ -187,11 +222,44 @@ export type DetailPageViewV1 = {
  * A detail page (added to version 1 by D1a, see the rule above): the page of ONE object. A route names it by a page id and the object's identity as string parameters
  * (`definition.identity`), the tab is called `{name} · {Kind}` with the shortest qualifier, and the host draws the page header, the in-page tabs and the Overview's typed sections
  * from the static `definition` and what the one data hook answers. The host calls `usePage` unconditionally, in a component keyed by the route, inside the page's own error boundary,
- * with the route's parameters in `context.route.params`. It has no sidebar entry (it needs an object): it is reached by a link, and `home` is never a detail page.
+ * with the route's parameters in `context.route.params`. It has no sidebar entry (it needs an object): it is reached by a link, and `home` is never a detail page (the page of a connection, which needs no object, is an overview page).
  */
 export type DetailPageV1 = {
   readonly kind: 'detail';
   readonly definition: DetailPageDefinition;
+  readonly usePage: (context: ContextV1) => DetailPageViewV1;
+};
+
+/**
+ * What an overview page's static definition says (HM3): the words and the tile its header and its tab are drawn from before any data is read, and its in-page tabs. There is no `identity` (the route names a scope, not an object, and the heading is the connection's name),
+ * no `list` (nothing leads back above a page that is a landing) and no `kind`: the page is named by its `title`. The tile and the tabs are a detail page's, member for member (`DetailTab`), so a change to either reaches both kinds. A tab's `id` is the plugin's own word for it ("overview",
+ * "metrics"), whatever the page kind is called: the page kind, an in-page tab and `DetailTabContent.kind: 'overview'` are three things (the rule above).
+ */
+export type OverviewPageDefinition = {
+  /**
+   * The page's name in the sidebar's words ("Overview"): the title of the tab, the heading while the route names no connection (a page that is read in a connection says that connection's name instead), and the word of the page's states
+   * ("Loading", "Couldn't load north").
+   */
+  readonly title: string;
+  /** The tile of the page, before the heading: it is the tab's glyph as well. */
+  readonly tile: DetailPageDefinition['tile'];
+  /** The page's tabs, in order, at least one: the first opens first. The strip is drawn from this before any data is read, so nothing moves when the data arrives. */
+  readonly tabs: readonly DetailTab[];
+};
+
+/**
+ * An overview page (added to version 1 by HM3, see the rule above): the page of a SCOPE, a connection, drawn with the anatomy of a detail page: the page header (its heading is the connection's NAME), the in-page tabs and the Overview's typed summary and sections from the static
+ * `definition` and what the one data hook answers. A freshly opened connection lands on it when the plugin makes it `home`. The host calls `usePage` unconditionally, in a component keyed by the route, inside the page's own error boundary, with the route's connection in
+ * `context.route.connection` and no parameters (`context.route.params` is empty), and reads what a detail page's hook answers (`DetailPageViewV1`): the source (its state, and the view while it is read) and the faces of the scope lane. The connection's name is the one the lane says (the face marked
+ * `role: 'connection'`, `FrameV1`'s `ShellScopeFace`), else the one the window has learned for it; the key the route carries is drawn nowhere. The tab is called `definition.title` and wears the tile's glyph, and the status bar's path is the plugin's name and the connection's. A host that predates the
+ * kind refuses the bundle at admission, by naming the kind (the rule above).
+ *
+ * An overview follows the detail view: the page, its view and its sections are the detail page's, so a change to the detail view's types reaches overviews. And it is the aggregate of independent reads: the page's `DetailState` is one state for the whole page, so a section says its own loading, partial,
+ * failed or not available in its own words, and never draws a zero, a dash or `None` for a read that has not answered or has failed (the rule above, "no fake zeros"). A section that cannot be drawn says `<title> failed to display.` with a Retry, in its own card, and the rest of the page stays.
+ */
+export type OverviewPageV1 = {
+  readonly kind: 'overview';
+  readonly definition: OverviewPageDefinition;
   readonly usePage: (context: ContextV1) => DetailPageViewV1;
 };
 
@@ -225,9 +293,9 @@ export type SidebarV1 = {
 
 /**
  * A page of any kind and any row type. The host holds pages of different row types in one record, and each page's definition and hook are typed together where the
- * plugin writes them (`satisfies ListPageV1<Row>`, `satisfies DetailPageV1`), so the record erases the row type in this one place.
+ * plugin writes them (`satisfies ListPageV1<Row>`, `satisfies DetailPageV1`, `satisfies OverviewPageV1`), so the record erases the row type in this one place.
  */
-export type PageV1 = ListPageV1<any> | DetailPageV1;
+export type PageV1 = ListPageV1<any> | DetailPageV1 | OverviewPageV1;
 
 /**
  * The plugin's entry in the window's rail, the 40 px column left of the sidebar: one entry for every plugin that contributes, and choosing it shows this plugin's sidebar. The entries are
@@ -381,12 +449,131 @@ export type LogSessionV1 = {
 };
 
 /**
+ * What a plugin's page asks the host to forward (PF1): one port of one resource, to a port of this computer. The plugin says WHICH resource and WHICH ports; the host says the rest. The plugin that asks and the connection are not in the
+ * request: the host fills them in from the page's own scope (the plugin's id, and `ContextV1.route.connection`), so a page forwards in its own connection and in no other. The members after the resource's id are the ones the plugin's
+ * forwarder reads, written as the runtime's typed start has them (`NetworkerClient.StartResourcePortForwardingSession`): a plugin that holds a `ResourceReference` of the resource, or its body, hands them over as they are. The request has no
+ * `route`: the host's networker admits a reference only with a route of the connection the forward is started in, which is the page's, so the host writes that route itself whenever there is a reference. A member this type does not list is not read.
+ */
+export type PortForwardRequestV1 = {
+  /** The resource whose port is forwarded, by the id the plugin knows it by. A blank id is refused. */
+  readonly resourceId: string;
+  /** The plugin's key for the kind of resource it is, which says which of its forwarders takes the request. Absent: the empty key, which only a forwarder registered under it takes. */
+  readonly resourceKey?: string | undefined;
+  /** The resource's reference, when the plugin holds one. The host's networker admits it only for the connection the forward is started in, which is the page's own: the host writes the route that says so. */
+  readonly reference?: ResourceReference | undefined;
+  /** The resource's body, for a forwarder that reads it. */
+  readonly resourceData?: Value | undefined;
+  /** The port of the resource to forward: a whole number from 1 to 65535. */
+  readonly remotePort: number;
+  /** The port on this computer: a whole number from 1 to 65535. Absent: the host takes a free one (0 is not a way to say so: it is refused). */
+  readonly localPort?: number | undefined;
+  /** The transport. Absent: TCP. */
+  readonly protocol?: 'TCP' | 'UDP' | undefined;
+};
+
+/**
+ * A forward the host started for a plugin (PF1), as the page that asked holds it. The forward is the HOST's, not the page's: how long it lives is written at `PanelHostV1.ports`. The answer is frozen. `sessionId` and `localPort` are what the
+ * host's session states; `localHost` is the host's assumption, and is written as one below.
+ */
+export type PortForwardSessionV1 = {
+  /** The id the host and the Ports tool know the forward by. */
+  readonly sessionId: string;
+  /**
+   * The port on this computer that the forward listens on, as the host's session states it (its `local_port`): the port the plugin asked for, or the free one the host took when it asked for none, which is how a plugin learns it. A
+   * whole number from 1 to 65535. A forward that the host started and did not state a port for is not answered: it is stopped, and the call is refused.
+   */
+  readonly localPort: number;
+  /**
+   * The address of this computer at which the host reaches the forward, so that `localHost` and `localPort` together are where to connect: `127.0.0.1`, always, today. It is the HOST's ASSUMPTION and not a fact the producer states: the
+   * session carries `local_port` and nothing about where the plugin's forwarder listens, and the SDK does not require a forwarder to listen on the loopback (neither `forwarder.go` nor the session states an address), so a forwarder that
+   * listens elsewhere is still said to be here. The Ports tool says the same address, from the same constant, in its Mapping, its Copy address and its Open in browser. A plugin that needs more than the loopback has to know it of its own forwarder.
+   */
+  readonly localHost: string;
+  /**
+   * Stops this forward: the host closes its session (`ClosePortForwardSession`), which ends the tunnel and removes the forward from the host's list and from the Ports tool. It closes the session the forward was answered with, by that session's
+   * id, and asks the host once: a second call, and one made while the first is under way, is the first's outcome (it resolves when the first did, and rejects with the same error when it did not). It resolves for a forward the host no longer has
+   * too (the person stopped it in the Ports tool, or another window did): what a caller wants is that it does not run. It rejects with a `PortForwardErrorV1` when the host cannot close it, as it does for a forward whose plugin has stopped
+   * (`NOT_FOUND`: the plugin is not there). The host closes by the id alone, and the SDK gives every session a fresh UUID, so the id names this forward and no other. A forwarder that chose ids of its own (the SDK lets it; none we have does) and
+   * gave one out twice would let a handle that outlived its forward close the later one: the host's index is overwritten by a later session of the same id, and a handle cannot check what the host does not state. That is a gap of the host and the
+   * SDK, and not of this contract's shape. It is the page's way to clean up after what it started, as the `close` of a Logs session is, and nothing calls it for the page (see `PanelHostV1.ports`).
+   */
+  readonly stop: () => Promise<void>;
+};
+
+/**
+ * The classes of refusal a forward meets (PF1). A code is the host's own when the host's answer has one (the classes of `backend/pkg/apperror`, which the plugin's SDK uses too, read as the runtime's `parseAppError` reads them), and
+ * `INVALID_REQUEST` is also what the host says of what it refuses itself, before it asks anything. `ALREADY_EXISTS` is said as `CONFLICT` and `CERTIFICATE_ERROR` as `CONNECTION_ERROR`, because the host's own classes put them together; a
+ * class a forward does not meet (an expired traversal, a reset, an incomplete result) and a code a later host adds are `UNKNOWN`, as is an answer that carries no code and has no type to read one from. A plugin that tells one class from
+ * another uses a `switch`, with a `default` for the codes it does not act on. The examples below of which refusal arrives as which code (a port in use, a privileged port, UDP, a connection that is not started) were measured on the real host by
+ * the review of the host's PR #710, and are not read from the host's Go [INFERENCE].
+ */
+export type PortForwardErrorCodeV1 =
+  /** The request is not one the host or the plugin's forwarder takes: no resource, a port that is not a whole number from 1 to 65535, a protocol that is not TCP or UDP (the host refuses these itself), or one the forwarder does not take (UDP, for a TCP forwarder). */
+  | 'INVALID_REQUEST'
+  /** The plugin cannot forward ports. */
+  | 'UNSUPPORTED'
+  /** Access to the resource or the connection is refused. */
+  | 'FORBIDDEN'
+  /** The connection needs the person to sign in. */
+  | 'UNAUTHORIZED'
+  /** The host has no such plugin, connection or resource. */
+  | 'NOT_FOUND'
+  /** The request conflicts with the current state. */
+  | 'CONFLICT'
+  /** The call was cancelled before the host answered. */
+  | 'CANCELLED'
+  /** The host or the plugin did not answer in time. */
+  | 'TIMEOUT'
+  /** The source could not be reached, or the port could not be opened: a privileged port that the system refuses is one. */
+  | 'UNAVAILABLE'
+  /** The connection is not started, or could not be verified: starting it is what helps. */
+  | 'CONNECTION_ERROR'
+  /** The request is over a limit of the host, such as the size of the resource's body. */
+  | 'RESOURCE_LIMIT'
+  /** The plugin's forwarder could not do it, and the host does not say why: a local port that is in use and a resource that no forwarder takes both arrive as this code (a gap of the producer's, which states no more than the class). */
+  | 'PROVIDER_ERROR'
+  /** The host failed in a way it did not classify. */
+  | 'INTERNAL'
+  /** The answer has none of the codes above: one that could not be read as an error of the host's, or a class a later host adds. */
+  | 'UNKNOWN';
+
+/**
+ * What `ports.forward` and a forward's `stop` reject with when they cannot do what was asked (PF1): an `Error` named `PortForwardError`, whose `code` is the class of refusal (`PortForwardErrorCodeV1`), whose `message` is plain words for a
+ * person (one sentence: never a stack, a page of output or the host's raw JSON) and whose `cause` is what the host's call rejected with, as the runtime delivered it, for a plugin author to log. A rejection is the only way either call
+ * fails: neither throws into the page. The class is the host's, and a plugin cannot import it, so a page tells the error by its name and reads it as this type:
+ * `if (error instanceof Error && error.name === 'PortForwardError') { const refusal = error as PortForwardErrorV1; ... refusal.code ... }`.
+ */
+export type PortForwardErrorV1 = Error & {
+  readonly name: 'PortForwardError';
+  readonly code: PortForwardErrorCodeV1;
+  readonly cause?: unknown;
+};
+
+/**
  * What a plugin asks of the window's bottom panel. Call it from a user's action on a resource (a command, a click), as owner decision A20 has it, and not from an effect while a page mounts: the panel learns
  * that a plugin is live after the page's own first effects have run, so a call made there is refused. `logs.open` opens a session in the host's Logs tool for a target and answers it, or `undefined` when the host could not (the plugin is not live,
  * the target is not well formed, its `open` threw): the reason is in the console. The panel opens on the new session, as it does for any session the user starts. A target whose session is starting or running is not opened again (A22): that session is answered and `open` is not called, and the panel shows it when it can: a returned handle is the session's, not proof that it is on screen (the host's Logs tool may be gone).
+ *
+ * The handle is the plugin's and, for `ports`, the connection's too, and every page of that plugin in that connection is given the same one: it and each member it holds are frozen, so a page cannot replace a member for the others.
  */
 export type PanelHostV1 = {
   readonly logs: { readonly open: (target: LogTargetV1) => LogSessionV1 | undefined };
+  /**
+   * PF1. `forward` forwards a port of one of the plugin's resources to this computer and answers the forward (`PortForwardSessionV1`: its id, the port it listens on, the address the host reaches it at, and a way to stop it) once the host has
+   * started it, and the Ports tool is shown then. Call it from a user's action on a resource, as `logs.open`. It is bound to the plugin and to the connection the page is read in, and fills both in: the request names neither. It rejects with a
+   * `PortForwardErrorV1`, in the host's own code and plain words, when the request names no resource, a port that is not a whole number from 1 to 65535 or a protocol that is not TCP or UDP, and when the host could not start the forward. The member
+   * is absent on a host that predates it, in a window with no port-forward service, and from the handle of a page that is read in no connection and of a palette command (nothing says which connection to forward in): a plugin tests for it,
+   * `ctx.panel?.ports?.forward`.
+   *
+   * THE FORWARD'S LIFETIME. A forward belongs to the HOST, not to the page that asked, the window it was asked in or the plugin code that holds its answer: it outlives the page, a reload of it and every window (nothing in the host's networker
+   * releases a forward when a page or a window goes: `backend/pkg/plugin/networker` keeps the plugin's sessions with no owner), and nothing the page does ends it but `stop()`. It ends when
+   * - `stop()` of its answer is called, or the person (or any window) stops it in the Ports tool: the host closes the session, which ends the tunnel and removes the forward from its list;
+   * - its plugin stops, or the app quits: the host stops every tunnel of a plugin that stops (`OnPluginStop`), and of every plugin at shutdown (`ServiceShutdown`); a host that is killed outright is not covered here;
+   * - its connection stops or is retired: the SDK cancels the tunnels of a connection that retires, and the session stays listed as Stopped until it is closed [INFERENCE: what retires a connection is the connection's own, and was not read here];
+   * - its tunnel ends on its own or fails: the session stays listed as Stopped or Failed until it is closed, which is why the Ports tool can show it and `stop()` can remove it.
+   * This contract has no event for a forward's end: a page that holds a forward cannot hear that it ended, and what it holds may be one that no longer runs.
+   */
+  readonly ports?: { readonly forward: (request: PortForwardRequestV1) => Promise<PortForwardSessionV1> } | undefined;
 };
 
 /** One chip of the chain that narrows a palette search under the plugin's own (ch16 S69): the connection, then a type, then an object. */
@@ -413,7 +600,7 @@ export type PaletteScopeV1 = {
 export type PaletteJsonV1 = string | number | boolean | null | readonly PaletteJsonV1[] | { readonly [key: string]: PaletteJsonV1 };
 
 /**
- * A result as data (C1c): what the palette draws and what choosing it does. A row opens ONE of two things: `route`, a page of this plugin (a list page with no parameters, or a detail page with the parameter that names
+ * A result as data (C1c): what the palette draws and what choosing it does. A row opens ONE of two things: `route`, a page of this plugin (a list page or an overview page with no parameters, or a detail page with the parameter that names
  * its object: the route of a row of another plugin, or of a page the plugin does not have, is not valid), or `command`, one of the commands this plugin registers under `palette.commands`. The host reads each row when it is
  * answered and leaves out one that is not valid, with a problem for its provider: no row is trusted for its type. The lengths are in characters; text is one line (it is trimmed and its white space collapses).
  */
@@ -478,7 +665,7 @@ export type PaletteProviderV1 = PaletteMatchProviderV1 | PaletteSearchProviderV1
 /** What a command's `run` may answer: `false`, or `{ ok: false, reason }` (a plain sentence of at most 160 characters), refuses; the palette stays open and says why. Anything else is done. */
 export type PaletteCommandResultV1 = { readonly ok?: boolean | undefined; readonly reason?: string | undefined };
 
-/** What a command is told: the plugin it belongs to, and, on a host that has it, what the plugin may ask of the bottom panel (as `ContextV1.panel`). */
+/** What a command is told: the plugin it belongs to, and, on a host that has it, what the plugin may ask of the bottom panel (as `ContextV1.panel`). A command runs from the palette and not from a page, so the handle it is given is read in no connection and has no `ports` member: a member that could only refuse is left out. */
 export type PaletteCommandContextV1 = {
   readonly plugin: string;
   readonly panel?: PanelHostV1 | undefined;

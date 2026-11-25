@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { hostRecord } from '../testing';
 
 import { nodeDefinition } from './definition';
-import { nodeRow, nodeSearchText, type NodeRow } from './row';
+import { nodeIsReady, nodeRow, nodeSearchText, type NodeRow } from './row';
 
 // The Node definition, as the mock's `PRINTER.Node` has it (MOCK k8s-resource-definitions.js:795-802; ch17 K60.3): after the name, Status, Version and Age (and CPU, which is a usage and needs a metrics
 // source this plugin's contract has no read for: it is not drawn, and no zero stands for it). The wide set (Memory) and the Columns chooser's (Roles, addresses, OS image, ...) wait for the list page to
@@ -105,6 +105,22 @@ describe('the state: kubectl\'s `printNode`, and the mock\'s word for a Node tha
 
   it('says nothing for a Node that has no status: no word is made up', () => {
     expect(node({}, undefined).status).toBeUndefined();
+  });
+});
+
+// How many Nodes are ready is a count the cluster overview says (`2 · 1 ready`): a Node is ready when its Ready condition is True, which `nodeState` words as Ready, or as Scheduling disabled for one that is cordoned.
+describe('nodeIsReady: whether the Ready condition is True', () => {
+  it('is true for a Node that is Ready, and for one that is Ready and cordoned: the cordon is the word, the condition is the same', () => {
+    expect(nodeIsReady(well)).toBe(true);
+    expect(nodeIsReady(node({ unschedulable: true }, wellStatus))).toBe(true);
+  });
+
+  it('is false for a Node that is not Ready (False or Unknown), for one that has reported no Ready condition, and for one that has no status', () => {
+    expect(nodeIsReady(node({}, { conditions: [ready('False')] }))).toBe(false);
+    expect(nodeIsReady(node({}, { conditions: [ready('Unknown')] }))).toBe(false);
+    expect(nodeIsReady(node({}, { conditions: [{ type: 'MemoryPressure', status: 'False' }] }))).toBe(false);
+    expect(nodeIsReady(node({ unschedulable: true }, { conditions: [ready('Unknown')] }))).toBe(false);
+    expect(nodeIsReady(node({}, undefined))).toBe(false);
   });
 });
 

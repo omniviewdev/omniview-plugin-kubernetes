@@ -132,3 +132,9 @@ export function bytesText(bytes: number): string {
 export function namesText(names: readonly string[], max: number): { readonly text: string; readonly tip?: string } {
   return names.length > max ? { text: `${names.slice(0, max).join(', ')} +${names.length - max}`, tip: names.join(', ') } : { text: names.join(', ') };
 }
+
+/** A version as the mock says it (the Nodes' Version cell, the cluster's Kubernetes version): three numbers (`v1.31.4`), with the whole version for the tip when it says more (`v1.31.4-eks-aeac579`). A version that is not of that shape is said as it is. */
+export function versionText(version: string): { readonly text: string; readonly tip?: string } {
+  const short = /^v?\d+\.\d+\.\d+/.exec(version)?.[0];
+  return short === undefined || short === version ? { text: version } : { text: short, tip: version };
+}

@@ -1,5 +1,6 @@
 import { column, typeOf, type Cell, type KindDefinition } from '../definition';
 import { ageCell, none, statusCell } from '../display';
+import { versionText } from '../fields';
 
 import { nodeCommands, nodeOverview } from './detail';
 import { nodeRow, nodeRows, nodeSearchText, type NodeRow } from './row';
@@ -16,8 +17,8 @@ function versionCell({ version }: NodeRow): Cell {
     return none('The Node reports no version yet.');
   }
 
-  const short = /^v?\d+\.\d+\.\d+/.exec(version)?.[0];
-  return short === undefined || short === version ? { kind: 'text', text: version } : { kind: 'text', text: short, tip: version };
+  const { text, tip } = versionText(version);
+  return tip === undefined ? { kind: 'text', text } : { kind: 'text', text, tip };
 }
 
 export const nodeDefinition: KindDefinition<NodeRow> = {

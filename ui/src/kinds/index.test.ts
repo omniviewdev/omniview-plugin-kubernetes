@@ -5,6 +5,7 @@ import { isIconName } from '@omniviewdev/kit';
 import { describe, expect, it } from 'vitest';
 
 import type { SidebarNodeV1 } from '../contract/v1';
+import { OVERVIEW_ENTRY, OVERVIEW_PAGE, OVERVIEW_TILE } from '../overview/entry';
 import { SHORT_NAMES } from '../palette/shortNames';
 
 import { GENERIC_TILE, typeOf } from './definition';
@@ -28,7 +29,7 @@ const CLUSTER_SCOPED = new Set(['Node', 'Namespace', 'PersistentVolume', 'Storag
 const nounsOf = (kinds: readonly { readonly nouns: { readonly other: string } }[]) => kinds.map((kind) => kind.nouns.other);
 
 describe('the sidebar of the mock (K61.2): the kinds this plugin lists so far, in the mock\'s order', () => {
-  it('lists Nodes and Namespaces at the top: they are the mock\'s top level (Overview and Events are not built)', () => {
+  it('lists Nodes and Namespaces at the top: they are the mock\'s top level (the Overview is a page of the plugin and not a kind, `overview/`; Events is not built)', () => {
     expect(nounsOf(CLUSTER)).toEqual(['Nodes', 'Namespaces']);
     expect(CLUSTER.map((kind) => kind.page)).toEqual(['nodes', 'namespaces']);
   });
@@ -59,13 +60,15 @@ describe('the sidebar of the mock (K61.2): the kinds this plugin lists so far, i
   });
 
   // The skeleton is read at admission by a host: a host that predates the count slot refuses a `null` count by name, and one that has it holds the slot at the width of a count from the first frame, so a count that
-  // arrives moves no label. So every entry of a kind declares its slot (`count: null`); a group has no count, and so no slot.
-  it('is the top-level entries, then the groups Workloads, Config, Network, Storage and Access control: an entry for each kind, with the kind\'s glyph and its count slot held (`count: null`), and no count on a group', () => {
+  // arrives moves no label. So every entry of a kind declares its slot (`count: null`); a group has no count, and so no slot, and neither has the Overview, which is a page of the connection and not a kind.
+  it('is the Overview, then the top-level entries, then the groups Workloads, Config, Network, Storage and Access control: an entry for each kind, with the kind\'s glyph and its count slot held (`count: null`), and no count on a group', () => {
     const entry = (kind: (typeof KINDS)[number]) => ({ id: kind.page, label: kind.nouns.other, icon: kind.tile.icon, count: null, keywords: [kind.kind, ...(SHORT_NAMES[kind.type] ?? [])] });
     expect(sidebarNodes()).toEqual([
+      OVERVIEW_ENTRY,
       ...CLUSTER.map(entry),
       ...SIDEBAR_GROUPS.map((group) => ({ id: group.id, label: group.label, icon: group.icon, children: group.kinds.map(entry) })),
     ]);
+    expect(sidebarNodes()[0]).toBe(OVERVIEW_ENTRY);
     for (const node of sidebarNodes()) {
       if (node.children !== undefined) {
         expect(node).not.toHaveProperty('count');
@@ -146,14 +149,20 @@ describe('sidebarNodes: the counts of the entries', () => {
     expect(countOf(sidebarNodes(new Map([['pods', 0]])), 'pods')).toBe(0);
   });
 
-  it('holds the slot of an entry it is given nothing for: no number yet', () => {
+  it('holds the slot of an entry it is given nothing for: no number yet, and none for the Overview, which is no kind and has no slot', () => {
     const nodes = sidebarNodes(new Map([['pods', 12]]));
 
     for (const leaf of leavesOf(nodes)) {
-      if (leaf.id !== 'pods') {
+      if (leaf.id === OVERVIEW_PAGE) {
+        expect(leaf, leaf.id).not.toHaveProperty('count');
+      } else if (leaf.id !== 'pods') {
         expect(leaf.count, leaf.id).toBeNull();
       }
     }
+  });
+
+  it('gives the Overview no count, whatever it is given for its id: a page of the connection is not counted', () => {
+    expect(sidebarNodes(new Map([[OVERVIEW_PAGE, 5]])).find((node) => node.id === OVERVIEW_PAGE)).not.toHaveProperty('count');
   });
 
   it('is the skeleton when it is given no counts, or none that name an entry', () => {
@@ -343,6 +352,13 @@ describe('the glyphs of the mock (Q2b): each kind and each group wears the kit g
       expect(entries.find((node) => node.id === kind?.page)?.icon, kindName).toBe(kit ?? GENERIC_TILE.icon);
     }
   });
+
+  it('wears a glyph of the kit that no kind wears, and says it in the skeleton as the page\'s tile does: the Overview is not a kind, so no tile of a kind says another kind', () => {
+    expect(isIconName(OVERVIEW_TILE.icon)).toBe(true);
+    expect(KINDS.map((kind) => kind.tile.icon)).not.toContain(OVERVIEW_TILE.icon);
+    expect(SIDEBAR_GROUPS.map((group) => group.icon)).not.toContain(OVERVIEW_TILE.icon);
+    expect(sidebarNodes().find((node) => node.id === OVERVIEW_PAGE)?.icon).toBe(OVERVIEW_TILE.icon);
+  });
 });
 
 describe('the registry as a whole', () => {
@@ -384,8 +400,9 @@ describe('sidebarNodes: the keywords of the entries (the palette\'s aliases)', (
   const leavesOf = (nodes: readonly SidebarNodeV1[]): readonly SidebarNodeV1[] => nodes.flatMap((node) => (node.children === undefined ? [node] : leavesOf(node.children)));
   const entries = leavesOf(sidebarNodes());
 
-  it('has an entry for each of the 29 kinds, and each carries the Kind first and then its kubectl short names', () => {
-    expect(entries).toHaveLength(29);
+  it('has an entry for each of the 29 kinds, and each carries the Kind first and then its kubectl short names; the Overview is the one entry that is no kind', () => {
+    expect(entries.filter((entry) => entry.id !== OVERVIEW_PAGE)).toHaveLength(29);
+    expect(entries.map((entry) => entry.id)).toContain(OVERVIEW_PAGE);
     for (const kind of KINDS) {
       const entry = entries.find((candidate) => candidate.id === kind.page);
       expect(entry?.keywords, kind.page).toEqual([kind.kind, ...(SHORT_NAMES[kind.type] ?? [])]);

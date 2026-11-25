@@ -1,6 +1,7 @@
 import type { IconName, LinkTarget } from '@omniviewdev/kit';
 
 import type { PageV1, SidebarNodeV1 } from '../contract/v1';
+import { OVERVIEW_ENTRY } from '../overview/entry';
 import { SHORT_NAMES } from '../palette/shortNames';
 import type { SidebarCounts } from '../sidebar/count';
 
@@ -45,7 +46,7 @@ import { storageClassDefinition } from './storageclasses/definition';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyKind = KindDefinition<any>;
 
-/** The mock's top level, above the groups: Nodes, then Namespaces (it has Overview and Events between and before them, which are not built). Both live in no namespace. */
+/** The mock's top level, below the Overview and above the groups: Nodes, then Namespaces (it has Events between them, which is not built; the Overview is a page of the plugin and not a kind: `overview/`). Both live in no namespace. */
 export const CLUSTER: readonly AnyKind[] = [nodeDefinition, namespaceDefinition];
 
 /** The Workloads of the mock, in its order (Pods, Deployments, StatefulSets, DaemonSets, ReplicaSets, ReplicationControllers, Jobs, CronJobs, PodTemplates, ControllerRevisions): the ones this plugin lists so far. */
@@ -94,14 +95,15 @@ const keywordsOf = (kind: AnyKind): readonly string[] => [kind.kind, ...(SHORT_N
 const entryOf = (kind: AnyKind, counts: SidebarCounts | undefined): SidebarNodeV1 => ({ id: kind.page, label: kind.nouns.other, icon: kind.tile.icon, count: counts?.get(kind.page) ?? null, keywords: keywordsOf(kind) });
 
 /**
- * The sidebar's nodes: the entries of the top level, then the groups, and in each group one entry per kind, with the kind's glyph and its count. A group has no count. `counts` says what each entry draws, by the
- * id of its page (`ui/src/sidebar/`: a number, an approximate number, or `null`); an entry it says nothing of draws `null` too, which holds the entry's slot at the width of a count with nothing in it, so that a
- * count that arrives moves no label. Called with no counts it is the static skeleton the host reads at admission, which is why every entry of a kind declares its slot there: a host that predates the slot
- * refuses a `null` count by name, so the bundle is never drawn wrong on it.
+ * The sidebar's nodes: the Overview, the entries of the top level, then the groups, and in each group one entry per kind, with the kind's glyph and its count. A group has no count, and neither has the Overview, a
+ * page of the connection and not a kind (`overview/entry.ts`: it is the same entry whatever it is given). `counts` says what each entry of a kind draws, by the id of its page (`ui/src/sidebar/`: a number, an
+ * approximate number, or `null`); an entry it says nothing of draws `null` too, which holds the entry's slot at the width of a count with nothing in it, so that a count that arrives moves no label. Called with no
+ * counts it is the static skeleton the host reads at admission, which is why every entry of a kind declares its slot there: a host that predates the slot refuses a `null` count by name, so the bundle is never drawn
+ * wrong on it.
  */
 export function sidebarNodes(counts?: SidebarCounts): readonly SidebarNodeV1[] {
   const entry = (kind: AnyKind) => entryOf(kind, counts);
-  return [...CLUSTER.map(entry), ...SIDEBAR_GROUPS.map((group) => ({ id: group.id, label: group.label, icon: group.icon, children: group.kinds.map(entry) }))];
+  return [OVERVIEW_ENTRY, ...CLUSTER.map(entry), ...SIDEBAR_GROUPS.map((group) => ({ id: group.id, label: group.label, icon: group.icon, children: group.kinds.map(entry) }))];
 }
 
 /**

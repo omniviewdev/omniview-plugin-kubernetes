@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { bytesText, createdAt, formatAge, nameTail, namesText, spanSince, spanText } from './fields';
+import { bytesText, createdAt, formatAge, nameTail, namesText, spanSince, spanText, versionText } from './fields';
 
 // What every kind's list says the same way, from the object a cluster served (plan 1.3): when it was made, how old it is, and the end of a generated name.
 // A value the object does not hold is undefined, never zero, empty or "Unknown" (ch13 D7).
@@ -124,5 +124,21 @@ describe('namesText: the first names of a list, the number of the rest, and ever
 
   it('says the first names and how many more, and keeps the whole list for the tip', () => {
     expect(namesText(['a', 'b', 'c', 'd', 'e'], 3)).toEqual({ text: 'a, b, c +2', tip: 'a, b, c, d, e' });
+  });
+});
+
+describe('versionText: a version as the mock says it, three numbers, and the whole version for the tip when it says more', () => {
+  it('keeps the three numbers and the leading v, and puts the build the platform added in the tip', () => {
+    expect(versionText('v1.31.4-eks-aeac579')).toEqual({ text: 'v1.31.4', tip: 'v1.31.4-eks-aeac579' });
+    expect(versionText('v1.30.5+k3s1')).toEqual({ text: 'v1.30.5', tip: 'v1.30.5+k3s1' });
+  });
+
+  it('is the version itself, with no tip, when it is three numbers already', () => {
+    expect(versionText('v1.35.0')).toEqual({ text: 'v1.35.0' });
+    expect(versionText('1.35.0')).toEqual({ text: '1.35.0' });
+  });
+
+  it('is the version as given when it is not one the mock knows how to cut: nothing is invented', () => {
+    expect(versionText('custom-build')).toEqual({ text: 'custom-build' });
   });
 });

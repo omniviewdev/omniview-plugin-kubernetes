@@ -1,3 +1,4 @@
+import { isIconName } from '@omniviewdev/kit';
 import { describe, expect, it } from 'vitest';
 
 import type { ShellTreeNode } from './contract/shell';
@@ -36,16 +37,17 @@ describe('the contribution', () => {
     expect(contributionV1.rail).toBe(true);
   });
 
-  it('opens the Pods page, and every entry of its sidebar opens a page of the contribution', () => {
-    expect(contributionV1.home).toBe('pods');
-    expect(leaves(contributionV1.sidebar.nodes).map((leaf) => leaf.id)).toEqual(LISTS);
+  it('opens the Overview page, and every entry of its sidebar opens a page of the contribution: the Overview first, then the kinds', () => {
+    expect(contributionV1.home).toBe('overview');
+    expect(leaves(contributionV1.sidebar.nodes).map((leaf) => leaf.id)).toEqual(['overview', ...LISTS]);
     for (const leaf of leaves(contributionV1.sidebar.nodes)) {
       expect(contributionV1.pages).toHaveProperty(leaf.id);
     }
   });
 
-  it('has the mock\'s top level (Nodes and Namespaces), then the groups Workloads, Config, Network, Storage and Access control, in the mock\'s order (K61.2)', () => {
+  it('has the mock\'s top level (Overview, Nodes and Namespaces), then the groups Workloads, Config, Network, Storage and Access control, in the mock\'s order (K61.2)', () => {
     expect(contributionV1.sidebar.nodes.map((node) => [node.id, node.label, node.children === undefined ? 'entry' : 'group'])).toEqual([
+      ['overview', 'Overview', 'entry'],
       ['nodes', 'Nodes', 'entry'],
       ['namespaces', 'Namespaces', 'entry'],
       ['workloads', 'Workloads', 'group'],
@@ -57,8 +59,8 @@ describe('the contribution', () => {
   });
 
   it('has, in each group, its entries in the mock\'s order, each with the glyph of its kind (the mock\'s, or the generic tile for the seven the kit has none for) and its count slot held (`count: null`: the counts arrive from the sidebar\'s hook)', () => {
-    const [nodes, namespaces, workloads, config, network, storage, access] = contributionV1.sidebar.nodes;
-    expect([nodes, namespaces].map((node) => [node?.id, node?.icon])).toEqual([['nodes', 'server'], ['namespaces', 'folder-tree']]);
+    const [overview, nodes, namespaces, workloads, config, network, storage, access] = contributionV1.sidebar.nodes;
+    expect([overview, nodes, namespaces].map((node) => [node?.id, node?.icon])).toEqual([['overview', 'layout-template'], ['nodes', 'server'], ['namespaces', 'folder-tree']]);
     expect(workloads?.icon).toBe('layers');
     expect(workloads?.children?.map((leaf) => [leaf.id, leaf.label, leaf.icon])).toEqual([
       ['pods', 'Pods', 'box'],
@@ -100,8 +102,13 @@ describe('the contribution', () => {
       ['clusterrolebindings', 'ClusterRoleBindings', 'box'],
     ]);
     // The slot is declared on every entry of a kind from the first frame, so that a count that arrives moves no label; a host that predates the slot refuses a `null` count by name, so the bundle is never drawn wrong there. A group has no count.
+    // The Overview is a page of the connection and not a kind: it has no count to arrive, so it declares no slot.
     for (const leaf of leaves(contributionV1.sidebar.nodes)) {
-      expect(leaf.count, leaf.id).toBeNull();
+      if (leaf.id === 'overview') {
+        expect(leaf).not.toHaveProperty('count');
+      } else {
+        expect(leaf.count, leaf.id).toBeNull();
+      }
     }
     for (const node of contributionV1.sidebar.nodes) {
       if (node.children !== undefined) {
@@ -110,8 +117,9 @@ describe('the contribution', () => {
     }
   });
 
-  it('has the list page of each kind, the page of one Pod and the page of one object of each kind that has one: none of them has a sidebar entry, because it needs an object, so the list\'s links reach it', () => {
-    expect(Object.keys(contributionV1.pages)).toEqual([...LISTS, ...DETAILS, 'pod']);
+  it('has the Overview page, the list page of each kind, the page of one Pod and the page of one object of each kind that has one: none of the last has a sidebar entry, because it needs an object, so the list\'s links reach it', () => {
+    expect(Object.keys(contributionV1.pages)).toEqual(['overview', ...LISTS, ...DETAILS, 'pod']);
+    expect(contributionV1.pages.overview.kind).toBe('overview');
     for (const id of LISTS) {
       expect(contributionV1.pages[id as keyof typeof contributionV1.pages].kind, id).toBe('list');
     }
@@ -121,10 +129,10 @@ describe('the contribution', () => {
     }
   });
 
-  it('gives each list page the words of its kind: the heading is the plural the sidebar entry says', () => {
+  it('gives each page that has an entry the words of its entry: the heading of a list is the plural the sidebar entry says, and the Overview\'s title is its entry\'s label', () => {
     const words = leaves(contributionV1.sidebar.nodes).map((leaf) => {
       const page = contributionV1.pages[leaf.id as keyof typeof contributionV1.pages];
-      return [leaf.label, page.kind === 'list' ? page.definition.title : undefined];
+      return [leaf.label, page.kind === 'detail' ? undefined : page.definition.title];
     });
     expect(words.every(([label, title]) => label === title)).toBe(true);
   });
@@ -144,6 +152,27 @@ describe('the contribution', () => {
       expect(page.definition.tabs.length, id).toBeGreaterThan(0);
       expect(page.definition.identity.name, id).toBe('name');
     }
+  });
+
+  // What the host's admission asks of an overview page (`admit.ts` in omniviewdev/omniview): it needs no object, so it may be `home` and an entry of the sidebar, where a detail page may be neither; it has a title, a
+  // tile with a glyph, tabs that each have an id and a label (an id once), and a data hook. The host's own admission runs on the real bundle in the end-to-end check; these are the same facts, on the source.
+  it('has an overview page the host admits: it is the home page and the first entry of the sidebar, which no detail page may be, and its definition and hook are what the host reads', () => {
+    const { overview } = contributionV1.pages;
+    const first = leaves(contributionV1.sidebar.nodes)[0];
+
+    expect(overview.kind).toBe('overview');
+    expect(contributionV1.pages[contributionV1.home as keyof typeof contributionV1.pages].kind).toBe('overview');
+    expect(first?.id).toBe('overview');
+    expect(contributionV1.pages[(first?.id ?? '') as keyof typeof contributionV1.pages].kind).toBe('overview');
+    expect(overview.definition.title.trim()).not.toBe('');
+    expect(isIconName(overview.definition.tile.icon)).toBe(true);
+    expect(overview.definition.tabs.length).toBeGreaterThan(0);
+    expect(new Set(overview.definition.tabs.map((tab) => tab.id)).size).toBe(overview.definition.tabs.length);
+    for (const tab of overview.definition.tabs) {
+      expect(tab.id).not.toBe('');
+      expect(tab.label).not.toBe('');
+    }
+    expect(typeof overview.usePage).toBe('function');
   });
 
   it('says the Pod page as it was: the Pod, read from the Pods list, named by its namespace and its name', () => {
