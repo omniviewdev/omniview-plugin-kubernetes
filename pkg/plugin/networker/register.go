@@ -24,6 +24,13 @@ import (
 	"github.com/omniviewdev/plugin-sdk/pkg/v1/networker"
 )
 
+// localListenAddress is the one address a forward asks client-go to listen on and the host it
+// states as its LocalHost, so that the request and the statement cannot drift. For "localhost"
+// client-go binds both loopback families (127.0.0.1 and ::1) and nothing else. It does not expose
+// its listeners, so the address asked for is what there is to state. portforward.New asks for this
+// same address.
+const localListenAddress = "localhost"
+
 func Register(plugin *sdk.Plugin) {
 	wf := &WorkloadResourceForwarder{}
 	portForwarders := map[string]networker.ResourceForwarder{
@@ -117,8 +124,9 @@ func (f *PodResourceForwarder) ForwardResource(
 		&url.URL{Scheme: "https", Path: path, Host: hostIP},
 	)
 
-	fw, err := portforward.New(
+	fw, err := portforward.NewOnAddresses(
 		dialer,
+		[]string{localListenAddress},
 		[]string{fmt.Sprintf("%d:%d", opts.Options.LocalPort, opts.Options.RemotePort)},
 		stopCh,
 		readyCh,
@@ -169,8 +177,9 @@ func (f *PodResourceForwarder) ForwardResource(
 	}()
 
 	return &networker.ForwarderResult{
-		Ready: readyCh,
-		ErrCh: errCh,
+		LocalHost: localListenAddress,
+		Ready:     readyCh,
+		ErrCh:     errCh,
 	}, nil
 }
 
@@ -302,8 +311,9 @@ func (f *WorkloadResourceForwarder) forwardToPod(
 		&url.URL{Scheme: "https", Path: path, Host: hostIP},
 	)
 
-	fw, err := portforward.New(
+	fw, err := portforward.NewOnAddresses(
 		dialer,
+		[]string{localListenAddress},
 		[]string{fmt.Sprintf("%d:%d", localPort, remotePort)},
 		stopCh,
 		readyCh,

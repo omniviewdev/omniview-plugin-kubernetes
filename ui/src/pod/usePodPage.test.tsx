@@ -1,5 +1,5 @@
 import * as runtime from '@omniviewdev/runtime/ui/v1';
-import { cleanup, renderHook } from '@testing-library/react';
+import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ContextV1, DetailPageViewV1, PanelHostV1 } from '../contract/v1';
@@ -405,6 +405,51 @@ describe('usePodPage: the Logs command of the header (P1b-3b)', () => {
     expect(command?.disabledReason).toBeUndefined();
     const { commands } = mounted.result.current.source.view ?? {};
     expect([commands?.secondary?.[0]?.disabledReason, commands?.danger?.disabledReason]).toEqual(['Shell and Delete are not available yet', 'Shell and Delete are not available yet']);
+  });
+});
+
+describe('usePodPage: the Forward port entries of the header (PF3)', () => {
+  const serving = { ...object, spec: { ...object.spec, containers: [{ name: 'app', image: 'busybox:1', ports: [{ name: 'http', containerPort: 8080, protocol: 'TCP' }, { name: 'metrics', containerPort: 9090, protocol: 'TCP' }] }] } };
+  const servingRecord = { ...hostRecord(serving), route: { connection: idOf('kind-a') } };
+
+  /** The page on a panel handle whose `forward` is a recorder that never answers, and the menu of its header. */
+  function offered(over: Parameters<typeof context>[0] = {}) {
+    const forward = vi.fn<NonNullable<PanelHostV1['ports']>['forward']>(() => new Promise(() => undefined));
+    const mounted = mount({ panel: { logs: { open: vi.fn() }, ports: { forward } }, ...over });
+    return { forward, mounted };
+  }
+
+  beforeEach(() => {
+    usePod.mockReturnValue(view({ pod: podDetail(servingRecord), record: servingRecord }));
+  });
+
+  it('has an entry for each TCP port the Pod declares in the place of Forward port…, and asks the host to forward the port of the Pod the page shows, with the reference the host holds of it', () => {
+    const { forward, mounted } = offered();
+    const menu = mounted.result.current.source.view?.commands?.menu;
+    expect(menu?.map((item) => item.label)).toEqual(['Forward port 8080 (http)', 'Forward port 9090 (metrics)', 'Debug container…', 'Events', 'Copy name']);
+    act(() => {
+      menu?.[1]?.onSelect();
+    });
+    expect(forward).toHaveBeenCalledTimes(1);
+    expect(forward).toHaveBeenCalledWith({ resourceId: 'cart-api', resourceKey: 'k8s:/pods', reference: servingRecord.record.reference, remotePort: 9090, protocol: 'TCP' });
+  });
+
+  it('says in the header\'s operation slot that it is forwarding once the press has asked, and has no operation before', () => {
+    const { mounted } = offered();
+    expect(mounted.result.current.source.view).not.toHaveProperty('operation');
+    act(() => {
+      mounted.result.current.source.view?.commands?.menu?.[0]?.onSelect();
+    });
+    expect(mounted.result.current.source.view?.operation).toMatchObject({ state: 'running', text: 'Forwarding port 8080 of cart-api' });
+  });
+
+  it('leaves Forward port… unavailable on a host that gave the page no ports member, and for a Pod that declares no TCP port', () => {
+    const bare = mount({ panel: { logs: { open: vi.fn() } } });
+    expect(bare.result.current.source.view?.commands?.menu?.[0]).toMatchObject({ id: 'forward-port', label: 'Forward port…', disabled: true });
+    cleanup();
+    usePod.mockReturnValue(view());
+    const quiet = offered();
+    expect(quiet.mounted.result.current.source.view?.commands?.menu?.[0]).toMatchObject({ id: 'forward-port', label: 'Forward port…', disabled: true });
   });
 });
 
