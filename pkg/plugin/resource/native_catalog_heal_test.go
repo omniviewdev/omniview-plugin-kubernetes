@@ -255,7 +255,7 @@ func TestNativeConnectionFactNamesTheUnavailableGroupsAndFollowsTheirRecovery(t 
 
 	snapshot, err := p.RefreshConnectionMetadata(context.Background(), route.Connection)
 	require.NoError(t, err)
-	entry, present := snapshot.Entries[unavailableGroupsKey]
+	entry, present := snapshot.Entries[FactUnavailableAPIGroups]
 	require.True(t, present, "the facts of a connection name the groups its catalog lacks")
 	require.Equal(t, "current", entry.State)
 	require.Equal(t, map[string]any{"count": 1, "groups": []any{map[string]any{"groupVersion": "refresh.example/v2", "reason": "unavailable"}}}, entry.Value, "how many groups, and the first of them with a closed reason")
@@ -268,7 +268,7 @@ func TestNativeConnectionFactNamesTheUnavailableGroupsAndFollowsTheirRecovery(t 
 		if err != nil {
 			return false
 		}
-		_, present := current.Entries[unavailableGroupsKey]
+		_, present := current.Entries[FactUnavailableAPIGroups]
 		return !present
 	}, 5*time.Second, 10*time.Millisecond, "the fact is gone once every group answers, without a refresh asked for")
 }
@@ -280,7 +280,7 @@ func TestNativeConnectionFactIsAbsentWhenEveryGroupAnswers(t *testing.T) {
 	require.NoError(t, err)
 	snapshot, err := p.RefreshConnectionMetadata(context.Background(), route.Connection)
 	require.NoError(t, err)
-	require.NotContains(t, snapshot.Entries, unavailableGroupsKey)
+	require.NotContains(t, snapshot.Entries, FactUnavailableAPIGroups)
 }
 
 func TestNativeRefreshThatStillCannotReadAGroupMayAddSupport(t *testing.T) {

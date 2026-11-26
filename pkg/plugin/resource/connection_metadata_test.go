@@ -53,10 +53,10 @@ func TestConnectionMetadataRESTConfigEndpointNormalization(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			before := rest.CopyConfig(&tt.config)
-			update, err := connectionMetadata(context.Background(), types.Connection{}, &clients.ClientSet{RESTConfig: &tt.config})
+			update, err := connectionMetadata(context.Background(), types.Connection{}, &clients.ClientSet{RESTConfig: &tt.config}, catalogFacts{})
 			require.NoError(t, err)
 			require.Equal(t, before, &tt.config)
-			endpoint := update.Set["kubernetes.server_url"]
+			endpoint := update.Set["kubernetes.server"]
 			if tt.want == "" {
 				require.Equal(t, "unavailable", endpoint.State)
 				require.Nil(t, endpoint.Value)
@@ -64,8 +64,8 @@ func TestConnectionMetadataRESTConfigEndpointNormalization(t *testing.T) {
 				require.Equal(t, "success", endpoint.State)
 				require.Equal(t, tt.want, endpoint.Value)
 			}
-			require.Equal(t, "unavailable", update.Set["kubernetes.server_version"].State)
-			require.Equal(t, "unavailable", update.Set["kubernetes.server_platform"].State)
+			require.Equal(t, "unavailable", update.Set["kubernetes.server.version"].State)
+			require.Equal(t, "unavailable", update.Set["kubernetes.server.platform"].State)
 			encoded, err := json.Marshal(update)
 			require.NoError(t, err)
 			require.NotContains(t, string(encoded), "secret")
@@ -87,17 +87,17 @@ func TestConnectionMetadataOnlyRequestsVersionAndNeverMutatesConfiguration(t *te
 			discoveryClient, err := discovery.NewDiscoveryClientForConfig(config)
 			require.NoError(t, err)
 			connection := types.Connection{ID: "owned", Data: map[string]interface{}{"cluster": "configured"}}
-			update, err := connectionMetadata(context.Background(), connection, &clients.ClientSet{RESTConfig: config, DiscoveryClient: discoveryClient})
+			update, err := connectionMetadata(context.Background(), connection, &clients.ClientSet{RESTConfig: config, DiscoveryClient: discoveryClient}, catalogFacts{})
 			require.NoError(t, err)
 			require.Equal(t, 1, calls)
 			require.Len(t, update.Set, 3)
 			require.Equal(t, map[string]interface{}{"cluster": "configured"}, connection.Data)
-			require.Equal(t, "success", update.Set["kubernetes.server_url"].State)
+			require.Equal(t, "success", update.Set["kubernetes.server"].State)
 			if strings.HasPrefix(body, `{"gitVersion"`) {
-				require.Equal(t, "v1.34.0", update.Set["kubernetes.server_version"].Value)
+				require.Equal(t, "v1.34.0", update.Set["kubernetes.server.version"].Value)
 			} else {
-				require.Equal(t, "unavailable", update.Set["kubernetes.server_version"].State)
-				require.NotContains(t, update.Set["kubernetes.server_version"].Error.Message, body)
+				require.Equal(t, "unavailable", update.Set["kubernetes.server.version"].State)
+				require.NotContains(t, update.Set["kubernetes.server.version"].Error.Message, body)
 			}
 		})
 	}
@@ -111,11 +111,11 @@ func TestConnectionMetadataCanceledRequestKeepsEndpointSibling(t *testing.T) {
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	update, err := connectionMetadata(ctx, inContext("kind-kind", nil), &clients.ClientSet{RESTConfig: config, DiscoveryClient: discoveryClient})
+	update, err := connectionMetadata(ctx, inContext("kind-kind", nil), &clients.ClientSet{RESTConfig: config, DiscoveryClient: discoveryClient}, catalogFacts{})
 	require.NoError(t, err)
-	require.Equal(t, "success", update.Set["kubernetes.server_url"].State)
-	require.Equal(t, "unavailable", update.Set["kubernetes.server_version"].State)
-	require.Equal(t, "kind", update.Set["kubernetes.provider"].Value)
-	require.Equal(t, "connection_config", update.Set["kubernetes.provider_source"].Value)
-	require.Contains(t, update.Remove, "aws.account_id")
+	require.Equal(t, "success", update.Set["kubernetes.server"].State)
+	require.Equal(t, "unavailable", update.Set["kubernetes.server.version"].State)
+	require.Equal(t, "kind", update.Set["kubernetes.platform"].Value)
+	require.Equal(t, "connection_config", update.Set["kubernetes.platform_source"].Value)
+	require.Contains(t, update.Remove, "cloud.account.id")
 }

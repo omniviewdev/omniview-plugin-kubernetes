@@ -1,9 +1,9 @@
 import type { ConnectionMetadataEntry, ConnectionMetadataSnapshot, ConnectionMetadataValue } from '@omniviewdev/runtime/ui/v1';
 import { describe, expect, it } from 'vitest';
 
-import { KEYS, distributionWords, groupsOf, providerWords, readFact, readFacts, type MetadataRead } from './facts';
+import { KEYS, distributionWords, groupsOf, platformWords, readFact, readFacts, type MetadataRead } from './facts';
 
-// The facts the plugin's backend publishes about a connection (`pkg/plugin/resource/connection_metadata.go`, `native_catalog_heal.go:124-170`), read through `useConnectionMetadata`. Each is an observation with a
+// The facts the plugin's backend publishes about a connection (`pkg/plugin/resource/connection_metadata.go` lists the keys), read through `useConnectionMetadata`. Each is an observation with a
 // state, and a page that draws one says which of the three it has: a fact that is not current is never drawn as current, and one that cannot be read says so and never draws a dash for it.
 
 const OBSERVED = '2026-11-25T11:56:00Z';
@@ -78,18 +78,18 @@ describe('readFact: before the connection\'s facts have been read', () => {
 });
 
 describe('readFacts: the five facts the overview says', () => {
-  it('reads each under its key: the server version and address, the provider and distribution, and the API groups that did not answer', () => {
+  it('reads each under its key: the server version and address, the platform and distribution, and the API groups that did not answer', () => {
     const facts = readFacts(read({
       [KEYS.version]: current('v1.31.4-eks-aeac579'),
       [KEYS.url]: current('https://ABC.gr7.eu-west-1.eks.amazonaws.com'),
-      [KEYS.provider]: current('eks'),
+      [KEYS.platform]: current('eks'),
       [KEYS.distribution]: current('eks'),
     }));
 
     expect(facts).toEqual({
       version: { state: 'current', value: 'v1.31.4-eks-aeac579' },
       url: { state: 'current', value: 'https://ABC.gr7.eu-west-1.eks.amazonaws.com' },
-      provider: { state: 'current', value: 'eks' },
+      platform: { state: 'current', value: 'eks' },
       distribution: { state: 'current', value: 'eks' },
       groups: { state: 'absent' },
     });
@@ -97,9 +97,9 @@ describe('readFacts: the five facts the overview says', () => {
 
   it('names the keys the backend publishes them under', () => {
     expect(KEYS).toEqual({
-      version: 'kubernetes.server_version',
-      url: 'kubernetes.server_url',
-      provider: 'kubernetes.provider',
+      version: 'kubernetes.server.version',
+      url: 'kubernetes.server',
+      platform: 'kubernetes.platform',
       distribution: 'kubernetes.distribution',
       groups: 'kubernetes.unavailable_api_groups',
     });
@@ -125,14 +125,14 @@ describe('groupsOf: the value of the fact that names the API groups that did not
   });
 });
 
-describe('the provider and the distribution, in the words a person reads', () => {
+describe('the platform and the distribution, in the words a person reads', () => {
   it('says the clouds and the local clusters as they spell themselves', () => {
-    expect(['eks', 'gke', 'aks', 'kind', 'k3d', 'minikube', 'docker-desktop', 'rancher-desktop', 'orbstack'].map(providerWords)).toEqual(['EKS', 'GKE', 'AKS', 'kind', 'k3d', 'minikube', 'Docker Desktop', 'Rancher Desktop', 'OrbStack']);
-    expect(['eks', 'gke', 'k3s', 'rke2', 'openshift'].map(distributionWords)).toEqual(['EKS', 'GKE', 'k3s', 'RKE2', 'OpenShift']);
+    expect(['eks', 'gke', 'aks', 'kind', 'k3d', 'minikube', 'docker-desktop', 'rancher-desktop', 'orbstack'].map(platformWords)).toEqual(['EKS', 'GKE', 'AKS', 'kind', 'k3d', 'minikube', 'Docker Desktop', 'Rancher Desktop', 'OrbStack']);
+    expect(['eks', 'gke', 'aks', 'openshift', 'k3s', 'rke2', 'k0s', 'kind', 'minikube', 'microk8s', 'talos'].map(distributionWords)).toEqual(['EKS', 'GKE', 'AKS', 'OpenShift', 'k3s', 'RKE2', 'k0s', 'kind', 'minikube', 'MicroK8s', 'Talos']);
   });
 
   it('says a name it does not know as the backend gave it: nothing is invented', () => {
-    expect(providerWords('civo')).toBe('civo');
-    expect(distributionWords('talos')).toBe('talos');
+    expect(platformWords('civo')).toBe('civo');
+    expect(distributionWords('nonesuch')).toBe('nonesuch');
   });
 });

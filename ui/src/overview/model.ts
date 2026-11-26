@@ -6,7 +6,7 @@ import type { StateRole } from '../kinds/status';
 import { sidebarCount } from '../sidebar/count';
 
 import type { Failing, Observation, Severity } from './assess';
-import { distributionWords, groupsOf, providerWords, type Fact, type Facts } from './facts';
+import { distributionWords, groupsOf, platformWords, type Fact, type Facts } from './facts';
 
 // The overview as plain data (the mock's `k8s-cluster.js`): what each section says, from what each kind's read says (`assess.ts`) and what the connection's facts say (`facts.ts`). A pure function of its inputs: it
 // reads nothing and draws nothing, so every state the page can be in is a value to look at. `view.tsx` draws it; `useOverviewPage.ts` reads it.
@@ -377,14 +377,14 @@ function wordOf(fact: Fact, words: (text: string) => string): string | undefined
 }
 
 /**
- * Which cluster this is (the mock's `identityOf`, k8s-cluster.js:244): the provider or distribution, and the version of the server. Only facts that are current: the header is the cluster's identity, and a fact that
+ * Which cluster this is (the mock's `identityOf`, k8s-cluster.js:244): the platform or distribution, and the version of the server. Only facts that are current: the header is the cluster's identity, and a fact that
  * is not current would be drawn as if it were (the Cluster section says when one is stale).
  */
 function factsOf(facts: Facts): readonly PageHeaderFact[] {
-  const provider = wordOf(facts.provider, providerWords);
+  const platform = wordOf(facts.platform, platformWords);
   const distribution = wordOf(facts.distribution, distributionWords);
   const version = wordOf(facts.version, (text) => versionText(text).text);
-  return [provider, distribution === provider ? undefined : distribution, version].filter((text): text is string => text !== undefined).map((text) => ({ text }));
+  return [platform, distribution === platform ? undefined : distribution, version].filter((text): text is string => text !== undefined).map((text) => ({ text }));
 }
 
 // --- the summary --------------------------------------------------------------------------------------------------------------------------------------------------------

@@ -2,6 +2,8 @@ package resource
 
 import (
 	"context"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
@@ -121,7 +123,7 @@ func (p *kubernetesProvider) healCatalog(connectionID string, heal *nativeCatalo
 }
 
 // invalidateConnectionFacts asks the SDK to observe the connection's facts again:
-// the groups that do not answer are one of them (unavailableGroupsKey).
+// the groups that do not answer are one of them (FactUnavailableAPIGroups), and so are the notable groups that do (FactCapabilities).
 func (p *kubernetesProvider) invalidateConnectionFacts(ctx context.Context, connectionID string) {
 	if p.Controller == nil {
 		return
@@ -131,10 +133,9 @@ func (p *kubernetesProvider) invalidateConnectionFacts(ctx context.Context, conn
 	}
 }
 
-// unavailableGroupsKey is the connection fact that names the API group versions the catalog lacks because they did not answer. It is absent while every group answers. Its value is
+// The connection fact FactUnavailableAPIGroups names the API group versions the catalog lacks because they did not answer. It is absent while every group answers. Its value is
 // an object: count, how many group versions do not answer, and groups, the first unavailableGroupsListed of them in order, each {groupVersion, reason}.
 // INTERIM: see discoverNativeSupport.
-const unavailableGroupsKey = "kubernetes.unavailable_api_groups"
 
 // unavailableGroupsListed is how many group versions the fact names; the rest are counted. The SDK refuses a metadata value over 16 KiB (resourcev2.MaxConnectionMetadataEntryBytes)
 // and then fails the observation of every fact of the connection, the server address and the version among them, so the fact has to be bounded whatever the cluster has.
@@ -142,30 +143,65 @@ const unavailableGroupsKey = "kubernetes.unavailable_api_groups"
 // holds every name to that, by its JSON and not by its length.
 const unavailableGroupsListed = 32
 
-// connectionMetadataFacts observes the public server facts of a connection and
-// the API groups its catalog lacks.
-func (p *kubernetesProvider) connectionMetadataFacts(ctx context.Context, connection types.Connection, client *clients.ClientSet) (resourcev2.ConnectionMetadataUpdate, error) {
-	update, err := connectionMetadata(ctx, connection, client)
-	if err != nil {
-		return update, err
-	}
-	p.mu.RLock()
-	var unavailable []nativeUnavailable
-	if snapshot := p.catalogs[connection.ID]; snapshot != nil {
-		unavailable = snapshot.unavailable
-	}
-	p.mu.RUnlock()
-	if len(unavailable) == 0 {
-		update.Remove = append(update.Remove, unavailableGroupsKey)
-		return update, nil
-	}
+// unavailableGroupsValue is the value of the fact FactUnavailableAPIGroups for the group versions that did not answer.
+func unavailableGroupsValue(unavailable []nativeUnavailable) map[string]any {
 	listed := unavailable[:min(len(unavailable), unavailableGroupsListed)]
 	groups := make([]any, 0, len(listed))
 	for _, group := range listed {
 		groups = append(groups, map[string]any{"groupVersion": clipGroupVersion(group.GroupVersion), "reason": group.Reason})
 	}
-	update.Set[unavailableGroupsKey] = resourcev2.ConnectionMetadataObservation{
-		State: "success", Value: map[string]any{"count": len(unavailable), "groups": groups}, ObservedAt: time.Now().UTC(),
+	return map[string]any{"count": len(unavailable), "groups": groups}
+}
+
+// catalogFacts is what the installed catalog already says of the cluster: reading it makes no request.
+type catalogFacts struct {
+	// clusterUID is the UID of the kube-system Namespace, which the start of the connection read (nativeClusterIdentity). It is empty when the user may not read it.
+	clusterUID string
+	// groups are the API groups that are installed and answer discovery, sorted (answeredGroups).
+	groups []string
+	// unavailable are the group versions that did not answer.
+	unavailable []nativeUnavailable
+}
+
+// facts is what the catalog says of the cluster. The caller holds p.mu.
+func (s *nativeCatalogSnapshot) facts() catalogFacts {
+	facts := catalogFacts{groups: s.answeredGroups(), unavailable: s.unavailable}
+	if s.identityHint != nil && s.identityHint.Scheme == nativeClusterIdentityScheme {
+		facts.clusterUID = s.identityHint.ID
 	}
-	return update, nil
+	return facts
+}
+
+// answeredGroups are the API groups with a group version that answered discovery: the groups the catalog serves, sorted, each once. The core group has no name and is not one of them. A group
+// version that did not answer is not counted, whether or not a merge kept its old resources (mergeNativeDiscovery): the group is installed, and what it serves is not there.
+func (s *nativeCatalogSnapshot) answeredGroups() []string {
+	down := make(map[string]struct{}, len(s.unavailable))
+	for _, group := range s.unavailable {
+		down[group.GroupVersion] = struct{}{}
+	}
+	var groups []string
+	for _, list := range s.discovery.lists {
+		if list == nil {
+			continue
+		}
+		if _, unavailable := down[list.GroupVersion]; unavailable {
+			continue
+		}
+		if group, _, found := strings.Cut(list.GroupVersion, "/"); found {
+			groups = append(groups, group)
+		}
+	}
+	slices.Sort(groups)
+	return slices.Compact(groups)
+}
+
+// connectionMetadataFacts observes the facts of a connection (connectionMetadata), with what its installed catalog says.
+func (p *kubernetesProvider) connectionMetadataFacts(ctx context.Context, connection types.Connection, client *clients.ClientSet) (resourcev2.ConnectionMetadataUpdate, error) {
+	var catalog catalogFacts
+	p.mu.RLock()
+	if snapshot := p.catalogs[connection.ID]; snapshot != nil {
+		catalog = snapshot.facts()
+	}
+	p.mu.RUnlock()
+	return connectionMetadata(ctx, connection, client, catalog)
 }

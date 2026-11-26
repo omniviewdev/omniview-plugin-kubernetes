@@ -2,16 +2,16 @@ import type { ConnectionMetadataState, ConnectionMetadataValue } from '@omniview
 
 import { timeOf } from '../kinds/fields';
 
-// The facts the plugin's backend publishes about a connection, read through `useConnectionMetadata`: the server's version and address, which provider and distribution it is, and the API groups that did not answer
-// (`pkg/plugin/resource/connection_metadata.go`, `connection_environment.go`, `native_catalog_heal.go:124-170`). Each is an observation with a state the backend gives it: current, stale (the last value, and when it was
-// read) or unavailable (it could not be observed, with the code why). A page that draws one says which it has. A value that is not current is never drawn as current, and one that cannot be read says so: no fact becomes
-// a dash, a zero or a guess.
+// The facts the plugin's backend publishes about a connection, read through `useConnectionMetadata`: the server's version and address, what it runs on and which distribution it is, and the API groups that did not answer
+// (the keys, and what each means, are listed in `pkg/plugin/resource/connection_metadata.go`; the names are the labels' where a label says the same thing). Each is an observation with a state the backend gives it: current,
+// stale (the last value, and when it was read) or unavailable (it could not be observed, with the code why). A page that draws one says which it has. A value that is not current is never drawn as current, and one that cannot
+// be read says so: no fact becomes a dash, a zero or a guess.
 
-/** The keys the backend publishes the facts under. */
+/** The keys the backend publishes the facts under. The version is said as the server says it, with its leading `v` (`v1.31.4-eks-aeac579`), and every page draws it through `versionText`. */
 export const KEYS = {
-  version: 'kubernetes.server_version',
-  url: 'kubernetes.server_url',
-  provider: 'kubernetes.provider',
+  version: 'kubernetes.server.version',
+  url: 'kubernetes.server',
+  platform: 'kubernetes.platform',
   distribution: 'kubernetes.distribution',
   groups: 'kubernetes.unavailable_api_groups',
 } as const;
@@ -65,7 +65,7 @@ export function readFacts(read: MetadataRead): Facts {
   return {
     version: readFact(read, KEYS.version),
     url: readFact(read, KEYS.url),
-    provider: readFact(read, KEYS.provider),
+    platform: readFact(read, KEYS.platform),
     distribution: readFact(read, KEYS.distribution),
     groups: readFact(read, KEYS.groups),
   };
@@ -94,13 +94,13 @@ export function groupsOf(value: ConnectionMetadataValue): Groups | undefined {
   return { count, names };
 }
 
-// How a provider and a distribution spell themselves: the clouds in capitals, the local clusters as their projects write them. A name the backend gives that is not here is said as it was given. The key comes from the
+// How a platform and a distribution spell themselves: the clouds in capitals, the local clusters as their projects write them. A name the backend gives that is not here is said as it was given. The key comes from the
 // backend, so the tables are Maps (as `kinds/status.ts` holds its words): a plain object would answer a key like `constructor` with a function of its prototype.
-const PROVIDERS = new Map([['eks', 'EKS'], ['gke', 'GKE'], ['aks', 'AKS'], ['kind', 'kind'], ['k3d', 'k3d'], ['minikube', 'minikube'], ['docker-desktop', 'Docker Desktop'], ['rancher-desktop', 'Rancher Desktop'], ['orbstack', 'OrbStack']]);
-const DISTRIBUTIONS = new Map([['eks', 'EKS'], ['gke', 'GKE'], ['k3s', 'k3s'], ['rke2', 'RKE2'], ['openshift', 'OpenShift']]);
+const PLATFORMS = new Map([['eks', 'EKS'], ['gke', 'GKE'], ['aks', 'AKS'], ['kind', 'kind'], ['k3d', 'k3d'], ['minikube', 'minikube'], ['docker-desktop', 'Docker Desktop'], ['rancher-desktop', 'Rancher Desktop'], ['orbstack', 'OrbStack']]);
+const DISTRIBUTIONS = new Map([['eks', 'EKS'], ['gke', 'GKE'], ['aks', 'AKS'], ['openshift', 'OpenShift'], ['k3s', 'k3s'], ['rke2', 'RKE2'], ['k0s', 'k0s'], ['kind', 'kind'], ['minikube', 'minikube'], ['microk8s', 'MicroK8s'], ['talos', 'Talos']]);
 
-/** `kubernetes.provider` in the words a person reads: `eks` is `EKS`, `docker-desktop` is `Docker Desktop`. */
-export const providerWords = (key: string): string => PROVIDERS.get(key) ?? key;
+/** `kubernetes.platform` in the words a person reads: `eks` is `EKS`, `docker-desktop` is `Docker Desktop`. */
+export const platformWords = (key: string): string => PLATFORMS.get(key) ?? key;
 
-/** `kubernetes.distribution` in the words a person reads: `rke2` is `RKE2`. */
+/** `kubernetes.distribution` in the words a person reads: `rke2` is `RKE2`, `microk8s` is `MicroK8s`. */
 export const distributionWords = (key: string): string => DISTRIBUTIONS.get(key) ?? key;

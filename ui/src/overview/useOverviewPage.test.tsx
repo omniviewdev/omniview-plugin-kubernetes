@@ -141,9 +141,9 @@ const titles = (page: DetailPageViewV1) => attention(page)?.rows.map((row) => sa
 const OBSERVED = '2026-11-25T11:56:00.000Z';
 const current = (value: unknown) => ({ state: 'current', value, observedAt: OBSERVED });
 const FACTS = {
-  'kubernetes.server_version': current('v1.31.4-eks-aeac579'),
-  'kubernetes.server_url': current('https://ABC.gr7.eu-west-1.eks.amazonaws.com'),
-  'kubernetes.provider': current('eks'),
+  'kubernetes.server.version': current('v1.31.4-eks-aeac579'),
+  'kubernetes.server': current('https://ABC.gr7.eu-west-1.eks.amazonaws.com'),
+  'kubernetes.platform': current('eks'),
   'kubernetes.distribution': current('eks'),
 };
 const snapshot = (entries: Record<string, unknown>, over: Record<string, unknown> = {}) => ({ connectionID: 'kind-a', generation: 'g1', revision: '1', active: true, refreshing: false, entries, ...over });
@@ -516,8 +516,8 @@ describe('what the page says of a cluster', () => {
     const { result } = mount();
     answer(TROUBLE);
     facts({
-      'kubernetes.server_version': { state: 'stale', value: 'v1.35.0', observedAt: iso(4 * MINUTE) },
-      'kubernetes.server_url': { state: 'unavailable', error: { code: 'NOT_REPORTED', message: 'The server did not report this fact.' } },
+      'kubernetes.server.version': { state: 'stale', value: 'v1.35.0', observedAt: iso(4 * MINUTE) },
+      'kubernetes.server': { state: 'unavailable', error: { code: 'NOT_REPORTED', message: 'The server did not report this fact.' } },
     });
 
     expect(clusterRow(result.current, 'version')).toBe('v1.35.0 · last read 4 min ago');

@@ -59,3 +59,8 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* A fact that is the last known value of one that is not current (a connection that is not connected): the value, muted, so that it is not read as what the cluster says now. */
+.last {
+  color: var(--ov-fg-muted);
+}
