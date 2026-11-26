@@ -1,16 +1,16 @@
 import type { IconName, KindTileTone } from '@omniviewdev/kit';
 
 // What the plugin says of its landing outside the pages themselves: their ids, the plugin's tile and how much of the connections the home page lists. They live apart from the pages (`pages.ts`, which holds the
-// components) because a page links to the other by its id and the pages are what draw the links: this file imports neither.
+// components) because a page links to the other by its id and the pages are what draw the links, and the sidebar's navigator opens them by it: this file imports none of them.
 
 /** The id of the plugin's home page: the key of `contributionV1.pages` that `landing` names, which is the page the window opens when the plugin is opened and no connection is named. */
 export const LANDING_PAGE = 'landing';
 
-/**
- * The id of the page of all the connections, which the home page links to. The window draws no sidebar for a page that is read in no connection, so this link is the one way from the home page to it
- * (the mock reaches it from its sidebar, which a connection's pages have and these have not).
- */
+/** The id of the page of all the connections: the home page links to it, and the sidebar's navigator opens it with the state filter and the facets it is given (`place.ts`). */
 export const CONNECTIONS_PAGE = 'connections';
+
+/** Whether a page is one of the landing's: both are read in no connection, which is what says the sidebar for them is the navigator and not the tree of the resources of a connection. */
+export const isLandingPage = (page: string): boolean => page === LANDING_PAGE || page === CONNECTIONS_PAGE;
 
 /** What the plugin is called on its home page and on the tab of it. */
 export const PLUGIN_TITLE = 'Kubernetes';

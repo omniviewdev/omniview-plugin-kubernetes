@@ -5,8 +5,9 @@ import type { CustomPageContextV1 } from '../contract/v1';
 
 import { connectionColumns } from './collection';
 import { CONNECTIONS_PAGE, FAILED_WORDS, HOME_LIMIT, LANDING_TILE, NONE_HINT, NONE_TITLE, PLUGIN_TITLE, READING_WORDS } from './entry';
-import { useConnectionMenu, useKnownConnections, useRefresh } from './hooks';
+import { useConnectionActions, useRefresh } from './hooks';
 import { rowsOf, summaryOf, type ConnectionRow } from './model';
+import { AnswerNotice } from './parts';
 
 // The plugin's home page, the page the window opens when the plugin is opened and no connection is chosen (the mock's `renderHome`, k8s-connections.js): the plugin's header, with how the connections stand in its facts
 // line and the Refresh that reads them again, and a section of the connections, the first eight of them as the rows of a compact table with the action each is offered, and the way to all of them. The connections are
@@ -21,11 +22,10 @@ const TABLE_MAX_HEIGHT = 420;
 export function Home({ context }: { readonly context: CustomPageContextV1 }) {
   const { connections, plugin } = context;
   const view = useSyncExternalStore(connections.subscribe, connections.getSnapshot);
-  const known = useKnownConnections(plugin);
-  const rows = useMemo(() => rowsOf(view.connections, known), [view.connections, known]);
+  const rows = useMemo(() => rowsOf(view.connections), [view.connections]);
   const listed = useMemo(() => rows.slice(0, HOME_LIMIT), [rows]);
-  const menu = useConnectionMenu(connections, rows);
-  const columns = useMemo(() => connectionColumns({ plugin, connections, menu }), [plugin, connections, menu]);
+  const { menu, open, answer, dismiss } = useConnectionActions(connections, rows);
+  const columns = useMemo(() => connectionColumns({ plugin, menu, open }), [plugin, menu, open]);
   const { refreshing, refresh } = useRefresh(connections);
 
   // The counts are said once the list is read, and not when the read failed and there is no list to count.
@@ -39,6 +39,7 @@ export function Home({ context }: { readonly context: CustomPageContextV1 }) {
         facts={counted ? summaryOf(rows).map((text) => ({ text })) : undefined}
         commands={{ utility: { id: 'refresh', label: 'Refresh connections', icon: 'refresh', busy: refreshing, onSelect: refresh } }}
       />
+      {answer === undefined ? null : <AnswerNotice answer={answer} onDismiss={dismiss} />}
       {view.failed ? (
         <Notice
           tone="error"
