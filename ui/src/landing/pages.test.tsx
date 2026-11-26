@@ -111,8 +111,8 @@ afterEach(cleanup);
 describe('the home page', () => {
   it('names the plugin, says how the connections stand, lists the first eight with what the plugin says of each and the action each is offered, and links to all of them; pressing an action opens that connection by its key', () => {
     const made = [
-      connection('kind-a', 'connected', {}, { auth_method: 'default' }),
-      connection('orders', 'disconnected', { name: 'orders-prod', description: 'EKS · us-east-1 · 111122223333' }, { auth_method: 'eks', region: 'us-east-1' }),
+      connection('kind-a', 'connected', {}, {}),
+      connection('orders', 'disconnected', { name: 'orders-prod', description: 'EKS · us-east-1 · 111122223333' }, { 'kubernetes.platform': 'eks', 'cloud.region': 'us-east-1' }),
       connection('sign', 'unauthorized', { reason: 'The connection needs you to sign in.' }),
       connection('down', 'unreachable', { reason: 'The server did not answer.' }),
       ...['c5', 'c6', 'c7', 'c8', 'c9', 'c10'].map((key) => connection(key, 'disconnected')),

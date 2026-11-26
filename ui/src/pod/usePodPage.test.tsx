@@ -43,7 +43,7 @@ function view(over: Partial<read.PodView> = {}): read.PodView {
 
 /** The plugin knows these connections: each has a derived id, the context name for its name, and the kubeconfig it came from. */
 const know = (...names: readonly string[]) => {
-  const data = names.map((name) => ({ id: idOf(name), name, labels: { kubeconfig: '~/.kube/config' }, data: { context: name } }));
+  const data = names.map((name) => ({ id: idOf(name), name, labels: { 'kubeconfig.path': '~/.kube/config' }, data: { context: name } }));
   connections.mockReturnValue({ connections: { data, isPending: false } } as never);
 };
 
@@ -350,8 +350,8 @@ describe('usePodPage: the Logs command of the header (P1b-3b)', () => {
     expect(open.mock.calls[0]?.[0].id).toBe(podLogTargetId(idOf('kind-b'), 'checkout', 'cart-api'));
 
     const twin = [
-      { id: 'prod-aaaaaaaaaa', name: 'prod', labels: { kubeconfig: '~/.kube/config' }, data: { context: 'prod' } },
-      { id: 'prod-bbbbbbbbbb', name: 'prod', labels: { kubeconfig: '~/work/other' }, data: { context: 'prod' } },
+      { id: 'prod-aaaaaaaaaa', name: 'prod', labels: { 'kubeconfig.path': '~/.kube/config' }, data: { context: 'prod' } },
+      { id: 'prod-bbbbbbbbbb', name: 'prod', labels: { 'kubeconfig.path': '~/work/other' }, data: { context: 'prod' } },
     ];
     connections.mockReturnValue({ connections: { data: twin, isPending: false } } as never);
     const targets = ['prod-aaaaaaaaaa', 'prod-bbbbbbbbbb'].map((id) => {

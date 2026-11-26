@@ -127,7 +127,7 @@ describe('groupsOf: the value of the fact that names the API groups that did not
 
 describe('the provider and the distribution, in the words a person reads', () => {
   it('says the clouds and the local clusters as they spell themselves', () => {
-    expect(['eks', 'gke', 'aks', 'kind', 'k3d', 'minikube', 'docker-desktop'].map(providerWords)).toEqual(['EKS', 'GKE', 'AKS', 'kind', 'k3d', 'minikube', 'Docker Desktop']);
+    expect(['eks', 'gke', 'aks', 'kind', 'k3d', 'minikube', 'docker-desktop', 'rancher-desktop', 'orbstack'].map(providerWords)).toEqual(['EKS', 'GKE', 'AKS', 'kind', 'k3d', 'minikube', 'Docker Desktop', 'Rancher Desktop', 'OrbStack']);
     expect(['eks', 'gke', 'k3s', 'rke2', 'openshift'].map(distributionWords)).toEqual(['EKS', 'GKE', 'k3s', 'RKE2', 'OpenShift']);
   });
 

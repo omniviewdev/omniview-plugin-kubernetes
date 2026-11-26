@@ -1,12 +1,15 @@
 package resource
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/omniviewdev/plugin-sdk/pkg/types"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
@@ -31,8 +34,8 @@ func TestEnrichConnectionLabels_DefaultAuth(t *testing.T) {
 
 	enrichConnectionLabels(labels, config, ctx)
 
-	assert.Equal(t, "https://10.0.0.1:6443", labels["server"])
-	assert.Equal(t, "default", labels["auth_method"])
+	assert.Equal(t, "https://10.0.0.1:6443", labels[LabelKubernetesServer])
+	assert.Equal(t, "default", labels[LabelAuthMethod])
 }
 
 func TestEnrichConnectionLabels_EKSAuth(t *testing.T) {
@@ -60,9 +63,9 @@ func TestEnrichConnectionLabels_EKSAuth(t *testing.T) {
 
 	enrichConnectionLabels(labels, config, ctx)
 
-	assert.Equal(t, "eks", labels["auth_method"])
-	assert.Equal(t, "us-west-2", labels["region"])
-	assert.Equal(t, "staging", labels["profile"])
+	assert.Equal(t, "eks", labels[LabelAuthMethod])
+	assert.Equal(t, "us-west-2", labels[LabelCloudRegion])
+	assert.Equal(t, "staging", labels[LabelAWSProfile])
 }
 
 func TestEnrichConnectionLabels_GKEAuth(t *testing.T) {
@@ -87,9 +90,9 @@ func TestEnrichConnectionLabels_GKEAuth(t *testing.T) {
 
 	enrichConnectionLabels(labels, config, ctx)
 
-	assert.Equal(t, "gke", labels["auth_method"])
-	assert.Equal(t, "my-project", labels["project"])
-	assert.Equal(t, "us-central1-a", labels["zone"])
+	assert.Equal(t, "gke", labels[LabelAuthMethod])
+	assert.Equal(t, "my-project", labels[LabelCloudAccountID])
+	assert.Equal(t, "us-central1-a", labels[LabelCloudAvailabilityZone])
 }
 
 func TestEnrichConnectionLabels_AKSAuth(t *testing.T) {
@@ -114,9 +117,9 @@ func TestEnrichConnectionLabels_AKSAuth(t *testing.T) {
 
 	enrichConnectionLabels(labels, config, ctx)
 
-	assert.Equal(t, "aks", labels["auth_method"])
-	assert.Equal(t, "sub-123", labels["subscription"])
-	assert.Equal(t, "rg-prod", labels["resource_group"])
+	assert.Equal(t, "aks", labels[LabelAuthMethod])
+	assert.Equal(t, "sub-123", labels[LabelCloudAccountID])
+	assert.Equal(t, "rg-prod", labels[LabelAzureResourceGroup])
 }
 
 func TestEnrichConnectionLabels_UnknownExecCommand(t *testing.T) {
@@ -140,7 +143,7 @@ func TestEnrichConnectionLabels_UnknownExecCommand(t *testing.T) {
 
 	enrichConnectionLabels(labels, config, ctx)
 
-	assert.Equal(t, "custom-auth-tool", labels["auth_method"])
+	assert.Equal(t, "custom-auth-tool", labels[LabelAuthMethod])
 }
 
 func TestEnrichConnectionLabels_MissingCluster(t *testing.T) {
@@ -156,9 +159,9 @@ func TestEnrichConnectionLabels_MissingCluster(t *testing.T) {
 
 	enrichConnectionLabels(labels, config, ctx)
 
-	_, hasServer := labels["server"]
+	_, hasServer := labels[LabelKubernetesServer]
 	assert.False(t, hasServer, "missing cluster should not set server")
-	assert.Equal(t, "default", labels["auth_method"])
+	assert.Equal(t, "default", labels[LabelAuthMethod])
 }
 
 func TestEnrichConnectionLabels_NilAuthInfo(t *testing.T) {
@@ -173,7 +176,7 @@ func TestEnrichConnectionLabels_NilAuthInfo(t *testing.T) {
 	}
 
 	enrichConnectionLabels(labels, config, ctx)
-	assert.Equal(t, "default", labels["auth_method"])
+	assert.Equal(t, "default", labels[LabelAuthMethod])
 }
 
 // --- enrichEKSLabels ---
@@ -188,7 +191,7 @@ func TestEnrichEKSLabels_RegionFromArgs(t *testing.T) {
 	}
 
 	enrichEKSLabels(labels, auth)
-	assert.Equal(t, "eu-west-1", labels["region"])
+	assert.Equal(t, "eu-west-1", labels[LabelCloudRegion])
 }
 
 func TestEnrichEKSLabels_RegionFromEnv(t *testing.T) {
@@ -204,7 +207,7 @@ func TestEnrichEKSLabels_RegionFromEnv(t *testing.T) {
 	}
 
 	enrichEKSLabels(labels, auth)
-	assert.Equal(t, "ap-southeast-1", labels["region"])
+	assert.Equal(t, "ap-southeast-1", labels[LabelCloudRegion])
 }
 
 func TestEnrichEKSLabels_ArgsRegionTakesPrecedence(t *testing.T) {
@@ -220,7 +223,7 @@ func TestEnrichEKSLabels_ArgsRegionTakesPrecedence(t *testing.T) {
 	}
 
 	enrichEKSLabels(labels, auth)
-	assert.Equal(t, "from-args", labels["region"])
+	assert.Equal(t, "from-args", labels[LabelCloudRegion])
 }
 
 func TestEnrichEKSLabels_DefaultRegionFallback(t *testing.T) {
@@ -236,7 +239,7 @@ func TestEnrichEKSLabels_DefaultRegionFallback(t *testing.T) {
 	}
 
 	enrichEKSLabels(labels, auth)
-	assert.Equal(t, "us-east-1", labels["region"])
+	assert.Equal(t, "us-east-1", labels[LabelCloudRegion])
 }
 
 func TestEnrichEKSLabels_RoleArn(t *testing.T) {
@@ -249,8 +252,8 @@ func TestEnrichEKSLabels_RoleArn(t *testing.T) {
 	}
 
 	enrichEKSLabels(labels, auth)
-	assert.Equal(t, "arn:aws:iam::123456789012:role/my-role", labels["role"])
-	assert.Equal(t, "123456789012", labels["account"])
+	assert.Equal(t, "arn:aws:iam::123456789012:role/my-role", labels[LabelAWSRole])
+	assert.NotContains(t, labels, LabelCloudAccountID, "the account of a role is not the account of the cluster")
 }
 
 func TestEnrichEKSLabels_ShortRoleFlag(t *testing.T) {
@@ -263,7 +266,7 @@ func TestEnrichEKSLabels_ShortRoleFlag(t *testing.T) {
 	}
 
 	enrichEKSLabels(labels, auth)
-	assert.Equal(t, "999888777666", labels["account"])
+	assert.Equal(t, "arn:aws:iam::999888777666:role/admin", labels[LabelAWSRole])
 }
 
 func TestEnrichEKSLabels_NoRoleNoAccount(t *testing.T) {
@@ -276,8 +279,8 @@ func TestEnrichEKSLabels_NoRoleNoAccount(t *testing.T) {
 	}
 
 	enrichEKSLabels(labels, auth)
-	_, hasRole := labels["role"]
-	_, hasAccount := labels["account"]
+	_, hasRole := labels[LabelAWSRole]
+	_, hasAccount := labels[LabelCloudAccountID]
 	assert.False(t, hasRole)
 	assert.False(t, hasAccount)
 }
@@ -294,8 +297,8 @@ func TestEnrichGKELabels_AllFields(t *testing.T) {
 	}
 
 	enrichGKELabels(labels, auth)
-	assert.Equal(t, "my-project", labels["project"])
-	assert.Equal(t, "us-east1", labels["region"])
+	assert.Equal(t, "my-project", labels[LabelCloudAccountID])
+	assert.Equal(t, "us-east1", labels[LabelCloudRegion])
 }
 
 func TestEnrichGKELabels_ProjectFromEnv(t *testing.T) {
@@ -311,7 +314,7 @@ func TestEnrichGKELabels_ProjectFromEnv(t *testing.T) {
 	}
 
 	enrichGKELabels(labels, auth)
-	assert.Equal(t, "env-project", labels["project"])
+	assert.Equal(t, "env-project", labels[LabelCloudAccountID])
 }
 
 func TestEnrichGKELabels_ArgsProjectTakesPrecedence(t *testing.T) {
@@ -327,7 +330,7 @@ func TestEnrichGKELabels_ArgsProjectTakesPrecedence(t *testing.T) {
 	}
 
 	enrichGKELabels(labels, auth)
-	assert.Equal(t, "from-args", labels["project"])
+	assert.Equal(t, "from-args", labels[LabelCloudAccountID])
 }
 
 func TestEnrichGKELabels_Zone(t *testing.T) {
@@ -340,7 +343,7 @@ func TestEnrichGKELabels_Zone(t *testing.T) {
 	}
 
 	enrichGKELabels(labels, auth)
-	assert.Equal(t, "us-central1-a", labels["zone"])
+	assert.Equal(t, "us-central1-a", labels[LabelCloudAvailabilityZone])
 }
 
 // --- enrichAKSLabels ---
@@ -355,8 +358,8 @@ func TestEnrichAKSLabels_AllFields(t *testing.T) {
 	}
 
 	enrichAKSLabels(labels, auth)
-	assert.Equal(t, "sub-abc", labels["subscription"])
-	assert.Equal(t, "rg-1", labels["resource_group"])
+	assert.Equal(t, "sub-abc", labels[LabelCloudAccountID])
+	assert.Equal(t, "rg-1", labels[LabelAzureResourceGroup])
 }
 
 func TestEnrichAKSLabels_NoArgs(t *testing.T) {
@@ -369,8 +372,8 @@ func TestEnrichAKSLabels_NoArgs(t *testing.T) {
 	}
 
 	enrichAKSLabels(labels, auth)
-	_, hasSub := labels["subscription"]
-	_, hasRG := labels["resource_group"]
+	_, hasSub := labels[LabelCloudAccountID]
+	_, hasRG := labels[LabelAzureResourceGroup]
 	assert.False(t, hasSub)
 	assert.False(t, hasRG)
 }
@@ -423,10 +426,10 @@ current-context: context-a
 	a := byName["context-a"]
 	assert.Equal(t, "context-a", a.Name)
 	assert.Equal(t, "context-a", a.Data["context"])
-	assert.Equal(t, "cluster-a", a.Labels["cluster"])
-	assert.Equal(t, "user-a", a.Labels["user"])
-	assert.Equal(t, "https://10.0.0.1:6443", a.Labels["server"])
-	assert.Equal(t, "default", a.Labels["auth_method"])
+	assert.Equal(t, "cluster-a", a.Labels[LabelKubeconfigCluster])
+	assert.Equal(t, "user-a", a.Labels[LabelKubeconfigUser])
+	assert.Equal(t, "https://10.0.0.1:6443", a.Labels[LabelKubernetesServer])
+	assert.Equal(t, "default", a.Labels[LabelAuthMethod])
 
 	b := byName["context-b"]
 	assert.Equal(t, "kube-system", b.Data["namespace"])
@@ -494,9 +497,9 @@ users:
 	require.Len(t, conns, 1)
 
 	c := conns[0]
-	assert.Equal(t, "eks", c.Labels["auth_method"])
-	assert.Equal(t, "us-west-2", c.Labels["region"])
-	assert.Equal(t, "production", c.Labels["profile"])
+	assert.Equal(t, "eks", c.Labels[LabelAuthMethod])
+	assert.Equal(t, "us-west-2", c.Labels[LabelCloudRegion])
+	assert.Equal(t, "production", c.Labels[LabelAWSProfile])
 }
 
 func TestConnectionsFromKubeconfig_GKEContext(t *testing.T) {
@@ -536,7 +539,172 @@ users:
 	require.Len(t, conns, 1)
 
 	c := conns[0]
-	assert.Equal(t, "gke", c.Labels["auth_method"])
-	assert.Equal(t, "my-gcp-project", c.Labels["project"])
-	assert.Equal(t, "us-central1-a", c.Labels["zone"])
+	assert.Equal(t, "gke", c.Labels[LabelAuthMethod])
+	assert.Equal(t, "my-gcp-project", c.Labels[LabelCloudAccountID])
+	assert.Equal(t, "us-central1-a", c.Labels[LabelCloudAvailabilityZone])
+}
+
+// --- enrichClusterLabels ---
+
+// clusterLabels is the labels of a context made from one cluster, user and context of a kubeconfig, as discovery builds them.
+func clusterLabels(contextName string, cluster *clientcmdapi.Cluster, user *clientcmdapi.AuthInfo, context *clientcmdapi.Context) map[string]interface{} {
+	config := &clientcmdapi.Config{
+		Clusters:  map[string]*clientcmdapi.Cluster{context.Cluster: cluster},
+		AuthInfos: map[string]*clientcmdapi.AuthInfo{context.AuthInfo: user},
+	}
+	labels := map[string]interface{}{}
+	enrichConnectionLabels(labels, config, context)
+	enrichClusterLabels(labels, config, contextName, context)
+	return labels
+}
+
+func execUser(command string, args ...string) *clientcmdapi.AuthInfo {
+	return &clientcmdapi.AuthInfo{Exec: &clientcmdapi.ExecConfig{Command: command, Args: args}}
+}
+
+func TestClusterLabels_Platform(t *testing.T) {
+	const eksARN = "arn:aws:eks:us-east-1:123456789012:cluster/prod"
+	const gkeName = "gke_my-project_europe-west1-b_prod"
+	minikubeCluster := &clientcmdapi.Cluster{Server: "https://192.168.49.2:8443", Extensions: map[string]runtime.Object{"cluster_info": &runtime.Unknown{Raw: []byte(`{"provider":"minikube.sigs.k8s.io"}`)}}}
+
+	tests := []struct {
+		name    string
+		context string // the context name; the cluster is named the same unless cluster is set
+		cluster string
+		user    string
+		server  string
+		auth    *clientcmdapi.AuthInfo
+		entry   *clientcmdapi.Cluster
+		want    string
+	}{
+		{name: "aws eks exec", context: "a", server: "https://10.0.0.1", auth: execUser("aws", "eks", "get-token"), want: "eks"},
+		{name: "aws-iam-authenticator exec", context: "a", server: "https://10.0.0.1", auth: execUser("aws-iam-authenticator"), want: "eks"},
+		{name: "eks cluster ARN", context: eksARN, server: "https://10.0.0.1", want: "eks"},
+		{name: "eks host", context: "a", server: "https://ABCDEF.gr7.us-west-2.eks.amazonaws.com", want: "eks"},
+		{name: "gcloud exec", context: "a", server: "https://10.0.0.1", auth: execUser("gcloud", "config", "config-helper"), want: "gke"},
+		{name: "gke auth plugin exec", context: "a", server: "https://10.0.0.1", auth: execUser("gke-gcloud-auth-plugin"), want: "gke"},
+		{name: "gke context name", context: gkeName, server: "https://10.0.0.1", want: "gke"},
+		{name: "az exec", context: "a", server: "https://10.0.0.1", auth: execUser("az", "account", "get-access-token"), want: "aks"},
+		{name: "aks host", context: "a", server: "https://dns-1a2b.hcp.eastus.azmk8s.io:443", want: "aks"},
+		{name: "kind", context: "kind-dev", server: "https://127.0.0.1:34567", want: "kind"},
+		{name: "kind name on a remote server", context: "kind-dev", server: "https://10.1.2.3:6443"},
+		{name: "kind name alone", context: "kind-", server: "https://127.0.0.1:34567"},
+		{name: "kind name on another cluster", context: "kind-dev", cluster: "other", server: "https://127.0.0.1:34567"},
+		{name: "k3d", context: "k3d-dev", server: "https://0.0.0.0:6550", want: "k3d"},
+		{name: "minikube provider extension", context: "profile-1", entry: minikubeCluster, want: "minikube"},
+		{name: "minikube default profile", context: "minikube", user: "minikube", server: "https://192.168.49.2:8443", want: "minikube"},
+		{name: "minikube name without the user", context: "minikube", user: "someone", server: "https://192.168.49.2:8443"},
+		{name: "docker-desktop", context: "docker-desktop", server: "https://kubernetes.docker.internal:6443", want: "docker-desktop"},
+		{name: "rancher-desktop", context: "rancher-desktop", server: "https://127.0.0.1:6443", want: "rancher-desktop"},
+		{name: "orbstack", context: "orbstack", server: "https://127.0.0.1:26443", want: "orbstack"},
+		{name: "unknown", context: "prod", server: "https://10.0.0.1:6443"},
+		{name: "unknown exec command", context: "prod", server: "https://10.0.0.1:6443", auth: execUser("custom-auth-tool")},
+		{name: "rules that disagree", context: "kind-dev", server: "https://127.0.0.1:34567", auth: execUser("gcloud")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cluster := tt.cluster
+			if cluster == "" {
+				cluster = tt.context
+			}
+			user := tt.user
+			if user == "" {
+				user = "user"
+			}
+			entry := tt.entry
+			if entry == nil {
+				entry = &clientcmdapi.Cluster{Server: tt.server}
+			}
+			labels := clusterLabels(tt.context, entry, tt.auth, &clientcmdapi.Context{Cluster: cluster, AuthInfo: user})
+			platform, has := labels[LabelKubernetesPlatform]
+			if tt.want == "" {
+				assert.False(t, has, "no platform label: %v", platform)
+				return
+			}
+			assert.Equal(t, tt.want, platform)
+		})
+	}
+}
+
+func TestClusterLabels_Facts(t *testing.T) {
+	tests := []struct {
+		name    string
+		context string
+		server  string
+		ns      string
+		auth    *clientcmdapi.AuthInfo
+		want    map[string]interface{}
+		absent  []string
+	}{
+		{name: "server, host and namespace", context: "a", server: "https://10.0.0.1:6443", ns: "kube-system",
+			want: map[string]interface{}{LabelKubernetesServer: "https://10.0.0.1:6443", LabelKubernetesHost: "10.0.0.1", LabelKubernetesNamespace: "kube-system"}, absent: []string{LabelCloudRegion, LabelCloudAccountID, LabelCloudProvider, LabelK8sClusterName, "environment"}},
+		{name: "no namespace set", context: "a", server: "https://10.0.0.1:6443", absent: []string{LabelKubernetesNamespace}},
+		{name: "eks cluster ARN", context: "arn:aws:eks:us-east-1:123456789012:cluster/prod", server: "https://10.0.0.1",
+			auth: execUser("aws", "eks", "get-token", "--region", "eu-west-1", "--role-arn", "arn:aws:iam::999999999999:role/r"),
+			want: map[string]interface{}{LabelK8sClusterName: "prod", LabelCloudRegion: "us-east-1", LabelCloudAccountID: "123456789012", LabelCloudProvider: "aws"}},
+		{name: "eks host region", context: "a", server: "https://ABCDEF.gr7.us-west-2.eks.amazonaws.com",
+			want: map[string]interface{}{LabelCloudRegion: "us-west-2", LabelKubernetesHost: "ABCDEF.gr7.us-west-2.eks.amazonaws.com"}},
+		{name: "gke context in a zone", context: "gke_my-project_europe-west1-b_prod", server: "https://10.0.0.1",
+			want: map[string]interface{}{LabelCloudAccountID: "my-project", LabelCloudAvailabilityZone: "europe-west1-b", LabelK8sClusterName: "prod", LabelCloudProvider: "gcp"}, absent: []string{LabelCloudRegion}},
+		{name: "gke context in a region", context: "gke_my-project_europe-west1_prod", server: "https://10.0.0.1",
+			want: map[string]interface{}{LabelCloudAccountID: "my-project", LabelCloudRegion: "europe-west1", LabelK8sClusterName: "prod"}, absent: []string{LabelCloudAvailabilityZone}},
+		{name: "aks host region", context: "a", server: "https://dns-1a2b.hcp.eastus.azmk8s.io:443", want: map[string]interface{}{LabelCloudRegion: "eastus", LabelCloudProvider: "azure"}},
+		{name: "server without userinfo, query or fragment", context: "a", server: "https://admin:hunter2@10.0.0.1:6443/path?token=abc#frag",
+			want: map[string]interface{}{LabelKubernetesServer: "https://10.0.0.1:6443/path", LabelKubernetesHost: "10.0.0.1"}},
+		{name: "server that does not parse", context: "a", server: "https://admin:hunter2@[::1", absent: []string{LabelKubernetesServer, LabelKubernetesHost}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			labels := clusterLabels(tt.context, &clientcmdapi.Cluster{Server: tt.server}, tt.auth, &clientcmdapi.Context{Cluster: "c", AuthInfo: "u", Namespace: tt.ns})
+			for key, want := range tt.want {
+				assert.Equal(t, want, labels[key], key)
+			}
+			for _, key := range tt.absent {
+				assert.NotContains(t, labels, key)
+			}
+		})
+	}
+}
+
+func TestConnectionsFromKubeconfig_LabelsHoldNoSecret(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config")
+	content := `apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    server: https://admin:hunter2-basic@10.0.0.1:6443/?token=hunter2-query
+    certificate-authority-data: aHVudGVyMi1jYQ==
+  name: c
+contexts:
+- context: {cluster: c, user: token-user, namespace: ns}
+  name: with-token
+- context: {cluster: c, user: exec-user}
+  name: with-exec
+users:
+- name: token-user
+  user:
+    token: hunter2-token
+    client-key-data: aHVudGVyMi1rZXk=
+    password: hunter2-password
+- name: exec-user
+  user:
+    exec:
+      apiVersion: client.authentication.k8s.io/v1
+      command: aws
+      args: [eks, get-token, --cluster-name, c]
+      env:
+      - {name: AWS_SECRET_ACCESS_KEY, value: hunter2-env}
+      - {name: AWS_PROFILE, value: staging}
+`
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+
+	conns, _, err := connectionsFromKubeconfig(path)
+	require.NoError(t, err)
+	require.Len(t, conns, 2)
+	for _, conn := range conns {
+		all, err := json.Marshal(conn.Labels)
+		require.NoError(t, err)
+		assert.NotContains(t, strings.ToLower(string(all)), "hunter2", conn.Name)
+		assert.Equal(t, "https://10.0.0.1:6443/", conn.Labels[LabelKubernetesServer])
+	}
 }

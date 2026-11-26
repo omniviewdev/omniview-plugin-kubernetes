@@ -3,7 +3,6 @@ package resource
 import (
 	"fmt"
 	"regexp"
-	"strings"
 
 	"github.com/omniview/kubernetes/pkg/connid"
 	"github.com/omniview/kubernetes/pkg/utils/kubeauth"
@@ -88,11 +87,12 @@ func connectionsFromKubeconfig(kubeconfigPath string) ([]types.Connection, strin
 	for contextName, context := range config.Contexts {
 		name, description := connectionDisplay(contextName)
 		labels := map[string]interface{}{
-			"kubeconfig": utils.DeexpandTilde(kubeconfigPath),
-			"cluster":    context.Cluster,
-			"user":       context.AuthInfo,
+			LabelKubeconfigPath:    utils.DeexpandTilde(kubeconfigPath),
+			LabelKubeconfigCluster: context.Cluster,
+			LabelKubeconfigUser:    context.AuthInfo,
 		}
 		enrichConnectionLabels(labels, config, context)
+		enrichClusterLabels(labels, config, contextName, context)
 
 		connections = append(connections, types.Connection{
 			ID:          connid.ID(connid.KindFile, locator, contextName),
@@ -121,31 +121,33 @@ func enrichConnectionLabels(
 	context *clientcmdapi.Context,
 ) {
 	if cluster := config.Clusters[context.Cluster]; cluster != nil {
-		labels["server"] = cluster.Server
+		if server, host := serverLabels(cluster.Server); server != "" {
+			labels[LabelKubernetesServer], labels[LabelKubernetesHost] = server, host
+		}
 	}
 
 	authInfo := config.AuthInfos[context.AuthInfo]
 	if authInfo == nil || authInfo.Exec == nil {
-		labels["auth_method"] = "default"
+		labels[LabelAuthMethod] = "default"
 		return
 	}
 
 	switch {
 	case kubeauth.IsEKSAuth(authInfo):
-		labels["auth_method"] = "eks"
+		labels[LabelAuthMethod] = "eks"
 		enrichEKSLabels(labels, authInfo)
 	case kubeauth.IsGCPAuth(authInfo):
-		labels["auth_method"] = "gke"
+		labels[LabelAuthMethod] = "gke"
 		enrichGKELabels(labels, authInfo)
 	case kubeauth.IsAKSAuth(authInfo):
-		labels["auth_method"] = "aks"
+		labels[LabelAuthMethod] = "aks"
 		enrichAKSLabels(labels, authInfo)
 	default:
-		labels["auth_method"] = authInfo.Exec.Command
+		labels[LabelAuthMethod] = authInfo.Exec.Command
 	}
 }
 
-// enrichEKSLabels extracts region, account, profile, and role from EKS auth config.
+// enrichEKSLabels extracts region, profile, and role from EKS auth config.
 func enrichEKSLabels(labels map[string]interface{}, authInfo *clientcmdapi.AuthInfo) {
 	var region, profile, roleArn string
 
@@ -176,51 +178,47 @@ func enrichEKSLabels(labels map[string]interface{}, authInfo *clientcmdapi.AuthI
 	}
 
 	if region != "" {
-		labels["region"] = region
+		labels[LabelCloudRegion] = region
 	}
 	if profile != "" {
-		labels["profile"] = profile
+		labels[LabelAWSProfile] = profile
 	}
 	if roleArn != "" {
-		labels["role"] = roleArn
-		// Extract account ID from ARN: arn:aws:iam::ACCOUNT_ID:...
-		if parts := strings.SplitN(roleArn, ":", 6); len(parts) >= 5 {
-			labels["account"] = parts[4]
-		}
+		labels[LabelAWSRole] = roleArn
 	}
 }
 
-// enrichGKELabels extracts project, zone/region from GKE gcloud exec config.
+// enrichGKELabels extracts project (cloud.account.id), zone/region from GKE gcloud exec config.
 func enrichGKELabels(labels map[string]interface{}, authInfo *clientcmdapi.AuthInfo) {
 	for i := 0; i < len(authInfo.Exec.Args)-1; i++ {
 		switch authInfo.Exec.Args[i] {
 		case "--project":
-			labels["project"] = authInfo.Exec.Args[i+1]
+			labels[LabelCloudAccountID] = authInfo.Exec.Args[i+1]
 		case "--zone":
-			labels["zone"] = authInfo.Exec.Args[i+1]
+			labels[LabelCloudAvailabilityZone] = authInfo.Exec.Args[i+1]
 		case "--region":
-			labels["region"] = authInfo.Exec.Args[i+1]
+			labels[LabelCloudRegion] = authInfo.Exec.Args[i+1]
 		}
 	}
 
 	// Check env vars as fallback
 	for _, entry := range authInfo.Exec.Env {
 		if entry.Name == "CLOUDSDK_CORE_PROJECT" {
-			if _, ok := labels["project"]; !ok {
-				labels["project"] = entry.Value
+			if _, ok := labels[LabelCloudAccountID]; !ok {
+				labels[LabelCloudAccountID] = entry.Value
 			}
 		}
 	}
 }
 
-// enrichAKSLabels extracts subscription and resource group from Azure CLI exec config.
+// enrichAKSLabels extracts subscription (cloud.account.id) and resource group from Azure CLI exec config.
 func enrichAKSLabels(labels map[string]interface{}, authInfo *clientcmdapi.AuthInfo) {
 	for i := 0; i < len(authInfo.Exec.Args)-1; i++ {
 		switch authInfo.Exec.Args[i] {
 		case "--subscription":
-			labels["subscription"] = authInfo.Exec.Args[i+1]
+			labels[LabelCloudAccountID] = authInfo.Exec.Args[i+1]
 		case "--resource-group":
-			labels["resource_group"] = authInfo.Exec.Args[i+1]
+			labels[LabelAzureResourceGroup] = authInfo.Exec.Args[i+1]
 		}
 	}
 }

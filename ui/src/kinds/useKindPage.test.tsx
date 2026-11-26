@@ -52,7 +52,7 @@ function view(over: Partial<PodsView> = {}): PodsView {
 }
 
 /** A connection as the host lists it: the exact context name for its name, the kubeconfig it came from, and an id (the name unless the plugin derived one). */
-const record = (name: string, id: string = name, kubeconfig = '~/.kube/config') => ({ id, name, labels: { kubeconfig }, data: { context: name } });
+const record = (name: string, id: string = name, kubeconfig = '~/.kube/config') => ({ id, name, labels: { 'kubeconfig.path': kubeconfig }, data: { context: name } });
 
 const know = (...names: readonly string[]) => {
   connections.mockReturnValue({ connections: { data: names.map((name) => record(name)), isPending: false } } as never);

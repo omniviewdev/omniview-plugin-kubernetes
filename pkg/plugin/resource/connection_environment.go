@@ -41,7 +41,7 @@ func inferConnectionEnvironment(connection types.Connection, endpoint, version s
 	// The hints are read from the context name, which the data carries. The ID of a connection is derived and
 	// says nothing about the cluster, and Name is a display name that the user may edit.
 	kubeContext, _ := connid.ContextFromData(connection.Data)
-	for _, id := range []string{kubeContext, data("cluster"), label("cluster")} {
+	for _, id := range []string{kubeContext, data("cluster"), label(LabelKubeconfigCluster)} {
 		if match := eksClusterARN.FindStringSubmatch(id); match != nil {
 			partition := "aws"
 			if strings.HasPrefix(match[2], "cn-") {
@@ -69,9 +69,9 @@ func inferConnectionEnvironment(connection types.Connection, endpoint, version s
 		}
 	}
 	if provider == "" {
-		switch label("auth_method") {
+		switch label(LabelAuthMethod) {
 		case "eks", "gke", "aks":
-			provider = label("auth_method")
+			provider = label(LabelAuthMethod)
 		}
 	}
 	if provider != "" {
@@ -108,7 +108,7 @@ func inferConnectionEnvironment(connection types.Connection, endpoint, version s
 	}
 	facts["kubernetes.provider"], facts["kubernetes.provider_source"] = provider, source
 	copyLabel := func(key, target string, valid *regexp.Regexp) {
-		if configProvider != provider && label("auth_method") != provider {
+		if configProvider != provider && label(LabelAuthMethod) != provider {
 			return
 		}
 		if value := label(key); valid.MatchString(value) {
@@ -118,7 +118,7 @@ func inferConnectionEnvironment(connection types.Connection, endpoint, version s
 	switch provider {
 	case "eks":
 		facts["cloud.provider"] = "aws"
-		copyLabel("region", "aws.region", awsRegion)
+		copyLabel(LabelCloudRegion, "aws.region", awsRegion)
 		if arn != nil {
 			facts["aws.region"], facts["aws.account_id"] = arn[2], arn[3]
 		}
@@ -127,9 +127,9 @@ func inferConnectionEnvironment(connection types.Connection, endpoint, version s
 		}
 	case "gke":
 		facts["cloud.provider"] = "gcp"
-		copyLabel("project", "gcp.project_id", gcpProject)
-		copyLabel("region", "gcp.region", gcpRegion)
-		copyLabel("zone", "gcp.zone", gcpZone)
+		copyLabel(LabelCloudAccountID, "gcp.project_id", gcpProject)
+		copyLabel(LabelCloudRegion, "gcp.region", gcpRegion)
+		copyLabel(LabelCloudAvailabilityZone, "gcp.zone", gcpZone)
 		if gke != nil {
 			facts["gcp.project_id"] = gke[1]
 			if gcpZone.MatchString(gke[2]) {
@@ -143,8 +143,8 @@ func inferConnectionEnvironment(connection types.Connection, endpoint, version s
 		}
 	case "aks":
 		facts["cloud.provider"] = "azure"
-		copyLabel("subscription", "azure.subscription_id", azureSubscription)
-		copyLabel("resource_group", "azure.resource_group", azureResourceGroup)
+		copyLabel(LabelCloudAccountID, "azure.subscription_id", azureSubscription)
+		copyLabel(LabelAzureResourceGroup, "azure.resource_group", azureResourceGroup)
 	}
 	return facts
 }

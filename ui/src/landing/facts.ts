@@ -8,7 +8,7 @@ import { KEYS, providerWords, readFact, type MetadataRead } from '../overview/fa
 // connection is opened to read one (the host's seam says a page is never left to start one), and a fact that is not known is said as not known, never as a guess.
 //
 //   - FROM THE CONFIGURATION, which is there without connecting: the labels the backend gives every connection it discovers (`pkg/plugin/resource/connections.go`): the cloud the credentials are for
-//     (`auth_method`: `eks`, `gke` or `aks`) and, for EKS and GKE, the region the credential command names (`region`).
+//     (`kubernetes.platform`: `eks`, `gke`, `aks`, `kind`, ..., set only when the kubeconfig says it for sure) and the region it names (`cloud.region`).
 //   - FROM THE CLUSTER, which is there while the connection is connected: what the backend publishes about a connection through `useConnectionMetadata`, which reads and never connects (the server's
 //     version, which provider it is, the region of the cloud it is in; `connection_metadata.go`, `connection_environment.go`). It is read only for a connection that is connected.
 //
@@ -27,14 +27,13 @@ export type ConfigFacts = {
 };
 
 /**
- * The platform and the region a connection's labels state; each is undefined when the labels do not state it. Only a credential command that names a cloud (`eks`, `gke`, `aks`) says a platform: any other
- * command is a way to sign in and not a place the cluster runs. The words are the Overview's.
+ * The platform and the region a connection's labels state; each is undefined when the labels do not state it. The backend sets `kubernetes.platform` only when the kubeconfig says where the cluster runs
+ * for sure (a credential command of a cloud, a cloud's address or naming format, a local cluster's documented names): a sign-in command alone is not a place the cluster runs. The words are the Overview's.
  */
 export function configFacts(connection: Connection): ConfigFacts {
-  const labels = connection.labels as { readonly auth_method?: unknown; readonly region?: unknown } | undefined;
-  const cloud = text(labels?.auth_method);
-  const platform = cloud === 'eks' || cloud === 'gke' || cloud === 'aks' ? providerWords(cloud) : undefined;
-  return { platform, region: text(labels?.region) };
+  const labels = connection.labels as { readonly 'kubernetes.platform'?: unknown; readonly 'cloud.region'?: unknown } | undefined;
+  const platform = text(labels?.['kubernetes.platform']);
+  return { platform: platform === undefined ? undefined : providerWords(platform), region: text(labels?.['cloud.region']) };
 }
 
 /**

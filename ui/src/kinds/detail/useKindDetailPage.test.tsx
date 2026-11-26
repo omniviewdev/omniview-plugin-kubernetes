@@ -42,7 +42,7 @@ const NODE = kindOf('Node', ['name']);
 const RECORD = hostRecord({ metadata: { name: 'cart-api', namespace: 'checkout' } });
 const idOf = (name: string) => `${name}-54c660ecd1`;
 const know = (...names: readonly string[]) => {
-  const data = names.map((name) => ({ id: idOf(name), name, labels: { kubeconfig: '~/.kube/config' }, data: { context: name } }));
+  const data = names.map((name) => ({ id: idOf(name), name, labels: { 'kubeconfig.path': '~/.kube/config' }, data: { context: name } }));
   connections.mockReturnValue({ connections: { data, isPending: false } } as never);
 };
 

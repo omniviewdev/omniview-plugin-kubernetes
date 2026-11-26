@@ -39,7 +39,7 @@ function ownName(connection: Connection): string {
 
 /** The segments of the path of the kubeconfig a connection came from (split on `/` and `\`, empty ones dropped); none when the connection carries no usable one. */
 function kubeconfigSegments(connection: Connection): readonly string[] {
-  const path = (connection.labels as { readonly kubeconfig?: unknown } | undefined)?.kubeconfig;
+  const path = (connection.labels as { readonly 'kubeconfig.path'?: unknown } | undefined)?.['kubeconfig.path'];
   return typeof path === 'string' ? path.split(/[\\/]/).filter((segment) => segment !== '') : [];
 }
 
@@ -50,7 +50,7 @@ function kubeconfigSegments(connection: Connection): readonly string[] {
  * When the connections that share a name do not all have the same description, `<where>` is the connection's own description (`prod · EKS · us-east-1 · 111122223333`): the path cannot
  * tell two contexts of one file apart, and the plugin has already said what does. A connection with a blank description among them falls to the path.
  *
- * Otherwise `<where>` is the shortest trailing run of segments of the path of the kubeconfig (the `kubeconfig` label the plugin sets) that tells them apart: `~/.kube/config` and
+ * Otherwise `<where>` is the shortest trailing run of segments of the path of the kubeconfig (the `kubeconfig.path` label the plugin sets) that tells them apart: `~/.kube/config` and
  * `~/work/other` read `config` and `other`, and `~/.kube/config` and `~/work/config` read `.kube/config` and `work/config`. A connection with no usable label keeps the bare name.
  * The answer depends only on the connection and the list, never on their order.
  */
