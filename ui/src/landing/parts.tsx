@@ -61,14 +61,23 @@ export function RowActions({ row, connections, menu }: { readonly row: Connectio
 const READERS = { version: versionOf, platform: platformOf, region: regionOf } as const;
 
 /**
- * One fact of a connection (`facts.ts`): what the configuration says of it, and for a connection that is connected what the cluster publishes, which this reads through `useConnectionMetadata`: a read that
- * never connects, and that reads nothing for a connection that is not connected. What is not known is the kit's dash, with what it is and why in its tip; what is on its way is left empty.
+ * One fact of a connection (`facts.ts`): what the cluster publishes of it, which this reads through `useConnectionMetadata` (a read that never connects) for every connection whether or not it is connected: the host
+ * keeps the last known value of a fact, so a connection that is not connected still says what it said last, drawn muted and told as last known. Else what the configuration says. What is not known is the kit's dash,
+ * with what it is and why in its tip; what is on its way is left empty.
  */
 export function FactValue({ plugin, row, fact }: { readonly plugin: string; readonly row: ConnectionRow; readonly fact: keyof typeof READERS }) {
-  const read = useConnectionMetadata({ pluginID: plugin, connectionID: row.key, enabled: row.state === 'connected' });
+  const read = useConnectionMetadata({ pluginID: plugin, connectionID: row.key });
   const shown = READERS[fact](row, read);
   switch (shown.kind) {
     case 'text':
+      if (shown.last === true) {
+        return (
+          <span className={styles.last} data-last-known="" data-ov-tip={shown.tip}>
+            {shown.text}
+          </span>
+        );
+      }
+
       return shown.tip === undefined ? shown.text : <span data-ov-tip={shown.tip}>{shown.text}</span>;
     case 'missing':
       return <MissingValue name={shown.name} reason={shown.reason} />;

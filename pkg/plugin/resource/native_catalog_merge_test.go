@@ -146,7 +146,7 @@ func TestNativeHealFactNamesWhatIsUnavailableNow(t *testing.T) {
 		t.Helper()
 		snapshot, err := c.p.RefreshConnectionMetadata(context.Background(), c.route.Connection)
 		require.NoError(t, err)
-		entry, present := snapshot.Entries[unavailableGroupsKey]
+		entry, present := snapshot.Entries[FactUnavailableAPIGroups]
 		if !present {
 			return nil
 		}
@@ -230,7 +230,7 @@ func TestNativeExplicitRefreshUpdatesTheFactAndEndsTheHeal(t *testing.T) {
 	c := newHealCase(t)
 	snapshot, err := c.p.RefreshConnectionMetadata(context.Background(), c.route.Connection)
 	require.NoError(t, err)
-	require.Contains(t, snapshot.Entries, unavailableGroupsKey)
+	require.Contains(t, snapshot.Entries, FactUnavailableAPIGroups)
 
 	c.f.setDown("/apis/b.example/v1", false)
 	c.f.setDown("/apis/refresh.example/v2", false)
@@ -244,7 +244,7 @@ func TestNativeExplicitRefreshUpdatesTheFactAndEndsTheHeal(t *testing.T) {
 		if err != nil {
 			return false
 		}
-		_, present := current.Entries[unavailableGroupsKey]
+		_, present := current.Entries[FactUnavailableAPIGroups]
 		return !present
 	}, 5*time.Second, 10*time.Millisecond, "the fact follows the installed catalog whichever path installed it, without a refresh of the facts asked for")
 }

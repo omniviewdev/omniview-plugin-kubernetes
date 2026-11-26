@@ -30,7 +30,7 @@ const current = (value: string): Fact => ({ state: 'current', value });
 const FACTS: Facts = {
   version: current('v1.35.0'),
   url: current('https://10.0.0.1:6443'),
-  provider: current('kind'),
+  platform: current('kind'),
   distribution: { state: 'absent' },
   groups: { state: 'absent' },
 };
@@ -61,28 +61,28 @@ describe('the header: the state of the connection, and who it is', () => {
     expect(model().state).toEqual({ role: 'healthy', label: 'Connected' });
   });
 
-  it('says the provider, and the server\'s version, in the words a person reads: no command of its own', () => {
-    expect(model({ facts: factsWith({ provider: current('eks'), distribution: current('eks'), version: current('v1.31.4-eks-aeac579') }) }).facts).toEqual([{ text: 'EKS' }, { text: 'v1.31.4' }]);
+  it('says the platform, and the server\'s version, in the words a person reads: no command of its own', () => {
+    expect(model({ facts: factsWith({ platform: current('eks'), distribution: current('eks'), version: current('v1.31.4-eks-aeac579') }) }).facts).toEqual([{ text: 'EKS' }, { text: 'v1.31.4' }]);
     expect(model().facts).toEqual([{ text: 'kind' }, { text: 'v1.35.0' }]);
   });
 
-  it('says the distribution too when it is not the provider: k3s in kind', () => {
-    expect(model({ facts: factsWith({ provider: current('kind'), distribution: current('k3s') }) }).facts).toEqual([{ text: 'kind' }, { text: 'k3s' }, { text: 'v1.35.0' }]);
+  it('says the distribution too when it is not the platform: k3s in kind', () => {
+    expect(model({ facts: factsWith({ platform: current('kind'), distribution: current('k3s') }) }).facts).toEqual([{ text: 'kind' }, { text: 'k3s' }, { text: 'v1.35.0' }]);
   });
 
-  it('says the distribution when there is no provider, and nothing it does not know', () => {
-    expect(model({ facts: factsWith({ provider: { state: 'absent' }, distribution: current('openshift') }) }).facts).toEqual([{ text: 'OpenShift' }, { text: 'v1.35.0' }]);
-    expect(model({ facts: factsWith({ provider: { state: 'absent' }, version: { state: 'absent' } }) }).facts).toEqual([]);
+  it('says the distribution when there is no platform, and nothing it does not know', () => {
+    expect(model({ facts: factsWith({ platform: { state: 'absent' }, distribution: current('openshift') }) }).facts).toEqual([{ text: 'OpenShift' }, { text: 'v1.35.0' }]);
+    expect(model({ facts: factsWith({ platform: { state: 'absent' }, version: { state: 'absent' } }) }).facts).toEqual([]);
   });
 
   it('says a fact that is current and no other: the header is the cluster\'s identity, and a stale one would draw as current (the Cluster section says it is stale)', () => {
     const stale: Fact = { state: 'stale', value: 'v1.35.0', observedAt: 1 };
-    expect(model({ facts: factsWith({ version: stale, provider: stale }) }).facts).toEqual([]);
-    expect(model({ facts: factsWith({ version: { state: 'loading' }, provider: { state: 'unreadable', code: 'X' } }) }).facts).toEqual([]);
+    expect(model({ facts: factsWith({ version: stale, platform: stale }) }).facts).toEqual([]);
+    expect(model({ facts: factsWith({ version: { state: 'loading' }, platform: { state: 'unreadable', code: 'X' } }) }).facts).toEqual([]);
   });
 
   it('says a fact that is not a word of its kind as nothing: a version that is not text', () => {
-    expect(model({ facts: factsWith({ version: current(3 as never), provider: current({} as never) }) }).facts).toEqual([]);
+    expect(model({ facts: factsWith({ version: current(3 as never), platform: current({} as never) }) }).facts).toEqual([]);
   });
 });
 

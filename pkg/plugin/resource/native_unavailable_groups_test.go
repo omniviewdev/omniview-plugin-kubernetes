@@ -307,7 +307,7 @@ func factOf(t *testing.T, groups []apidiscoveryv2.APIGroupDiscovery) (resourcev2
 	require.NoError(t, err)
 	snapshot, err := p.RefreshConnectionMetadata(context.Background(), route.Connection)
 	require.NoError(t, err, "the observation of the facts must not fail as a whole: the server url, the version and the environment would be lost with the groups")
-	entry, present := snapshot.Entries[unavailableGroupsKey]
+	entry, present := snapshot.Entries[FactUnavailableAPIGroups]
 	states := make(map[string]string, len(snapshot.Entries))
 	for key, other := range snapshot.Entries {
 		states[key] = other.State
@@ -322,7 +322,7 @@ func factOf(t *testing.T, groups []apidiscoveryv2.APIGroupDiscovery) (resourcev2
 // over it, which loses every other fact of the connection with it; 32 names of the longest legal length (a group of 253 characters, a version of 63) are about 12 KiB.
 func TestNativeConnectionFactNamesAtMostThirtyTwoGroupsAndCountsTheRest(t *testing.T) {
 	snapshot, value := factOf(t, staleGroups(200, func(i int) string { return fmt.Sprintf("tenant-%03d.metrics.internal.example.com", i) }, "v1beta1"))
-	require.Contains(t, snapshot.Entries, "kubernetes.server_url", "the other facts survive")
+	require.Contains(t, snapshot.Entries, FactServer, "the other facts survive")
 	require.EqualValues(t, 200, value["count"], "the count is of every group that does not answer")
 	groups, ok := value["groups"].([]any)
 	require.True(t, ok)
@@ -337,7 +337,7 @@ func TestNativeConnectionFactFitsTheSDKLimitWithNamesOfTheLongestLegalLength(t *
 	}
 	require.Len(t, longest(0), 253)
 	snapshot, value := factOf(t, staleGroups(40, longest, "v"+strings.Repeat("1", 62)))
-	require.Contains(t, snapshot.Entries, "kubernetes.server_url")
+	require.Contains(t, snapshot.Entries, FactServer)
 	require.EqualValues(t, 40, value["count"])
 	require.Len(t, value["groups"], 32)
 }
@@ -346,7 +346,7 @@ func TestNativeConnectionFactFitsTheSDKLimitWithNamesOfTheLongestLegalLength(t *
 func TestNativeConnectionFactClipsAGroupNameNoServerCouldLegallySend(t *testing.T) {
 	long := strings.Repeat("a", 20_000)
 	snapshot, value := factOf(t, staleGroups(1, func(int) string { return long }, "v1"))
-	require.Contains(t, snapshot.Entries, "kubernetes.server_url")
+	require.Contains(t, snapshot.Entries, FactServer)
 	groups := value["groups"].([]any)
 	require.Len(t, groups, 1)
 	name := groups[0].(map[string]any)["groupVersion"].(string)
@@ -359,7 +359,7 @@ func TestNativeConnectionFactClipsAGroupNameNoServerCouldLegallySend(t *testing.
 func TestNativeConnectionFactBoundsTheJSONOfGroupNamesNotTheirLength(t *testing.T) {
 	name := func(i int) string { return strings.Repeat("\x01", 249) + fmt.Sprintf("%04d", i) }
 	snapshot, value := factOf(t, staleGroups(40, name, "v1"))
-	require.Contains(t, snapshot.Entries, "kubernetes.server_url", "the other facts survive")
+	require.Contains(t, snapshot.Entries, FactServer, "the other facts survive")
 	require.EqualValues(t, 40, value["count"], "the count is of every group that does not answer, whatever is clipped")
 	groups := value["groups"].([]any)
 	require.Len(t, groups, 32)

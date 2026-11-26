@@ -88,8 +88,8 @@ func (p *kubernetesProvider) refreshNativeCatalog(ctx context.Context, connectio
 	refresh.err = err
 	close(refresh.done)
 	p.mu.Unlock()
-	if installed && !slices.Equal(previous.unavailable, snapshot.unavailable) {
-		// The fact that names the unavailable groups follows the installed catalog, whichever path installed it.
+	if installed && (!slices.Equal(previous.unavailable, snapshot.unavailable) || capabilitiesOf(previous.answeredGroups()) != capabilitiesOf(snapshot.answeredGroups())) {
+		// The facts that name the unavailable groups and the notable groups that answer follow the installed catalog, whichever path installed it.
 		p.invalidateConnectionFacts(ctx, connectionID)
 	}
 	if snapshot != nil {
@@ -117,7 +117,7 @@ func (p *kubernetesProvider) acquireNativeCatalog(ctx context.Context, connectio
 	}
 	var hint *resourcev2.NativeAuthorityHint
 	if identity != nil {
-		hint = &resourcev2.NativeAuthorityHint{Scheme: "kubernetes.namespace-uid.v1", ID: *identity, Continuity: resourcev2.ContinuityConnectionLocal}
+		hint = &resourcev2.NativeAuthorityHint{Scheme: nativeClusterIdentityScheme, ID: *identity, Continuity: resourcev2.ContinuityConnectionLocal}
 	}
 	if previous != nil && previous.identityHint != nil && (hint == nil || hint.ID != previous.identityHint.ID) {
 		return nil, false, resourcev2.NewError("RESET_REQUIRED", "Native Kubernetes backing identity changed; reconnect before acquiring resources")

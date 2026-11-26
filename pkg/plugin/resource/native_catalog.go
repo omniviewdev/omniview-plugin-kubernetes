@@ -424,6 +424,9 @@ func sortedNativeTypes(bindings map[string]nativeType) []resourcev2.ResourceType
 	return types
 }
 
+// nativeClusterIdentityScheme names the hint that nativeClusterIdentity gives: the UID of the kube-system Namespace. It is also the fact FactClusterUID (catalogFacts).
+const nativeClusterIdentityScheme = "kubernetes.namespace-uid.v1"
+
 // nativeClusterIdentity supplies a backing-identity hint, not a host authority.
 // A route without permission to observe the native UID remains unknown: nil
 // identity and no error. A transient failure to read it (a closed connection,

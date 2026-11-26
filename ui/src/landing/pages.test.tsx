@@ -14,8 +14,8 @@ import { ConnectionsList } from './list';
 const world = vi.hoisted(() => ({
   /** The plugin's own list of its connections (`useConnections`): the labels and the names. */
   known: [] as Array<{ id: string; name: string; description: string; labels: Record<string, unknown>; data: Record<string, unknown> }>,
-  /** What the backend publishes about a connection that is connected, by its id. */
-  facts: {} as Record<string, Record<string, { state: 'current'; value: string; observedAt: string }>>,
+  /** What the backend publishes about a connection, by its id: current while it is connected, the last known value (stale) after. */
+  facts: {} as Record<string, Record<string, { state: 'current' | 'stale'; value: string; observedAt: string }>>,
   /** The facts that were asked for, and whether they were allowed to be read. */
   asked: [] as Array<{ connection: string | undefined; enabled: boolean | undefined }>,
 }));
@@ -27,7 +27,8 @@ vi.mock('@omniviewdev/runtime/ui/v1', async (importActual) => {
     useConnections: () => ({ connections: { data: world.known } }),
     useConnectionMetadata: ({ connectionID, enabled }: { connectionID: string | undefined; enabled?: boolean }) => {
       world.asked.push({ connection: connectionID, enabled });
-      const entries = enabled !== false && connectionID !== undefined ? world.facts[connectionID] : undefined;
+      // A connection that is known and has said nothing answers an empty snapshot, as the host does: its facts are absent, not on their way.
+      const entries = enabled !== false && connectionID !== undefined ? (world.facts[connectionID] ?? {}) : undefined;
       return {
         supported: true,
         transportAvailable: true,
@@ -118,8 +119,8 @@ describe('the home page', () => {
       ...['c5', 'c6', 'c7', 'c8', 'c9', 'c10'].map((key) => connection(key, 'disconnected')),
     ];
     world.facts['kind-a'] = {
-      'kubernetes.server_version': { state: 'current', value: 'v1.35.0', observedAt: '2026-11-25T11:56:00Z' },
-      'kubernetes.provider': { state: 'current', value: 'kind', observedAt: '2026-11-25T11:56:00Z' },
+      'kubernetes.server.version': { state: 'current', value: 'v1.35.0', observedAt: '2026-11-25T11:56:00Z' },
+      'kubernetes.distribution': { state: 'current', value: 'kind', observedAt: '2026-11-25T11:56:00Z' },
     };
     const { open, refresh } = mount(Home, ready(...made));
 
@@ -141,13 +142,14 @@ describe('the home page', () => {
     expect(within(sign).getByText('The connection needs you to sign in.')).toBeInTheDocument();
     expect(within(down).getByText('The server did not answer.')).toBeInTheDocument();
 
-    // The version is the cluster's, for a connection that is connected; the region is what the configuration says; what is not known is the kit's dash, with what it is and why. Nothing is read of a connection that is not connected.
+    // The version is the cluster's, for a connection that is connected; the region is what the configuration says; what is not known is the kit's dash, with what it is and why. The facts of every connection are read,
+    // connected or not: the host keeps what a connection that is not connected said last.
     expect(within(kind).getByText('v1.35.0')).toBeInTheDocument();
     expect(within(orders).getByText('us-east-1')).toBeInTheDocument();
     expect(within(orders).getByRole('img', { name: 'Kubernetes version: Connect to see the version.' })).toBeInTheDocument();
     expect(within(kind).getByRole('img', { name: 'Region: No region is known for this connection.' })).toBeInTheDocument();
-    expect([...new Set(world.asked.filter((read) => read.enabled === true).map((read) => read.connection))]).toEqual(['kind-a']);
-    expect(world.asked.filter((read) => read.enabled !== true && read.connection === 'kind-a')).toEqual([]);
+    expect([...new Set(world.asked.map((read) => read.connection))].sort()).toEqual(['c5', 'c6', 'c7', 'c8', 'down', 'kind-a', 'orders', 'sign']);
+    expect(world.asked.filter((read) => read.enabled === false)).toEqual([]);
 
     // The way to all of them is the kit's link to the other page, with how many there are.
     expect(screen.getByRole('link', { name: 'View all 10' })).toHaveAttribute('href', '#/kubernetes/connections');
@@ -166,6 +168,76 @@ describe('the home page', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Refresh connections' }));
     expect(refresh).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the facts of a connection', () => {
+  const OBSERVED = '2026-11-25T11:56:00Z';
+  const fact = (state: 'current' | 'stale', value: string) => ({ state, value, observedAt: OBSERVED });
+
+  /** The page of all the connections sorts them by name: a row or a card is found by the name it says. */
+  const rowNamed = (name: string): HTMLElement => {
+    const found = rowsOf().find((row) => within(row).getAllByRole('button')[0]?.textContent === name);
+    if (found === undefined) {
+      throw new Error(`no row says ${name}`);
+    }
+
+    return found;
+  };
+  const cardNamed = (name: string): HTMLElement => {
+    const found = within(screen.getByRole('list', { name: 'Connections' }))
+      .getAllByRole('listitem')
+      .find((card) => within(card).queryByText(name) !== null);
+    if (found === undefined) {
+      throw new Error(`no card says ${name}`);
+    }
+
+    return found;
+  };
+
+  it('says what the cluster says while the connection is connected, and what it said last once it is not (muted and told as last known, in place of a dash); the cluster\'s distribution comes before the kubeconfig\'s guess, and the configuration says what the cluster does not', () => {
+    const made = [
+      connection('live', 'connected', {}, { 'kubernetes.platform': 'kind', 'cloud.region': 'eu-west-1' }),
+      connection('gone', 'disconnected', {}, { 'kubernetes.platform': 'kind' }),
+      connection('guess', 'disconnected', {}, { 'kubernetes.platform': 'gke', 'cloud.region': 'us-east1' }),
+      connection('blank', 'disconnected'),
+      connection('named', 'connected'),
+      connection('older', 'disconnected'),
+    ];
+    world.facts.live = { 'kubernetes.server.version': fact('current', 'v1.31.4-eks-aeac579'), 'kubernetes.distribution': fact('current', 'eks'), 'cloud.region': fact('current', 'us-east-1') };
+    world.facts.gone = { 'kubernetes.server.version': fact('stale', 'v1.30.2+k3s1'), 'kubernetes.distribution': fact('stale', 'k3s'), 'cloud.region': fact('stale', 'eu-central-1') };
+    // A user who may not read the Nodes: no distribution is confirmed, and the platform is what the backend made of the configuration.
+    world.facts.named = { 'kubernetes.server.version': fact('current', 'v1.35.0'), 'kubernetes.platform': fact('current', 'kind') };
+    world.facts.older = { 'kubernetes.platform': fact('stale', 'eks') };
+    mount(ConnectionsList, ready(...made));
+
+    // The table: the version and the region.
+    const [live, gone, guess, blank] = ['live', 'gone', 'guess', 'blank'].map(rowNamed);
+    expect(within(live).getByText('v1.31.4')).toHaveAttribute('data-ov-tip', 'v1.31.4-eks-aeac579');
+    expect(within(live).getByText('us-east-1')).toBeInTheDocument();
+    expect(within(live).queryByText('eu-west-1')).toBeNull();
+    expect(live.querySelector('[data-last-known]')).toBeNull();
+    expect(within(gone).getByText('v1.30.2')).toHaveAttribute('data-last-known');
+    expect(within(gone).getByText('v1.30.2')).toHaveAttribute('data-ov-tip', 'v1.30.2+k3s1. Last known value. It may be out of date.');
+    expect(within(gone).getByText('eu-central-1')).toHaveAttribute('data-last-known');
+    expect(within(gone).queryByRole('img')).toBeNull();
+    expect(within(guess).getByRole('img', { name: 'Kubernetes version: Connect to see the version.' })).toBeInTheDocument();
+    expect(within(guess).getByText('us-east1')).toBeInTheDocument();
+    expect(guess.querySelector('[data-last-known]')).toBeNull();
+    expect(within(blank).getByRole('img', { name: 'Region: No region is known for this connection.' })).toBeInTheDocument();
+    expect([...new Set(world.asked.map((read) => read.connection))].sort()).toEqual(['blank', 'gone', 'guess', 'live', 'named', 'older']);
+
+    // The cards add the platform.
+    fireEvent.click(screen.getByRole('radio', { name: 'Cards' }));
+    const [liveCard, goneCard, guessCard, blankCard, namedCard, olderCard] = ['live', 'gone', 'guess', 'blank', 'named', 'older'].map(cardNamed);
+    expect(within(liveCard).getByText('EKS')).not.toHaveAttribute('data-last-known');
+    expect(within(goneCard).getByText('k3s')).toHaveAttribute('data-last-known');
+    expect(within(guessCard).getByText('GKE')).toBeInTheDocument();
+    expect(guessCard.querySelector('[data-last-known]')).toBeNull();
+    expect(within(blankCard).getByRole('img', { name: 'Platform: Connect to see the platform.' })).toBeInTheDocument();
+    expect(within(namedCard).getByText('kind')).toBeInTheDocument();
+    expect(namedCard.querySelector('[data-last-known]')).toBeNull();
+    expect(within(olderCard).getByText('EKS')).toHaveAttribute('data-last-known');
   });
 });
 

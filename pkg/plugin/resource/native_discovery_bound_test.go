@@ -172,7 +172,7 @@ func TestNativeHealOfAGroupThatHangsCostsOneBoundAndKeepsTheLoop(t *testing.T) {
 
 	snapshot, err := c.p.RefreshConnectionMetadata(context.Background(), c.route.Connection)
 	require.NoError(t, err)
-	fact, ok := snapshot.Entries[unavailableGroupsKey].Value.(map[string]any)
+	fact, ok := snapshot.Entries[FactUnavailableAPIGroups].Value.(map[string]any)
 	require.True(t, ok, "the fact names the groups that do not answer")
 	require.Contains(t, fact["groups"], map[string]any{"groupVersion": "b.example/v1", "reason": "timeout"})
 
