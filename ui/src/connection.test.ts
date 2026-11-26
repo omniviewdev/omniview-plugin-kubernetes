@@ -18,7 +18,7 @@ type Fake = { readonly id: string; readonly name: string; readonly description?:
 /** A connection record as the plugin makes it: a derived id, the name a person reads (the exact context name, or the cluster's name for an EKS context), and the kubeconfig it came from. */
 function conn(name: string, over: Partial<Fake> = {}): runtime.Connection {
   const hash = '54c660ecd1';
-  return { id: `${name}-${hash}`, name, labels: { kubeconfig: '~/.kube/config' }, data: { context: name }, ...over } as unknown as runtime.Connection;
+  return { id: `${name}-${hash}`, name, labels: { 'kubeconfig.path': '~/.kube/config' }, data: { context: name }, ...over } as unknown as runtime.Connection;
 }
 
 const know = (...list: readonly runtime.Connection[]) => {
@@ -111,7 +111,7 @@ describe('useChosenConnection: the name the frame gives the connection', () => {
   });
 
   it('tells two connections of one name apart in the lane, and unique names are left as they are', () => {
-    know(conn('prod', { id: 'prod-aaaaaaaaaa', labels: { kubeconfig: '~/.kube/config' } }), conn('prod', { id: 'prod-bbbbbbbbbb', labels: { kubeconfig: '~/work/other' } }), conn('dev'));
+    know(conn('prod', { id: 'prod-aaaaaaaaaa', labels: { 'kubeconfig.path': '~/.kube/config' } }), conn('prod', { id: 'prod-bbbbbbbbbb', labels: { 'kubeconfig.path': '~/work/other' } }), conn('dev'));
     expect(mount('prod-aaaaaaaaaa').result.current.named).toBe('prod · config');
     expect(mount('prod-bbbbbbbbbb').result.current.named).toBe('prod · other');
     expect(mount('dev-54c660ecd1').result.current.named).toBe('dev');
@@ -128,8 +128,8 @@ describe('useChosenConnection: the name the frame gives the connection', () => {
   });
 
   it('tells two EKS clusters of one name in one kubeconfig apart by their descriptions, which the path cannot', () => {
-    const east = conn('prod', { id: 'prod-aaaaaaaaaa', description: 'EKS \u00B7 us-east-1 \u00B7 111122223333', labels: { kubeconfig: '~/.kube/config' } });
-    const west = conn('prod', { id: 'prod-bbbbbbbbbb', description: 'EKS \u00B7 us-west-2 \u00B7 111122223333', labels: { kubeconfig: '~/.kube/config' } });
+    const east = conn('prod', { id: 'prod-aaaaaaaaaa', description: 'EKS \u00B7 us-east-1 \u00B7 111122223333', labels: { 'kubeconfig.path': '~/.kube/config' } });
+    const west = conn('prod', { id: 'prod-bbbbbbbbbb', description: 'EKS \u00B7 us-west-2 \u00B7 111122223333', labels: { 'kubeconfig.path': '~/.kube/config' } });
     know(east, west, conn('dev'));
     expect(mount('prod-aaaaaaaaaa').result.current.named).toBe('prod \u00B7 EKS \u00B7 us-east-1 \u00B7 111122223333');
     expect(mount('prod-bbbbbbbbbb').result.current.named).toBe('prod \u00B7 EKS \u00B7 us-west-2 \u00B7 111122223333');
@@ -139,7 +139,7 @@ describe('useChosenConnection: the name the frame gives the connection', () => {
 });
 
 describe('connectionName: one name for one connection among the plugin\'s', () => {
-  const at = (id: string, kubeconfig: unknown, name = 'prod') => conn(name, { id, labels: { kubeconfig } });
+  const at = (id: string, kubeconfig: unknown, name = 'prod') => conn(name, { id, labels: { 'kubeconfig.path': kubeconfig } });
 
   it('is the bare name of a connection whose name no other has', () => {
     const list = [conn('kind-a'), conn('kind-b')];
@@ -181,7 +181,7 @@ describe('connectionName: one name for one connection among the plugin\'s', () =
   });
 
   it('compares the names a user sees: a blank name takes the context before it is compared', () => {
-    const list = [conn('prod', { id: 'p1', name: '', labels: { kubeconfig: '~/.kube/config' } }), at('p2', '~/work/other')];
+    const list = [conn('prod', { id: 'p1', name: '', labels: { 'kubeconfig.path': '~/.kube/config' } }), at('p2', '~/work/other')];
     expect(list.map((entry) => connectionName(entry, list))).toEqual(['prod · config', 'prod · other']);
   });
 
@@ -194,7 +194,7 @@ describe('connectionName: one name for one connection among the plugin\'s', () =
   });
 
   describe('with descriptions', () => {
-    const described = (id: string, description: string | undefined, kubeconfig: unknown = '~/.kube/config', name = 'prod') => conn(name, { id, description, labels: { kubeconfig } });
+    const described = (id: string, description: string | undefined, kubeconfig: unknown = '~/.kube/config', name = 'prod') => conn(name, { id, description, labels: { 'kubeconfig.path': kubeconfig } });
     const east = 'EKS \u00B7 us-east-1 \u00B7 111122223333';
     const west = 'EKS \u00B7 us-west-2 \u00B7 111122223333';
 

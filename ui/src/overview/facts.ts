@@ -96,7 +96,7 @@ export function groupsOf(value: ConnectionMetadataValue): Groups | undefined {
 
 // How a provider and a distribution spell themselves: the clouds in capitals, the local clusters as their projects write them. A name the backend gives that is not here is said as it was given. The key comes from the
 // backend, so the tables are Maps (as `kinds/status.ts` holds its words): a plain object would answer a key like `constructor` with a function of its prototype.
-const PROVIDERS = new Map([['eks', 'EKS'], ['gke', 'GKE'], ['aks', 'AKS'], ['kind', 'kind'], ['k3d', 'k3d'], ['minikube', 'minikube'], ['docker-desktop', 'Docker Desktop']]);
+const PROVIDERS = new Map([['eks', 'EKS'], ['gke', 'GKE'], ['aks', 'AKS'], ['kind', 'kind'], ['k3d', 'k3d'], ['minikube', 'minikube'], ['docker-desktop', 'Docker Desktop'], ['rancher-desktop', 'Rancher Desktop'], ['orbstack', 'OrbStack']]);
 const DISTRIBUTIONS = new Map([['eks', 'EKS'], ['gke', 'GKE'], ['k3s', 'k3s'], ['rke2', 'RKE2'], ['openshift', 'OpenShift']]);
 
 /** `kubernetes.provider` in the words a person reads: `eks` is `EKS`, `docker-desktop` is `Docker Desktop`. */

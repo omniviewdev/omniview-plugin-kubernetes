@@ -13,40 +13,61 @@ import (
 	"github.com/omniview/kubernetes/pkg/utils/kubeauth"
 )
 
-// Connection labels.
+// The label keys of a discovered connection.
 //
-// A discovered connection carries what its kubeconfig states about it as labels, so the UI can show
-// them without connecting. No label needs a network call, and none holds a credential. A key is
-// absent when the kubeconfig does not state the fact: nothing is guessed.
+// A discovered connection carries what its kubeconfig states about it as labels, so the UI can show them without connecting. No label needs a network call, and none holds a credential. A
+// key is absent when the kubeconfig does not state the fact: nothing is guessed, and nothing is inferred from a name unless the name's format is the documented one (see connectionPlatform).
+//
+// The keys follow the OpenTelemetry resource semantic conventions where one exists (`cloud.*`, `k8s.cluster.name`); the others are the plugin's: `kubeconfig.*` (what the kubeconfig says), `kubernetes.*`
+// (the cluster and where it runs), `auth.*`, and the cloud's own (`aws.*`, `azure.*`).
 //
 // Set for every connection (connectionsFromKubeconfig):
 //
-//	kubeconfig   the kubeconfig file the context was read from
-//	cluster      the cluster entry the context names
-//	user         the user entry the context names
-//	server       the API server URL of the cluster, without userinfo, query or fragment (absent if it does not parse)
-//	host         the host name of server, without the port
-//	namespace    the default namespace of the context, when it sets one
-//	auth_method  `eks`, `gke` or `aks` for the credential commands of those clouds, the command of any other
-//	             exec credential, and `default` when the user has no exec credential
+//	kubeconfig.path        LabelKubeconfigPath       the kubeconfig file the context was read from
+//	kubeconfig.cluster     LabelKubeconfigCluster    the cluster entry the context names
+//	kubeconfig.user        LabelKubeconfigUser       the user entry the context names
+//	kubernetes.server      LabelKubernetesServer     the API server URL, without userinfo, query or fragment (absent if it does not parse)
+//	kubernetes.host        LabelKubernetesHost       the host name of the server, without the port
+//	kubernetes.namespace   LabelKubernetesNamespace  the default namespace of the context, when it sets one
+//	auth.method            LabelAuthMethod           `eks`, `gke` or `aks` for the credential commands of those clouds, the command of any other exec credential, `default` when the user has none
 //
 // Set only when the kubeconfig states them:
 //
-//	platform       what the cluster runs on: `eks`, `gke`, `aks`, `kind`, `k3d`, `minikube`, `docker-desktop`,
-//	               `rancher-desktop` or `orbstack` (see connectionPlatform); absent if it is not told for sure
-//	cluster_name   the cluster's own name, from an EKS cluster ARN or a `gke_<project>_<location>_<cluster>` context name
-//	region         from the EKS cluster ARN, an EKS or AKS server host, a GKE context name, or the exec arguments
-//	zone           from a GKE context name or the `--zone` exec argument
-//	account        from the EKS cluster ARN, else the account of the exec role ARN (a role's account is not always the cluster's)
-//	project        from a GKE context name or the gcloud exec arguments
-//	subscription   from the az exec arguments
-//	resource_group from the az exec arguments
-//	profile        the AWS_PROFILE of the exec credential
-//	role           the role ARN of the aws exec credential
+//	kubernetes.platform    LabelKubernetesPlatform   what the cluster runs on: `eks`, `gke`, `aks`, `kind`, `k3d`, `minikube`, `docker-desktop`, `rancher-desktop` or `orbstack` (see connectionPlatform)
+//	cloud.provider         LabelCloudProvider        `aws`, `gcp` or `azure`, when the platform is `eks`, `gke` or `aks`
+//	cloud.region           LabelCloudRegion          from the EKS cluster ARN, an EKS or AKS server host, a GKE context name, or the exec arguments
+//	cloud.availability_zone LabelCloudAvailabilityZone from a GKE context name or the `--zone` exec argument
+//	cloud.account.id       LabelCloudAccountID       the cloud account of the cluster: the account of an EKS cluster ARN, the GCP project of a GKE context name or gcloud arguments, the Azure subscription of az arguments.
+//	                                                 The account of an exec role ARN is not it (a role may be in another account) and is not set
+//	k8s.cluster.name       LabelK8sClusterName       the cloud's name for the cluster, from an EKS cluster ARN or a `gke_<project>_<location>_<cluster>` context name
+//	aws.profile            LabelAWSProfile           the AWS_PROFILE of the exec credential
+//	aws.role               LabelAWSRole              the role ARN of the aws exec credential
+//	azure.resource_group   LabelAzureResourceGroup   the resource group of the az exec arguments
 //
-// `environment` is not set: a kubeconfig has no field that states one, and a name never says it.
+// `environment` is not set: a kubeconfig has no field that states one, and a name never says it. The context's name is not a label: the connection's Data carries it (connid.DataKeyContext).
+const (
+	LabelKubeconfigPath        = "kubeconfig.path"
+	LabelKubeconfigCluster     = "kubeconfig.cluster"
+	LabelKubeconfigUser        = "kubeconfig.user"
+	LabelKubernetesServer      = "kubernetes.server"
+	LabelKubernetesHost        = "kubernetes.host"
+	LabelKubernetesNamespace   = "kubernetes.namespace"
+	LabelKubernetesPlatform    = "kubernetes.platform"
+	LabelAuthMethod            = "auth.method"
+	LabelCloudProvider         = "cloud.provider"
+	LabelCloudRegion           = "cloud.region"
+	LabelCloudAvailabilityZone = "cloud.availability_zone"
+	LabelCloudAccountID        = "cloud.account.id"
+	LabelK8sClusterName        = "k8s.cluster.name"
+	LabelAWSProfile            = "aws.profile"
+	LabelAWSRole               = "aws.role"
+	LabelAzureResourceGroup    = "azure.resource_group"
+)
 
 const loopbackName = "localhost"
+
+// cloudOfPlatform is the cloud a managed platform is in (OpenTelemetry `cloud.provider` values).
+var cloudOfPlatform = map[string]string{"eks": "aws", "gke": "gcp", "aks": "azure"}
 
 var aksHCPHost = regexp.MustCompile(`^[a-z0-9-]+\.hcp\.([a-z0-9]+)\.azmk8s\.io$`)
 
@@ -64,7 +85,7 @@ func serverLabels(server string) (clean, host string) {
 // enrichClusterLabels adds the facts the context, the cluster entry and the names state about the cluster. It runs after enrichConnectionLabels.
 func enrichClusterLabels(labels map[string]interface{}, config *clientcmdapi.Config, contextName string, context *clientcmdapi.Context) {
 	if context.Namespace != "" {
-		labels["namespace"] = context.Namespace
+		labels[LabelKubernetesNamespace] = context.Namespace
 	}
 	host := ""
 	if cluster := config.Clusters[context.Cluster]; cluster != nil {
@@ -72,28 +93,31 @@ func enrichClusterLabels(labels map[string]interface{}, config *clientcmdapi.Con
 	}
 	lowerHost := strings.ToLower(host)
 	if match := eksHost.FindStringSubmatch(lowerHost); match != nil {
-		labels["region"] = match[1]
+		labels[LabelCloudRegion] = match[1]
 	}
 	if match := aksHCPHost.FindStringSubmatch(lowerHost); match != nil {
-		labels["region"] = match[1]
+		labels[LabelCloudRegion] = match[1]
 	}
 	for _, name := range []string{contextName, context.Cluster} {
 		if cluster, ok := parseEKSClusterARN(name); ok {
-			labels["cluster_name"], labels["region"], labels["account"] = cluster.Cluster, cluster.Region, cluster.Account
+			labels[LabelK8sClusterName], labels[LabelCloudRegion], labels[LabelCloudAccountID] = cluster.Cluster, cluster.Region, cluster.Account
 			break
 		}
 		if match := gkeClusterID.FindStringSubmatch(name); match != nil {
-			labels["project"], labels["cluster_name"] = match[1], match[3]
+			labels[LabelCloudAccountID], labels[LabelK8sClusterName] = match[1], match[3]
 			if gcpZone.MatchString(match[2]) {
-				labels["zone"] = match[2]
+				labels[LabelCloudAvailabilityZone] = match[2]
 			} else {
-				labels["region"] = match[2]
+				labels[LabelCloudRegion] = match[2]
 			}
 			break
 		}
 	}
 	if platform := connectionPlatform(config, contextName, context, lowerHost); platform != "" {
-		labels["platform"] = platform
+		labels[LabelKubernetesPlatform] = platform
+		if cloud, ok := cloudOfPlatform[platform]; ok {
+			labels[LabelCloudProvider] = cloud
+		}
 	}
 }
 

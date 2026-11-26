@@ -35,8 +35,8 @@ func TestLoadConnectionsGivesDistinctIDsToSameNamedContextsInDifferentKubeconfig
 	connections, err := p.LoadConnections(connectionTestSession(context.Background(), first, second))
 	require.NoError(t, err)
 	require.Len(t, connections, 2, "both kubeconfig contexts must load")
-	require.NotEqual(t, connections[0].Labels["server"], connections[1].Labels["server"], "fixture must point at different servers")
+	require.NotEqual(t, connections[0].Labels[LabelKubernetesServer], connections[1].Labels[LabelKubernetesServer], "fixture must point at different servers")
 	require.NotEqual(t, connections[0].ID, connections[1].ID,
 		"contexts %q from two kubeconfigs (servers %v, %v) share connection ID %q",
-		connections[0].Name, connections[0].Labels["server"], connections[1].Labels["server"], connections[0].ID)
+		connections[0].Name, connections[0].Labels[LabelKubernetesServer], connections[1].Labels[LabelKubernetesServer], connections[0].ID)
 }
