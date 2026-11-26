@@ -1,14 +1,12 @@
-import type { Connection } from '@omniviewdev/runtime/ui/v1';
-
-import type { ConnectionStateV1 } from '../contract/v1';
+import type { ConnectionStateV1, ConnectionV1 } from '../contract/v1';
 import { versionText } from '../kinds/fields';
 import { KEYS, distributionWords, platformWords, readFact, type Fact, type MetadataRead } from '../overview/facts';
 
 // The facts a connection's row and card say of the cluster: which platform it runs on, in which region, and which Kubernetes it is. Each comes from something the plugin already has, and from nothing else: no
 // connection is opened to read one (the host's seam says a page is never left to start one), and a fact that is not known is said as not known, never as a guess.
 //
-//   - FROM THE CONFIGURATION, which is there without connecting: the labels the backend gives every connection it discovers (`pkg/plugin/resource/connection_labels.go`): the cloud the credentials are for
-//     (`kubernetes.platform`: `eks`, `gke`, `aks`, `kind`, ..., set only when the kubeconfig says it for sure) and the region it names (`cloud.region`).
+//   - FROM THE CONFIGURATION, which is there without connecting: the labels the backend gives every connection it discovers (`pkg/plugin/resource/connection_labels.go`), which the host's list carries on each
+//     connection (`ConnectionV1.labels`): the cloud the credentials are for (`kubernetes.platform`: `eks`, `gke`, `aks`, `kind`, ..., set only when the kubeconfig says it for sure) and the region it names (`cloud.region`).
 //   - FROM THE CLUSTER: what the backend publishes about a connection through `useConnectionMetadata`, which reads and never connects (`pkg/plugin/resource/connection_metadata.go` lists the keys: the server's version,
 //     the distribution it is, the region of the cloud it is in). It is read for every connection, because the host keeps the last known value of each fact for a connection that is not connected: a fact is current
 //     while the connection is connected and last known after, and a last known value is drawn muted, as what it was and not as what it is, in place of a dash.
@@ -16,7 +14,7 @@ import { KEYS, distributionWords, platformWords, readFact, type Fact, type Metad
 // What the plugin does not have for a connection, and so does not say: how many Nodes it has (a count of the Nodes is a read of the cluster for each connection, not a fact the backend publishes), and which
 // environment it is (production, staging: nothing in the configuration or the cluster says it).
 
-/** The key under which the backend publishes the region of the cloud a cluster is in: the label's own. */
+/** The key of the region of the cloud a cluster is in, as a label and as a fact: the backend gives a fact that a label can state the label's own key (`connection_metadata.go`), and `KEYS` of the overview holds the other facts'. */
 const REGION_KEY = 'cloud.region';
 
 const text = (value: unknown): string | undefined => (typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined);
@@ -31,10 +29,9 @@ export type ConfigFacts = {
  * The platform and the region a connection's labels state; each is undefined when the labels do not state it. The backend sets `kubernetes.platform` only when the kubeconfig says where the cluster runs for sure (a
  * credential command of a cloud, a cloud's address or naming format, a local cluster's documented names): a sign-in command alone is not a place the cluster runs. The words are the Overview's.
  */
-export function configFacts(connection: Connection): ConfigFacts {
-  const labels = connection.labels as { readonly 'kubernetes.platform'?: unknown; readonly 'cloud.region'?: unknown } | undefined;
-  const platform = text(labels?.['kubernetes.platform']);
-  return { platform: platform === undefined ? undefined : platformWords(platform), region: text(labels?.['cloud.region']) };
+export function configFacts({ labels }: Pick<ConnectionV1, 'labels'>): ConfigFacts {
+  const platform = text(labels[KEYS.platform]);
+  return { platform: platform === undefined ? undefined : platformWords(platform), region: text(labels[REGION_KEY]) };
 }
 
 /**

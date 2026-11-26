@@ -1,5 +1,5 @@
 // Vendored from omniviewdev/omniview ui-next/shell/registration.ts (the commit in ui/vendor/HOST_COMMIT): types only. Do not edit; hack/vendor-host.sh writes it.
-import type { IconName, StatusRole } from '@omniviewdev/kit';
+import type { DataColor, IconName, StatusRole } from '@omniviewdev/kit';
 
 // What the tab on screen tells the shell about its plugin's frame: the seed of the contribution contract (decision R11, plan 2.4). Plain data. The shell
 // reads it and knows nothing of the plugin behind it; a plugin never reaches into the shell's DOM (ch16 S1). Every field is one line
@@ -16,6 +16,17 @@ export type ShellApproximateCount = { readonly value: number; readonly approxima
 /** What the number in an entry's count slot is: the number of entries there are, or about how many. */
 export type ShellCount = number | ShellApproximateCount;
 
+/**
+ * The state a row stands in, as a badge at the end of its row (KL5): the glyph the kit's `Status` draws for the role, and nothing beside it. What the glyph says is the label, which is the row's accessible text (it is read
+ * after the row's name and its count) and the glyph's tooltip, so a state is never colour alone (design 13 SR1). The row of a tree is one line and its name is the room: the word is not drawn.
+ */
+export type ShellRowStatus = {
+  /** The role of the kit's `Status` that draws the glyph. */
+  readonly role: StatusRole;
+  /** What the glyph stands for, in the plugin's own words ("Needs sign-in"). Never empty: a badge with no words is a glyph nobody can read. */
+  readonly label: string;
+};
+
 /** A node of the sidebar's tree: an entry, or a group when it has children. */
 export type ShellTreeNode = {
   readonly id: string;
@@ -27,6 +38,18 @@ export type ShellTreeNode = {
    * read it): the row has the slot and no number in it, and the slot is held at the width of a count, so that a number which arrives moves no label. A value that is not a count (negative, a fraction, `NaN`) draws an empty slot, as `null` does.
    */
   readonly count?: ShellCount | null | undefined;
+  /** A badge at the end of the row, after the count: the state the entry is in (KL5; `ShellRowStatus`). At most one. Absent: none. */
+  readonly status?: ShellRowStatus | undefined;
+  /**
+   * The colour of the row's glyph (KL5): a hue of the kit's data palette, which is what the kit's avatars and swatches are painted from, so a row can say what it is (one connection from another) by a colour that follows the theme.
+   * The hue never carries a meaning alone: the label beside it does. Absent: the glyph takes the tree's accent, else the icon colour of the theme.
+   */
+  readonly tone?: DataColor | undefined;
+  /**
+   * A group that starts open (KL7): the tree opens it once, the first time it has the group on screen (when it mounts, when the group arrives with a later answer of the plugin, or when it comes into view inside a group that was closed), and from then on what the person did with it is theirs: a group
+   * they closed is not opened again by a later answer, nor by the tree coming back (the window's memory of its trees). Initial state only; a leaf has no use for it. Absent: the group starts closed, unless it is one of `ShellSidebar.open` or holds the current entry.
+   */
+  readonly expanded?: boolean | undefined;
   readonly children?: readonly ShellTreeNode[];
 };
 

@@ -10,7 +10,8 @@ import { useSidebarNodes } from './sidebar/useSidebarNodes';
 
 // The bundle's one export: what this plugin contributes to the new shell (contribution contract, version 1). The host loads `assets/entry.js`, reads this
 // value and builds the frame from it; the plugin never imports the shell. The plugin is opened at its LANDING (`landing/`): the plugin's home page, and the page of all its connections one link from it, which the
-// plugin draws itself from the kit and which are read in no connection. The window opens a connection on its Overview (`home`: the cluster overview, `overview/`), which is also the first entry of the sidebar. The
+// plugin draws itself from the kit and which are read in no connection. Its sidebar there is the navigator its `useNodes` answers (`landing/navigator.ts`: the home, the state filters of the connections' page and the
+// connections), headed `Connections` (`pluginScope`: the one tree of the resources of a connection is headed `Resources`). The window opens a connection on its Overview (`home`: the cluster overview, `overview/`), which is also the first entry of the sidebar. The
 // sidebar is a static skeleton that draws before any data is read: the Overview, the mock's top level (Nodes, Namespaces) and its groups (Workloads, Config, Network, Storage, Access control), and in them the kinds
 // the plugin lists (`kinds/index.ts`), each with the slot of its count held (`count: null`, which a host that predates the slot refuses by name at admission, so the bundle is never drawn wrong there). `useNodes`
 // fills the counts in (`sidebar/`) once it knows the connection, for the kinds that are on screen only. Each kind's page carries its own definition and its one data hook, and so does the page of one Pod, which has
@@ -22,6 +23,7 @@ export const contributionV1 = {
   sidebar: {
     label: 'Kubernetes resources',
     title: 'Resources',
+    pluginScope: { title: 'Connections', label: 'Kubernetes connections' },
     nodes: sidebarNodes(),
     useNodes: useSidebarNodes,
   },

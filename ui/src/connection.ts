@@ -31,15 +31,25 @@ function text(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+/**
+ * What a name is made from: the plugin's own connection (`useConnections`) and the host's (`ConnectionV1`, the landing's, which has no `data`) both have a name, a description and labels, and that is all the name reads.
+ * Whichever list a page reads, it says the same name for the same connection.
+ */
+export type Nameable = {
+  readonly name?: string | undefined;
+  readonly description?: string | undefined;
+  readonly labels?: Readonly<Record<string, unknown>> | undefined;
+  readonly data?: Readonly<Record<string, unknown>> | undefined;
+};
+
 /** The name a person reads for one connection, alone: its name; when that is blank, the context it was made from; when there is none either, a fixed word. Never the id. */
-function ownName(connection: Connection): string {
-  const context = (connection.data as { readonly context?: unknown } | undefined)?.context;
-  return text(connection.name) || text(context) || UNNAMED;
+function ownName(connection: Nameable): string {
+  return text(connection.name) || text(connection.data?.context) || UNNAMED;
 }
 
 /** The segments of the path of the kubeconfig a connection came from (split on `/` and `\`, empty ones dropped); none when the connection carries no usable one. */
-function kubeconfigSegments(connection: Connection): readonly string[] {
-  const path = (connection.labels as { readonly 'kubeconfig.path'?: unknown } | undefined)?.['kubeconfig.path'];
+function kubeconfigSegments(connection: Nameable): readonly string[] {
+  const path = connection.labels?.['kubeconfig.path'];
   return typeof path === 'string' ? path.split(/[\\/]/).filter((segment) => segment !== '') : [];
 }
 
@@ -54,7 +64,7 @@ function kubeconfigSegments(connection: Connection): readonly string[] {
  * `~/work/other` read `config` and `other`, and `~/.kube/config` and `~/work/config` read `.kube/config` and `work/config`. A connection with no usable label keeps the bare name.
  * The answer depends only on the connection and the list, never on their order.
  */
-export function connectionName(connection: Connection, list: readonly Connection[]): string {
+export function connectionName(connection: Nameable, list: readonly Nameable[]): string {
   const name = ownName(connection);
   const same = list.filter((other) => ownName(other) === name);
   if (same.length < 2) {

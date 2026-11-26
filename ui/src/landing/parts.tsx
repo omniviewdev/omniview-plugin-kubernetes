@@ -1,11 +1,10 @@
-import { Avatar, Button, IconButton, MissingValue, Stack, Status, menuTrigger } from '@omniviewdev/kit';
+import { Avatar, Button, IconButton, MissingValue, Notice, Stack, Status, menuTrigger } from '@omniviewdev/kit';
 import { useConnectionMetadata } from '@omniviewdev/runtime/ui/v1';
 
-import type { ConnectionsHostV1 } from '../contract/v1';
-
 import { platformOf, regionOf, versionOf } from './facts';
+import type { Answer } from './hooks';
 import styles from './landing.module.css';
-import { lineOf, primaryOf, type ConnectionRow } from './model';
+import { allowedOf, lineOf, primaryOf, standingOf, type ConnectionRow } from './model';
 
 // What a connection is drawn from, in the table of the home page and of the page of all of them, and in a card: the identity, the state, the facts and the buttons. The kit's parts do the rest.
 
@@ -29,32 +28,55 @@ export function ConnectionIdentity({ row, onOpen }: { readonly row: ConnectionRo
   );
 }
 
-/** The state of a connection in the host's word, with the role that draws its glyph; for a start that failed the line that says why is the tip. */
+/** Where a connection stands in the host's word, with the role that draws its glyph, or what the host is doing to it (`Checking…`); for a start that failed the line that says why is the tip. */
 export function ConnectionStatus({ row }: { readonly row: ConnectionRow }) {
+  const { word, role } = standingOf(row);
   return (
-    <Status role={row.role} data-ov-tip={row.reason}>
-      {row.word}
+    <Status role={role} data-ov-tip={row.busy === undefined ? row.reason : undefined}>
+      {word}
     </Status>
   );
 }
 
-/** The buttons of a connection: the action it is offered first (`primaryOf`), and the menu of the rest, which the page's one menu opens for this row's key. */
-export function RowActions({ row, connections, menu }: { readonly row: ConnectionRow; readonly connections: ConnectionsHostV1; readonly menu: string }) {
-  const primary = primaryOf(row.state);
+/**
+ * The buttons of a connection: the action it is offered first (`primaryOf`), and the menu of the rest, which the page's one menu opens for this row's key. While the host is doing something to the connection the first
+ * button is busy and does nothing, since the host would refuse what it asks.
+ */
+export function RowActions({ row, open, menu }: { readonly row: ConnectionRow; readonly open: (row: ConnectionRow) => void; readonly menu: string }) {
+  const primary = primaryOf(row);
   return (
     <Stack direction="row" gap={4} align="center" justify="end">
       <Button
         size="row"
         variant={primary.prominent ? 'primary' : 'secondary'}
         busy={primary.busy}
+        disabledReason={allowedOf(row).open}
         onClick={() => {
-          void connections.open(row.key);
+          open(row);
         }}
       >
         {primary.label}
       </Button>
       <IconButton icon="ellipsis" label={`More actions for ${row.name}`} variant="ghost" size="row" {...menuTrigger(menu, row.key)} />
     </Stack>
+  );
+}
+
+/** What the host answered to a verb, in a notice of the page: its own line (it made it safe to show), and a way to put it away. */
+export function AnswerNotice({ answer, onDismiss }: { readonly answer: Answer; readonly onDismiss: () => void }) {
+  return (
+    <Notice
+      tone={answer.tone}
+      title={answer.title}
+      live={answer.tone === 'error' ? 'alert' : 'status'}
+      actions={
+        <Button size="compact" onClick={onDismiss}>
+          Dismiss
+        </Button>
+      }
+    >
+      {answer.text}
+    </Notice>
   );
 }
 

@@ -7,6 +7,7 @@ import { CONFIG, KINDS, SIDEBAR_GROUPS, WORKLOADS, sidebarNodes } from '../kinds
 import { listPage } from '../kinds/list';
 import { podDefinition } from '../kinds/pods/definition';
 import { hostRecord } from '../kinds/testing';
+import { connectionOf, hostOf, viewOf } from '../landing/testing';
 
 import { openKey, publishOpenCount, resetOpenCounts } from './openCounts';
 import { fake, hooks, isCount, type FakeRead } from './testing';
@@ -24,8 +25,13 @@ const GROUPS = SIDEBAR_GROUPS.map((group) => group.id);
 const PODS = WORKLOADS[0];
 const SECRETS = CONFIG[1];
 
-/** What the host tells the hook: the plugin it is installed under, the route of the page on screen, and the groups of the tree that are open. */
-const context = (open: readonly string[] = [], connection: string | undefined = 'kind-a', plugin = 'kubernetes'): SidebarContextV1 => ({ plugin, route: { page: 'pods', connection, params: {} }, open });
+/** What the host tells the hook: the plugin it is installed under, the route of the page on screen, the groups of the tree that are open and the plugin's connections. */
+const context = (open: readonly string[] = [], connection: string | undefined = 'kind-a', plugin = 'kubernetes', page = 'pods', params: Readonly<Record<string, string>> = {}, connections = hostOf(viewOf()).connections): SidebarContextV1 => ({
+  plugin,
+  route: { page, connection, params },
+  open,
+  connections,
+});
 const mount = (initial: SidebarContextV1 = context()) => renderHook((props: SidebarContextV1) => useSidebarNodes(props), { initialProps: initial });
 
 const leaves = (nodes: readonly SidebarNodeV1[]): readonly SidebarNodeV1[] => nodes.flatMap((node) => (node.children === undefined ? [node] : leaves(node.children)));
@@ -277,5 +283,50 @@ describe('the sidebar and the list of a kind, together', () => {
     fake.drain();
     expect(fake.counts().filter((read) => read.type === PODS?.type)).toHaveLength(1);
     expect(countOf(result.current, 'pods')).toBeNull();
+  });
+});
+
+describe('useSidebarNodes: on a page of the landing', () => {
+  const MIX = [
+    connectionOf('alpha', 'connected'),
+    connectionOf('beta', 'unauthorized', { reason: 'The connection needs you to sign in.' }),
+    connectionOf('gamma', 'disconnected'),
+  ];
+
+  it('answers the navigator and not the skeleton, reads no connection, follows what the host says of the connections, starts its group of the connections open, and carries the facets of the page on screen (its route\'s parameters) to the entries of the states, so that the entry that is the page on screen has the page\'s very parameters', () => {
+    const host = hostOf(viewOf(...MIX));
+    const { result, rerender } = mount(context([], undefined, 'kubernetes', 'connections', {}, host.connections));
+
+    // Which connection is read for is none: nothing is counted, though the plugin has a first connection that a page of a connection would read.
+    expect(fake.reads).toEqual([]);
+    expect(hooks.useConnectionReadiness).not.toHaveBeenCalledWith(expect.objectContaining({ enabled: true }));
+
+    const nodes = result.current ?? [];
+    expect(nodes.map((node) => [node.id, node.label, node.count])).toEqual([
+      ['landing', 'Kubernetes', undefined],
+      ['connections-all', 'All connections', 3],
+      ['connections-connected', 'Connected', 1],
+      ['connections-attention', 'Needs attention', 1],
+      ['connection-list', 'Connections', 3],
+    ]);
+    // A leaf that opens the page with a parameter is the page and its parameters; the host's word for a connection that needs a look is its badge; the group of the connections says that it starts open.
+    expect(nodes.slice(1, 4).map((node) => [node.page, node.params])).toEqual([['connections', {}], ['connections', { state: 'connected' }], ['connections', { state: 'attention' }]]);
+    expect(nodes[4]).toMatchObject({ expanded: true });
+    const alpha = nodes[4]?.children?.[0];
+    const beta = nodes[4]?.children?.[1];
+    expect(alpha).toMatchObject({ label: 'alpha', connection: 'alpha' });
+    expect(alpha).not.toHaveProperty('status');
+    expect(beta?.status).toEqual({ role: 'attention', label: 'Needs sign-in' });
+
+    // A state that changes is a new answer; one the page of a connection would not see.
+    act(() => {
+      host.set(viewOf(...MIX.map((connection) => (connection.key === 'gamma' ? connectionOf('gamma', 'connected') : connection))));
+    });
+    expect(result.current?.[2]?.count).toBe(2);
+
+    // The page on screen has a state and two platforms chosen: every entry of a state opens the page with those platforms kept, and the one for its state has the route's very parameters.
+    const chosen = { state: 'attention', platform: 'EKS,kind' };
+    rerender(context([], undefined, 'kubernetes', 'connections', chosen, host.connections));
+    expect(result.current?.slice(1, 4).map((node) => node.params)).toEqual([{ platform: 'EKS,kind' }, { state: 'connected', platform: 'EKS,kind' }, chosen]);
   });
 });

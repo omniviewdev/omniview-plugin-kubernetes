@@ -218,9 +218,10 @@ describe('the contribution', () => {
     ]);
   });
 
-  it('has a static skeleton that draws before any data is read, and the hook that fills its counts in once a connection is known', () => {
+  it('has a static skeleton that draws before any data is read, and the hook that fills its counts in once a connection is known; on the pages read in no connection the sidebar has the words of its own (the navigator is another list than the resources of a connection)', () => {
     expect(contributionV1.sidebar.label).toBe('Kubernetes resources');
     expect(contributionV1.sidebar.title).toBe('Resources');
+    expect(contributionV1.sidebar.pluginScope).toEqual({ title: 'Connections', label: 'Kubernetes connections' });
     expect(contributionV1.sidebar.useNodes).toBe(useSidebarNodes);
   });
 
