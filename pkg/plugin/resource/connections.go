@@ -93,6 +93,7 @@ func connectionsFromKubeconfig(kubeconfigPath string) ([]types.Connection, strin
 			"user":       context.AuthInfo,
 		}
 		enrichConnectionLabels(labels, config, context)
+		enrichClusterLabels(labels, config, contextName, context)
 
 		connections = append(connections, types.Connection{
 			ID:          connid.ID(connid.KindFile, locator, contextName),
@@ -121,7 +122,9 @@ func enrichConnectionLabels(
 	context *clientcmdapi.Context,
 ) {
 	if cluster := config.Clusters[context.Cluster]; cluster != nil {
-		labels["server"] = cluster.Server
+		if server, host := serverLabels(cluster.Server); server != "" {
+			labels["server"], labels["host"] = server, host
+		}
 	}
 
 	authInfo := config.AuthInfos[context.AuthInfo]
