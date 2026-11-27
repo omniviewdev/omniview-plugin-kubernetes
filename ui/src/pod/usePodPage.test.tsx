@@ -16,7 +16,7 @@ import { podPage, podPageDefinition } from './index';
 // Pod it reads and in which connection, the lane it declares, the state of the page and the view it keeps beside a failure, the one connection it starts, and the Logs command it gives the header.
 vi.mock('@omniviewdev/runtime/ui/v1', async (importActual) => {
   const actual = await importActual<typeof runtime>();
-  return { ...actual, useConnections: vi.fn(), openLogStream: vi.fn() };
+  return { ...actual, useConnections: vi.fn(), openLogStream: vi.fn(), extensionRootOf: vi.fn() };
 });
 vi.mock('./data/usePod', () => ({ usePod: vi.fn() }));
 
@@ -28,7 +28,15 @@ const retry = vi.fn(async () => undefined);
 const refresh = vi.fn(async () => undefined);
 
 const NOW = Date.UTC(2026, 10, 17, 12, 0, 0);
-const object = { metadata: { name: 'cart-api', namespace: 'checkout', creationTimestamp: new Date(NOW - 8 * 60_000).toISOString() }, spec: { nodeName: 'node-1', containers: [{ name: 'app', image: 'busybox:1' }] }, status: { phase: 'Running' } };
+const object = {
+  metadata: {
+    name: 'cart-api',
+    namespace: 'checkout',
+    creationTimestamp: new Date(NOW - 8 * 60_000).toISOString(),
+  },
+  spec: { nodeName: 'node-1', containers: [{ name: 'app', image: 'busybox:1' }] },
+  status: { phase: 'Running' },
+};
 /** The id the plugin derives for a connection: the context's name and ten hex digits, so no id is a name. */
 function idOf(name: string): string {
   return `${name}-54c660ecd1`;
@@ -38,23 +46,53 @@ const RECORD = { ...hostRecord(object), route: { connection: idOf('kind-a') } };
 const POD = podDetail(RECORD);
 
 function view(over: Partial<read.PodView> = {}): read.PodView {
-  return { state: { kind: 'loaded' }, failure: undefined, pod: POD, record: RECORD, deleted: false, live: true, refreshing: false, connect, retry, refresh, ...over };
+  return {
+    state: { kind: 'loaded' },
+    failure: undefined,
+    pod: POD,
+    record: RECORD,
+    currentRecord: RECORD,
+    deleted: false,
+    live: true,
+    refreshing: false,
+    connect,
+    retry,
+    refresh,
+    ...over,
+  };
 }
 
 /** The plugin knows these connections: each has a derived id, the context name for its name, and the kubeconfig it came from. */
 const know = (...names: readonly string[]) => {
-  const data = names.map((name) => ({ id: idOf(name), name, labels: { 'kubeconfig.path': '~/.kube/config' }, data: { context: name } }));
+  const data = names.map((name) => ({
+    id: idOf(name),
+    name,
+    labels: { 'kubeconfig.path': '~/.kube/config' },
+    data: { context: name },
+  }));
   connections.mockReturnValue({ connections: { data, isPending: false } } as never);
 };
 
 /** What the host tells the page: the plugin it is installed under, the route (the connection the hash names, and the Pod's identity) and, on a host that has it, the panel handle. */
-const context = (over: { readonly connection?: string; readonly params?: Record<string, string>; readonly plugin?: string; readonly panel?: PanelHostV1 } = {}): ContextV1 => ({
+const context = (
+  over: {
+    readonly connection?: string;
+    readonly params?: Record<string, string>;
+    readonly plugin?: string;
+    readonly panel?: PanelHostV1;
+  } = {},
+): ContextV1 => ({
   plugin: over.plugin ?? 'kubernetes',
-  route: { page: 'pod', connection: over.connection, params: over.params ?? { namespace: 'checkout', name: 'cart-api' } },
+  route: {
+    page: 'pod',
+    connection: over.connection,
+    params: over.params ?? { namespace: 'checkout', name: 'cart-api' },
+  },
   ...(over.panel === undefined ? {} : { panel: over.panel }),
 });
 
-const mount = (over: Parameters<typeof context>[0] = {}) => renderHook((props: ContextV1) => usePodPage(props), { initialProps: context(over) });
+const mount = (over: Parameters<typeof context>[0] = {}) =>
+  renderHook((props: ContextV1) => usePodPage(props), { initialProps: context(over) });
 
 beforeEach(() => {
   vi.useFakeTimers({ now: NOW });
@@ -71,17 +109,29 @@ afterEach(() => {
 describe('usePodPage: which Pod it reads, and where', () => {
   it('reads the Pod the route names, in the connection the route names when the plugin knows it', () => {
     know('kind-a', 'kind-b');
-    mount({ connection: idOf('kind-b'), params: { namespace: 'monitoring', name: 'alertmanager' } });
-    expect(usePod).toHaveBeenCalledWith({ pluginID: 'kubernetes', connectionID: idOf('kind-b'), namespace: 'monitoring', name: 'alertmanager' });
+    mount({
+      connection: idOf('kind-b'),
+      params: { namespace: 'monitoring', name: 'alertmanager' },
+    });
+    expect(usePod).toHaveBeenCalledWith({
+      pluginID: 'kubernetes',
+      connectionID: idOf('kind-b'),
+      namespace: 'monitoring',
+      name: 'alertmanager',
+    });
   });
 
-  it('reads the plugin\'s first connection when the route names none, or one the plugin does not know: the plugin owns what an absent connection means', () => {
+  it("reads the plugin's first connection when the route names none, or one the plugin does not know: the plugin owns what an absent connection means", () => {
     know('kind-a', 'kind-b');
     mount();
-    expect(usePod).toHaveBeenLastCalledWith(expect.objectContaining({ connectionID: idOf('kind-a') }));
+    expect(usePod).toHaveBeenLastCalledWith(
+      expect.objectContaining({ connectionID: idOf('kind-a') }),
+    );
     cleanup();
     mount({ connection: 'kind-gone' });
-    expect(usePod).toHaveBeenLastCalledWith(expect.objectContaining({ connectionID: idOf('kind-a') }));
+    expect(usePod).toHaveBeenLastCalledWith(
+      expect.objectContaining({ connectionID: idOf('kind-a') }),
+    );
   });
 
   it('reads the plugin it is installed under: the id the host tells it', () => {
@@ -108,28 +158,47 @@ describe('usePodPage: which Pod it reads, and where', () => {
 });
 
 describe('usePodPage: the scope lane is there from the first render', () => {
-  const lane = (scope: DetailPageViewV1['scope']) => scope?.map((face) => `${face.label}: ${face.text}`);
+  const lane = (scope: DetailPageViewV1['scope']) =>
+    scope?.map((face) => `${face.label}: ${face.text}`);
 
   it('has the connection and the namespace of the Pod', () => {
-    expect(lane(mount({ connection: idOf('kind-a') }).result.current.scope)).toEqual(['Connection: kind-a', 'Namespaces: checkout']);
+    expect(lane(mount({ connection: idOf('kind-a') }).result.current.scope)).toEqual([
+      'Connection: kind-a',
+      'Namespaces: checkout',
+    ]);
   });
 
   it('has the connection the page reads when the route names none, and a word for it while the connections are on their way, and when there are none', () => {
     know('kind-a', 'kind-b');
-    expect(lane(mount().result.current.scope)).toEqual(['Connection: kind-a', 'Namespaces: checkout']);
+    expect(lane(mount().result.current.scope)).toEqual([
+      'Connection: kind-a',
+      'Namespaces: checkout',
+    ]);
     cleanup();
     connections.mockReturnValue({ connections: { data: undefined, isPending: true } } as never);
-    expect(lane(mount().result.current.scope)).toEqual(['Connection: Loading…', 'Namespaces: checkout']);
+    expect(lane(mount().result.current.scope)).toEqual([
+      'Connection: Loading…',
+      'Namespaces: checkout',
+    ]);
     cleanup();
     connections.mockReturnValue({ connections: { data: [], isPending: false } } as never);
-    expect(lane(mount().result.current.scope)).toEqual(['Connection: None', 'Namespaces: checkout']);
+    expect(lane(mount().result.current.scope)).toEqual([
+      'Connection: None',
+      'Namespaces: checkout',
+    ]);
   });
 
   it('names the connection by its name and never by its id, for a route that holds an id, a stale one, or one the connections have not answered for yet', () => {
     know('kind-a', 'kind-b');
-    expect(lane(mount({ connection: idOf('kind-b') }).result.current.scope)).toEqual(['Connection: kind-b', 'Namespaces: checkout']);
+    expect(lane(mount({ connection: idOf('kind-b') }).result.current.scope)).toEqual([
+      'Connection: kind-b',
+      'Namespaces: checkout',
+    ]);
     cleanup();
-    expect(lane(mount({ connection: 'kind-b' }).result.current.scope)).toEqual(['Connection: kind-a', 'Namespaces: checkout']);
+    expect(lane(mount({ connection: 'kind-b' }).result.current.scope)).toEqual([
+      'Connection: kind-a',
+      'Namespaces: checkout',
+    ]);
     cleanup();
     connections.mockReturnValue({ connections: { data: undefined, isPending: true } } as never);
     const { result } = mount({ connection: idOf('kind-b') });
@@ -138,17 +207,35 @@ describe('usePodPage: the scope lane is there from the first render', () => {
   });
 
   it('has the same two faces whatever state the page is in: a page never gains or loses its lane', () => {
-    for (const state of [{ kind: 'loading' }, { kind: 'loaded' }, { kind: 'empty' }, { kind: 'failed' }, { kind: 'denied' }] as const) {
+    for (const state of [
+      { kind: 'loading' },
+      { kind: 'loaded' },
+      { kind: 'empty' },
+      { kind: 'failed' },
+      { kind: 'denied' },
+    ] as const) {
       usePod.mockReturnValue(view({ state, pod: state.kind === 'loaded' ? POD : undefined }));
-      expect(mount().result.current.scope?.map((face) => face.label), state.kind).toEqual(['Connection', 'Namespaces']);
+      expect(
+        mount().result.current.scope?.map((face) => face.label),
+        state.kind,
+      ).toEqual(['Connection', 'Namespaces']);
       cleanup();
     }
   });
 
   it('marks the Connection face as the connection (role) in every state, and no other face', () => {
-    for (const state of [{ kind: 'loading' }, { kind: 'loaded' }, { kind: 'empty' }, { kind: 'failed' }, { kind: 'denied' }] as const) {
+    for (const state of [
+      { kind: 'loading' },
+      { kind: 'loaded' },
+      { kind: 'empty' },
+      { kind: 'failed' },
+      { kind: 'denied' },
+    ] as const) {
       usePod.mockReturnValue(view({ state, pod: state.kind === 'loaded' ? POD : undefined }));
-      expect(mount().result.current.scope?.map((face) => face.role), state.kind).toEqual(['connection', undefined]);
+      expect(
+        mount().result.current.scope?.map((face) => face.role),
+        state.kind,
+      ).toEqual(['connection', undefined]);
       cleanup();
     }
   });
@@ -185,20 +272,34 @@ describe('usePodPage: the state of the page', () => {
 
   it('says the Pod is not found, with its namespace, when the namespace was read whole, it is not in it and the page never had it, and gives no title: the page\'s own, "<name> was not found", is the true one', () => {
     const source = stateOf({ state: { kind: 'empty' }, pod: undefined });
-    expect(source.state).toEqual({ kind: 'not-found', message: 'Pod cart-api doesn\'t exist in namespace checkout. It may have been deleted.' });
+    expect(source.state).toEqual({
+      kind: 'not-found',
+      message: "Pod cart-api doesn't exist in namespace checkout. It may have been deleted.",
+    });
     expect(source.state).not.toHaveProperty('title');
     expect(source.view).toBeUndefined();
   });
 
   it('says the Pod was deleted when the page had it and its source has since said it is gone: the title says "<name> was deleted" and the message where it no longer exists, as the mock does, and nothing that says the opposite', () => {
     const { state } = stateOf({ state: { kind: 'empty' }, pod: undefined, deleted: true });
-    expect(state).toEqual({ kind: 'not-found', title: 'cart-api was deleted', message: 'It no longer exists in namespace checkout.' });
+    expect(state).toEqual({
+      kind: 'not-found',
+      title: 'cart-api was deleted',
+      message: 'It no longer exists in namespace checkout.',
+    });
     expect(JSON.stringify(state)).not.toContain('not found');
   });
 
-  it('says access is denied in its own words: the runtime\'s text for a denial is the host\'s fixed sentence, which says nothing', () => {
-    for (const message of ['The operation could not be completed.', 'pods is forbidden', undefined]) {
-      expect(stateOf({ state: { kind: 'denied', message }, pod: undefined }).state).toEqual({ kind: 'denied', message: 'You do not have access to read this Pod.' });
+  it("says access is denied in its own words: the runtime's text for a denial is the host's fixed sentence, which says nothing", () => {
+    for (const message of [
+      'The operation could not be completed.',
+      'pods is forbidden',
+      undefined,
+    ]) {
+      expect(stateOf({ state: { kind: 'denied', message }, pod: undefined }).state).toEqual({
+        kind: 'denied',
+        message: 'You do not have access to read this Pod.',
+      });
     }
   });
 
@@ -217,24 +318,49 @@ describe('usePodPage: the state of the page', () => {
     }
 
     expect(retry).toHaveBeenCalledTimes(3);
-    expect(stateOf({ state: { kind: 'unsupported' }, pod: undefined }).state).toEqual({ kind: 'failed', message: 'This cluster does not serve Pods.' });
-    expect(stateOf({ state: { kind: 'not-found' }, pod: undefined }).state).toEqual({ kind: 'failed', message: 'This connection no longer exists.' });
+    expect(stateOf({ state: { kind: 'unsupported' }, pod: undefined }).state).toEqual({
+      kind: 'failed',
+      message: 'This cluster does not serve Pods.',
+    });
+    expect(stateOf({ state: { kind: 'not-found' }, pod: undefined }).state).toEqual({
+      kind: 'failed',
+      message: 'This connection no longer exists.',
+    });
   });
 
-  it('does not show the runtime\'s text for a cause the data layer classified: it is fixed and generic, or the raw detail of a connection', () => {
-    expect(stateOf({ state: { kind: 'unreachable', message: 'resource operation failed' }, pod: undefined }).state).toMatchObject({ kind: 'failed', message: 'The cluster did not answer.' });
-    expect(stateOf({ state: { kind: 'needs-sign-in', message: 'dial tcp 10.0.0.1:443: i/o timeout' }, pod: undefined }).state).toMatchObject({ kind: 'failed', message: 'The connection needs you to sign in.' });
+  it("does not show the runtime's text for a cause the data layer classified: it is fixed and generic, or the raw detail of a connection", () => {
+    expect(
+      stateOf({
+        state: { kind: 'unreachable', message: 'resource operation failed' },
+        pod: undefined,
+      }).state,
+    ).toMatchObject({ kind: 'failed', message: 'The cluster did not answer.' });
+    expect(
+      stateOf({
+        state: { kind: 'needs-sign-in', message: 'dial tcp 10.0.0.1:443: i/o timeout' },
+        pod: undefined,
+      }).state,
+    ).toMatchObject({ kind: 'failed', message: 'The connection needs you to sign in.' });
   });
 
-  it('says a failure the data layer could not classify in the runtime\'s words when it sent some', () => {
-    expect(stateOf({ state: { kind: 'failed', message: 'the source stream broke' }, pod: undefined }).state).toMatchObject({ kind: 'failed', message: 'the source stream broke' });
+  it("says a failure the data layer could not classify in the runtime's words when it sent some", () => {
+    expect(
+      stateOf({ state: { kind: 'failed', message: 'the source stream broke' }, pod: undefined })
+        .state,
+    ).toMatchObject({ kind: 'failed', message: 'the source stream broke' });
   });
 
   it('keeps the view of the Pod beside a failure that came after it, and says the cause', () => {
-    const source = stateOf({ state: { kind: 'loaded' }, failure: { kind: 'unreachable', message: 'the cluster stopped answering' } });
+    const source = stateOf({
+      state: { kind: 'loaded' },
+      failure: { kind: 'unreachable', message: 'the cluster stopped answering' },
+    });
     expect(source.state).toMatchObject({ kind: 'failed', message: 'The cluster did not answer.' });
     expect(source.view).toBeDefined();
-    const unclassified = stateOf({ state: { kind: 'loaded' }, failure: { kind: 'failed', message: 'the watch broke' } });
+    const unclassified = stateOf({
+      state: { kind: 'loaded' },
+      failure: { kind: 'failed', message: 'the watch broke' },
+    });
     expect(unclassified.state).toMatchObject({ kind: 'failed', message: 'the watch broke' });
   });
 
@@ -242,7 +368,7 @@ describe('usePodPage: the state of the page', () => {
     expect(stateOf({ state: { kind: 'failed' }, pod: undefined }).view).toBeUndefined();
   });
 
-  it('hands over the read\'s refresh and whether one is running', () => {
+  it("hands over the read's refresh and whether one is running", () => {
     const source = stateOf({ refreshing: true });
     expect(source.refreshing).toBe(true);
     void source.refresh();
@@ -254,24 +380,45 @@ describe('usePodPage: the state of the page', () => {
     expect(result.current.source.state).toEqual({ kind: 'ready' });
     usePod.mockReturnValue(view({ state: { kind: 'empty' }, pod: undefined, deleted: true }));
     rerender(context());
-    expect(result.current.source.state).toMatchObject({ kind: 'not-found', title: 'cart-api was deleted' });
+    expect(result.current.source.state).toMatchObject({
+      kind: 'not-found',
+      title: 'cart-api was deleted',
+    });
     expect(result.current.scope?.map((face) => face.text)).toEqual(['kind-a', 'checkout']);
   });
 });
 
-describe('detailState: the Pods data layer\'s words for the connection and the read, in the detail page\'s', () => {
+describe("detailState: the Pods data layer's words for the connection and the read, in the detail page's", () => {
   it('has a state for every state of the read: none is left to fall through', () => {
-    const kinds = ['connecting', 'disconnected', 'needs-sign-in', 'denied', 'unreachable', 'not-found', 'failed', 'unsupported', 'loading', 'empty', 'loaded'] as const;
+    const kinds = [
+      'connecting',
+      'disconnected',
+      'needs-sign-in',
+      'denied',
+      'unreachable',
+      'not-found',
+      'failed',
+      'unsupported',
+      'loading',
+      'empty',
+      'loaded',
+    ] as const;
     for (const kind of kinds) {
-      expect(detailState(view({ state: { kind } }), 'checkout', 'cart-api').kind, kind).toMatch(/^(loading|ready|not-found|denied|failed)$/);
+      expect(detailState(view({ state: { kind } }), 'checkout', 'cart-api').kind, kind).toMatch(
+        /^(loading|ready|not-found|denied|failed)$/,
+      );
     }
   });
 });
 
-describe('usePodPage: the age of the Pod in the header, kept by the page\'s one clock', () => {
+describe("usePodPage: the age of the Pod in the header, kept by the page's one clock", () => {
   it('says how long ago the Pod was created, in one unit', () => {
     const { result } = mount();
-    expect(result.current.source.view?.facts).toEqual([{ text: 'checkout' }, { text: 'node-1' }, { text: '8m' }]);
+    expect(result.current.source.view?.facts).toEqual([
+      { text: 'checkout' },
+      { text: 'node-1' },
+      { text: '8m' },
+    ]);
   });
 });
 
@@ -285,7 +432,11 @@ describe('usePodPage: the connection it starts (a development shortcut: a read n
   });
 
   it('starts nothing for a connection that is up, connecting, or failed', () => {
-    for (const state of [{ kind: 'loaded' }, { kind: 'connecting' }, { kind: 'unreachable' }] as const) {
+    for (const state of [
+      { kind: 'loaded' },
+      { kind: 'connecting' },
+      { kind: 'unreachable' },
+    ] as const) {
       usePod.mockReturnValue(view({ state }));
       mount();
       cleanup();
@@ -296,7 +447,15 @@ describe('usePodPage: the connection it starts (a development shortcut: a read n
 });
 
 describe('usePodPage: the Logs command of the header (P1b-3b)', () => {
-  const started = { ...object, status: { phase: 'Running', containerStatuses: [{ name: 'app', state: { running: { startedAt: new Date(NOW - 60_000).toISOString() } } }] } };
+  const started = {
+    ...object,
+    status: {
+      phase: 'Running',
+      containerStatuses: [
+        { name: 'app', state: { running: { startedAt: new Date(NOW - 60_000).toISOString() } } },
+      ],
+    },
+  };
   const startedRecord = { ...hostRecord(started), route: { connection: idOf('kind-a') } };
   const stream = { id: 'stream-1' } as unknown as runtime.LogStream;
 
@@ -313,7 +472,7 @@ describe('usePodPage: the Logs command of the header (P1b-3b)', () => {
     openLogStream.mockReturnValue(stream);
   });
 
-  it('opens a session in the Logs tool through the host\'s panel handle for the Pod the page shows, named by the connection the page reads and keyed by its id', () => {
+  it("opens a session in the Logs tool through the host's panel handle for the Pod the page shows, named by the connection the page reads and keyed by its id", () => {
     const { open, command } = pressed();
     expect(command).toMatchObject({ id: 'logs', label: 'Logs' });
     expect(command?.disabledReason).toBeUndefined();
@@ -324,7 +483,16 @@ describe('usePodPage: the Logs command of the header (P1b-3b)', () => {
         id: podLogTargetId(idOf('kind-a'), 'checkout', 'cart-api'),
         title: 'cart-api',
         scope: 'kind-a',
-        resource: { label: 'Pod cart-api', kind: 'Pod', icon: 'box', route: { page: 'pod', connection: undefined, params: { namespace: 'checkout', name: 'cart-api' } } },
+        resource: {
+          label: 'Pod cart-api',
+          kind: 'Pod',
+          icon: 'box',
+          route: {
+            page: 'pod',
+            connection: undefined,
+            params: { namespace: 'checkout', name: 'cart-api' },
+          },
+        },
       }),
     );
     const handed = open.mock.calls[0]?.[0];
@@ -350,8 +518,18 @@ describe('usePodPage: the Logs command of the header (P1b-3b)', () => {
     expect(open.mock.calls[0]?.[0].id).toBe(podLogTargetId(idOf('kind-b'), 'checkout', 'cart-api'));
 
     const twin = [
-      { id: 'prod-aaaaaaaaaa', name: 'prod', labels: { 'kubeconfig.path': '~/.kube/config' }, data: { context: 'prod' } },
-      { id: 'prod-bbbbbbbbbb', name: 'prod', labels: { 'kubeconfig.path': '~/work/other' }, data: { context: 'prod' } },
+      {
+        id: 'prod-aaaaaaaaaa',
+        name: 'prod',
+        labels: { 'kubeconfig.path': '~/.kube/config' },
+        data: { context: 'prod' },
+      },
+      {
+        id: 'prod-bbbbbbbbbb',
+        name: 'prod',
+        labels: { 'kubeconfig.path': '~/work/other' },
+        data: { context: 'prod' },
+      },
     ];
     connections.mockReturnValue({ connections: { data: twin, isPending: false } } as never);
     const targets = ['prod-aaaaaaaaaa', 'prod-bbbbbbbbbb'].map((id) => {
@@ -366,14 +544,23 @@ describe('usePodPage: the Logs command of the header (P1b-3b)', () => {
     expect(new Set(targets.map((target) => target?.id)).size).toBe(2);
   });
 
-  it('opens the stream of the Pod\'s own record when the host asks for it, through the plugin it is installed under', () => {
+  it("opens the stream of the Pod's own record when the host asks for it, through the plugin it is installed under", () => {
     const { open, command } = pressed({ plugin: 'kubernetes-qa' });
     command?.onSelect();
     expect(openLogStream).not.toHaveBeenCalled();
     const feed = open.mock.calls[0]?.[0].open();
     expect(feed).toBe(stream);
     expect(openLogStream).toHaveBeenCalledWith(
-      expect.objectContaining({ plugin: 'kubernetes-qa', connection: idOf('kind-a'), resourceKey: 'k8s:/pods', resourceId: 'cart-api', resourceData: startedRecord.record.body, reference: startedRecord.record.reference, route: startedRecord.route, target: '' }),
+      expect.objectContaining({
+        plugin: 'kubernetes-qa',
+        connection: idOf('kind-a'),
+        resourceKey: 'k8s:/pods',
+        resourceId: 'cart-api',
+        resourceData: startedRecord.record.body,
+        reference: startedRecord.record.reference,
+        route: startedRecord.route,
+        target: '',
+      }),
     );
   });
 
@@ -382,19 +569,23 @@ describe('usePodPage: the Logs command of the header (P1b-3b)', () => {
     expect(command?.disabledReason).toBe('This version of Omniview cannot show logs here.');
   });
 
-  it('says no container has started for a Pod that has none, the Pods\' own words for a Pod that was never run', () => {
+  it("says no container has started for a Pod that has none, the Pods' own words for a Pod that was never run", () => {
     usePod.mockReturnValue(view());
     const { open, command } = pressed();
-    expect(command?.disabledReason).toBe('No container of this Pod has started, so it has no logs yet.');
+    expect(command?.disabledReason).toBe(
+      'No container of this Pod has started, so it has no logs yet.',
+    );
     command?.onSelect();
     expect(open).not.toHaveBeenCalled();
   });
 
-  it('gives the Pod\'s Logs command a reason that follows the Pod: the Pod that starts a container is the next render\'s enabled command', () => {
+  it("gives the Pod's Logs command a reason that follows the Pod: the Pod that starts a container is the next render's enabled command", () => {
     usePod.mockReturnValue(view());
     const open = vi.fn<PanelHostV1['logs']['open']>(() => undefined);
     const { result, rerender } = mount({ panel: { logs: { open } } });
-    expect(result.current.source.view?.commands?.primary?.disabledReason).toBe('No container of this Pod has started, so it has no logs yet.');
+    expect(result.current.source.view?.commands?.primary?.disabledReason).toBe(
+      'No container of this Pod has started, so it has no logs yet.',
+    );
     usePod.mockReturnValue(view({ pod: podDetail(startedRecord), record: startedRecord }));
     rerender(context({ panel: { logs: { open } } }));
     expect(result.current.source.view?.commands?.primary?.disabledReason).toBeUndefined();
@@ -404,17 +595,102 @@ describe('usePodPage: the Logs command of the header (P1b-3b)', () => {
     const { command, mounted } = pressed();
     expect(command?.disabledReason).toBeUndefined();
     const { commands } = mounted.result.current.source.view ?? {};
-    expect([commands?.secondary?.[0]?.disabledReason, commands?.danger?.disabledReason]).toEqual(['Shell and Delete are not available yet', 'Shell and Delete are not available yet']);
+    expect([commands?.secondary?.[0]?.disabledReason, commands?.danger?.disabledReason]).toEqual([
+      'This version of Omniview cannot open a Pod shell.',
+      'Delete is not available yet.',
+    ]);
+  });
+});
+
+describe('the Shell command of the actual Pod detail page', () => {
+  it('launches the verified Pod from its explicit connection, never a retained preview or a connection fallback', () => {
+    const { namespace, name } = object.metadata;
+    const uid = 'uid-cart';
+    const record = hostRecord({
+      ...object,
+      kind: 'Pod',
+      metadata: { ...object.metadata, uid },
+      status: {
+        phase: 'Running',
+        containerStatuses: [
+          {
+            name: 'app',
+            containerID: 'containerd://actual',
+            restartCount: 1,
+            state: { running: {} },
+          },
+        ],
+      },
+    });
+    record.route.connection = idOf('kind-a');
+    record.record.reference.incarnation = uid;
+    const verified = view({ record, pod: podDetail(record), currentRecord: record });
+    usePod.mockReturnValue(verified);
+    const root = Object.freeze({}) as runtime.ExtensionRootV1;
+    vi.mocked(runtime.extensionRootOf).mockImplementation((original) =>
+      original === record ? root : undefined,
+    );
+    const open = vi.fn<NonNullable<PanelHostV1['terminal']>['open']>(async () => undefined);
+    const panel = { logs: { open: vi.fn() }, terminal: { open } };
+    const active = { panel, connection: record.route.connection };
+    const { result, rerender } = mount(active);
+    const shell = () => result.current.source.view?.commands?.secondary?.[0];
+    expect(shell()?.disabledReason).toBeUndefined();
+    act(() => shell()?.onSelect());
+    const target = { container: 'app', containerID: 'containerd://actual', containerRestart: '1' };
+    expect(open).toHaveBeenCalledWith({
+      record,
+      route: { page: 'pod', params: { namespace, name, ...target } },
+      params: target,
+    });
+    for (const props of [
+      { panel },
+      { panel, connection: 'gone' },
+      { ...active, plugin: 'kubernetes-channel' },
+      { ...active, params: { namespace, name, connection: 'conflict' } },
+    ]) {
+      rerender(context(props));
+      expect(shell()?.disabledReason).toBeTruthy();
+      act(() => shell()?.onSelect());
+    }
+    for (const stale of [
+      { currentRecord: undefined },
+      { refreshing: true },
+      { failure: { kind: 'failed' as const } },
+    ]) {
+      usePod.mockReturnValue({ ...verified, ...stale });
+      rerender(context(active));
+      expect(shell()?.disabledReason).toBeTruthy();
+      act(() => shell()?.onSelect());
+    }
+    expect(open).toHaveBeenCalledTimes(1);
   });
 });
 
 describe('usePodPage: the Forward port entries of the header (PF3)', () => {
-  const serving = { ...object, spec: { ...object.spec, containers: [{ name: 'app', image: 'busybox:1', ports: [{ name: 'http', containerPort: 8080, protocol: 'TCP' }, { name: 'metrics', containerPort: 9090, protocol: 'TCP' }] }] } };
+  const serving = {
+    ...object,
+    spec: {
+      ...object.spec,
+      containers: [
+        {
+          name: 'app',
+          image: 'busybox:1',
+          ports: [
+            { name: 'http', containerPort: 8080, protocol: 'TCP' },
+            { name: 'metrics', containerPort: 9090, protocol: 'TCP' },
+          ],
+        },
+      ],
+    },
+  };
   const servingRecord = { ...hostRecord(serving), route: { connection: idOf('kind-a') } };
 
   /** The page on a panel handle whose `forward` is a recorder that never answers, and the menu of its header. */
   function offered(over: Parameters<typeof context>[0] = {}) {
-    const forward = vi.fn<NonNullable<PanelHostV1['ports']>['forward']>(() => new Promise(() => undefined));
+    const forward = vi.fn<NonNullable<PanelHostV1['ports']>['forward']>(
+      () => new Promise(() => undefined),
+    );
     const mounted = mount({ panel: { logs: { open: vi.fn() }, ports: { forward } }, ...over });
     return { forward, mounted };
   }
@@ -426,30 +702,53 @@ describe('usePodPage: the Forward port entries of the header (PF3)', () => {
   it('has an entry for each TCP port the Pod declares in the place of Forward port…, and asks the host to forward the port of the Pod the page shows, with the reference the host holds of it', () => {
     const { forward, mounted } = offered();
     const menu = mounted.result.current.source.view?.commands?.menu;
-    expect(menu?.map((item) => item.label)).toEqual(['Forward port 8080 (http)', 'Forward port 9090 (metrics)', 'Debug container…', 'Events', 'Copy name']);
+    expect(menu?.map((item) => item.label)).toEqual([
+      'Forward port 8080 (http)',
+      'Forward port 9090 (metrics)',
+      'Debug container…',
+      'Events',
+      'Copy name',
+    ]);
     act(() => {
       menu?.[1]?.onSelect();
     });
     expect(forward).toHaveBeenCalledTimes(1);
-    expect(forward).toHaveBeenCalledWith({ resourceId: 'cart-api', resourceKey: 'k8s:/pods', reference: servingRecord.record.reference, remotePort: 9090, protocol: 'TCP' });
+    expect(forward).toHaveBeenCalledWith({
+      resourceId: 'cart-api',
+      resourceKey: 'k8s:/pods',
+      reference: servingRecord.record.reference,
+      remotePort: 9090,
+      protocol: 'TCP',
+    });
   });
 
-  it('says in the header\'s operation slot that it is forwarding once the press has asked, and has no operation before', () => {
+  it("says in the header's operation slot that it is forwarding once the press has asked, and has no operation before", () => {
     const { mounted } = offered();
     expect(mounted.result.current.source.view).not.toHaveProperty('operation');
     act(() => {
       mounted.result.current.source.view?.commands?.menu?.[0]?.onSelect();
     });
-    expect(mounted.result.current.source.view?.operation).toMatchObject({ state: 'running', text: 'Forwarding port 8080 of cart-api' });
+    expect(mounted.result.current.source.view?.operation).toMatchObject({
+      state: 'running',
+      text: 'Forwarding port 8080 of cart-api',
+    });
   });
 
   it('leaves Forward port… unavailable on a host that gave the page no ports member, and for a Pod that declares no TCP port', () => {
     const bare = mount({ panel: { logs: { open: vi.fn() } } });
-    expect(bare.result.current.source.view?.commands?.menu?.[0]).toMatchObject({ id: 'forward-port', label: 'Forward port…', disabled: true });
+    expect(bare.result.current.source.view?.commands?.menu?.[0]).toMatchObject({
+      id: 'forward-port',
+      label: 'Forward port…',
+      disabled: true,
+    });
     cleanup();
     usePod.mockReturnValue(view());
     const quiet = offered();
-    expect(quiet.mounted.result.current.source.view?.commands?.menu?.[0]).toMatchObject({ id: 'forward-port', label: 'Forward port…', disabled: true });
+    expect(quiet.mounted.result.current.source.view?.commands?.menu?.[0]).toMatchObject({
+      id: 'forward-port',
+      label: 'Forward port…',
+      disabled: true,
+    });
   });
 });
 

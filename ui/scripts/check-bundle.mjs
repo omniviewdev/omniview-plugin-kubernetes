@@ -12,9 +12,14 @@ import { URL } from 'node:url';
 //   - every dependency it declares is a file of its own or a name the host shares (ui/vendor/shared-specifiers.json: React, the kit and the runtime's
 //     curated `ui/v1` entry): not the runtime's main entry, not the previous UI library, not anything the build bundled in by mistake;
 //   - it exports `contributionV1`, the contribution contract's version 1;
-//   - no stylesheet is left beside it (the host loads the entry only; the build folds the CSS into it), and the folded CSS is in the plugin layer.
-const shared = JSON.parse(await readFile(new URL('../vendor/shared-specifiers.json', import.meta.url), 'utf8'));
-const directory = resolve(process.argv[2] ?? resolve(process.env.OMNIVIEW_BUILD_OUTPUT_DIRECTORY || 'dist', 'assets'));
+//   - no stylesheet is left beside it (the host loads the entry only; the build folds the CSS into it), and the folded CSS is in the plugin layer;
+//   - only the canonical build advertises points. No contributor role or binding is packaged with the owner.
+const shared = JSON.parse(
+  await readFile(new URL('../vendor/shared-specifiers.json', import.meta.url), 'utf8'),
+);
+const directory = resolve(
+  process.argv[2] ?? resolve(process.env.OMNIVIEW_BUILD_OUTPUT_DIRECTORY || 'dist', 'assets'),
+);
 
 // The same two patterns as the host's pre-flight: the first registration's dependency list, and the quoted names in it.
 const REGISTRATION = /System\.register\(\s*(?:(['"])(?:(?!\1).)*\1\s*,\s*)?\[([^\]]*)\]/;
@@ -33,8 +38,45 @@ if (!bundles.includes('entry.js')) {
   problems.push(`${directory} holds no entry.js`);
 }
 
+const catalogue = 'extensions.v1.json';
+const owner = (process.env.OMNIVIEW_PLUGIN_ID?.trim() || 'kubernetes') === 'kubernetes';
+if (files.includes(catalogue) !== owner) {
+  problems.push(
+    owner
+      ? `canonical owner is missing ${catalogue}`
+      : `an alternate ID cannot publish the Kubernetes ${catalogue}`,
+  );
+} else if (owner) {
+  const manifest = JSON.parse(await readFile(resolve(directory, catalogue), 'utf8'));
+  const published = JSON.parse(
+    await readFile(new URL('../extension-points/package.json', import.meta.url), 'utf8'),
+  );
+  if (
+    manifest.id !== 'kubernetes' ||
+    !Array.isArray(manifest.points) ||
+    !manifest.points.length ||
+    manifest.offers?.length !== 0 ||
+    manifest.bindings?.length !== 0 ||
+    manifest.points.some(
+      ({ contract }) =>
+        contract?.package !== published.name ||
+        contract?.version !== published.version ||
+        !contract?.export,
+    )
+  ) {
+    problems.push(
+      `${catalogue}: expected only Kubernetes points with pinned public named exports, no offers or bindings`,
+    );
+  }
+}
+if (files.includes('extensions.js') || files.includes('views.js')) {
+  problems.push('an owner archive cannot contain contributor feature or view modules');
+}
+
 for (const name of files.filter((file) => file.endsWith('.css'))) {
-  problems.push(`${name}: a stylesheet beside the bundle; the host loads the entry only, so the build must fold the CSS into it`);
+  problems.push(
+    `${name}: a stylesheet beside the bundle; the host loads the entry only, so the build must fold the CSS into it`,
+  );
 }
 
 const imported = new Set();
@@ -50,7 +92,9 @@ for (const name of bundles) {
     if (isLocal(dependency)) continue;
     imported.add(dependency);
     if (!shared.includes(dependency)) {
-      problems.push(`${name}: imports "${dependency}", which the host does not share; the host refuses the bundle before it runs`);
+      problems.push(
+        `${name}: imports "${dependency}", which the host does not share; the host refuses the bundle before it runs`,
+      );
     }
   }
 
@@ -59,13 +103,19 @@ for (const name of bundles) {
       problems.push('entry.js: does not export contributionV1');
     }
     if (source.includes('data-omniview-plugin-css') && !source.includes('@layer ov.plugin {')) {
-      problems.push('entry.js: injects a stylesheet that is not inside @layer ov.plugin (an unlayered sheet beats every layer the kit declares)');
+      problems.push(
+        'entry.js: injects a stylesheet that is not inside @layer ov.plugin (an unlayered sheet beats every layer the kit declares)',
+      );
     }
   }
 }
 
 if (problems.length > 0) {
-  throw new Error(`The bundle in ${directory} would be refused by the host:\n  - ${problems.join('\n  - ')}`);
+  throw new Error(
+    `The bundle in ${directory} would be refused by the host:\n  - ${problems.join('\n  - ')}`,
+  );
 }
 
-console.log(`Checked ${bundles.length} bundle file(s) in ${directory}: imports [${[...imported].sort().join(', ')}], exports contributionV1.`);
+console.log(
+  `Checked ${bundles.length} bundle file(s) in ${directory}: imports [${[...imported].sort().join(', ')}], exports contributionV1.`,
+);

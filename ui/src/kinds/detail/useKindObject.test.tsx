@@ -27,8 +27,14 @@ const resourceTypes = vi.mocked(runtime.useResourceTypes);
 const resolvedTarget = vi.mocked(runtime.useResolvedResourceTarget);
 const resources = vi.mocked(runtime.useResources);
 
-const DEPLOYMENTS = { type: 'k8s:apps/deployments', detail: { page: 'deployment', identity: ['namespace', 'name'] } satisfies KindDetail } as const;
-const NODES = { type: 'k8s:/nodes', detail: { page: 'node', identity: ['name'] } satisfies KindDetail } as const;
+const DEPLOYMENTS = {
+  type: 'k8s:apps/deployments',
+  detail: { page: 'deployment', identity: ['namespace', 'name'] } satisfies KindDetail,
+} as const;
+const NODES = {
+  type: 'k8s:/nodes',
+  detail: { page: 'node', identity: ['name'] } satisfies KindDetail,
+} as const;
 
 const namespaced = (namespace: string, name: string) => [
   { dimension: 'namespace', match: 'oneOf', values: [namespace] },
@@ -36,13 +42,34 @@ const namespaced = (namespace: string, name: string) => [
 ];
 const clusterScoped = (name: string) => [{ dimension: 'name', match: 'oneOf', values: [name] }];
 
-const target = (type: string, scope: unknown) => ({ route: { connection: 'kind-a' }, provider: 'kubernetes', authority: 'local:a', type, scope, representation: 'kubernetes.object.v1/v1' });
+const target = (type: string, scope: unknown) => ({
+  route: { connection: 'kind-a' },
+  provider: 'kubernetes',
+  authority: 'local:a',
+  type,
+  scope,
+  representation: 'kubernetes.object.v1/v1',
+});
 
-const deployment = (name: string, namespace = 'checkout') => hostRecord({ metadata: { name, namespace }, spec: { replicas: 3 } }, `row:${namespace}/${name}`, DEPLOYMENTS.type);
+const deployment = (name: string, namespace = 'checkout') =>
+  hostRecord(
+    { metadata: { name, namespace }, spec: { replicas: 3 } },
+    `row:${namespace}/${name}`,
+    DEPLOYMENTS.type,
+  );
 const node = (name: string) => {
   const record = hostRecord({ metadata: { name } }, `row:${name}`, NODES.type);
   // A record of a kind that lives in no namespace has no namespace in its address.
-  return { ...record, record: { ...record.record, reference: { ...record.record.reference, address: { ...record.record.reference.address, scope: [] } } } } as HostRecord;
+  return {
+    ...record,
+    record: {
+      ...record.record,
+      reference: {
+        ...record.record.reference,
+        address: { ...record.record.reference.address, scope: [] },
+      },
+    },
+  } as HostRecord;
 };
 
 const connect = vi.fn(async () => undefined);
@@ -54,7 +81,10 @@ const refetchTarget = vi.fn(async () => undefined);
 type Answer = {
   readonly phase?: string;
   readonly message?: string;
-  readonly types?: ReadonlyArray<{ readonly type: string; readonly operations?: readonly string[] }>;
+  readonly types?: ReadonlyArray<{
+    readonly type: string;
+    readonly operations?: readonly string[];
+  }>;
   readonly catalogError?: unknown;
   readonly target?: { readonly type: string; readonly scope: unknown } | false;
   readonly targetError?: unknown;
@@ -65,6 +95,8 @@ type Answer = {
   readonly fetching?: boolean;
   readonly live?: boolean;
   readonly syncing?: boolean;
+  /** Whether this source still occupies the current request, rather than a retained previous acquisition. */
+  readonly current?: boolean;
 };
 
 const BOTH = [
@@ -72,20 +104,59 @@ const BOTH = [
   { type: NODES.type, operations: ['enumerate', 'sourceUpdates'] },
 ];
 
-function answer({ phase = 'connected', message, types = BOTH, catalogError = null, target: ready, targetError = null, collection, collectionError = null, source, fetching = false, live = false, syncing = false }: Answer = {}) {
+function answer({
+  phase = 'connected',
+  message,
+  types = BOTH,
+  catalogError = null,
+  target: ready,
+  targetError = null,
+  collection,
+  collectionError = null,
+  source,
+  fetching = false,
+  live = false,
+  syncing = false,
+  current = true,
+}: Answer = {}) {
   readiness.mockReturnValue({ phase, message, connect, retry: retryConnection } as never);
   resourceTypes.mockReturnValue({
     resourceTypes: {
-      data: catalogError === null ? types.map(({ type, operations = [] }) => ({ type, capabilities: operations.map((operation) => ({ operation, scope: [] })) })) : undefined,
+      data:
+        catalogError === null
+          ? types.map(({ type, operations = [] }) => ({
+              type,
+              capabilities: operations.map((operation) => ({ operation, scope: [] })),
+            }))
+          : undefined,
       error: catalogError,
       refetch: refetchCatalog,
     },
   } as never);
-  resolvedTarget.mockReturnValue({ data: ready === false ? undefined : { targetId: 'target-1', target: target(ready?.type ?? DEPLOYMENTS.type, ready?.scope ?? namespaced('checkout', 'cart-api')) }, error: targetError, refetch: refetchTarget } as never);
+  resolvedTarget.mockReturnValue({
+    data:
+      ready === false
+        ? undefined
+        : {
+            targetId: 'target-1',
+            target: target(
+              ready?.type ?? DEPLOYMENTS.type,
+              ready?.scope ?? namespaced('checkout', 'cart-api'),
+            ),
+          },
+    error: targetError,
+    refetch: refetchTarget,
+  } as never);
   resources.mockReturnValue({
-    resources: { data: collection ? { records: collection } : undefined, error: collectionError, isFetching: fetching, refetch: refetchCollection },
+    resources: {
+      data: collection ? { records: collection } : undefined,
+      error: collectionError,
+      isFetching: fetching,
+      refetch: refetchCollection,
+    },
     source,
     isLive: live,
+    isAcquiredRequestCurrent: current,
     isSyncing: syncing,
   } as never);
 }
@@ -98,7 +169,12 @@ afterEach(() => {
   cleanup();
 });
 
-type Props = { readonly kind?: typeof DEPLOYMENTS | typeof NODES; readonly namespace?: string | undefined; readonly name?: string; readonly connectionID?: string | undefined };
+type Props = {
+  readonly kind?: typeof DEPLOYMENTS | typeof NODES;
+  readonly namespace?: string | undefined;
+  readonly name?: string;
+  readonly connectionID?: string | undefined;
+};
 
 const render = (props: Props = {}) =>
   renderHook<KindObjectView, Props>(
@@ -112,23 +188,47 @@ const render = (props: Props = {}) =>
   );
 
 // An error as the Wails transport and the host deliver it: the host's complete error envelope (what `parseAppError` reads).
-const envelope = (status: number, type: string, detail = 'The operation could not be completed.') => ({ type, title: 'x', status, detail });
+const envelope = (
+  status: number,
+  type: string,
+  detail = 'The operation could not be completed.',
+) => ({ type, title: 'x', status, detail });
 const FORBIDDEN = envelope(403, 'omniview:resource/forbidden', 'no access');
 const UNAVAILABLE = envelope(503, 'omniview:connection/failed', 'the cluster did not answer');
 const BROKEN = envelope(500, 'omniview:internal', 'source down');
 
 describe('the read chain: the catalog, the resolved target of the object, then its one-record source view, live', () => {
-  it('for a kind that lives in a namespace: resolves the type narrowed to the object\'s namespace and name, and reads that collection live', () => {
+  it("for a kind that lives in a namespace: resolves the type narrowed to the object's namespace and name, and reads that collection live", () => {
     answer({ target: { type: DEPLOYMENTS.type, scope: namespaced('checkout', 'cart-api') } });
 
     render();
 
-    expect(readiness).toHaveBeenCalledWith({ pluginID: 'kubernetes', connectionID: 'kind-a', enabled: true });
-    expect(resourceTypes).toHaveBeenCalledWith({ pluginID: 'kubernetes', route: { connection: 'kind-a' }, enabled: true });
-    expect(resolvedTarget).toHaveBeenCalledWith({ pluginID: 'kubernetes', route: { connection: 'kind-a' }, type: DEPLOYMENTS.type, scope: namespaced('checkout', 'cart-api'), enabled: true });
+    expect(readiness).toHaveBeenCalledWith({
+      pluginID: 'kubernetes',
+      connectionID: 'kind-a',
+      enabled: true,
+    });
+    expect(resourceTypes).toHaveBeenCalledWith({
+      pluginID: 'kubernetes',
+      route: { connection: 'kind-a' },
+      enabled: true,
+    });
+    expect(resolvedTarget).toHaveBeenCalledWith({
+      pluginID: 'kubernetes',
+      route: { connection: 'kind-a' },
+      type: DEPLOYMENTS.type,
+      scope: namespaced('checkout', 'cart-api'),
+      enabled: true,
+    });
     expect(resources).toHaveBeenCalledWith({
       pluginID: 'kubernetes',
-      request: { targetId: 'target-1', request: { target: target(DEPLOYMENTS.type, namespaced('checkout', 'cart-api')), pageSize: 256 } },
+      request: {
+        targetId: 'target-1',
+        request: {
+          target: target(DEPLOYMENTS.type, namespaced('checkout', 'cart-api')),
+          pageSize: 256,
+        },
+      },
       collection: true,
       live: true,
     });
@@ -139,7 +239,13 @@ describe('the read chain: the catalog, the resolved target of the object, then i
 
     render({ kind: NODES, namespace: undefined, name: 'kind-control-plane' });
 
-    expect(resolvedTarget).toHaveBeenCalledWith({ pluginID: 'kubernetes', route: { connection: 'kind-a' }, type: NODES.type, scope: clusterScoped('kind-control-plane'), enabled: true });
+    expect(resolvedTarget).toHaveBeenCalledWith({
+      pluginID: 'kubernetes',
+      route: { connection: 'kind-a' },
+      type: NODES.type,
+      scope: clusterScoped('kind-control-plane'),
+      enabled: true,
+    });
   });
 
   it('ignores a namespace it is given for a kind that lives in none', () => {
@@ -147,7 +253,9 @@ describe('the read chain: the catalog, the resolved target of the object, then i
 
     render({ kind: NODES, namespace: 'checkout', name: 'kind-control-plane' });
 
-    expect(resolvedTarget).toHaveBeenCalledWith(expect.objectContaining({ scope: clusterScoped('kind-control-plane') }));
+    expect(resolvedTarget).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: clusterScoped('kind-control-plane') }),
+    );
   });
 
   it('reads one collection, not two: there is no first explicit page beside it', () => {
@@ -163,7 +271,9 @@ describe('the read chain: the catalog, the resolved target of the object, then i
 
     render();
 
-    expect(resources).toHaveBeenCalledWith(expect.objectContaining({ collection: true, live: false }));
+    expect(resources).toHaveBeenCalledWith(
+      expect.objectContaining({ collection: true, live: false }),
+    );
   });
 
   it('reads the other object when the route moves to it: the name, and the namespace, are part of what is read', () => {
@@ -171,12 +281,16 @@ describe('the read chain: the catalog, the resolved target of the object, then i
     const { rerender } = render({ namespace: 'checkout', name: 'cart-api' });
 
     rerender({ namespace: 'checkout', name: 'payment-gateway' });
-    expect(resolvedTarget).toHaveBeenLastCalledWith(expect.objectContaining({ scope: namespaced('checkout', 'payment-gateway') }));
+    expect(resolvedTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scope: namespaced('checkout', 'payment-gateway') }),
+    );
     rerender({ namespace: 'monitoring', name: 'alertmanager' });
-    expect(resolvedTarget).toHaveBeenLastCalledWith(expect.objectContaining({ scope: namespaced('monitoring', 'alertmanager') }));
+    expect(resolvedTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scope: namespaced('monitoring', 'alertmanager') }),
+    );
   });
 
-  it('never asks for the namespace\'s other objects: no scope of the read leaves the name out', () => {
+  it("never asks for the namespace's other objects: no scope of the read leaves the name out", () => {
     answer();
 
     render({ namespace: 'bulk', name: 'bulk-0300' });
@@ -191,14 +305,23 @@ describe('the read chain: the catalog, the resolved target of the object, then i
 
     render();
 
-    expect(resolvedTarget).toHaveBeenCalledWith(expect.objectContaining({ type: DEPLOYMENTS.type, enabled: false }));
+    expect(resolvedTarget).toHaveBeenCalledWith(
+      expect.objectContaining({ type: DEPLOYMENTS.type, enabled: false }),
+    );
     expect(resources).toHaveBeenCalledWith(expect.objectContaining({ request: undefined }));
   });
 
   it('reads through the plugin id it is given: the id the host installed the plugin under', () => {
     answer();
 
-    renderHook(() => useKindObject(DEPLOYMENTS, { pluginID: 'kubernetes-qa', connectionID: 'kind-a', namespace: 'checkout', name: 'cart-api' }));
+    renderHook(() =>
+      useKindObject(DEPLOYMENTS, {
+        pluginID: 'kubernetes-qa',
+        connectionID: 'kind-a',
+        namespace: 'checkout',
+        name: 'cart-api',
+      }),
+    );
 
     for (const hook of [readiness, resourceTypes, resolvedTarget, resources]) {
       expect(hook).toHaveBeenCalledWith(expect.objectContaining({ pluginID: 'kubernetes-qa' }));
@@ -210,7 +333,11 @@ describe('the read chain: the catalog, the resolved target of the object, then i
     answer({ phase: 'checking', types: [], target: false });
 
     render({ connectionID: undefined });
-    expect(readiness).toHaveBeenLastCalledWith({ pluginID: 'kubernetes', connectionID: '', enabled: false });
+    expect(readiness).toHaveBeenLastCalledWith({
+      pluginID: 'kubernetes',
+      connectionID: '',
+      enabled: false,
+    });
     expect(resourceTypes).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: false }));
     cleanup();
 
@@ -237,6 +364,57 @@ describe('the read chain: the catalog, the resolved target of the object, then i
   });
 });
 
+describe('the original record that may establish a placement or resource operation', () => {
+  it('requires an active following source at its exact native target, not just a displayable object', () => {
+    const wanted = deployment('cart-api');
+    wanted.route.connection = 'kind-a';
+    wanted.record.reference.address.authority = 'local:a';
+    const baseline: Answer = { collection: [wanted], live: true };
+    answer(baseline);
+    const mounted = render();
+    expect(mounted.result.current.currentRecord).toBe(wanted);
+    for (const changed of [
+      { current: false },
+      { live: false },
+      { fetching: true },
+      { syncing: true },
+      { collectionError: FORBIDDEN },
+      { source: { state: 'failed', error: BROKEN } },
+      { phase: 'forbidden' },
+      { target: false },
+      { target: { type: 'k8s:/services', scope: namespaced('checkout', 'cart-api') } },
+    ] satisfies Answer[]) {
+      answer({ ...baseline, ...changed });
+      mounted.rerender({});
+      expect(mounted.result.current.currentRecord).toBeUndefined();
+    }
+    for (const change of [
+      (r: HostRecord) => {
+        r.targetId = 'retired';
+      },
+      (r: HostRecord) => {
+        r.route.connection = 'kind-b';
+      },
+      (r: HostRecord) => {
+        r.record.reference.address.authority = 'local:b';
+      },
+      (r: HostRecord) => {
+        r.record.reference.address.provider = 'foreign';
+      },
+      (r: HostRecord) => {
+        r.record.reference.address.type = 'k8s:/services';
+      },
+    ]) {
+      const other = structuredClone(wanted);
+      change(other);
+      answer({ ...baseline, collection: [other] });
+      mounted.rerender({});
+      expect(mounted.result.current.record).toBe(other);
+      expect(mounted.result.current.currentRecord).toBeUndefined();
+    }
+  });
+});
+
 describe('which record is the object: the one whose address says so, whatever else a view holds', () => {
   it('picks the record of that name in that namespace from the complete snapshot', () => {
     const wanted = deployment('cart-api');
@@ -259,7 +437,10 @@ describe('which record is the object: the one whose address says so, whatever el
 
   it('picks a kind that lives in no namespace by its name alone', () => {
     const wanted = node('kind-control-plane');
-    answer({ collection: [node('other'), wanted], target: { type: NODES.type, scope: clusterScoped('kind-control-plane') } });
+    answer({
+      collection: [node('other'), wanted],
+      target: { type: NODES.type, scope: clusterScoped('kind-control-plane') },
+    });
 
     const { result } = render({ kind: NODES, namespace: undefined, name: 'kind-control-plane' });
 
@@ -280,7 +461,7 @@ describe('which record is the object: the one whose address says so, whatever el
 });
 
 describe('when the object is not there', () => {
-  it('says empty, which is not found, when the object\'s own snapshot is complete and has no such object', () => {
+  it("says empty, which is not found, when the object's own snapshot is complete and has no such object", () => {
     answer({ collection: [deployment('payment-gateway')] });
 
     const { result } = render();
@@ -332,7 +513,10 @@ describe('when the object is not there', () => {
     const { result, rerender } = render();
     expect(result.current.record).toBeDefined();
 
-    answer({ collection: [deployment('cart-api')], target: { type: DEPLOYMENTS.type, scope: namespaced('checkout', 'other') } });
+    answer({
+      collection: [deployment('cart-api')],
+      target: { type: DEPLOYMENTS.type, scope: namespaced('checkout', 'other') },
+    });
     rerender({ name: 'other' });
 
     expect(result.current.state).toEqual({ kind: 'empty' });
@@ -344,7 +528,10 @@ describe('when the object is not there', () => {
     const { result, rerender } = render();
     expect(result.current.record).toBeDefined();
 
-    answer({ collection: [], target: { type: DEPLOYMENTS.type, scope: namespaced('checkout', 'other') } });
+    answer({
+      collection: [],
+      target: { type: DEPLOYMENTS.type, scope: namespaced('checkout', 'other') },
+    });
     rerender({ name: 'other' });
     expect(result.current.state).toEqual({ kind: 'empty' });
     expect(result.current.deleted).toBe(false);
@@ -357,19 +544,25 @@ describe('when the object is not there', () => {
 
   it('says it for an object that lives in no namespace too', () => {
     const props = { kind: NODES, name: 'kind-control-plane', namespace: undefined };
-    answer({ collection: [node('kind-control-plane')], target: { type: NODES.type, scope: clusterScoped('kind-control-plane') } });
+    answer({
+      collection: [node('kind-control-plane')],
+      target: { type: NODES.type, scope: clusterScoped('kind-control-plane') },
+    });
     const { result, rerender } = render(props);
     expect(result.current.record).toBeDefined();
     expect(result.current.deleted).toBe(false);
 
-    answer({ collection: [], target: { type: NODES.type, scope: clusterScoped('kind-control-plane') } });
+    answer({
+      collection: [],
+      target: { type: NODES.type, scope: clusterScoped('kind-control-plane') },
+    });
     rerender(props);
 
     expect(result.current.state).toEqual({ kind: 'empty' });
     expect(result.current.deleted).toBe(true);
   });
 
-  it('does not say deleted while the connection is down or the read is on its way again: only the object\'s own complete snapshot says it is gone', () => {
+  it("does not say deleted while the connection is down or the read is on its way again: only the object's own complete snapshot says it is gone", () => {
     answer({ collection: [deployment('cart-api')] });
     const { result, rerender } = render();
     expect(result.current.record).toBeDefined();
@@ -425,7 +618,10 @@ describe('the connection and the read, as the lists word them', () => {
     const { result } = render();
 
     expect(result.current.state).toEqual({ kind: 'loaded' });
-    expect(result.current.failure).toEqual({ kind: 'unreachable', message: 'the cluster did not answer' });
+    expect(result.current.failure).toEqual({
+      kind: 'unreachable',
+      message: 'the cluster did not answer',
+    });
   });
 
   it('says a source that failed after it opened', () => {

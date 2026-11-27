@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "skipLibCheck": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "target": "ES2022",
+    "declaration": true,
+    "noEmitOnError": true,
+    "types": [],
+    "outDir": "./node_modules/.tmp/extension-types"
+  },
+  "files": ["./src/extension.ts"]
+}

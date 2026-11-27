@@ -1,3 +1,4 @@
+import { deploymentPlacement } from '../../extensions/details';
 import { column, typeOf, type KindDefinition } from '../definition';
 import { ageCell, countCell, statusCell, watchedRatioCell } from '../display';
 
@@ -30,19 +31,66 @@ export const deploymentDefinition: KindDefinition<DeploymentRow> = {
     identity: { second: (row) => (row.namespace === '' ? null : row.namespace), tail: () => 0 },
     // The kind's own split of its state words (MOCK `bar`): Scaled to zero and Paused are in All and in no filter.
     quickFilters: [
-      { id: 'available', label: 'Available', tone: 'success', test: (row) => row.status?.word === 'Available' },
-      { id: 'progressing', label: 'Progressing', tone: 'info', test: (row) => row.status?.word === 'Progressing' },
-      { id: 'partial', label: 'Partially ready', tone: 'warning', test: (row) => row.status?.word === 'Partially ready' },
-      { id: 'unavailable', label: 'Unavailable', tone: 'error', test: (row) => row.status?.word === 'Unavailable' },
+      {
+        id: 'available',
+        label: 'Available',
+        tone: 'success',
+        test: (row) => row.status?.word === 'Available',
+      },
+      {
+        id: 'progressing',
+        label: 'Progressing',
+        tone: 'info',
+        test: (row) => row.status?.word === 'Progressing',
+      },
+      {
+        id: 'partial',
+        label: 'Partially ready',
+        tone: 'warning',
+        test: (row) => row.status?.word === 'Partially ready',
+      },
+      {
+        id: 'unavailable',
+        label: 'Unavailable',
+        tone: 'error',
+        test: (row) => row.status?.word === 'Unavailable',
+      },
     ],
   },
   fields: [
-    { id: 'name', sortValue: (row) => row.name, display: (row) => ({ kind: 'text', text: row.name }) },
-    { id: 'status', sortValue: (row) => row.status?.word, display: ({ status }) => statusCell(status, 'The Deployment states no replica count.') },
-    { id: 'ready', sortValue: (row) => row.ready, display: ({ ready }) => watchedRatioCell(ready, 'The Deployment states no replica count.') },
-    { id: 'updated', sortValue: (row) => row.updated, display: ({ updated }) => countCell(updated, 'The Deployment states no replica count.') },
-    { id: 'age', sortValue: (row) => row.createdAt, display: ({ createdAt }, now) => ageCell(createdAt, now, 'The Deployment has no creation time.') },
+    {
+      id: 'name',
+      sortValue: (row) => row.name,
+      display: (row) => ({ kind: 'text', text: row.name }),
+    },
+    {
+      id: 'status',
+      sortValue: (row) => row.status?.word,
+      display: ({ status }) => statusCell(status, 'The Deployment states no replica count.'),
+    },
+    {
+      id: 'ready',
+      sortValue: (row) => row.ready,
+      display: ({ ready }) => watchedRatioCell(ready, 'The Deployment states no replica count.'),
+    },
+    {
+      id: 'updated',
+      sortValue: (row) => row.updated,
+      display: ({ updated }) => countCell(updated, 'The Deployment states no replica count.'),
+    },
+    {
+      id: 'age',
+      sortValue: (row) => row.createdAt,
+      display: ({ createdAt }, now) =>
+        ageCell(createdAt, now, 'The Deployment has no creation time.'),
+    },
   ],
   // The page of one Deployment (`./detail.ts`), drawn by the generic detail page.
-  detail: { page: 'deployment', identity: ['namespace', 'name'], overview: deploymentOverview, commands: deploymentCommands },
+  detail: {
+    page: 'deployment',
+    identity: ['namespace', 'name'],
+    overview: deploymentOverview,
+    commands: deploymentCommands,
+    placeExtensions: deploymentPlacement,
+  },
 };

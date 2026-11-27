@@ -46,6 +46,7 @@ export type ContainerStateDetail = {
 
 export type ContainerStatusDetail = {
   readonly name?: string;
+  readonly containerID?: string;
   readonly ready?: boolean;
   readonly started?: boolean;
   readonly restartCount?: number;
@@ -112,15 +113,26 @@ export type PodDetail = {
 
 type Json = Readonly<Record<string, unknown>>;
 
-const isObject = (value: unknown): value is Json => typeof value === 'object' && value !== null && !Array.isArray(value);
-const text = (value: unknown): string | undefined => (typeof value === 'string' ? value : undefined);
-const count = (value: unknown): number | undefined => (typeof value === 'number' ? value : undefined);
-const flag = (value: unknown): boolean | undefined => (typeof value === 'boolean' ? value : undefined);
-const objects = (value: unknown): readonly Json[] | undefined => (Array.isArray(value) ? value.filter(isObject) : undefined);
+const isObject = (value: unknown): value is Json =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+const text = (value: unknown): string | undefined =>
+  typeof value === 'string' ? value : undefined;
+const count = (value: unknown): number | undefined =>
+  typeof value === 'number' ? value : undefined;
+const flag = (value: unknown): boolean | undefined =>
+  typeof value === 'boolean' ? value : undefined;
+const objects = (value: unknown): readonly Json[] | undefined =>
+  Array.isArray(value) ? value.filter(isObject) : undefined;
 
 /** A string-to-string map (labels, annotations, quantities): the entries whose value is a string, in the object's order. */
 function strings(value: unknown): Readonly<Record<string, string>> {
-  return isObject(value) ? Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string')) : {};
+  return isObject(value)
+    ? Object.fromEntries(
+        Object.entries(value).filter(
+          (entry): entry is [string, string] => typeof entry[1] === 'string',
+        ),
+      )
+    : {};
 }
 
 function state(value: unknown): ContainerStateDetail | undefined {
@@ -131,18 +143,20 @@ function state(value: unknown): ContainerStateDetail | undefined {
   const { running, waiting, terminated } = value;
   return {
     ...(isObject(running) ? { running: { startedAt: text(running.startedAt) } } : {}),
-    ...(isObject(waiting) ? { waiting: { reason: text(waiting.reason), message: text(waiting.message) } } : {}),
+    ...(isObject(waiting)
+      ? { waiting: { reason: text(waiting.reason), message: text(waiting.message) } }
+      : {}),
     ...(isObject(terminated)
       ? {
-        terminated: {
-          exitCode: count(terminated.exitCode),
-          signal: count(terminated.signal),
-          reason: text(terminated.reason),
-          message: text(terminated.message),
-          startedAt: text(terminated.startedAt),
-          finishedAt: text(terminated.finishedAt),
-        },
-      }
+          terminated: {
+            exitCode: count(terminated.exitCode),
+            signal: count(terminated.signal),
+            reason: text(terminated.reason),
+            message: text(terminated.message),
+            startedAt: text(terminated.startedAt),
+            finishedAt: text(terminated.finishedAt),
+          },
+        }
       : {}),
   };
 }
@@ -150,6 +164,7 @@ function state(value: unknown): ContainerStateDetail | undefined {
 function containerStatus(source: Json): ContainerStatusDetail {
   return {
     name: text(source.name),
+    containerID: text(source.containerID),
     ready: flag(source.ready),
     started: flag(source.started),
     restartCount: count(source.restartCount),
@@ -164,10 +179,18 @@ function containerSpec(source: Json): ContainerSpec {
     name: text(source.name) ?? '',
     image: text(source.image),
     restartPolicy: text(source.restartPolicy),
-    ports: (objects(source.ports) ?? []).map((port) => ({ name: text(port.name), containerPort: count(port.containerPort), protocol: text(port.protocol) })),
+    ports: (objects(source.ports) ?? []).map((port) => ({
+      name: text(port.name),
+      containerPort: count(port.containerPort),
+      protocol: text(port.protocol),
+    })),
     requests: strings(resources.requests),
     limits: strings(resources.limits),
-    mounts: (objects(source.volumeMounts) ?? []).map((mount) => ({ name: text(mount.name) ?? '', mountPath: text(mount.mountPath) ?? '', readOnly: mount.readOnly === true })),
+    mounts: (objects(source.volumeMounts) ?? []).map((mount) => ({
+      name: text(mount.name) ?? '',
+      mountPath: text(mount.mountPath) ?? '',
+      readOnly: mount.readOnly === true,
+    })),
   };
 }
 
@@ -230,7 +253,9 @@ export function toPodDetail(value: unknown): PodDetail {
       conditions: objects(observed.conditions)?.map(condition),
       containerStatuses: objects(observed.containerStatuses)?.map(containerStatus),
       initContainerStatuses: objects(observed.initContainerStatuses)?.map(containerStatus),
-      ephemeralContainerStatuses: objects(observed.ephemeralContainerStatuses)?.map(containerStatus),
+      ephemeralContainerStatuses: objects(observed.ephemeralContainerStatuses)?.map(
+        containerStatus,
+      ),
     },
   };
 }

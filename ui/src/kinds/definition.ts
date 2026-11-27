@@ -1,6 +1,9 @@
 import type { ChipTone, IconName, KindTileTone } from '@omniviewdev/kit';
 import type { HostRecord } from '@omniviewdev/runtime/ui/v1';
 
+import type { DetailView } from '../contract/v1';
+import type { LocatedObject } from '../extensions/object';
+
 import type { KindOverview } from './detail/overview';
 import type { StateRole } from './status';
 
@@ -19,9 +22,20 @@ export type Cell =
   /** `tip` says what the cell cuts or abbreviates: the whole list behind `a, b, c +2`, the whole version behind `v1.31.4`. */
   | { readonly kind: 'text'; readonly text: string; readonly mono?: true; readonly tip?: string }
   /** A state: the glyph of its role beside the word. `tip` explains a state the word alone does not (Ready `1/2` on a Deployment: "1 of 2 ready"). */
-  | { readonly kind: 'status'; readonly raw: string; readonly label: string; readonly role: StateRole; readonly tip?: string }
+  | {
+      readonly kind: 'status';
+      readonly raw: string;
+      readonly label: string;
+      readonly role: StateRole;
+      readonly tip?: string;
+    }
   /** The time since an instant: `text` is the one unit at the moment of reading and the page's age clock keeps it current; `long` is the tip. The instant is the creation of an object, or when a CronJob last ran. */
-  | { readonly kind: 'age'; readonly createdAt: number; readonly text: string; readonly long: string }
+  | {
+      readonly kind: 'age';
+      readonly createdAt: number;
+      readonly text: string;
+      readonly long: string;
+    }
   /** The time since a start, still running: `text` is the span at the moment of reading and the page's age clock keeps it current (a Job that has not finished). */
   | { readonly kind: 'elapsed'; readonly since: number; readonly text: string }
   | { readonly kind: 'none'; readonly reason: string };
@@ -99,7 +113,11 @@ export type RowModel<TRow> = {
 
 export type KindDefinition<TRow extends KindRow> = {
   /** The Kubernetes API's own naming of what the list reads: the group (empty for the core group), the preferred version, and the resource (the plural, lower case). */
-  readonly identity: { readonly group: string; readonly version: string; readonly resource: string };
+  readonly identity: {
+    readonly group: string;
+    readonly version: string;
+    readonly resource: string;
+  };
   /** The name the plugin's catalog gives the type: `k8s:<group>/<resource>`. It is what the data hook looks for in the catalog. */
   readonly type: string;
   /** The Kubernetes Kind, singular and as the API spells it ("Pod"): the quick filters' name ("Pod state") and the test ids of the identity cell ("pod-name"). */
@@ -168,10 +186,17 @@ export type KindDetail = {
   readonly overview?: (record: HostRecord) => KindOverview;
   /** The commands of the header, as the mock lays them out for the kind. A function of the record, because some labels follow the object's state: Pause rollout or Resume rollout, Cordon or Uncordon. */
   readonly commands?: (record: HostRecord) => KindCommands;
+  /** Optional owner outlet on the detail strip, built only after verifying the current namespaced object. */
+  readonly placeExtensions?: (
+    object: LocatedObject,
+  ) => Pick<DetailView, 'extensionScopeKey' | 'tabOutlet' | 'extensionRoot'>;
 };
 
 /** The route parameters that name an object, or undefined when the object cannot be named: a kind that lives in a namespace, and an object with none to say. */
-export function detailParams(identity: ObjectIdentity, object: { readonly namespace?: string | undefined; readonly name: string }): Readonly<Record<string, string>> | undefined {
+export function detailParams(
+  identity: ObjectIdentity,
+  object: { readonly namespace?: string | undefined; readonly name: string },
+): Readonly<Record<string, string>> | undefined {
   if (object.name === '') {
     return undefined;
   }
@@ -180,7 +205,9 @@ export function detailParams(identity: ObjectIdentity, object: { readonly namesp
     return { name: object.name };
   }
 
-  return object.namespace === undefined || object.namespace === '' ? undefined : { namespace: object.namespace, name: object.name };
+  return object.namespace === undefined || object.namespace === ''
+    ? undefined
+    : { namespace: object.namespace, name: object.name };
 }
 
 /** The name the plugin's catalog gives a type: the token the Kubernetes provider derives from its group and resource. */
@@ -193,8 +220,18 @@ export function typeOf({ group, resource }: KindDefinition<KindRow>['identity'])
  * `box` is the mock's own fallback for a kind with no glyph of its own (`kindIcon`), and no other kind's glyph is taken for the missing one, so a tile never says a kind it is not. A kind wears
  * this tile until the kit has its glyph, and then names it.
  */
-export const GENERIC_TILE = { icon: 'box', tone: 'blue' } as const satisfies KindDefinition<KindRow>['tile'];
+export const GENERIC_TILE = {
+  icon: 'box',
+  tone: 'blue',
+} as const satisfies KindDefinition<KindRow>['tile'];
 
 /** A column of the mock's definition record: its words, how it takes width, its width, its side and how it sorts. */
-export const column = (id: string, label: string, fit: KindColumn['fit'], width: number, align: KindColumn['align'], sort: SortKind, rest: Partial<Pick<KindColumn, 'defaultHidden' | 'required'>> = {}): KindColumn =>
-  ({ id, label, fit, width, align, sort, defaultHidden: false, ...rest });
+export const column = (
+  id: string,
+  label: string,
+  fit: KindColumn['fit'],
+  width: number,
+  align: KindColumn['align'],
+  sort: SortKind,
+  rest: Partial<Pick<KindColumn, 'defaultHidden' | 'required'>> = {},
+): KindColumn => ({ id, label, fit, width, align, sort, defaultHidden: false, ...rest });

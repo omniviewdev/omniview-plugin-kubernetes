@@ -1,12 +1,11 @@
+import { omniviewExtensionsV1 } from '@omniviewdev/vite-plugin';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import shared from './vendor/shared-specifiers.json' with { type: 'json' };
 import { foldCssIntoLayer, sealedImports } from './vite/omniview';
 import { resolvePluginId } from './vite/pluginId';
 
-// On `feature/ui-next` this project is the new UI (decision A16 of the host's docs/ui-next/decisions.md): one bundle, `assets/entry.js`, that exports
-// `contributionV1` and imports only what the host shares with it. The shared names are the host's own list, vendored with the packages the plugin builds
-// against (hack/vendor-host.sh); the host's vite plugin preset (step N19b-2) replaces the two plugins below when it exists.
+// The ordinary page is still one host-loaded entry. The compiler separately emits the owner's static point catalogue.
 const pluginId = resolvePluginId();
 
 // https://vitejs.dev/config/
@@ -16,6 +15,7 @@ export default defineConfig({
     react({ babel: { plugins: [['babel-plugin-react-compiler', { target: '19' }]] } }),
     sealedImports(),
     foldCssIntoLayer(pluginId),
+    pluginId === 'kubernetes' && omniviewExtensionsV1(),
   ],
   server: {
     host: '127.0.0.1',

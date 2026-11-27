@@ -18,4 +18,7 @@ allowBuilds:
 # `@eslint-react` takes `@typescript-eslint/typescript-estree` as `^8.72.0`. From 8.73 on its optional peer `@typescript/native` wants a TypeScript 7.1
 # build, and this project's native check runs 7.0.2: stay on the version `typescript-eslint` itself resolves until the two meet.
 overrides:
+  # Keep the author's direct dependency an exact public version. Install its actual tarball offline.
+  '@omniviewdev/kubernetes-extension-points@1.0.0': file:vendor/omniviewdev-kubernetes-extension-points-1.0.0.tgz
+  '@omniviewdev/vite-plugin>@omniviewdev/runtime': '$@omniviewdev/runtime'
   '@typescript-eslint/typescript-estree': 8.72.1

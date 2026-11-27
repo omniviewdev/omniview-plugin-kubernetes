@@ -3,11 +3,7 @@
     "incremental": true,
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.tsbuildinfo",
     "target": "ES2022",
-    "lib": [
-      "ES2024",
-      "DOM",
-      "DOM.Iterable"
-    ],
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "useDefineForClassFields": true,
     "skipLibCheck": true,
@@ -26,15 +22,12 @@
     "rootDir": ".",
     "types": ["vite/client"]
   },
-  "include": [
-    "src"
-  ],
-  "exclude": [
-    "src/**/*.test.ts",
-    "src/**/*.test.tsx",
-    "src/test-setup.ts"
-  ],
+  "include": ["src"],
+  "exclude": ["src/extension.ts", "src/**/*.test.ts", "src/**/*.test.tsx", "src/test-setup.ts"],
   "references": [
+    {
+      "path": "./tsconfig.extensions.json"
+    },
     {
       "path": "./tsconfig.node.json"
     }

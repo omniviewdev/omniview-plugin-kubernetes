@@ -3,7 +3,9 @@ import { useEffect, useMemo } from 'react';
 
 import { connectionFace, namespacesFace, useChosenConnection } from '../connection';
 import type { ContextV1, DetailPageViewV1, DetailSource, DetailState } from '../contract/v1';
+import { locateObject } from '../extensions/object';
 import { deletedTitle } from '../kinds/detail/text';
+import { podDefinition } from '../kinds/pods/definition';
 import type { KindFailureKind } from '../kinds/state';
 
 import { usePod, type PodView } from './data/usePod';
@@ -12,6 +14,7 @@ import { podLogsCommand } from './logs/command';
 import { notAvailableYet } from './overview/commands';
 import { podOverview } from './overview/model';
 import { podView } from './overview/view';
+import { usePodShell } from './terminal/command';
 
 // The Pod page's one data hook (the contribution contract's `usePage` of a detail page): which connection it reads, the Pod and the state it is in, and the scope it sits in.
 // The host calls it inside the page's own error boundary with the route's parameters (`namespace` and `name`: the identity the definition names) and draws what it returns:
@@ -31,8 +34,13 @@ const SENTENCE: Readonly<Record<KindFailureKind | 'not-found', string>> = {
   'not-found': 'This connection no longer exists.',
 };
 
-function failed(kind: KindFailureKind | 'not-found', message: string | undefined, view: PodView): DetailState {
-  const said = kind === 'failed' && message !== undefined && message !== '' ? message : SENTENCE[kind];
+function failed(
+  kind: KindFailureKind | 'not-found',
+  message: string | undefined,
+  view: PodView,
+): DetailState {
+  const said =
+    kind === 'failed' && message !== undefined && message !== '' ? message : SENTENCE[kind];
   // Where asking again cannot help (a cluster that serves no Pods, a connection that is gone) a Retry would be a button that does nothing.
   if (kind === 'unsupported' || kind === 'not-found') {
     return { kind: 'failed', message: said };
@@ -60,11 +68,20 @@ export function detailState(view: PodView, namespace: string, name: string): Det
       // The namespace was read whole and the Pod is not in it. When the page had the Pod, its source has said it is gone: it was deleted while the page was open, and the title says so (the mock's "<name> was deleted" over
       // "It no longer exists in <where>."). Otherwise it never was there for this page: no title, so the page's own, "<name> was not found", stands over the message.
       return view.deleted
-        ? { kind: 'not-found', title: deletedTitle(name), message: `It no longer exists in namespace ${namespace}.` }
-        : { kind: 'not-found', message: `Pod ${name} doesn't exist in namespace ${namespace}. It may have been deleted.` };
+        ? {
+            kind: 'not-found',
+            title: deletedTitle(name),
+            message: `It no longer exists in namespace ${namespace}.`,
+          }
+        : {
+            kind: 'not-found',
+            message: `Pod ${name} doesn't exist in namespace ${namespace}. It may have been deleted.`,
+          };
     case 'loaded':
       // A failure that came after the Pod is kept beside it: the page keeps showing it and says so in the header.
-      return failure === undefined ? { kind: 'ready' } : failed(failure.kind, failure.message, view);
+      return failure === undefined
+        ? { kind: 'ready' }
+        : failed(failure.kind, failure.message, view);
     case 'denied':
       return { kind: 'denied', message: SENTENCE.denied };
     case 'unsupported':
@@ -77,10 +94,8 @@ export function detailState(view: PodView, namespace: string, name: string): Det
   }
 }
 
-// The read chain is `usePod` (INTERIM, see its file). A connection is never started by a read, so this page starts the one it finds stopped, once: the same development shortcut as
-// the Pods page, which 1a.7 removes in favour of an explicit Connect (plan D4). The header's Logs command is the page's own (`./logs/command.ts`): it opens a session in the host's Logs tool through
-// the panel handle the host gave the page, from the record this hook holds. So is the forward of a port (`./forward/command.ts`): the menu's entries ask the host, through the same handle, to forward a
-// port the Pod declares, and the header's operation slot says what became of the call.
+// Only the foreground page starts a stopped connection. Logs and port forwards keep their existing panel commands.
+// The separate native Shell command needs a healthy, attested record at the explicit page location.
 export function usePodPage({ plugin, route, panel }: ContextV1): DetailPageViewV1 {
   const namespace = route.params.namespace ?? '';
   const name = route.params.name ?? '';
@@ -98,18 +113,63 @@ export function usePodPage({ plugin, route, panel }: ContextV1): DetailPageViewV
   const named = namespace !== '' && name !== '';
   const age = useAge(pod?.metadata.creationTimestamp, compactAge);
   const overview = useMemo(() => (pod === undefined ? undefined : podOverview(pod)), [pod]);
-  const status = named ? detailState(view, namespace, name) : ({ kind: 'not-found' } satisfies DetailState);
+  const status = named
+    ? detailState(view, namespace, name)
+    : ({ kind: 'not-found' } satisfies DetailState);
+  const selected = connection.chosen?.id;
+  const { currentRecord } = view;
+  const shellObject = useMemo(
+    () =>
+      status.kind === 'ready' &&
+      !view.refreshing &&
+      plugin === 'kubernetes' &&
+      route.page === podDefinition.detail.page &&
+      route.connection === selected &&
+      !Object.hasOwn(route.params, 'connection')
+        ? locateObject(
+            currentRecord,
+            route.connection,
+            namespace,
+            name,
+            podDefinition.type,
+            podDefinition.kind,
+          )
+        : undefined,
+    [status.kind, view.refreshing, plugin, route, selected, currentRecord, namespace, name],
+  );
+  const shell = usePodShell(panel?.terminal, shellObject);
   const source: DetailSource = {
     state: status,
     // The Pod is on screen while it is read, and after a failure that came once it was: a failure does not take away what was shown.
     view:
-      overview !== undefined && pod !== undefined && record !== undefined && (status.kind === 'ready' || status.kind === 'failed')
-        ? podView(overview, { age, invoke: notAvailableYet, logs: podLogsCommand({ plugin, panel, record, pod, namespace, name, scope: connection.named ?? '', route }), forward })
+      overview !== undefined &&
+      pod !== undefined &&
+      record !== undefined &&
+      (status.kind === 'ready' || status.kind === 'failed')
+        ? podView(overview, {
+            age,
+            invoke: notAvailableYet,
+            logs: podLogsCommand({
+              plugin,
+              panel,
+              record,
+              pod,
+              namespace,
+              name,
+              scope: connection.named ?? '',
+              route,
+            }),
+            forward,
+            shell,
+          })
         : undefined,
     refreshing: view.refreshing,
     refresh: view.refresh,
   };
 
   // The lane is declared from the first render, whatever is not known yet (`connectionFace`): the host reserves it while a plugin loads, and a page that gains it later moves.
-  return { scope: [connectionFace(connection), namespacesFace(namespace === '' ? 'Unknown' : namespace)], source };
+  return {
+    scope: [connectionFace(connection), namespacesFace(namespace === '' ? 'Unknown' : namespace)],
+    source,
+  };
 }

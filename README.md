@@ -20,14 +20,29 @@
 ## The new UI on `feature/ui-next`
 
 This is the long-lived branch of the new UI (decision A16 of [omniviewdev/omniview](https://github.com/omniviewdev/omniview), `docs/ui-next/decisions.md`).
-On it the `ui/` project **is** the new UI: no flavour switch, no sibling directory, and the old UI is deleted from the build. The Go plugin, `plugin.yaml` and
-`hack/package.sh` are unchanged; `main` keeps the old UI until the flip. Except for this section, the sections below that describe the UI (screens, tables,
+On it the `ui/` project **is** the new UI: no flavour switch, no sibling directory, and the old UI is deleted from the build.
+The native plugin and UI still ship together. `main` keeps the old UI until the flip. Except for this section, the sections below that describe the UI (screens, tables,
 editors, the old UI's tests and tooling) describe `main`; they are rewritten when this branch is promoted.
 
 **The bundle.** `ui/dist/assets/entry.js`, one SystemJS bundle that exports `contributionV1` (`ui/src/entry.ts`): the sidebar entry Workloads › Pods and the
 Pods list page with its data hook. It imports only `react`, `@omniviewdev/kit` and the runtime's curated `@omniviewdev/runtime/ui/v1`, all served by the
-host as shared modules; the host refuses a bundle that imports anything else, before it runs. `ui/vite/omniview.ts` fails the build on any other bare import
-and `ui/scripts/check-bundle.mjs` reads the finished bundle the way the host's loader does.
+host as shared modules. The extension SDK's pure builders and the owner's point references are bundled locally;
+`ui/scripts/check-bundle.mjs` rejects external imports the host does not share.
+
+**Public UI extension points.** The package [`@omniviewdev/kubernetes-extension-points@1.0.0`](ui/extension-points/index.ts) exposes these named root exports:
+
+| Export | Placement and meaning |
+| --- | --- |
+| `deploymentTabs` | Tabs inside the current Deployment. `kind` is `Deployment`; optional `replicas` is `spec.replicas`, not ready replicas. Optional `managedBy` is the Deployment's own `extensions.omniview.dev/managed-by` label, never a template label. |
+| `serviceTabs` | Tabs inside the current Service, with no scalar input. A view can separately request the `serviceNeighbors` read (`kubernetes/service-neighbors@1`): supported, authorized one-hop Ingress, EndpointSlice, Pod, address, and DNS alias relationships. Rows describe declarations, not network traffic. |
+| `terminalActions` | The menu **inside** a verified interactive Pod terminal. `kind` is `Pod`; optional `managedBy` comes from that Pod's own label. The session tab and the Pod Overview do not inherit it. |
+| `sidebarTools` | The Extensions group in the ordinary Kubernetes resource sidebar. Views receive no resource, connection or other input. |
+
+Import points from the package root. A binding and a related read require independent host consent. No contributor or grant ships here.
+The canonical owner build generates `assets/extensions.v1.json` alongside `assets/entry.js`; it evaluates no contributor code.
+An alternate `PLUGIN_ID` still packages ordinary Kubernetes UI, but does not claim the canonical owner's extension points.
+For independent development before publication, install the tarball from `ui/vendor/` through a local registry or a package-manager override;
+keep the direct dependency pinned to the exact public version in the consuming project's `package.json`.
 
 **Where the Pods code came from.** `ui/src/pods/` is the Pods scaffolding the host kept in `ui-next/k8s/` and `ui-next/pods/` while the plugin had no new UI,
 moved here with its tests: the branch's history has the move byte for byte, then what it changed.
@@ -37,8 +52,8 @@ moved here with its tests: the branch's history has the move byte for byte, then
 `ui/src/palette/shortNames.ts`, held by `shortNames.test.ts` to a real server's API discovery (the catalog does not carry them). A host that predates the keywords loads the
 plugin and ignores them. Resource search will be a `search` provider of the plugin's, later.
 
-**What it builds against.** The kit and the runtime's `ui/v1` entry are not on npm yet (no dist-tag). `ui/vendor/` holds them as packed tarballs of one commit
-of the host (`ui/vendor/HOST_COMMIT`), next to the host's list of shared names, and `ui/src/contract/` holds the contract's types, vendored as types only.
+**What it builds against.** `ui/vendor/` holds the kit, runtime and Vite compiler from one host commit
+(`ui/vendor/HOST_COMMIT`), the host's list of shared names, and this owner's compiled point package. `ui/src/contract/` holds the host contract as types only.
 To build against another host commit, from a clean checkout of it (never the owner's working tree):
 
 ```sh

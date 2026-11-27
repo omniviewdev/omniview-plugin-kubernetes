@@ -1,3 +1,5 @@
+import { sidebarTools } from '@omniviewdev/kubernetes-extension-points';
+
 import type { ContributionV1 } from './contract/v1';
 import { kindPages, sidebarNodes } from './kinds';
 import { LANDING_PAGE } from './landing/entry';
@@ -6,6 +8,7 @@ import { OVERVIEW_PAGE } from './overview/entry';
 import { overviewPage } from './overview/page';
 import { podPage } from './pod';
 import { podLogsCard } from './pod/logs/card';
+import { usePodTerminalMenu } from './pod/terminal/menu';
 import { useSidebarNodes } from './sidebar/useSidebarNodes';
 
 // The bundle's one export: what this plugin contributes to the new shell (contribution contract, version 1). The host loads `assets/entry.js`, reads this
@@ -23,6 +26,7 @@ export const contributionV1 = {
   sidebar: {
     label: 'Kubernetes resources',
     title: 'Resources',
+    outlet: sidebarTools.id,
     pluginScope: { title: 'Connections', label: 'Kubernetes connections' },
     nodes: sidebarNodes(),
     useNodes: useSidebarNodes,
@@ -30,5 +34,7 @@ export const contributionV1 = {
   pages: { [OVERVIEW_PAGE]: overviewPage, ...kindPages(), pod: podPage, ...landingPages },
   home: OVERVIEW_PAGE,
   landing: LANDING_PAGE,
-  panel: { sessions: { logs: { card: podLogsCard } } },
+  panel: {
+    sessions: { logs: { card: podLogsCard }, terminal: { useMenuOutlet: usePodTerminalMenu } },
+  },
 } satisfies ContributionV1;

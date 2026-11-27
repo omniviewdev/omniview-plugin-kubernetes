@@ -2,9 +2,8 @@ import path from 'node:path';
 import type { Plugin } from 'vite';
 
 /**
- * A new-UI bundle imports its own files and the names the host shares with it (`vendor/shared-specifiers.json`: React, the kit and the runtime's
- * `ui/v1` entry), and nothing else: the host refuses a bundle that imports another bare name before it runs a line of it. Those names are `external` in
- * the build, so this plugin sees only the others, and it fails the build on the first one: a bundle never carries its own copy of React.
+ * Only the host's shared names may remain external. Two pure extension-authoring packages are instead
+ * compiled into the owner's page. A second copy of React, kit or the shared data hooks is never bundled.
  */
 export function sealedImports(): Plugin {
   return {
@@ -12,11 +11,25 @@ export function sealedImports(): Plugin {
     apply: 'build',
     enforce: 'pre',
     resolveId(source, importer) {
-      if (importer === undefined || source.startsWith('\0') || source.startsWith('virtual:') || source.startsWith('.') || path.isAbsolute(source)) {
+      if (
+        importer === undefined ||
+        source.startsWith('\0') ||
+        source.startsWith('virtual:') ||
+        source.startsWith('.') ||
+        path.isAbsolute(source)
+      ) {
+        return null;
+      }
+      if (
+        source === '@omniviewdev/kubernetes-extension-points' ||
+        source === '@omniviewdev/runtime/ui/extensions/v1'
+      ) {
         return null;
       }
 
-      this.error(`"${source}" (imported by ${importer}) is not on the host's shared list (ui/vendor/shared-specifiers.json); a new-UI bundle imports only its own files and those names`);
+      this.error(
+        `"${source}" (imported by ${importer}) is not on the host's shared list (ui/vendor/shared-specifiers.json); a new-UI bundle imports only its own files and those names`,
+      );
     },
   };
 }
@@ -32,12 +45,16 @@ export function foldCssIntoLayer(pluginId: string): Plugin {
     apply: 'build',
     enforce: 'post',
     generateBundle(_options, bundle) {
-      const sheets = Object.values(bundle).filter((file) => file.type === 'asset' && file.fileName.endsWith('.css'));
+      const sheets = Object.values(bundle).filter(
+        (file) => file.type === 'asset' && file.fileName.endsWith('.css'),
+      );
       if (sheets.length === 0) {
         return;
       }
 
-      const css = sheets.map((file) => (file.type === 'asset' ? String(file.source) : '')).join('\n');
+      const css = sheets
+        .map((file) => (file.type === 'asset' ? String(file.source) : ''))
+        .join('\n');
       for (const sheet of sheets) {
         delete bundle[sheet.fileName];
       }

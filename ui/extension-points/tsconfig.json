@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "skipLibCheck": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "target": "ES2022",
+    "declaration": true,
+    "noEmitOnError": true,
+    "types": [],
+    "rootDir": ".",
+    "outDir": "dist"
+  },
+  "files": ["index.ts"]
+}

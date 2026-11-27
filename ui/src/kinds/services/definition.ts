@@ -1,3 +1,4 @@
+import { servicePlacement } from '../../extensions/details';
 import { column, typeOf, type KindDefinition } from '../definition';
 import { ageCell, namesCell, textCell } from '../display';
 
@@ -32,13 +33,39 @@ export const serviceDefinition: KindDefinition<ServiceRow> = {
     quickFilters: [],
   },
   fields: [
-    { id: 'name', sortValue: (row) => row.name, display: (row) => ({ kind: 'text', text: row.name }) },
-    { id: 'type', sortValue: (row) => row.type, display: ({ type }) => textCell(type, 'The Service states no type.') },
-    { id: 'clusterIP', sortValue: (row) => row.clusterIP, display: ({ clusterIP }) => textCell(clusterIP, 'The Service has no cluster address.', true) },
+    {
+      id: 'name',
+      sortValue: (row) => row.name,
+      display: (row) => ({ kind: 'text', text: row.name }),
+    },
+    {
+      id: 'type',
+      sortValue: (row) => row.type,
+      display: ({ type }) => textCell(type, 'The Service states no type.'),
+    },
+    {
+      id: 'clusterIP',
+      sortValue: (row) => row.clusterIP,
+      display: ({ clusterIP }) => textCell(clusterIP, 'The Service has no cluster address.', true),
+    },
     // Every port, joined by a comma and a space (the mock's `Cell.mono(value.join(', '))`); the column cuts what does not fit.
-    { id: 'ports', sortValue: (row) => row.ports?.join(', '), display: ({ ports }) => namesCell(ports, Infinity, 'The Service has no ports.', true) },
-    { id: 'age', sortValue: (row) => row.createdAt, display: ({ createdAt }, now) => ageCell(createdAt, now, 'The Service has no creation time.') },
+    {
+      id: 'ports',
+      sortValue: (row) => row.ports?.join(', '),
+      display: ({ ports }) => namesCell(ports, Infinity, 'The Service has no ports.', true),
+    },
+    {
+      id: 'age',
+      sortValue: (row) => row.createdAt,
+      display: ({ createdAt }, now) => ageCell(createdAt, now, 'The Service has no creation time.'),
+    },
   ],
   // The page of one Service (`./detail.ts`), drawn by the generic detail page.
-  detail: { page: 'service', identity: ['namespace', 'name'], overview: serviceOverview, commands: serviceCommands },
+  detail: {
+    page: 'service',
+    identity: ['namespace', 'name'],
+    overview: serviceOverview,
+    commands: serviceCommands,
+    placeExtensions: servicePlacement,
+  },
 };

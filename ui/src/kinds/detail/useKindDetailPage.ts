@@ -3,6 +3,7 @@ import { useEffect, useMemo } from 'react';
 
 import { connectionFace, namespacesFace, useChosenConnection } from '../../connection';
 import type { ContextV1, DetailPageViewV1, DetailSource, DetailState } from '../../contract/v1';
+import { locateObject } from '../../extensions/object';
 import type { KindCommands, KindDefinition, KindDetail, KindRow } from '../definition';
 import type { KindFailureKind } from '../state';
 
@@ -16,10 +17,14 @@ import { detailView } from './view';
 // Pod page's hook (`pod/usePodPage.ts`) generalised, and it knows no kind: what differs between kinds is the definition's `detail`.
 
 /** A kind that has a generic page: its definition has an overview. */
-export type DetailedKind<TRow extends KindRow = KindRow> = KindDefinition<TRow> & { readonly detail: KindDetail & { readonly overview: NonNullable<KindDetail['overview']> } };
+export type DetailedKind<TRow extends KindRow = KindRow> = KindDefinition<TRow> & {
+  readonly detail: KindDetail & { readonly overview: NonNullable<KindDetail['overview']> };
+};
 
 /** Whether the kind has a page of one object that the generic page draws. */
-export const hasOverview = <TRow extends KindRow>(kind: KindDefinition<TRow>): kind is DetailedKind<TRow> => kind.detail?.overview !== undefined;
+export const hasOverview = <TRow extends KindRow>(
+  kind: KindDefinition<TRow>,
+): kind is DetailedKind<TRow> => kind.detail?.overview !== undefined;
 
 /** What the page says an object is: its kind and its plural, its name, and where it lives (`namespace` is undefined for a kind that lives in no namespace). */
 export type ObjectWords = {
@@ -34,24 +39,42 @@ export type ObjectWords = {
  * sign-in always get the same generic text) or the raw detail of a connection that failed, so the page says the cause itself. A refusal is never said in the runtime's words: the plugin's own sentence
  * names what the user may not read (decision on the lists, Q2), and asking again cannot change it, so it has no Retry.
  */
-function sentence(kind: Exclude<KindFailureKind | 'not-found', 'denied'>, { kind: noun, plural }: ObjectWords): string {
+function sentence(
+  kind: Exclude<KindFailureKind | 'not-found', 'denied'>,
+  { kind: noun, plural }: ObjectWords,
+): string {
   switch (kind) {
-    case 'needs-sign-in': return 'The connection needs you to sign in.';
-    case 'unreachable': return 'The cluster did not answer.';
-    case 'unsupported': return `This cluster does not serve ${plural}.`;
-    case 'failed': return `The ${noun} could not be read.`;
-    case 'not-found': return 'This connection no longer exists.';
+    case 'needs-sign-in':
+      return 'The connection needs you to sign in.';
+    case 'unreachable':
+      return 'The cluster did not answer.';
+    case 'unsupported':
+      return `This cluster does not serve ${plural}.`;
+    case 'failed':
+      return `The ${noun} could not be read.`;
+    case 'not-found':
+      return 'This connection no longer exists.';
   }
 }
 
-const whereOf = ({ namespace }: ObjectWords): string => (namespace === undefined ? 'this cluster' : `namespace ${namespace}`);
+const whereOf = ({ namespace }: ObjectWords): string =>
+  namespace === undefined ? 'this cluster' : `namespace ${namespace}`;
 
-function failed(kind: KindFailureKind | 'not-found', message: string | undefined, view: KindObjectView, words: ObjectWords): DetailState {
+function failed(
+  kind: KindFailureKind | 'not-found',
+  message: string | undefined,
+  view: KindObjectView,
+  words: ObjectWords,
+): DetailState {
   if (kind === 'denied') {
-    return { kind: 'failed', message: `You do not have permission to read ${words.kind} ${words.name} in ${whereOf(words)}.` };
+    return {
+      kind: 'failed',
+      message: `You do not have permission to read ${words.kind} ${words.name} in ${whereOf(words)}.`,
+    };
   }
 
-  const said = kind === 'failed' && message !== undefined && message !== '' ? message : sentence(kind, words);
+  const said =
+    kind === 'failed' && message !== undefined && message !== '' ? message : sentence(kind, words);
   // Where asking again cannot help (a cluster that serves no such kind, a connection that is gone) a Retry would be a button that does nothing.
   if (kind === 'unsupported' || kind === 'not-found') {
     return { kind: 'failed', message: said };
@@ -79,13 +102,25 @@ export function detailState(view: KindObjectView, words: ObjectWords): DetailSta
       // The object's snapshot was read whole and it is not in it. When the page had the object, its source has said it is gone: it was deleted while the page was open, and the title says so (the mock's "<name> was deleted"
       // over "It no longer exists in <where>."). Otherwise it never was there for this page: no title, so the page's own, "<name> was not found", stands over the message.
       return view.deleted
-        ? { kind: 'not-found', title: deletedTitle(words.name), message: `It no longer exists in ${whereOf(words)}.` }
-        : { kind: 'not-found', message: `${words.kind} ${words.name} doesn't exist in ${whereOf(words)}. It may have been deleted.` };
+        ? {
+            kind: 'not-found',
+            title: deletedTitle(words.name),
+            message: `It no longer exists in ${whereOf(words)}.`,
+          }
+        : {
+            kind: 'not-found',
+            message: `${words.kind} ${words.name} doesn't exist in ${whereOf(words)}. It may have been deleted.`,
+          };
     case 'loaded':
       // A failure that came after the object is kept beside it: the page keeps showing it and says so in the header.
-      return failure === undefined ? { kind: 'ready' } : failed(failure.kind, failure.message, view, words);
+      return failure === undefined
+        ? { kind: 'ready' }
+        : failed(failure.kind, failure.message, view, words);
     case 'denied':
-      return { kind: 'denied', message: `You do not have permission to read ${words.kind} ${words.name} in ${whereOf(words)}.` };
+      return {
+        kind: 'denied',
+        message: `You do not have permission to read ${words.kind} ${words.name} in ${whereOf(words)}.`,
+      };
     case 'unsupported':
       return failed('unsupported', undefined, view, words);
     case 'needs-sign-in':
@@ -100,12 +135,22 @@ export function detailState(view: KindObjectView, words: ObjectWords): DetailSta
  * The hook of the page of a kind's object. The read chain is `useKindObject`. A connection is never started by a read, so this page starts the one it finds stopped, once: the same development
  * shortcut as the lists and the Pod page, which 1a.7 removes in favour of an explicit Connect (plan D4). `resolve` says where a reference to another object goes (the registry knows the pages of the plugin).
  */
-export function useKindDetailPage(kind: DetailedKind, { plugin, route }: ContextV1, resolve: (ref: ObjectRef) => LinkTarget | undefined): DetailPageViewV1 {
+export function useKindDetailPage(
+  kind: DetailedKind,
+  { plugin, route }: ContextV1,
+  resolve: (ref: ObjectRef) => LinkTarget | undefined,
+): DetailPageViewV1 {
+  'use no memo'; // The source can renew a Service's witness without changing the record object. The ordinary overview is explicitly memoized below.
   const inNamespace = kind.detail.identity.length === 2;
   const name = route.params.name ?? '';
   const namespace = inNamespace ? (route.params.namespace ?? '') : undefined;
   const connection = useChosenConnection(plugin, route.connection);
-  const view = useKindObject(kind, { pluginID: plugin, connectionID: connection.chosen?.id, namespace, name });
+  const view = useKindObject(kind, {
+    pluginID: plugin,
+    connectionID: connection.chosen?.id,
+    namespace,
+    name,
+  });
   const { record, state, connect } = view;
   useEffect(() => {
     if (state.kind === 'disconnected') {
@@ -116,20 +161,54 @@ export function useKindDetailPage(kind: DetailedKind, { plugin, route }: Context
   // The identity a route names is its name, and its namespace for a kind that lives in one: without them there is no object to read, and none to find.
   const named = name !== '' && namespace !== '';
   const { overview: overviewOf, commands: commandsOf } = kind.detail;
-  const { overview, commands } = useMemo<{ readonly overview?: KindOverview; readonly commands?: KindCommands }>(
-    () => (record === undefined ? {} : { overview: overviewOf(record), commands: commandsOf?.(record) }),
+  const { overview, commands } = useMemo<{
+    readonly overview?: KindOverview;
+    readonly commands?: KindCommands;
+  }>(
+    () =>
+      record === undefined ? {} : { overview: overviewOf(record), commands: commandsOf?.(record) },
     [overviewOf, commandsOf, record],
   );
   const age = useAge(overview?.createdAt, compactAge);
-  const status: DetailState = named ? detailState(view, { kind: kind.kind, plural: kind.nouns.other, name, namespace }) : { kind: 'not-found' };
+  const status: DetailState = named
+    ? detailState(view, { kind: kind.kind, plural: kind.nouns.other, name, namespace })
+    : { kind: 'not-found' };
+  const { currentRecord } = view;
+  const { page, placeExtensions } = kind.detail;
+  const selected = connection.chosen?.id;
+  const eligible =
+    placeExtensions &&
+    status.kind === 'ready' &&
+    !view.refreshing &&
+    plugin === 'kubernetes' &&
+    route.page === page &&
+    route.connection === selected &&
+    !Object.hasOwn(route.params, 'connection');
+  const object = eligible
+    ? locateObject(currentRecord, route.connection, namespace, name, kind.type, kind.kind)
+    : undefined;
+  // A reset can renew the native witness for the same record object. Never cache the old witness under the record's identity.
+  const placement = object && placeExtensions?.(object);
+  const ordinary =
+    overview !== undefined && (status.kind === 'ready' || status.kind === 'failed')
+      ? detailView(overview, { kind: kind.kind, namespace, age, commands, resolve })
+      : undefined;
   const source: DetailSource = {
     state: status,
     // The object is on screen while it is read, and after a failure that came once it was: a failure does not take away what was shown.
-    view: overview !== undefined && (status.kind === 'ready' || status.kind === 'failed') ? detailView(overview, { kind: kind.kind, namespace, age, commands, resolve }) : undefined,
+    view: ordinary && placement ? { ...ordinary, ...placement } : ordinary,
     refreshing: view.refreshing,
     refresh: view.refresh,
   };
 
   // The lane is declared from the first render, whatever is not known yet (`connectionFace`): the host reserves it while a plugin loads, and a page that gains it later moves.
-  return { scope: [connectionFace(connection), ...(namespace === undefined ? [] : [namespacesFace(namespace === '' ? 'Unknown' : namespace)])], source };
+  return {
+    scope: [
+      connectionFace(connection),
+      ...(namespace === undefined
+        ? []
+        : [namespacesFace(namespace === '' ? 'Unknown' : namespace)]),
+    ],
+    source,
+  };
 }

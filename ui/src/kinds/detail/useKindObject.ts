@@ -1,4 +1,11 @@
-import { useConnectionReadiness, useResolvedResourceTarget, useResourceTypes, useResources, type HostRecord, type QueryScope } from '@omniviewdev/runtime/ui/v1';
+import {
+  useConnectionReadiness,
+  useResolvedResourceTarget,
+  useResourceTypes,
+  useResources,
+  type HostRecord,
+  type QueryScope,
+} from '@omniviewdev/runtime/ui/v1';
 import { useCallback, useMemo, useState } from 'react';
 
 import type { KindDetail } from '../definition';
@@ -20,6 +27,8 @@ export type KindObjectView = {
   readonly failure: KindFailure | undefined;
   /** The record of the object, once its source view has a complete snapshot and the object is in it. It stays while a refresh runs and after a failure that follows it. */
   readonly record: HostRecord | undefined;
+  /** Original record of this exact, healthy acquisition. A retained record may still be drawn but cannot supply an outlet or launch. */
+  readonly currentRecord: HostRecord | undefined;
   /** The page has shown this object and its source has since said it is gone: it was deleted while its page was open. False for an object the page never had, which is not found, and while the read is anything but a complete snapshot without it. */
   readonly deleted: boolean;
   /** The source follows the cluster. */
@@ -45,35 +54,75 @@ export type UseKindObjectOptions = {
 };
 
 /** A record is the object when its address says so: the host's identity of the object, not a field of its body. The view holds that one record; the check keeps the page from showing another object should a view ever hold more. */
-function isTheObject({ record }: HostRecord, inNamespace: boolean, namespace: string | undefined, name: string): boolean {
+function isTheObject(
+  { record }: HostRecord,
+  inNamespace: boolean,
+  namespace: string | undefined,
+  name: string,
+): boolean {
   const { address } = record.reference;
-  return address.id === name && (!inNamespace || address.scope.some((entry) => entry.dimension === 'namespace' && entry.value === namespace));
+  return (
+    address.id === name &&
+    (!inNamespace ||
+      address.scope.some((entry) => entry.dimension === 'namespace' && entry.value === namespace))
+  );
 }
 
 /**
  * One object of a connection, read through the runtime's fenced hooks only: the catalog, the resolved target of that one object, then the collection of its source view, live when the type
  * advertises it. The collection is the object's own complete snapshot, so an object that is not in it is not there (`empty`), and one that leaves it later is gone.
  */
-export function useKindObject(kind: { readonly type: string; readonly detail: Pick<KindDetail, 'identity'> }, { pluginID = PLUGIN_ID, connectionID, namespace, name }: UseKindObjectOptions): KindObjectView {
+export function useKindObject(
+  kind: { readonly type: string; readonly detail: Pick<KindDetail, 'identity'> },
+  { pluginID = PLUGIN_ID, connectionID, namespace, name }: UseKindObjectOptions,
+): KindObjectView {
   const inNamespace = kind.detail.identity.length === 2;
-  const reading = connectionID !== undefined && name !== '' && (!inNamespace || (namespace !== undefined && namespace !== ''));
+  const reading =
+    connectionID !== undefined &&
+    name !== '' &&
+    (!inNamespace || (namespace !== undefined && namespace !== ''));
   const route = useMemo(() => ({ connection: connectionID ?? '' }), [connectionID]);
-  const readiness = useConnectionReadiness({ pluginID, connectionID: route.connection, enabled: reading });
+  const readiness = useConnectionReadiness({
+    pluginID,
+    connectionID: route.connection,
+    enabled: reading,
+  });
   const { resourceTypes } = useResourceTypes({ pluginID, route, enabled: reading });
   const served = resourceTypes.data?.find((type) => type.type === kind.type);
   const scope = useMemo<QueryScope>(
-    () => [...(inNamespace ? [{ dimension: 'namespace', match: 'oneOf' as const, values: [namespace ?? ''] }] : []), { dimension: 'name', match: 'oneOf' as const, values: [name] }],
+    () => [
+      ...(inNamespace
+        ? [{ dimension: 'namespace', match: 'oneOf' as const, values: [namespace ?? ''] }]
+        : []),
+      { dimension: 'name', match: 'oneOf' as const, values: [name] },
+    ],
     [inNamespace, namespace, name],
   );
-  const target = useResolvedResourceTarget({ pluginID, route, type: kind.type, scope, enabled: served !== undefined && reading });
-  const request = target.data === undefined ? undefined : { targetId: target.data.targetId, request: { target: target.data.target, pageSize: FIRST_SET } };
-  const live = served?.capabilities.some((capability) => capability.operation === 'sourceUpdates') ?? false;
+  const target = useResolvedResourceTarget({
+    pluginID,
+    route,
+    type: kind.type,
+    scope,
+    enabled: served !== undefined && reading,
+  });
+  const request =
+    !reading || !served || target.data === undefined
+      ? undefined
+      : {
+          targetId: target.data.targetId,
+          request: { target: target.data.target, pageSize: FIRST_SET },
+        };
+  const live =
+    served?.capabilities.some((capability) => capability.operation === 'sourceUpdates') ?? false;
 
   const collection = useResources({ pluginID, request, collection: true, live });
   const everything = collection.resources.data;
   const connected = readiness.phase === 'connected';
   const records = connected ? everything?.records : undefined;
-  const record = useMemo(() => records?.find((host) => isTheObject(host, inNamespace, namespace, name)), [records, inNamespace, namespace, name]);
+  const record = useMemo(
+    () => records?.find((host) => isTheObject(host, inNamespace, namespace, name)),
+    [records, inNamespace, namespace, name],
+  );
   // What the page has shown: an object that leaves its source view after it was on this page was deleted, and one that never was there was never found. The memory is of this object alone: a route that moves to another starts it again.
   const identity = `${connectionID ?? ''}\n${namespace ?? ''}\n${name}`;
   const [shown, setShown] = useState<string | undefined>(undefined);
@@ -85,7 +134,11 @@ export function useKindObject(kind: { readonly type: string; readonly detail: Pi
   const { state, failure } = readKindState({
     phase: readiness.phase,
     message: readiness.message,
-    catalog: { loaded: resourceTypes.data !== undefined, offersType: served !== undefined, error: resourceTypes.error },
+    catalog: {
+      loaded: resourceTypes.data !== undefined,
+      offersType: served !== undefined,
+      error: resourceTypes.error,
+    },
     target: { error: target.error },
     read: { error: collection.resources.error, source: collection.source },
     rows: record === undefined ? 0 : 1,
@@ -100,28 +153,61 @@ export function useKindObject(kind: { readonly type: string; readonly detail: Pi
   const targetFailed = target.error !== null && target.error !== undefined;
 
   const retry = useCallback(
-    async () => settled(async () => {
-      if (!connected) {
-        return retryConnection();
-      }
+    async () =>
+      settled(async () => {
+        if (!connected) {
+          return retryConnection();
+        }
 
-      if (catalogFailed) {
-        return refetchCatalog();
-      }
+        if (catalogFailed) {
+          return refetchCatalog();
+        }
 
-      return targetFailed ? refetchTarget() : refetchCollection();
-    }),
-    [connected, catalogFailed, targetFailed, retryConnection, refetchCatalog, refetchTarget, refetchCollection],
+        return targetFailed ? refetchTarget() : refetchCollection();
+      }),
+    [
+      connected,
+      catalogFailed,
+      targetFailed,
+      retryConnection,
+      refetchCatalog,
+      refetchTarget,
+      refetchCollection,
+    ],
   );
-  const refresh = useCallback(async () => settled(async () => refetchCollection()), [refetchCollection]);
+  const refresh = useCallback(
+    async () => settled(async () => refetchCollection()),
+    [refetchCollection],
+  );
+  const refreshing = complete && (collection.resources.isFetching || collection.isSyncing);
+  const acquired = target.data;
+  const currentRecord =
+    record !== undefined &&
+    reading &&
+    state.kind === 'loaded' &&
+    failure === undefined &&
+    !refreshing &&
+    collection.isLive &&
+    collection.isAcquiredRequestCurrent &&
+    acquired !== undefined &&
+    record.targetId === acquired.targetId &&
+    acquired.target.type === kind.type &&
+    acquired.target.route.connection === connectionID &&
+    record.route.connection === connectionID &&
+    record.record.reference.address.authority === acquired.target.authority &&
+    record.record.reference.address.provider === acquired.target.provider &&
+    record.record.reference.address.type === kind.type
+      ? record
+      : undefined;
 
   return {
     state,
     failure,
     record,
+    currentRecord,
     deleted: state.kind === 'empty' && shown === identity,
     live: collection.isLive,
-    refreshing: complete && (collection.resources.isFetching || collection.isSyncing),
+    refreshing,
     connect,
     retry,
     refresh,
