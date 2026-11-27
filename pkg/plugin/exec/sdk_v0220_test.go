@@ -20,7 +20,7 @@ import (
 // (the SDK's shutdown does), so it has no code to change: this says what its sessions do now.
 func TestAnExecSessionStartedAfterTheManagerClosedIsAConnectionError(t *testing.T) {
 	var ran atomic.Int32
-	handler := podExecHandler()
+	handler := podExecHandler(nil)
 	handler.TTYHandler = func(*types.PluginContext, sdkexec.SessionOptions, *os.File, chan error, <-chan sdkexec.SessionResizeInput) error {
 		ran.Add(1)
 		return nil

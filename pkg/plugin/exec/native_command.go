@@ -122,7 +122,7 @@ func podNativeCommandWithProvider(provider nativeClientProvider, ctx *types.Plug
 	diagnostic.stage, diagnostic.operation = "execution", "plan"
 	command := opts.Command
 	if len(command) == 0 {
-		command = podExecHandler().DefaultCommand
+		command = podExecHandler(nil).DefaultCommand
 	}
 	args := make([]string, 0, 14+len(command))
 	args = append(args, "--kubeconfig", path, "--context", kubeContext, "--namespace", namespace,

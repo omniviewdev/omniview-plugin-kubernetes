@@ -135,7 +135,7 @@ func TestPodNativeCommandWithoutTTYAndDefaultCommand(t *testing.T) {
 	assert.NotContains(t, plan.Args, "--tty")
 	assert.Contains(t, plan.Args, "--stdin")
 	assert.Equal(t, []string{"--", "/bin/bash"}, plan.Args[len(plan.Args)-2:])
-	handler := podExecHandler()
+	handler := podExecHandler(nil)
 	assert.NotNil(t, handler.NativeCommandHandler)
 	assert.True(t, handler.ToProto().SupportsNativeCommand)
 }

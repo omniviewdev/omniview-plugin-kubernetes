@@ -19,7 +19,7 @@ import (
 )
 
 func TestPodRegistrationForwardsSessionResizesToRemoteQueue(t *testing.T) {
-	handler := podExecHandler()
+	handler := podExecHandler(nil)
 	assert.Equal(t, pluginid.ResourceProvider, handler.Plugin)
 	assert.Equal(t, "k8s:/pods", handler.Resource)
 	require.True(t, handler.HandlesResize)

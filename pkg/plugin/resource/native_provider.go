@@ -75,8 +75,12 @@ func newKubernetesProvider(logger *zap.SugaredLogger, retireMetrics func(string)
 		Catalog:             provider.catalog,
 		Registrations:       append(provider.helmAncillary.Registrations(), auditRegistration()),
 		ResolveRegistration: provider.registration,
-		ErrorClassifier:     &kubeErrorClassifier{},
-		ConnectionMetadata:  provider.connectionMetadataFacts,
+		RelatedReads: []resourcev2.RelatedReadRegistration[clients.ClientSet]{{
+			Operation: serviceNeighborsOperation, RootType: neighborServiceType,
+			Sources: []string{neighborServiceType, neighborIngressType, neighborSliceType, neighborPodType}, Read: readServiceNeighbors,
+		}},
+		ErrorClassifier:    &kubeErrorClassifier{},
+		ConnectionMetadata: provider.connectionMetadataFacts,
 		Lifecycle: &resourcev2.Lifecycle[clients.ClientSet]{
 			LoadConnections: provider.connections.LoadConnections,
 			CreateClient: func(ctx context.Context, _ types.Connection) (*clients.ClientSet, error) {
@@ -104,11 +108,11 @@ func nativeSpecializedHelpers(logger *zap.SugaredLogger, relationships map[strin
 		return []resourcers.Option{resourcers.WithRelationships(relationships[token])}
 	}
 	return map[string]any{
-		"k8s:/nodes":                                 resourcers.NewNodeResourcer(logger, opts("k8s:/nodes")...),
-		"k8s:/pods":                                  resourcers.NewPodResourcer(logger, opts("k8s:/pods")...),
-		"k8s:apps/deployments":                       resourcers.NewDeploymentResourcer(logger, opts("k8s:apps/deployments")...),
-		"k8s:apps/daemonsets":                        resourcers.NewDaemonSetResourcer(logger, opts("k8s:apps/daemonsets")...),
-		"k8s:apps/statefulsets":                      resourcers.NewStatefulSetResourcer(logger, opts("k8s:apps/statefulsets")...),
+		"k8s:/nodes":            resourcers.NewNodeResourcer(logger, opts("k8s:/nodes")...),
+		"k8s:/pods":             resourcers.NewPodResourcer(logger, opts("k8s:/pods")...),
+		"k8s:apps/deployments":  resourcers.NewDeploymentResourcer(logger, opts("k8s:apps/deployments")...),
+		"k8s:apps/daemonsets":   resourcers.NewDaemonSetResourcer(logger, opts("k8s:apps/daemonsets")...),
+		"k8s:apps/statefulsets": resourcers.NewStatefulSetResourcer(logger, opts("k8s:apps/statefulsets")...),
 		"k8s:autoscaling/horizontalpodautoscalers":   resourcers.NewHPAResourcer(logger, opts("k8s:autoscaling/horizontalpodautoscalers")...),
 		"k8s:batch/cronjobs":                         resourcers.NewCronJobResourcer(logger, opts("k8s:batch/cronjobs")...),
 		"k8s:rbac.authorization.k8s.io/rolebindings": resourcers.NewRoleBindingResourcer(logger, opts("k8s:rbac.authorization.k8s.io/rolebindings")...),

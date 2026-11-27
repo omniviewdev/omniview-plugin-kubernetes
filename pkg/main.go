@@ -145,10 +145,10 @@ func main() {
 
 	// Register the capabilities
 	retireMetrics := pluginmetric.Register(plugin)
-	borrowNativeClient := resource.Register(plugin, retireMetrics)
-	exec.Register(plugin)
+	borrowLogClient, borrowConnection := resource.Register(plugin, retireMetrics)
+	exec.Register(plugin, borrowConnection)
 	networker.Register(plugin)
-	pluginlogs.Register(plugin, borrowNativeClient)
+	pluginlogs.Register(plugin, borrowLogClient)
 
 	// Serve the plugin
 	plugin.Serve()

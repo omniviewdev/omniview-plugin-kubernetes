@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"k8s.io/streaming/pkg/httpstream"
 
 	"github.com/omniview/kubernetes/pkg/diag"
+	"github.com/omniview/kubernetes/pkg/plugin/resource/clients"
 	"github.com/omniview/kubernetes/pkg/pluginid"
 	"github.com/omniview/kubernetes/pkg/utils/remoteerr"
 	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
@@ -25,11 +27,11 @@ import (
 	"github.com/omniviewdev/plugin-sdk/pkg/v1/exec"
 )
 
-func Register(plugin *sdk.Plugin) {
+func Register(plugin *sdk.Plugin, borrow clients.Borrower) {
 	// Register the capabilities
 	if err := exec.RegisterPlugin(plugin, exec.PluginOpts{
 		Handlers: []exec.Handler{
-			podExecHandler(),
+			podExecHandler(borrow),
 			{
 				Plugin:         pluginid.ResourceProvider,
 				Resource:       "k8s:/nodes",
@@ -42,18 +44,20 @@ func Register(plugin *sdk.Plugin) {
 	}
 }
 
-func podExecHandler() exec.Handler {
+func podExecHandler(borrow clients.Borrower) exec.Handler {
 	return exec.Handler{
 		Plugin:               pluginid.ResourceProvider,
 		Resource:             "k8s:/pods",
-		TTYHandler:           PodHandler,
+		TTYHandler:           podSessionHandler(borrow),
 		NativeCommandHandler: podNativeCommand,
 		HandlesResize:        true,
-		DefaultCommand:       []string{"/bin/bash"},
+		DefaultCommand:       []string{podDefaultShell},
 		TargetBuilder: exec.ActionTargetBuilder{
-			Paths: []string{"$.spec.containers[*]"},
+			Paths: []string{"$.status.containerStatuses[*]"},
 			Selectors: map[string]string{
-				"container": "$.name",
+				"container":        "$.name",
+				"containerID":      "$.containerID",
+				"containerRestart": "$.restartCount",
 			},
 			LabelSelector: "container",
 		},
@@ -235,6 +239,23 @@ func streamPod(
 	stopChan chan error,
 	resize <-chan exec.SessionResizeInput,
 ) error {
+	run, err := preparePodStream(ctx, client, config, namespace, pod, container, command, attach, tty, resize)
+	if err != nil {
+		return err
+	}
+	go func() {
+		err := run()
+		select {
+		case stopChan <- err:
+		case <-ctx.Done():
+		}
+	}()
+	return nil
+}
+
+// The caller owns the returned stream's lifetime. A resource-bound shell
+// keeps its authenticated generation leased until this function finishes.
+func preparePodStream(ctx context.Context, client kubernetes.Interface, config *restclient.Config, namespace, pod, container string, command []string, attach bool, tty io.ReadWriter, resize <-chan exec.SessionResizeInput) (func() error, error) {
 	subresource := "exec"
 	if attach {
 		subresource = "attach"
@@ -248,19 +269,19 @@ func streamPod(
 	spdy, err := remotecommand.NewSPDYExecutor(config, "POST", req.URL())
 	if err != nil {
 		execBuildFailed(ctx, "spdy", err)
-		return remoteerr.Sanitize("build exec executor", err)
+		return nil, remoteerr.Sanitize("build exec executor", err)
 	}
 	ws, err := remotecommand.NewWebSocketExecutor(config, "GET", req.URL().String())
 	if err != nil {
 		execBuildFailed(ctx, "websocket", err)
-		return remoteerr.Sanitize("build exec executor", err)
+		return nil, remoteerr.Sanitize("build exec executor", err)
 	}
 	executor, err := remotecommand.NewFallbackExecutor(ws, spdy, httpstream.IsUpgradeFailure)
 	if err != nil {
 		execBuildFailed(ctx, "websocket", err)
-		return remoteerr.Sanitize("build exec executor", err)
+		return nil, remoteerr.Sanitize("build exec executor", err)
 	}
-	go func() {
+	return func() error {
 		started := time.Now()
 		var diagnostic *execDiagnostic
 		if parent, ok := ctx.Value(execDiagnosticKey{}).(*execDiagnostic); ok {
@@ -286,12 +307,8 @@ func streamPod(
 		} else if streamErr != nil {
 			streamErr = remoteerr.Sanitize("exec attach", streamErr)
 		}
-		select {
-		case stopChan <- streamErr:
-		case <-ctx.Done():
-		}
-	}()
-	return nil
+		return streamErr
+	}, nil
 }
 
 // classifyExecError inspects a Kubernetes exec error and returns a structured

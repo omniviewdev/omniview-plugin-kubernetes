@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/omniview/kubernetes/pkg/diag"
+	resourcev2 "github.com/omniviewdev/plugin-sdk/pkg/resource/v2"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -22,6 +23,10 @@ import (
 )
 
 const DefaultResyncPeriod = 30 * time.Minute
+
+// Borrower holds the selected resource connection's actual client generation
+// until the callback returns. Retirement cancels the callback context.
+type Borrower func(context.Context, resourcev2.AccessRoute, func(context.Context, *ClientSet) error) error
 
 // ClientSet owns native sources only while consumers hold leases.
 type ClientSet struct {

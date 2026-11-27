@@ -13,13 +13,13 @@ import (
 
 // Register installs the single resource v2 boundary. Unrelated plugin services
 // retain their existing transport version and independent registrations.
-func Register(plugin *sdk.Plugin, retireMetrics func(string)) func(context.Context, resourcev2.AccessRoute, func(context.Context, *kubernetes.Clientset) error) error {
+func Register(plugin *sdk.Plugin, retireMetrics func(string)) (func(context.Context, resourcev2.AccessRoute, func(context.Context, *kubernetes.Clientset) error) error, clients.Borrower) {
 	provider, err := newKubernetesProvider(zap.S(), retireMetrics)
 	if err != nil {
 		panic(fmt.Sprintf("failed to build resource provider: %v", err))
 	}
 	sdk.RegisterResourcePlugin(plugin, provider)
-	return provider.withStreamingClient
+	return provider.withStreamingClient, provider.WithClient
 }
 
 // withStreamingClient retains the sole SDK connection-generation lease until

@@ -276,7 +276,7 @@ func TestNativeExecSelectorsRemainCanonicalUnderAlternateInstallationID(t *testi
 		assert.Equal(t, "native-name", name)
 		assert.Equal(t, "kubernetes", normalized.ResourcePlugin)
 		if namespaced {
-			assert.Equal(t, normalized.ResourcePlugin+"/"+normalized.ResourceKey, podExecHandler().ID())
+			assert.Equal(t, normalized.ResourcePlugin+"/"+normalized.ResourceKey, podExecHandler(nil).ID())
 		}
 
 		options.ResourcePlugin = pluginid.ID
